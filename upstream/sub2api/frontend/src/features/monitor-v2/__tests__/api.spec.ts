@@ -1,0 +1,192 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { get } = vi.hoisted(() => ({ get: vi.fn() }))
+
+vi.mock('@/api/client', () => ({ apiClient: { get } }))
+
+import { MonitorV2ContractError, getMonitorV2Snapshot, validateMonitorV2Snapshot } from '../api'
+
+const metric = { state: 'available', value: 420, sample_count: 20 }
+const timeline = Array.from({ length: 28 }, (_, index) => ({
+  bucket_start: new Date(Date.UTC(2026, 6, 29, 6 + index * 6)).toISOString(),
+  status: 'operational',
+  latency_ms: 1320,
+  has_result: true,
+}))
+const validPayload = {
+  contract_version: '9',
+  refresh_interval_seconds: 300,
+  window: '7d',
+  generated_at: '2026-07-29T12:00:00Z',
+  groups: [{
+    id: 7,
+    name: 'GPT-Pro',
+    platform: 'openai',
+    rate_multiplier: 1,
+    peak_rate_enabled: false,
+    peak_start: '',
+    peak_end: '',
+    peak_rate_multiplier: 1,
+    status: 'operational',
+    availability: { ...metric, value: 99 },
+    ttft: metric,
+    average_latency: { ...metric, value: 10000 },
+    source_updated_at: '2026-07-29T11:59:00Z',
+    timeline,
+  }],
+}
+
+describe('Monitor V2 API contract', () => {
+  beforeEach(() => get.mockReset())
+
+  it('returns a validated version 9 snapshot with explicit probe-result evidence', async () => {
+    get.mockResolvedValue({ data: validPayload })
+
+    const snapshot = await getMonitorV2Snapshot('7d')
+
+    expect(get).toHaveBeenCalledWith('/monitor-v2', {
+      params: { window: '7d' },
+      signal: undefined,
+    })
+    expect(snapshot.groups[0]).toMatchObject({ name: 'GPT-Pro', availability: { value: 99 } })
+    expect(snapshot.groups[0].timeline[0].status).toBe('operational')
+    expect(snapshot.groups[0].timeline[0].has_result).toBe(true)
+    expect(snapshot.groups[0].source_updated_at).toBe('2026-07-29T11:59:00Z')
+    expect(snapshot.groups[0]).not.toHaveProperty('cache_hit')
+    expect(snapshot.groups[0].timeline[0]).not.toHaveProperty('success_count')
+  })
+
+  it('requires explicit timeline result evidence', () => {
+    const { has_result: _hasResult, ...withoutResultEvidence } = validPayload.groups[0].timeline[0]
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: [{
+        ...validPayload.groups[0],
+        timeline: validPayload.groups[0].timeline.map((point, index) => index === 0 ? withoutResultEvidence : point),
+      }],
+    })).toThrow('has_result')
+  })
+
+  it('rejects unsupported contract versions and non-binary states', () => {
+    expect(() => validateMonitorV2Snapshot({ ...validPayload, contract_version: '5' }))
+      .toThrow(MonitorV2ContractError)
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: [{ ...validPayload.groups[0], status: 'degraded' }],
+    })).toThrow('status is unsupported')
+  })
+
+  it('rejects legacy percentage and request-result fields', () => {
+    for (const legacy of [
+      { availability: { state: 'available', value: 99, sample_count: 10, success_count: 9, eligible_count: 10 } },
+      { cache_hit: { state: 'available', value: 40, sample_count: 10 } },
+      { is_flagship: true },
+      { ttft_p95: { ...metric, value: 880 } },
+      { timeline: [{ ...validPayload.groups[0].timeline[0], success_count: 10 }] },
+    ]) {
+      expect(() => validateMonitorV2Snapshot({
+        ...validPayload,
+        groups: [{ ...validPayload.groups[0], ...legacy }],
+      })).toThrow(MonitorV2ContractError)
+    }
+  })
+
+  it('rejects invalid metrics, arrays, strings and refresh intervals', () => {
+    expect(() => validateMonitorV2Snapshot({ ...validPayload, refresh_interval_seconds: 15 }))
+      .toThrow('refresh_interval_seconds')
+    expect(() => validateMonitorV2Snapshot({ ...validPayload, groups: {} }))
+      .toThrow('groups')
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: [{ ...validPayload.groups[0], name: 'a'.repeat(257) }],
+    })).toThrow('name')
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: [{ ...validPayload.groups[0], ttft: { ...metric, sample_count: 0 } }],
+    })).toThrow('ttft.sample_count')
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: [{ ...validPayload.groups[0], ttft: { state: 'legacy_state', value: null, sample_count: 0 } }],
+    })).toThrow('ttft.state')
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: [{ ...validPayload.groups[0], source_updated_at: 'not-a-timestamp' }],
+    })).toThrow('source_updated_at')
+  })
+
+  it('accepts configured refresh intervals', () => {
+    for (const refreshIntervalSeconds of [0, 30, 60, 300, 600]) {
+      expect(validateMonitorV2Snapshot({
+        ...validPayload,
+        refresh_interval_seconds: refreshIntervalSeconds,
+      })).toMatchObject({ refresh_interval_seconds: refreshIntervalSeconds })
+    }
+  })
+
+  it('rejects duplicate groups and oversized arrays', () => {
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: [validPayload.groups[0], validPayload.groups[0]],
+    })).toThrow('duplicate group id')
+
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: Array.from({ length: 101 }, (_, index) => ({
+        ...validPayload.groups[0],
+        id: index + 1,
+      })),
+    })).toThrow('at most 100')
+
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: [{
+        ...validPayload.groups[0],
+        timeline: Array.from({ length: 65 }, (_, index) => ({
+          ...validPayload.groups[0].timeline[0],
+          bucket_start: new Date(Date.UTC(2026, 6, 1, 0, index)).toISOString(),
+        })),
+      }],
+    })).toThrow('timeline')
+  })
+
+  it('requires the fixed timeline length for each window', () => {
+    for (const [window, expectedLength] of [['1h', 12], ['24h', 24], ['7d', 28] ] as const) {
+      const timeline = Array.from({ length: expectedLength - 1 }, (_, index) => ({
+        ...validPayload.groups[0].timeline[0],
+        bucket_start: new Date(Date.UTC(2026, 6, 1, index)).toISOString(),
+      }))
+      expect(() => validateMonitorV2Snapshot({
+        ...validPayload,
+        window,
+        groups: [{ ...validPayload.groups[0], timeline }],
+      })).toThrow(`timeline must contain exactly ${expectedLength} points`)
+    }
+  })
+
+  it('requires native availability and average latency metrics', () => {
+    const { availability: _availability, ...groupWithoutAvailability } = validPayload.groups[0]
+
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: [groupWithoutAvailability],
+    })).toThrow('availability')
+
+    const { average_latency: _averageLatency, ...groupWithoutAverageLatency } = validPayload.groups[0]
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: [groupWithoutAverageLatency],
+    })).toThrow('average_latency')
+  })
+
+  it('rejects incomplete enabled peak pricing rules', () => {
+    expect(() => validateMonitorV2Snapshot({
+      ...validPayload,
+      groups: [{
+        ...validPayload.groups[0],
+        peak_rate_enabled: true,
+        peak_start: '',
+        peak_end: '',
+      }],
+    })).toThrow('peak_start')
+  })
+})

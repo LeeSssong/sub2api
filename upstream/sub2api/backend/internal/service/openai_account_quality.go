@@ -1,0 +1,192 @@
+package service
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"golang.org/x/sync/singleflight"
+)
+
+// OpenAIAccountQuality is the account-level, non-image quality projection used
+// by the unified scheduler. U is deliberately absent: effective cost is read
+// live from EffectiveCostForAccount at candidate-build time.
+type OpenAIQualityWindow string
+
+const (
+	OpenAIQualityWindow1H  OpenAIQualityWindow = "w1"
+	OpenAIQualityWindow24H OpenAIQualityWindow = "w24"
+	OpenAIQualityWindow7D  OpenAIQualityWindow = "w7"
+)
+
+type OpenAIQualityWindowMetrics struct {
+	AttemptCount              int64
+	SuccessCount              int64
+	SuccessRate               *float64
+	TTFTSampleCount           int64
+	TTFTP50MS                 *float64
+	TTFTP90MS                 *float64
+	OutputRateSampleCount     int64
+	OutputRateTokensPerSecond *float64
+}
+
+type OpenAIAccountQuality struct {
+	AccountID int64
+	Windows   map[OpenAIQualityWindow]OpenAIQualityWindowMetrics
+	// Legacy aggregate fields remain additive for callers not yet migrated.
+	AttemptCount         int64
+	SuccessCount         int64
+	SuccessRate          *float64
+	TTFTSampleCount      int64
+	TTFTTrimmedMeanMS    *float64
+	LatencySampleCount   int64
+	LatencyTrimmedMeanMS *float64
+}
+
+// OpenAIAccountQualityRepository is the narrow read-only repository contract
+// consumed by the scheduler. The broader UsageLogRepository remains unchanged
+// for compatibility with existing test doubles and services.
+type OpenAIAccountQualityRepository interface {
+	ListOpenAIAccountQuality(ctx context.Context, start, end time.Time) ([]OpenAIAccountQuality, error)
+}
+
+type OpenAIAccountQualitySnapshot struct {
+	WindowStart time.Time
+	WindowEnd   time.Time
+	SnapshotAt  time.Time
+	Stale       bool
+	Accounts    map[int64]OpenAIAccountQuality
+}
+
+type OpenAIAccountQualitySnapshotProvider interface {
+	Snapshot(ctx context.Context) OpenAIAccountQualitySnapshot
+}
+
+type openAIAccountQualitySnapshotProvider struct {
+	repo            OpenAIAccountQualityRepository
+	ttl             time.Duration
+	refreshInterval time.Duration
+	now             func() time.Time
+
+	mu                 sync.Mutex
+	last               OpenAIAccountQualitySnapshot
+	hasLast            bool
+	lastRefreshAttempt time.Time
+	refresh            singleflight.Group
+}
+
+func NewOpenAIAccountQualitySnapshotProvider(repo OpenAIAccountQualityRepository, ttl time.Duration, now func() time.Time) OpenAIAccountQualitySnapshotProvider {
+	return NewOpenAIAccountQualitySnapshotProviderWithRefreshInterval(repo, ttl, ttl, now)
+}
+
+func NewOpenAIAccountQualitySnapshotProviderWithRefreshInterval(repo OpenAIAccountQualityRepository, ttl, refreshInterval time.Duration, now func() time.Time) OpenAIAccountQualitySnapshotProvider {
+	if ttl <= 0 {
+		ttl = time.Minute
+	}
+	if refreshInterval <= 0 {
+		refreshInterval = ttl
+	}
+	if now == nil {
+		now = time.Now
+	}
+	return &openAIAccountQualitySnapshotProvider{repo: repo, ttl: ttl, refreshInterval: refreshInterval, now: now}
+}
+
+func (p *openAIAccountQualitySnapshotProvider) Snapshot(ctx context.Context) OpenAIAccountQualitySnapshot {
+	if p == nil {
+		return OpenAIAccountQualitySnapshot{Stale: true, Accounts: map[int64]OpenAIAccountQuality{}}
+	}
+	if snapshot, ok := p.cached(p.now()); ok {
+		return snapshot
+	}
+	if p.refreshThrottled(p.now()) {
+		return p.staleOrColdStart()
+	}
+
+	value, _, _ := p.refresh.Do("openai-account-quality", func() (any, error) {
+		if snapshot, ok := p.cached(p.now()); ok {
+			return snapshot, nil
+		}
+		if p.repo == nil {
+			return p.coldStartFailure(), nil
+		}
+
+		end := p.now()
+		p.mu.Lock()
+		p.lastRefreshAttempt = end
+		p.mu.Unlock()
+		start := end.Add(-7 * 24 * time.Hour)
+		rows, err := p.repo.ListOpenAIAccountQuality(ctx, start, end)
+		if err != nil {
+			return p.staleOrColdStart(), nil
+		}
+		accounts := make(map[int64]OpenAIAccountQuality, len(rows))
+		for _, row := range rows {
+			if row.AccountID <= 0 {
+				continue
+			}
+			accounts[row.AccountID] = row
+		}
+		snapshot := OpenAIAccountQualitySnapshot{
+			WindowStart: start,
+			WindowEnd:   end,
+			SnapshotAt:  end,
+			Accounts:    accounts,
+		}
+		p.mu.Lock()
+		p.last = snapshot
+		p.hasLast = true
+		p.mu.Unlock()
+		return cloneOpenAIAccountQualitySnapshot(snapshot), nil
+	})
+	if snapshot, ok := value.(OpenAIAccountQualitySnapshot); ok {
+		return snapshot
+	}
+	return p.staleOrColdStart()
+}
+
+func (p *openAIAccountQualitySnapshotProvider) refreshThrottled(now time.Time) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.hasLast && !p.lastRefreshAttempt.IsZero() && now.Sub(p.lastRefreshAttempt) < p.refreshInterval
+}
+
+func (p *openAIAccountQualitySnapshotProvider) cached(now time.Time) (OpenAIAccountQualitySnapshot, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.hasLast || now.Sub(p.last.SnapshotAt) < 0 || now.Sub(p.last.SnapshotAt) >= p.ttl {
+		return OpenAIAccountQualitySnapshot{}, false
+	}
+	return cloneOpenAIAccountQualitySnapshot(p.last), true
+}
+
+func (p *openAIAccountQualitySnapshotProvider) staleOrColdStart() OpenAIAccountQualitySnapshot {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.hasLast {
+		return OpenAIAccountQualitySnapshot{Stale: true, Accounts: map[int64]OpenAIAccountQuality{}}
+	}
+	snapshot := cloneOpenAIAccountQualitySnapshot(p.last)
+	snapshot.Stale = true
+	return snapshot
+}
+
+func (p *openAIAccountQualitySnapshotProvider) coldStartFailure() OpenAIAccountQualitySnapshot {
+	return OpenAIAccountQualitySnapshot{Stale: true, Accounts: map[int64]OpenAIAccountQuality{}}
+}
+
+func cloneOpenAIAccountQualitySnapshot(snapshot OpenAIAccountQualitySnapshot) OpenAIAccountQualitySnapshot {
+	accounts := make(map[int64]OpenAIAccountQuality, len(snapshot.Accounts))
+	for id, quality := range snapshot.Accounts {
+		if len(quality.Windows) > 0 {
+			windows := make(map[OpenAIQualityWindow]OpenAIQualityWindowMetrics, len(quality.Windows))
+			for window, metrics := range quality.Windows {
+				windows[window] = metrics
+			}
+			quality.Windows = windows
+		}
+		accounts[id] = quality
+	}
+	snapshot.Accounts = accounts
+	return snapshot
+}

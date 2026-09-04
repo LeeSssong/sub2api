@@ -1,0 +1,712 @@
+# 原生 Sub 小步发布任务包队列
+
+**T118 Responses 流水请求元数据恢复（2026-09-03）：** 状态 `DONE`。已合并为根 `main@e00c37e0e5ac076aaddc043fccf82af6bc5a1d1b` 并推送；按用户明确“快速部署到主站，不同步验收站”完成主站发布，宿主结果 `succeeded`、`downtime_required=false`、活动槽 `green`，公网健康和 API/worker/model-detector 健康均通过。生产只读核对确认新 Responses 流水已记录 `/v1/responses` 和客户端 IP；历史空值保持不变。候选 worktree/分支已在发布后归档删除，恢复 bundle 位于 `/Users/gongtengxinwen/Documents/sub2api-archives/2026-09-03-t118/t118-responses-usage-metadata.bundle`，SHA-256 `6d8fe33f36fc9a26b209c9593360bff2eab1bf61e80fcb08fd3df34fbb79865d`。无迁移、配置或生产数据写入。
+
+**T118 Responses 流水请求元数据恢复（2026-09-03）：** 状态 `READY_FOR_ROOT_REVIEW`。候选 `codex/t118-responses-usage-metadata@fd9b0bd2c`，worktree `/Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/t118-responses-usage-metadata`，基线 `main@f9d606ea3`。已恢复 Responses 成功记账路径的 Sub 原生请求元数据快照，补充 Responses 调用点顺序合同和独立请求哈希断言；直接 handler 测试、`go build ./cmd/server`、gofmt、diff-check 通过。改动仅两个 handler 文件，无迁移、配置、账务、调度、生产数据或历史回填；未合并、推送或部署。等待根总控 `AUTHORIZE_MERGE_TO_MAIN`。
+
+**T118 Responses 流水请求元数据恢复（2026-09-02）：** 状态 `DESIGNING`。生产只读核对确认 2026-08-30 16:27:54 后新 Responses 成功流水的 `inbound_endpoint`、`ip_address` 成为空，根因是成功记账输入构造后遗漏 Sub 原生请求元数据快照赋值；Messages 路径和历史官方实现保持完整。范围仅恢复 Responses 成功路径的入站/上游端点、客户端 IP、User-Agent、Session ID、请求体哈希快照，保留当前定制字段；历史空记录不回填，无迁移、配置、计费、调度、重试、账号状态或生产数据变化。规格：`docs/superpowers/specs/2026-09-02-t118-responses-usage-request-metadata-design.md`。用户已确认原生语义恢复方案，待书面规格审阅批准；不得调用 writing-plans、创建实现 worktree、合并、推送或部署。
+
+**T117 飞书余额卡片静默按钮与 T114 调度排名对齐（2026-09-02）：** 状态 `DESIGNING`。源码确认 T98-R3 的 1h/6h/24h 静默按钮仍存在，但只有合规回调密钥和静默 repository 完成接线、卡片获得一次性 `SilenceToken` 时才渲染；截图无按钮是互动回调能力未启用时的安全降级。排名将从当前 `ListWindow("24h")` 间接读取改为显式复用 T114 `1h + 24h + 7d` 质量调度 projection；新告警和重复提醒读取发送时最新五分钟质量快照，历史卡片不回写。排名或按钮能力异常不得阻断余额告警。规格：`docs/superpowers/specs/2026-09-02-t117-feishu-balance-card-t114-ranking-silence-design.md`。待用户批准完整规格；未授权 writing-plans、实现、配置变更、推送或部署。
+
+**T114 账号监控排名对齐补丁（2026-09-02）：** 状态 `DONE`。候选已合入并推送，主站运行 `main@6fe774df5` / tree `bcf4fd8e2`；宿主记录 `20260902T152635Z-production-3515916.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `green`。API、worker、detector 及三项公网健康探针通过。按用户最新明确指令不同步验收站，验收站保持 `d8a306a16`；两个排除分支/worktree 保留不动。
+
+**T114 账号监控排名对齐补丁（2026-09-02）：** 状态 `INTEGRATING`。候选 `codex/account-monitor-t114-alignment@ba92de5fd` 已合入根 `main`；全站账号卡片按 T114 质量分排序，分组视图仍保持原生调度排名，lifetime 真实请求计数读取失败不再导致整页失败。无迁移、配置或业务数据写入。按用户快速主站授权执行直接回归、推送、主站发布及同 commit/tree 验收站同步；`quota-accounting-long-lived` 与 `codex/account-monitor-scheduler-real-first` 保留不动。
+
+**T113 流式请求全链路可观测与根因诊断（2026-09-02）：** 状态 `READY_FOR_ROOT_REVIEW`。候选 `codex/t113-stream-observability@ed66c30ca`，基线 `main@5bff30023`，worktree `/Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/t113-stream-observability`，交接 `docs/handoffs/2026-09-02-t113-stream-observability-handoff.md`。已完成现有 OpenAI SSE 主路径 lifecycle 观测、关联 ID、错误分类/脱敏、Ops 只读精确查询、管理员 Usage 详情和 Caddy/Compose environment/commit/slot 日志合同；无迁移、无业务数据写入、无真实上游流量、不改变调度/重试/计费/账号状态。直接相关测试与必要构建通过；宽泛 `go test ./cmd/server` 被既有 `wire_gen_test.go` 参数漂移阻断，已在交接记录。候选不得自行合并、推送、部署；等待根总控 `AUTHORIZE_MERGE_TO_MAIN`。
+
+**T113 流式请求全链路可观测与根因诊断（2026-09-02）：** 状态 `DESIGNING`。用户已批准正式规格 `docs/superpowers/specs/2026-09-02-stream-observability-root-cause-diagnosis-design.md` 并要求开始实施。任务复用现有 OpenAI 流式链、请求/错误/usage 日志、管理员请求详情和 Caddy/蓝绿发布元数据，增加生命周期关键节点、稳定 request/logical request/attempt/upstream/response 关联、脱敏底层传输错误分类、environment/commit/slot/container 身份及只读管理员根因证据投影。不得改变调度、重试预算、计费、账号状态、上游协议或部署授权，不新增外部 tracing 平台、平行业务事实源、生产数据写入或真实上游测试。现有两个非 main worktree 均干净且已被 main 包含，不构成领先合并阻塞；计划从登记后的最新干净 main 创建 `.worktrees/t113-stream-observability`，先写实施计划，再按 TDD 完成功能和直接相关测试。预期无迁移，`downtime_required` 仅在未来根发布预检时判定；本规格不授权验收站或主站部署。
+
+**2026-09-02 部署窗口完成收口：** T111 分组性能指标修复已合入、维护发布主站并同步验收站；首轮运行发现 Monitor V4 刷新 SQL 的 `group_id` 歧义，已修正后再次发布。主站运行 non-recharge `1e72ae29c`，`1h/24h/7d` 三个分组快照均已实际写入；验收站随后运行 T91 充值体系 `d8a306a16`，同样生成三窗口快照，未将充值代码发布到主站。T111 两个完成 worktree/分支已归档删除，当前仅保留进行中的 T112-v2 worktree；恢复 bundle 位于 `/Users/gongtengxinwen/Documents/sub2api-archives/non-main-workspaces-2026-09-02/`。根 `main@d8a306a16` 已推送且干净；主站/验收站健康和版本核对通过。
+
+**2026-09-02 部署窗口最终收口：** 非充值候选已从根 `main` 快速发布主站并同步验收站；随后 T91 充值体系合入根 `main`，仅部署验收站。主站保持 non-recharge `b3cc8b5febfd7d2cdd7b545c0abe8fb698b0075c`，验收站运行 recharge `197a693628e7c12de66e3b4e6b4f9e4dac576f34`；根 `main@2335f2e7349c949a800428821f25d9a9ccc5afb0` 已推送。已归档删除已合并且干净的非 `main`，仅保留进行中的 T111 与 T112-v2 worktree；T87 未提交锁文件以 stash 保全后删除。分组性能指标的 T110 未知流水过滤已发布，T111 时间窗/快照清理仍未提交，继续保留。
+
+**本轮发布收口（2026-09-01）：** T107、T7、T108 已完成根 `main` 推送、主站快速发布、同 commit/tree 验收站同步和健康核对，候选 worktree/分支已用恢复 bundle 保全后删除。T106 的用量汇总 SQL 修复已在当前主线中随发布树生效。T98-R2/R3、T109、T110、T91/充值体系和 P1 仍为活动或保护对象，未进入本轮清理。
+
+**2026-09-01 根总控快速部署与 T96 生产配置补做：** 状态 `DONE`（本轮不推送远端）。根 `main@41a36389a0229d537ef2a6c1f0f219ec6a77f513`、tree `75eef88041ea5928b8b65772885346f35e5162f2` 已完成主站快速部署，主站 green 槽和三项公网健康探针通过；验收站以同一 commit/tree 同步成功，六服务及 `/admin/lab/health` 通过。T96 账号归组和账号级 `priority=50` 已实际完成；此前缺失的组级 `extra_retry_count` 已补齐并回读：group 2=1、17=1、6=2、20=3。新增 294、295、296、298、299、300、301 因缺少同口径质量证据保持现状。非 `main` 仅清理已合并且干净候选，`p1-task4`、T87、T91-A、T96 活动证据/脏 worktree 及用户保护对象保留；恢复 bundle 位于 `/Users/gongtengxinwen/Documents/sub2api-archives/non-main-workspaces-2026-09-01/non-main-refs.bundle`。
+
+**T91-A 额度账务 schema、Ent、迁移与只读对账基础（2026-09-01）：** 状态 `DESIGNING`（Task 0 源码核验门禁）。用户批准原 T91 按 T91-A～T91-E 拆分并先启动 T91-A；本包只交付源码映射与现网只读基线、十进制定点适配合同、additive schema/Ent、迁移重跑/回滚验证和只读 reconciliation 基础。固定 `attempted_quota_usd` 为应扣额度、`delta_usd` 为实际扣费，未扣差额不进余额公式、不形成欠款；旧 Ent `float64` 只能经统一适配器进入 `decimal.Decimal` 新账务域。退款 Saga、`quota_refund.requested` worker 和 dead-letter 合同属于 T91-D，仅在 T91-A 做可复用能力核验；不确定结果不得落终态 `failed`。Task 0 报告获发布总控接受前不得修改 schema、迁移或运行代码。当前根 `main` 尚未与 `origin/main` 同步，本任务不得进入整合、验收迁移或发布车道。
+
+**T98-R2 飞书余额新鲜度、凭据版本与恢复调度修复（2026-09-02）：** 状态 `IMPLEMENTING`。用户确认继续以同一规范化 BaseURL 下 `observed_at` 最新的有效 API Key 可用余额为准，并批准解决充值后仍推送旧 `USD 0.00` 的完整链路。实现边界：余额刷新与普通主动探测解耦；余额快照绑定不可逆 API Key 指纹，Key 更新后旧快照不可用于通知；告警拒绝超过最大新鲜度的快照；零余额活动告警即使账号不再进入普通调度也要持续用当前凭据重探测；恢复到 `>=5 USD` 后解除事件并触发原生调度投影刷新；发送前再次核验凭据指纹、快照时间与余额状态；排名改读生成原生 `SchedulerRank` 的 24 小时投影。新 worktree/分支为 `.worktrees/t98-r2-feishu-balance-freshness` / `codex/t98-r2-feishu-balance-freshness`，基于最新 `main`；TDD 覆盖旧 Key 快照、过期零余额、充值恢复和排名。无真实飞书发送、生产数据写入、合并、推送或部署；未合入的 T98-R3 静默按钮候选保持独立。
+
+**根总控非 `main` 盘点与 T106 整合阻塞（2026-09-01）：** 状态 `BLOCKED`。盘点确认当前根 `main@143d9e0fd` 之前并非所有非 `main` 都已完成收口：T106 候选已刷新到当前根 `main`，直接相关 repository 测试、gofmt、`git diff --check` 和范围检查通过，并已快进合入本地根 `main@c75a95b3d955097a8c7fe89d1aa075c8b48ae79e`（tree `ea86ef58521427ba0dca045dcacb741c88c7bcbb`）。T107 运行时代码已在当前 `main` 祖先链中，旧分支仅多出 handoff 文档，不再合并其旧历史。推送 `origin/main` 失败：GitHub SSH 在 `20.205.243.166:22` 被远端关闭，HTTPS 无可用凭据；因此当前 `main` 仍领先 `origin/main` 1 个提交，尚未执行主站或验收站部署，也不得归档非 `main` worktree/分支。待远端推送恢复后，必须从干净且与 `origin/main` 一致的根 `main` 继续既有主站/验收站发布链；保留当前候选、临时刷新 worktree和失败证据。
+
+**T98 飞书上游余额通知精度修复（2026-09-01）：** 状态 `DONE`。修复 PostgreSQL `TIMESTAMPTZ` 微秒精度与 JSON 快照纳秒精度不一致导致的 lease/current、evaluation/lease 严格时间指纹误判；双方统一截断到微秒，避免 claim 成功后静默跳过发送。候选已刷新并 ff-only 合入根 `main@2a72edbf975908a457ff6c6b30b0fc7ef75d35c1`（tree `db0a74b264b97d0d8e37b05389ee28cf1ef9bf1e`），推送 `origin/main`。service、repository（`-vet=off`）、notify 定向测试、server build、gofmt/diff-check 与 native-only guard 通过；0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-09-01-main-2a72edbf9-t98-feishu-precision.json`。主站蓝绿发布 `succeeded/promoted`、活动槽 green、`downtime_required=false`；验收站随后以同 commit/tree 同步成功，六服务 healthy；公网 `/healthz`、`/readyz`、`/health` 与验收 `/admin/lab/health` 均 200。未发送真实飞书消息、未写入生产业务数据、未改 secret；默认仓储 vet 的既有 `usage_log_repo_stats.go:1004` 阻断仍未触碰。
+
+**T96 分组账号基线与统一质量调度（2026-09-01）：** 状态 `DONE`。候选已刷新到 T105/T107 后最新根并合入推送 `main@069ef439a8586b20e35754247d78784cd86abed0`（tree `8622dc7961317ca95fafa54297a0e6299f5d3bc6`）；普通 HTTP 文本 Responses/Chat/Messages/Embeddings 仅在显式 opt-in 时使用统一质量调度，生图、Responses WebSocket、alpha-search 保持原生路径；账号选择按成功率、P95 TTFT、实时 U、ID，额外跨账号重试受界定预算控制。主站蓝绿与验收站同 commit/tree 发布成功，活动槽 blue；公网/验收健康探针通过。永久 native-only：不恢复 admission、slow-session、首输出前账号锁或定制账号并发限制，只用 Sub 原生账号槽位。
+
+**T107 quota wallet 充值与可消费额度注入紧急修复（2026-09-01）：** 状态 `DONE`。原生 QuotaWalletService wiring 修复已合入并推送根 `main@78846995824b61ba7e900155f653776feef4263b`（tree `a826250413ba0060f0eca0b8d3e15ebc1f63e907`），主站无停机蓝绿发布成功、活动槽 green，公网三项健康均 200；验收站随后同步同 commit/tree，六服务 healthy，健康与登录入口均 200。发布后主站日志未再出现 `quota wallet service not available`。无迁移、配置、真实充值或生产账务写入；T106 仍严格独立。
+
+**T105-R1 502 排查后续：OpenAI OAuth 429 原生恢复语义修正（2026-09-01）：** 状态 `DEPLOYING`。用户明确指定本轮采用“快速部署”顺序，先主站、后同 commit 同步验收站，并要求本任务先于 T96/T98 发布；随后明确授权最多约 300 秒停机。候选 `codex/t105-openai-429-account-cooldown@77e9dabe5f3adc88ce8e8024fad5fb808ace52cb`（tree `c769d38429bcb520a7fcca4448db8e2f5f513c70`）已无冲突快进合入根 `main`。修正范围：无可靠 reset 时恢复官方 5 秒 fallback；可靠 reset 优先且不再按 5 分钟时长猜测来源；补齐 Embeddings/Codex Models 等 429 切号接线；只清除本次短 cooldown 与对应请求级排除；选号 error 与 nil selection 统一执行一次有界恢复。无业务迁移、配置、依赖或生产数据写入；定向 service 测试、server build、gofmt/diff-check 与 native-only guard 新鲜通过。首次预检精确确认生产迁移集 `0bda54bb…` 到当前根迁移集 `17621492…` 尚未在宿主精确 allowlist 中，因此在停服前安全退出；根总控现仅登记该唯一精确转换并保留未知/错误哈希 fail-closed 合同，不修改任何迁移内容。 提交 `0e94ecab94b34b1178b78b6283ca51428e26e0bb`（tree `8aaba6dddd47083091de4403725708041b09c169`）已推送；维护合同测试、native-only guard、脚本语法和 diff-check 通过。主站活动槽 `blue`、`/healthz` `/readyz` `/health` 均 200；验收站六项服务 healthy，`/admin/lab/health` 与登录页均 200。当前根 `main` 已包含此前在验收站验证通过的 T104，快速发布会如实以同一根 source 一并带入主站，不伪装为独立旧树部署。
+
+**T104 Monitor V4 持久化分组快照（2026-08-31）：** 状态 `VERIFYING`。候选已按 `AUTHORIZE_MERGE_TO_MAIN` 合入并推送根 `main@aa2727fa710a785ec3f27a07e0329336524d968d`（tree `b7b5cbeb4e8d6e146244149f669b1792462c312e`），根工作区干净且与 `origin/main` 一致。验收站已从该根 `main` 成功部署并完成基础线上核对：源 commit/tree 为 `aa2727fa7/b7b5cbeb`，镜像归档 SHA-256 `683c6fa1d5a2a6698944799e0630180d6346d5a66591e5f682aa4f54533b4ec5`，六项服务均 healthy，`/admin/lab/health` 与登录页均 HTTP 200。此前验收失败已记录：迁移 232 未引用 PostgreSQL 保留字 `window`，以及构建阶段 GitHub detector 下载失败；现已通过候选修复并复用同 SHA-256 的本地 detector 制品解决。范围为 expand-only migration `232_monitor_v4_snapshots`、原子 DELETE+INSERT 快照仓储及完整性校验、Monitor V4 只读最近快照与实时可见组裁剪、singleton worker 每 5 分钟刷新三窗口并复用 Sub 原生协调。主站尚未部署，等待用户明确“测试站验收通过，部署主站”或“快速部署到主站”。
+
+**T103 最新处置（2026-08-31）：`ABANDONED / 已废弃`。** 用户明确废弃 T103，不再要求其单独部署，不再占用或阻塞整合、部署和验证车道。当前生产请求 handler 已不调用自定义账号 admission/slow-session，仅保留 Sub 原生账号槽位；已进入 `main` 的 native-only 发布硬门禁继续作为全局永久约束保留，不因任务废弃而删除。T103 历史排查、提交和停机门禁记录只作审计证据，不得再据此启动 T103 发布。
+
+T103 硬防护补充：`main@9f4a1c916062b0c4f7b02b99c144beaae8f94a20` 已推送；发布源断言在真实构建前 fail-closed 校验 admission/slow-session no-op、handler 无自定义 admission 调用及原生账号槽位接线。0600 回归证据：`/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-31-main-9f4a1c916-t103-native-concurrency-guard.json`。当前仍因 `migration_set_changed` 停机门禁未部署，三个并行窗口已暂停发布。
+
+T103 官方更新链补充：`main@21cbf912571062db0fd6e7656f1cff1688dde14a` 已将同一 guard 接入 `ops/merge-sub2api-release.sh`，官方上游 overlay 在提交候选前即拒绝恢复自定义 admission；根 `main` 与 `origin/main` commit/tree 一致。最新 0600 证据：`/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-31-main-21cbf9125-t103-native-concurrency-guard.json`。
+
+T103 防覆盖加固：`main@956ef5882` 将 guard 扫描范围扩大到全部生产 Go 源码和所有 gateway handler，并拒绝重命名后的 admission/slow-session 调用；先添加通用 gateway handler 负向回归使旧规则 RED，再实现扫描后 GREEN。`ops/assert-native-openai-concurrency-only.sh`、原生并发变体测试、来源新鲜度测试、官方 overlay 合同测试、脚本语法和 `git diff --check` 均已通过；此提交只改发布门禁/合同测试，不改运行时账号并发语义。
+
+T103 发布门禁边界补齐：`main@4ce15f896` 将 admission/slow-session 调用扫描从 `backend/internal/**` 扩展到整个 `backend/**` 的非测试 Go 源码，并新增 `backend/cmd` 负向回归；native-only guard、来源门禁、脚本语法和 `git diff --check` 均通过。生产活动槽未切换，三个并行窗口继续暂停。
+
+**T105 OpenAI OAuth 429 账号级原生限流恢复（2026-08-31）：** 状态 `DONE`。用户已明确授权插队并授权约 300 秒停机维护发布。根 `main@c651bcb7078b085905384a7782c29c2d23404858`（tree `79144c1c56676a1e975237371a0c826c21f6275e`）已推送并从根 `main` 完成维护发布；生产记录 `/var/lib/sub2api/release-records/20260831T141141Z-production-4116652.json` 为 `succeeded/promoted`、`rolled_back=false`、活动槽 `blue`，停机起点迁移哈希 `88a0ff14d25215f07d05f307a521f03114005ace43078b80f3bd2702e0f08d03`。T105 仅账号级、不做模型级；保留有限同账号重试，重试耗尽或跨账号 failover 时调用 Sub 原生账号限流；可靠 reset 优先，无可靠 reset 固定 5 分钟。新增一次有界分组恢复轮次：瞬时 429 候选耗尽且尚未写出语义输出时，刷新权威分组账号投影，清除 T105 短 cooldown（含当前账号）与请求级排除，保留原生 7 天 quota、禁用账号、凭据错误和长期状态。T105 构建/隔离服务测试/脚本语法/diff-check 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-31-main-c651bcb70-t105-maintenance.json`；主站 `/healthz`、`/readyz`、`/health` 均通过，验收站已用同一 commit/tree 同步且 API/worker/detector/PostgreSQL/Redis/Caddy healthy。无额外生产数据、凭据或配置写入。
+
+**T103：** 状态 `ABANDONED`。以下历史排查与停机门禁只作审计证据，不再形成待部署任务：用户报告同类错误回归；主站只读证据显示活动 handler 无额外 admission 接线，账号 `293` 在 T100 后无新 `openai.admission_rejected`，最新错误为真实上游 502，其中一条是上游 OAuth token 撤销。`main@5833d36d664dfc15942a0fb5ea3735170577a0c0` 已将 admission/slow-session service 入口硬性 no-op；随后硬防护提交 `main@01d93b044c1a9c013eb86d91b6b6ce1112cdfb9a`（tree `d997c17faef78b6cbd0a04fa39186ec2900f67e1`）已推送，发布链在每次真实 Sub2API 构建前 fail-closed 校验 no-op service、handler 无 admission 调用和原生 `acquireResponsesAccountSlot` 接线；变体拒绝测试、来源新鲜度、验收站/蓝绿/relay-ops 合同测试、脚本语法与 `git diff --check` 均通过。0600 原始证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-31-main-5833d36d6-t103-admission-permanent-guard.json`。最新生产只读核对确认账号 ID `231` 已于 `2026-08-16 14:49:43+08` 软删除且不是当前 502 样本；它与 T98 的数据库迁移文件 `231_upstream_baseurl_balance_notifications.sql` 无关，删除账号不会改变迁移集合哈希。主站未因 T103 停服、迁移、重启或切换；账号并发只保留 Sub 原生槽位。
+
+**T102：** 状态 `DONE`。修复已合入并推送根 `main@a928c671d3133fc33d59cd6f56c351674af0406e`（tree `4421898740f1f817b155a545457a505ecbda8adc`）：无实际探测结果的桶不再写伪失败或进入分母，缺失数独立告警；实际探测失败仍按 `0/1`；共享账号按分组判断真实流量；最终逻辑请求按 `group_id + request_key` 跨账号去重；缓存 P95 原位替换为成功最终真实请求的 Sub 原生 Token 命中率 `cache_read / (input + cache_creation + cache_read)`，失败请求和主动探测排除、零分母显示空值。直接测试、前端 14 项、类型检查、server 构建与范围门禁通过，0600 证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-31-main-a928c671d-t102-monitor-v4-correction.json`。用户授权快速部署后，主站记录 `/var/lib/sub2api/release-records/20260831T042444Z-production-3398217.json` 为 `succeeded/promoted`、`downtime_required=false`、活动槽 `green`；生产 API/worker/detector 与验收站六项服务均运行同 commit 且 healthy，公开健康/就绪/验收健康/登录探针通过。生产只读固定时点复算：24h 为 Pro `56.0%`、Plus `88.2%`、特惠 `57.4%`；7d 为 Pro `78.6%`、Plus `85.0%`、特惠 `70.0%`；30d 为 Pro `91.7%`、Plus `94.4%`、特惠 `71.0%`；缺失探测桶未进分母且只读事务已回滚。无迁移、配置、账号/分组、计费或生产业务数据写入。
+
+**全局 `main` 部署来源门禁（2026-08-31）：** 状态 `READY_FOR_ROOT_REVIEW`。用户明确要求所有环境只能基于根目录 `main` 部署。候选必须先合入并推送 `main`；发布入口在构建或 SSH/SCP 前统一验证当前分支为 `main`、工作树干净且 `HEAD` commit/tree 与 `origin/main` 一致。验收站常规路径调整为先合 main、再部署验收；候选 worktree、临时 checkout 和 detached HEAD 均禁止部署。来源新鲜度、验收站、蓝绿发布和 relay-ops 直接测试、脚本语法与 diff-check 已通过；旧 admin lab 新增来源门禁合同已满足，其完整合同仍被既有 Caddy 路由断言阻断。本变更不触发服务部署、不写入业务数据。
+
+**T101：** 状态 `DONE`。紧急回归排查确认 T101 之前从未进入根 `main`/`origin/main`，后续发布继续使用旧 `main@3c5b9710a`，不是代码回滚。T101 与并发覆盖防护已合入并推送根 `main@d4baeaf983d852ea139d75552f03f2b77bfb0871`（tree `8d4f2f141835681c2c552dbc5c8eb422f00bb944`）；主站发布现强制干净 `main == origin/main` commit/tree，验收站发布有宿主互斥锁。直接相关 Go 1.27 repository/server、前端 56/56、typecheck、1094 modules build、发布来源/控制器测试、语法和 diff-check 均通过。主站记录 `/var/lib/sub2api/release-records/20260831T030214Z-production-3293493.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `blue`，API/worker/detector 均运行同 commit/tree 且 healthy；验收站已同步同 commit/tree，六项服务 healthy，两端发布锁均释放且公开健康端点通过。首次本地构建因 GitHub detector ZIP TLS 断开而在切换前失败；后续主站原样重试成功，验收站按用户要求不再访问 GitHub，复用已按固定 SHA-256 校验的本地 ZIP 完成构建。功能修复固定 24 个真实请求桶、全站“按分组查看”和主动探测文案语义；无利润公式、调度、计费、探测执行、迁移、配置、依赖或生产数据写入变化。
+
+**T100：** 状态 `DONE`。紧急修复已删除 OpenAI 请求路径上的自定义 admission/slow-session 并发控制，包括“单个长请求尚未首输出即拒绝同账号后续请求”的规则；账号并发只保留 Sub 原生账号并发槽。`main@5d77271b32990076b8b0344a3f1909c62192abc6`（tree `0b7ff53f1081be5684486b31c1ee7a3e3377e329`）已推送；源合同与 diff-check 通过，发布链 Linux/amd64 构建成功。主站记录 `/var/lib/sub2api/release-records/20260830T180509Z-production-2673285.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `blue`；验收站随后以同一 commit/tree 同步成功，六个服务全部 healthy。无迁移、账号/分组数据、凭据或业务数据写入。
+
+**T99：** 状态 `DONE`。根总控已合入并推送 `main@3c5b9710a807904b8449708c71e3931b7f838490`；宿主发布记录 `/var/lib/sub2api/release-records/20260831T013736Z-production-3191472.json` 为 `succeeded/promoted`、`rolled_back=false`，主站与验收站均运行同一 `3c5b9710a` tree `cb944525481f65df25ef66e29c0681f3c471e60c`，六项验收服务 healthy，公网 `/healthz` 与验收 `/admin/lab/health` 均 HTTP 200。T99 直接相关测试、构建、范围检查和线上同步已完成；无迁移、配置、依赖、账号/分组或事实源变化。
+
+**T98 方案选择补充（2026-08-31）：** 用户确认新通知在 Sub2API 原生账号监控链路内按 BaseURL 判定并直接复用飞书传输/凭据/卡片样式；relay-ops 不再作为新体系运行时主路径，不新增余额探测、轮询或业务事实源。
+
+**T98 清理授权补充（2026-08-31）：** 用户明确授权旧通知生产历史记录全部删除且不备份，旧策略和旧通知业务路径一并移除；飞书 App/群/接收人及传输凭据保留供新体系复用。不可逆删除仅在正式规格批准并进入实施阶段后执行，当前不改生产。
+
+**T98 规则确认补充（2026-08-31）：** 用户确认一个 BaseURL 只有一个上游余额；同一 BaseURL 下任一账号的有效 USD 余额低于 5 即触发一条 BaseURL 预警，余额取该 BaseURL 下 `observed_at` 最新的有效快照，卡片只显示一次余额并列出全部现行账号。
+
+**T98 通知节奏与活跃账号规则补充（2026-08-31）：** 用户确认采用方案 1 的 BaseURL 去重实现；仅 `status=active` 的现行 API Key 账号参与聚合，非活跃账号不纳入通知，某 BaseURL 下无活跃账号时跳过评估且不改变通知状态。`0 < value_usd < 5` 为普通低余额通知，同一 BaseURL 同一状态每 30 分钟最多发送一次；`value_usd = 0` 为零余额警告，同一 BaseURL 同一状态每 5 分钟最多发送一次。低余额与零余额之间发生状态跃迁时立即发送一次对应级别；恢复到 `value_usd >= 5` 只清除该 BaseURL 的去重状态，不发送恢复消息。方案 1 的活动事件去重键为 `rule_id + normalized_base_url`，重复节奏在同一活动事件上记录，不创建新的余额事实源。
+
+**T98 卡片主题与等级补充（2026-08-31）：** 用户确认复用现有飞书卡片主题体系：`0 < value_usd < 5` 使用 P2 橙色普通通知，标题为“上游账号余额不足”，不 `@` 接收人；`value_usd = 0` 使用 P1 红色警告，标题为“上游账号余额为 0”，`@` 现有接收人但不调用 P0 飞书加急。两类卡片均复用现有宽屏结构、主题、接收人和 30 KiB 限制；专用卡片可原样展示用户要求的上游登录账号与经明确授权的明文密码，两者均不得进入数据库、日志、错误、trace、测试真实值、发布证据或 API，API Key、飞书密钥及其他敏感内容继续脱敏。
+
+**T98 字段、排名与凭据挂载补充（2026-08-31）：** 用户确认卡片顶部仅显示一次当前余额、BaseURL、上游登录账号和上游登录密码；下方列出该 BaseURL 的全部活跃账号，每个账号显示名称、ID及其在各所属分组中的原生当前排名。一个账号属于多个分组时全部列出；原生投影无排名则显示“未排名”，不得自行计算或伪造；账号按最佳分组排名升序、再按账号 ID 升序。登记簿未匹配或字段为空时显示“未登记”。运行时不解析 Excel，而将登记簿转换成以规范化 BaseURL 为键的受保护 JSON，权限 `0600`，只读挂载到 Sub2API worker；文件不提交 Git、不写 API、普通日志或事件表。现有飞书 App、群与接收人凭据同样只读挂载到 worker，新通知不经过 relay-ops 运行时主路径。
+
+**T98 正式规格草案（2026-08-31）：** 已完成旧通知表/外键/wiring、原生余额与排名、原生事件账本、飞书传输/重试和 secret 挂载的只读盘点；正式草案为 `docs/superpowers/specs/2026-08-31-t98-feishu-upstream-balance-notification-design.md`。草案固定 `scheduler_rank`、严格有效快照、原生非敏感 event claim、at-least-once 重试、整份配置 fail-closed、单 BaseURL 未登记仍发送，以及“停旧 writer -> 无备份清库 -> 启新 sender”的切换顺序。匿名 P2/P1 对照稿已完成桌面/移动检查。当前待用户批准，未进入实现、清库、生产配置或真实投递。
+
+**T98：** 状态 `FROZEN`（停机授权门禁）。候选已合入并推送根 `main@12aea434e2c8d42b70437bb60a5e6d8565d1a6d6`（tree `de422b739f01a59c0e8f1ab1718016f084ea909c`），并已从该 `main` 成功发布移除旧通知 writer/retry/scheduler 的 relay-ops；旧镜像保留为回滚目标，PostgreSQL、Redis、Caddy、API 两槽和 worker 身份未改变。count-only 核对后，按用户既有无备份授权和双门禁删除九张旧通知表（共 1940 行），复核均不存在；飞书传输凭据保留，新 worker-only secret 目录已准备为 `0700/0600`，通知开关仍关闭。Sub2API 候选镜像已从同一 `main` 构建，但宿主预检返回 `downtime_required=true`、`reason_code=migration_set_changed`、预计不可用 300 秒；尚未停服、迁移、重启、槽位切换或启用 sender。除非用户另行明确“允许停机部署”，不得恢复 T98 发布；当前仅保留证据，不占用后续实现车道。
+
+**T98 计划与实现工作区（2026-08-31）：** 已从 `main@06695141f` 创建 `/Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/t98-feishu-upstream-balance-notification`，分支 `codex/t98-feishu-upstream-balance-notification`。实施计划即将在该 worktree 编写；当前不改生产、不清库、不发送真实飞书消息。
+
+## Monitor V4 有效失败与截尾平均口径修正（2026-08-30）
+
+- **T97：** 状态 `DONE`。`main@e9db36d4b`（tree `6558ff15c6892cc613b021b23b02a1a7fc926abb`）已通过主站无停机蓝绿链发布，`succeeded/promoted`、`downtime_required=false`、活动槽 `green`；主站健康端点、首页与 Monitor V4 页面均 HTTP 200。验收站已核对运行同一 commit，六服务 healthy。明确模型不支持和客户端责任错误从本站服务成功率分母排除；TTFT/耗时保持 P95 页面文案、计算为成功样本前后 5% 截尾平均；7 天/30 天查询和页面切换已恢复。宿主记录 `/var/lib/sub2api/release-records/20260830T172030Z-production-2618226.json`，0600 证据 `/private/tmp/sub2api-release-evidence/t97-fast-prod-e9db36d4b5cf789ac85bbabdfb82aa2c4beb7479.json`。
+
+**T93/T94 根整合状态（2026-08-30）：** 两个候选已串行合入并推送根 `main@93dbbd9dbc95e9e4181f028e394fdd40b3187231`（tree `a456d0a2274021f38f2368f73a9bdc933b836764`）。前端直接相关测试 18/18 与 `git diff --check` 通过；Go 后端定向测试因本机 Go 1.26.5 不满足仓库 Go 1.27.0，环境阻断已记录。主站预加载蓝绿记录 `20260830T120126Z-production-2220463.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`；随后验收站同 commit/tree 同步成功，线上主站与验收站健康检查均 HTTP 200。状态 `DONE`。
+
+## 分组账号基线与统一质量调度策略（2026-08-30）
+
+- **T96 分组账号基线与统一质量调度策略：** 状态 `IMPLEMENTING`（T95 已合入并推送 `main@c5fa371ea`，tree `c99b9efe`；旧证据 worktree 保留只读，新实现必须从该干净 main 创建）。正式规格和排名报告已落盘；旧证据 worktree 仅有文档、无运行时代码，不得把“已实施”或历史账号排名当作实现证据。正式规格：`docs/superpowers/specs/2026-08-31-t96-group-account-baseline-unified-quality-scheduling-design.md`；完整排名：`docs/superpowers/reports/2026-08-31-t96-account-quality-ranking.md`。请求先确定目标分组并只读管理员固定账号池；66 个非生图文本账号全部归入 Pro 档/Plus/特惠，Pro 与专属 Pro 镜像，7 个生图账号保持原生基础调度。普通文本统一按账号级 `成功率 DESC → P95 TTFT ASC → U ASC → ID ASC` 确定排序；`extra_retry_count` 为跨账号真实 Forward 的组级额外次数，Pro/专属 Pro=1、Plus=2、特惠=3；不可重放 attempt 立即停止并按原生账务计费。利润继续复用原生字段和 T95 的实时 U，全池不合格时可用性兜底。T100 边界固定为只使用 Sub 原生账号槽位，不得恢复任何 admission/slow-session 限制。未修改生产分组、运行代码、配置或数据库，未部署。
+
+## 账号有效成本归一化与官方利润保护（2026-08-30）
+
+- **T95 账号有效成本归一化接入官方利润保护：** 状态 `INTEGRATING`（已无冲突合入并推送根 `main@c5fa371ea`，tree `c99b9efe`；直接相关测试、构建、native-only guard 和 diff-check 已通过；尚未部署）。已确认 API Key 默认普通直接倍率、可手动切换比例型上游，OAuth 固定为无上游返回倍率的自购模型；统一计算 `U` 后交给官方利润门，继续复用原生分组最低利润率/安全缓冲与可用性优先语义。候选实现、规格、计划、报告和 handoff 均来自独立 worktree；未触碰生产数据或配置，等待明确发布授权后进入部署车道。
+
+## 最终用户可见成功率与 CodexRadar 外部数据透传（2026-08-30）
+
+- **T94 CodexRadar 外部 API 宽容透传：** 状态 `DONE`。候选已随根 `main@93dbbd9db` 发布主站并同步验收站；HTTP 2xx 且 JSON 可解析时宽容透传，真实网络/HTTP/解析错误保留失败语义；直接相关回归与合并后 18/18 通过。
+- **T93 Monitor V4 最终用户可见结果成功率：** 状态 `DONE`。候选已随根 `main@93dbbd9db` 发布主站并同步验收站；真实请求按最终用户可见结果计数，无真实请求桶以单次主动探测兜底，成功请求 TTFT/总耗时取 P95，生图账号排除文本探测池；直接相关回归与合并后 18/18 通过。
+
+## 运营日报、错误生命周期、模型准入与调度质量治理（2026-08-29）
+
+- **T91 星桥额度与账务规则：** 状态 `DESIGNING`（等待用户批准 2026-08-31 修订规格）。用户明确《星桥额度与账务规则实施方案》是冲突内容的最高事实源；修订规格要求管理员代充值创建 `admin_recharge` 订单，`payment_orders` 保存 paid/gift/total 额度及规则快照，`payment_audit_logs` 保存管理员 ID，`billing_usage_entries` 保存 paid/gift 拆分扣费，`user_wallets` 结构不变并保持付费优先、赠送其次，历史订单与使用流水须先 dry-run 后仅迁移可确认事实。当前只改规格和总账登记，未改运行时代码、迁移、生产数据或双站；原 T91 分支 `codex/t91-q-issuance-payment-source@84dc3c40a` 未产生业务代码变更，不能在新规格批准前恢复实现。
+
+- **T90 账号监控卡片真实请求证据、利润率与性能柱状图：** 状态 `DONE`。用户已撤销此前“仅验收站、不部署主站”的过时指令，并明确继续本轮“全部非 main 改动合入 main、快速部署主站、同 commit 同步测试站”的发布动作。修订已保留在官方 `0.1.183` 主线：验收站 72 个账号均无真实请求样本，主动探测成功/TTFT 样本各 4611 次且未冒充真实请求；101 条分组账号投影中 88 条已按分组售卖倍率与上游声明倍率返回预估利润率，13 条缺少有效倍率保持待确认。账号详情使用 Sub 原生账号管理字段白名单，不渲染 `credentials`、`extra`、API Key 或完整对象。前端直接相关测试 55/55、类型检查、冻结锁文件生产构建、Go 1.27 Linux/amd64 构建及发布链健康检查通过；最终 `main` 由根发布总控同步主站和测试站并完成公网健康核对。
+
+- **T86 分组模型请求准入与 Luna 映射清理：** 状态 `FROZEN`（用户于 2026-08-29 明确取消）。生产只读核对已确认所有账号级 Luna 映射已清零、5 个已启用活跃分组目录均不含 Luna，且 2026-08-29 17:35:02（北京时间）配置更新后暂无 Luna 错误或用量流水；不实施入口 `400/model_not_supported` 改动，也不执行额外配置清理。独立 T86 任务已归档；未来若再次需要阻止手工 Luna 请求的 503 客户端重试，必须重新启动独立任务包。
+- **T87 逻辑请求错误生命周期投影：** 状态 `BACKLOG`。以 `logical_request_id`（缺失时 `request_id`）聚合所有 attempt，区分自动恢复、单次用户可见失败、重试耗尽和不可安全重放停止；复用 `ops_error_logs`、既有 request/attempt 字段和管理员 ops 入口，不新增错误事实源。
+- **T88 运营日报账务口径与逐日对账：** 状态 `BACKLOG`。将普通用户收入、管理员内部消耗、全站有效上游成本和对外经营贡献分列；保留有效成本公式与 T49 unknown attempt 排除规则，并添加原生只读对账不变量。不得改扣费、余额、价格或历史流水。
+- **T89 T82 调度性能与路由 503 原因投影：** 状态 `BACKLOG`。拆分本站 routing 503 与上游 502/503，记录 admission/slow-session/safe-replay 的原因与分段耗时，固定同一资格集合再比较 T82 前后质量；遵守 T83 当前 5 分钟真实请求空桶探测门禁。
+
+**T85 Monitor V4 混合真实请求成功率与 P95 口径修正（2026-08-28）：** 状态 `DESIGNING`。用户确认的产品口径为：每个 5 分钟桶真实请求优先；若当前桶进入最后一分钟仍无真实请求，才使用同桶主动探测；真实请求与探测在同桶不混用；空桶不计失败、不进入分母；成功率为所选成功请求数/所选总请求数；TTFT P95 与总耗时 P95 分别从成功所选事件中按各自非空字段计算；不使用窗口外历史回退。实现复用原生 `usage_logs`、`ops_error_logs`、`account_monitor_results` 及 T83 空桶门禁，预计无迁移、无配置变更。规格书待用户审阅批准；当前尚未创建实现 worktree，未改运行时代码、未合并、未推送、未部署。
+
+**T82 调度健康状态与故障转移闭环 + T83 主动探测空桶准入（2026-08-28）：** 状态 `DONE`。根 `main@81df056d560aa50b535169f47c2c6b3c2d11af4d`、tree `0173f738891232e4cdf5744b27e55f4aee77a2ec` 已推送并通过维护蓝绿链发布主站；宿主记录 `/var/lib/sub2api/release-records/20260828T042218Z-production-2548695.json` 返回 `succeeded/promoted`、`downtime_required=false`，活动槽 `green`。T82 提供余额/401/502/503/高延时的可恢复隔离、探活恢复、半开与滞回、最多两次安全跨账号切换、质量兜底账号和结构化调度观测；T83 使账号/渠道/模型主动探测只在当前 5 分钟真实请求空桶时准入，无 usage reader fail-closed。无迁移；直接相关 Go 测试、server build 和 diff-check 通过，0600 测试/发布证据分别为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-28-main-81df056d5-t82-t83-scheduler-health-active-probe.json`、`/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-28-main-81df056d5-t82-t83-production-release.json`。主站 `/healthz`、`/readyz`、`/health` 均 200，随后验收站以相同 commit/tree 同步成功，六服务 healthy，`/admin/lab/health`、`/admin/lab/login` 均 200。
+
+## 当前实现任务（2026-08-29）
+
+- **T85 Monitor V4 真实请求成功率与探测兜底去重**：状态 `DESIGNING`。目标是只展示真实请求成功率，保持 5 分钟桶真实请求优先，仅在桶最后一分钟无真实请求时以主动探测兜底；每个分组/桶的探测兜底只计一个逻辑请求，同轮跨账号尝试不重复扩大分母，已知余额不足/临时不可调度账号不再重复探测。保留当前真实成功定义、真实失败计入分母、成功请求 TTFT/总耗时 P95 和空桶排除。当前仅进行规格与计划，尚未改运行时代码、推送、部署或生产数据写入。
+
+**T76-v2 主站发布与双站代码对账（2026-08-27）：** 用户确认验收完成。`main@f0848b17a7d6861a96c837f7a26234a080e313b6` 已通过生产蓝绿链发布并验证健康；验收站随后核对同一 source commit/tree，六服务 healthy。两站源码身份一致；仅应用二进制因构建时间注入不同而不字节相同，model-detector 与资源哈希一致。T69/T76/T80/T81 均已部署并验证生效，主站与验收站无需进一步同步。
+
+## 解冻登记（2026-08-27）
+
+- 用户已明确要求解冻 T76 及所有未部署任务。T69、T76 已按串行规则合入并推送，T69 首轮及 T76 最终版本均已部署验收站；最终验收站运行 `main@1eed79a54`，T69/T76/T80/T81 均包含其中。验收站基础健康已通过，四项任务保持 `VERIFYING` 等待管理员人工功能验收；主站仍未部署。T76 原有提交和未提交内容均已保留，恢复 diff SHA-256 为 `5e8ffd98f7e6ab69443036f7de104c6f7febcc16ec56544439b9881f52d18dbd`。T71、T77、T79 已有部署，仅待验收，不列入本轮代码发布候选；T74 的旧 READY 条目与已发布 DONE 证据待后续去重。主站仍只接受“测试站验收通过，部署主站”或“快速部署到主站”。
+
+## 组合部署包（2026-08-27）
+
+- **组合候选 T80 + T81**：状态 `VERIFYING`（验收站已部署，等待管理员真实功能验收与主站明确授权）。验收站部署提交/tree 由最终绑定发布证据精确锁定，候选固定后不再改动运行时代码或拓扑文件；包含 T80 OpenAI 长请求调度准入韧性与 T81 管理员仅赠送额度充值。组合候选无迁移、无生产配置变化、无生产账务写入。T80 的 config/repository/service/handler 直接测试、`go build ./cmd/server`，以及 T81 的 `UserBalanceModal` 4/4、`pnpm typecheck`、`pnpm build`、`git diff --check` 均通过；最终绑定证据：`/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-27-main-combined-t80-t81-final.json`（0600）。验收站固定入口健康、登录页、管理员登录、系统版本和管理员用户列表只读核对均通过；T81 真实充值账务写入未自动执行。验收站发布交付契约测试已通过；宿主蓝绿测试已执行关键 fail-closed/预加载/停机门禁场景，完整宿主测试因本地长耗时未在 180 秒窗口结束，未宣称完整通过。截图中的测试站邮箱配置、图片 URL 排障、服务质量日志排查均为无代码只读事项，不纳入包；图片故障涉及的退款候选 `usage_log_id=166983/167016` 未执行。主站发布仍只接受用户明确“测试站验收通过，部署主站”或“快速部署到主站”；授权前不得推送主站、切换流量、停机或执行生产账务操作。组合交接：`docs/handoffs/2026-08-27-combined-t80-t81-deployment-package.md`。
+
+## 最新发布更新（2026-08-26）
+
+- **T80 OpenAI 长请求调度准入韧性**：状态 `READY_FOR_ROOT_REVIEW`（已纳入上方组合部署包）。用户基于 2026-08-27 GPT-Pro 账号 `286` 的高 TTFT 事故，已确认优先解决“第一批长请求尚未完成时，同一慢账号仍被连续准入”的风险。实现复用原生 OpenAI scheduler/shared-health/Redis：账号级跨模型/跨分组首输出前 admission lease、slow-session guard、首语义输出释放、失败/取消幂等清理、共享写入 context 隔离和脱敏可观测性；组合根主线上的 config/repository/service/handler 直接测试、`go build ./cmd/server`、gofmt 和 `git diff --check` 均通过。无迁移、生产配置或业务数据写入；T77/T79 的 VERIFYING 只读验收结论不被伪装成代码变更。
+
+- **T76 调度与质量排名一致性**：状态 `VERIFYING`。候选已合入并推送为 `main@1eed79a547a4276127beace8024869dbf0137255`，验收站部署成功；已修复 live Grok quota cache、过期 model cooldown/`isBlocked`、shared-health veto、subscription-priority 分区、资格差异原因误归因和 `1/1/1` 体验均衡标签。Go service/repository/handler 聚焦测试、`go build ./cmd/server`、前端 110 项测试、`pnpm typecheck`、`pnpm build`、gofmt、diff-check 均通过。验收站线上专项功能仍待管理员人工验收，主站未部署。
+
+- **T79 独立准生产验收站**：状态 `VERIFYING`。基线 `main@cc3819024`，候选工作区 `.worktrees/t79-independent-acceptance-station`、分支 `codex/t79-independent-acceptance-station`，提交 `f5f11bd10`（含 `f56e43209`）；根线程补齐并推送 `main@00a831060`（含验收入口 ACL/正则和宿主网关默认修复）。验收站 Compose `sub2api-acceptance` 已独立部署并保持 6 服务 healthy，宿主目录 `/opt/sub2api/acceptance-live`，边缘 `172.18.0.1:8181`；数据库只读核对 `users=1`（唯一验收管理员）、`accounts=0`、`usage_logs=0`，未携带主站业务数据。对外仅复用主站 `https://api.xingqiaolab.top/admin/lab/` 路径，生产 Caddy 已通过 Cloudflare 官方网段 + `CF-Connecting-IP` 锚定正则白名单；`/admin/lab`→308、`/admin/lab/` 与 `/admin/lab/login`→200 且资源为 `/admin/lab/assets/...`，源站直连伪造头→403，`/admin/accounts` 继续走主站原生页面。主站 `/healthz`、`/readyz`、`/health` 均 200；旧 `sub2api-admin-lab-*` mock 容器已停止，旧数据卷保留未删除。流程固定为本地直接验证 -> 人工部署验收站 -> 管理员真实验收（真实充值/消费/支付/上游）-> 人工合入 `main` -> 人工部署主站；串行单实例，不做蓝绿槽、临时环境、自动晋级或扩展门禁。尚未完成管理员真实支付/消费/上游/通知功能验收，因此保持 `VERIFYING`，不得标记 `DONE`；不得复制生产凭据或把占位值冒充真实配置。
+
+- **T78 管理员余额语义澄清**：状态 `DONE`。根 `main@0ea5820f29ee15a9c02871fc57976bc79d512e56` 已推送并经无停机蓝绿链发布；将管理员余额弹窗的“当前余额”明确为“当前可消费额度”，将原“现金”明确为“可退款现金余额”，并分别显示付费/赠送额度，避免把退款校验字段误解为可消费金额。前端定向 Vitest（3 项）、typecheck、production build 与 diff-check 通过；无迁移、无配置变更、无生产账务写入。宿主记录 `/var/lib/sub2api/release-records/20260826T165339Z-production-3138884.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `blue`；公网 `/healthz`、`/readyz`、`/health` 均为 HTTP 200。回滚为恢复上一个已验证蓝绿镜像。
+
+- **T77 授权 v4.1.1 指纹制品与检测历史清库**：状态 `VERIFYING`。用户于 2026-08-27 明确确认持有 `chen-006/gpt56_api_detector` v4.1.1 的线下商业授权，并确认删除生产 `account_model_detection_runs` 的全部 `3,676` 条记录、不做迁移或回填。根 `main@48c4d58cebda02f2444456361b36f047db0e5568` 已推送并通过无停机蓝绿链发布，最新宿主记录 `/var/lib/sub2api/release-records/20260826T183105Z-production-3384751.json` 为 `succeeded/promoted`、`rolled_back=false`，活动槽 `blue`；v4.1.1 sidecar、API 和 worker 均 healthy，catalog 仅返回受限 Juice/指纹摘要契约。部署修复了容器中 `localhost` 优先走未监听 IPv6 loopback 导致健康检查误判的问题，改为绑定的 `127.0.0.1:8090`，并保留冷启动与恢复等待保护。清库前只读复核目标 `3,676`、外键 `0`；脚本已创建 mode `0600` 备份 `/var/lib/sub2api/backups/t77-20260827/t77-account-model-detection-runs-20260826T182742Z.sql.gz`（SHA-256 `fbf3e143adedccd59c59aa6d8eaceb639ab7c06c02d795e78cafafb56f900378`），删除后表总数与非 `4.1.1` 行均为 `0`。公网 `/healthz`、`/readyz`、`/health` 均为 HTTP 200；不新建平行记录源、不保留密钥或原始响应、无迁移。保留下一次自然真实监测样本对 Juice/指纹结果的线上验证，避免无用户指令主动消耗上游额度；不得混入 T76 或其他调度任务，不使用 GitHub Actions。
+
+- **T75 管理员余额摘要实时投影修复**：状态 `DONE`。候选 `codex/t75-quota-summary-runtime-projection@6af353a23` 已合入并推送根 `main@6c329e874`；`/quota-summary` 只读联查原生实时余额和钱包分量，总余额严格等于 `users.balance`，赠送分量不超过非负实时余额，剩余为付费分量，无钱包时不因查看而初始化钱包。直接相关 Go 测试、server build 与 diff-check 通过；生产预加载蓝绿记录 `/var/lib/sub2api/release-records/20260826T121648Z-production-2540795.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `green`，公网健康三项均 200。线上历史漂移用户 29 的摘要已返回实时 `5.86164937` 而非钱包投影 `6.22822342`；目标用户 `290435516@qq.com` 当前实时余额与钱包总额为 `10.78409394`。无迁移、配置或生产账务写入，回滚为恢复上一已验证蓝绿槽/镜像。
+- **T74 原生扣费与充值额度账本一致性修复**：已部署生效（DONE）。根 `main@980310a423b173b0887c86e27352c78f816efced`、tree `64a4f83a4e0272237cb1be6919f37b8646a23786` 已推送；两个同一不可变镜像的宿主记录 `/var/lib/sub2api/release-records/20260826T100345Z-production-2243157.json`、`20260826T100456Z-production-2248670.json` 均为 `succeeded/promoted`、`downtime_required=false`。公网三项健康均 200，API 双槽与 worker 均健康且绑定 T74 source/tree/migration hash；自然请求已验证 `xuebii@qq.com` 在同一事务产生 `migration_projection` 和 `usage_consumption`，运行时余额与钱包总额一致为 `129.44331171`。未直接补款、未批量改历史余额；生产证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-26-main-980310a42-t74-billing-wallet-sync-production.json`。
+- **T72 兑换码事务修复**：已合入、推送并部署生效，根 `main@37d7467ba1e0ef987d718e44fa1abc181602990e`，tree `4fedefae5f5ef02990a25d06441b22552499a36f`；预加载蓝绿记录 `/var/lib/sub2api/release-records/20260826T093251Z-production-2173135.json` 为 `succeeded/promoted`、`downtime_required=false`、活动槽 `green`，公网三项健康均 200。生产码 `eb1bc00840de1b7ff6d3c66d7ea1f648` 只读仍为 `id=44/status=unused`，关联 `redeem_credit` 账本 0 条，未擅自为任意用户入账。
+- **T71**：因缺少管理员登录态将线上专项验收冻结为只读证据，候选 worktree/分支保留，未明确解冻前不继续写入、部署或清理；发布单车道转交 T72。
+
+## 当前设计任务（2026-08-26，T74）
+
+- **T74 原生扣费与充值额度账本一致性修复**：状态 `READY_FOR_ROOT_REVIEW`。候选 `codex/t74-billing-wallet-sync@7bd3b5928` 基于 `main@6d30ac9ef`。原生余额扣费、钱包消费投影和消费审计现同处 `usage_billing_dedup` 成功 claim 的一个 SQL 事务，保持 paid-first/gift-second、原生一次技术透支和幂等边界；命中既有漂移时先写可审计 `migration_projection` 校准至本请求前的运行时余额，再写真实 `usage_consumption`，不更改用户实际余额或批量回填。两个余额弹窗均打开即读 `/quota-summary`，不再使用旧 `AdminUser.balance`。生产只读报告：8 名用户钱包高估，合计 `74.73037899`；历史静态漂移仅保留后续逐项受控对账设计。定向 Go、server build、前端 3 项组件测试、typecheck、production build、diff-check 通过；integration test 因本机缺少 rootless Docker 未启动，全包 repository 的两项 T72 兑换码单测失败在原 main 同样复现。无迁移、配置或生产写入；T71 仍 VERIFYING、T72/T73 亦 READY，本任务仅排队，不得抢占合并/部署车道。交接：`docs/handoffs/2026-08-26-t74-billing-wallet-sync-handoff.md`。
+
+## 当前实现任务（2026-08-26，T73）
+
+- **T73 账号检测记录居中弹窗与双证据检索**：状态 `DONE`。最终根 `main@4200aa47ec6cbd781220258827654ac7b262c2f1`、tree `54ee777772d4c4eed915328a10db14ee40e25da9` 已推送并通过预加载蓝绿链发布；宿主记录 `/var/lib/sub2api/release-records/20260826T110955Z-production-2396063.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`、活动槽 `blue`。居中弹窗、Juice/指纹/综合结论三项筛选、双证据展开、历史记录语义以及缺失样本“未取得证据”展示均已在线生效；公网三项健康端点均 HTTP 200。测试/生产证据分别为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-26-main-4200aa47e-t73-final-display-fix.json` 与 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-26-main-4200aa47e-t73-production.json`。无迁移、配置或生产数据写入。交接：`docs/handoffs/2026-08-26-t73-account-monitor-records-modal-handoff.md`。
+
+## 当前待根审任务（2026-08-26，T72）
+
+- **T72 兑换码充值事务边界修复与余额写入审计**：状态 `DONE`。候选 `codex/t72-redeem-transaction-fix@18f8a3dc` 已合入、推送并从根 `main@37d7467ba1e0ef987d718e44fa1abc181602990e`、tree `4fedefae5f5ef02990a25d06441b22552499a36f` 通过预加载蓝绿链发布生效。发布记录 `/var/lib/sub2api/release-records/20260826T093251Z-production-2173135.json` 为 `succeeded/promoted`、`rolled_back=false`，预检 `downtime_required=false`，活动槽 `green`；公网 `/healthz`、`/readyz`、`/health` 均 HTTP 200。生产兑换码 `eb1bc00840de1b7ff6d3c66d7ea1f648` 只读核验仍为 `id=44/type=balance/value=20/status=unused`，关联 `redeem_credit` 账本条目为 0，证明未擅自为任意用户入账；用户可在自己的已登录账户中正常兑换。正向兑换复用 ambient transaction，负数兑换在锁内原子扣减并保留封顶 0/不消费赠送额度语义。直接相关 service/repository/handler 回归、server build、diff-check 通过；0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-26-main-37d7467ba-t72-redeem-transaction-fix.json`。无迁移、配置或依赖变化。
+
+## 当前设计任务（2026-08-26，T71）
+
+- **T71 调度设置独立页面与交互修复**：状态 `FROZEN`。候选 `codex/t71-scheduler-settings-page@c45ef4af0b43fa28a3e868e07422586ce1e105ab` 已合入并推送 `main@3770a8015`；直接相关 Vitest、类型检查、生产构建和 diff-check 已通过。宿主发布记录 `/var/lib/sub2api/release-records/20260826T022654Z-production-1256992.json` 返回 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，公网健康通过。生产 `/admin/scheduler-settings` 已确认匿名守卫；当前缺少管理员登录态，数字选中态、三段控件联动、场景预览、保存反馈及浅深色/移动端验收待补。候选 worktree/分支与全部已发布证据保留；未明确解冻前不继续写入、部署或清理。
+
+## 已完成任务（2026-08-25，T70）
+
+- **T70-R1 账号检测记录面板与结构化证据修复**：状态 `DONE`。最终视觉修正版已合入并推送为 `main@3af307f6d9df466fe7008f7416aa1d7e43703ac0`，并由发布总控以 `main@3b948e2a2` 完成总账收口；0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-26-main-3af307f6d-t70-r1-visual.json`。窄幅深色右抽屉与稿件一致，桌面为时间/档位/触发原因/有效样本/结论五列，移动端为时间线，详情可展开；新失败/证据不足记录保留 medium/high 与 49/158 计划数，无有效样本时显示“未取得证据”；历史记录明确显示“历史记录”，不再伪装成 `unknown / 0/0 / --`。直接相关 Go/前端测试、typecheck、生产构建、Go build 与 diff-check 通过。最终蓝绿发布返回 `succeeded`、`downtime_required=false`、活动槽 `blue`，公网 `/healthz`、`/readyz`、`/health` 均 200；线上管理接口只读核验确认当前记录档位/计划数和历史语义均正确。无迁移、无配置变化、无生产业务数据写入。
+
+- **T70 账号检测分层监测与记录面板**：状态 `DONE`。候选 `codex/t70-account-monitor-detector-v411@3acc49ff4` 已合并并推送为 `main@a5fb192a1a1ea52e0f34858a0a0ae7d86f891df6`，tested tree `b49c6e8b65a2552e0779d498a205ac44e2808e52`；0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-25-main-a5fb192a1-t70.json`，迁移哈希 `59628d84dd909c8a91949eab2015dc216a8fe76027a2bcc8c996b504eb055e80`。基于 `chen-006/gpt56_api_detector` v4.1.1 接入 medium 日常、low 手动、high 异常升级，新增结构化证据字段、228 迁移、历史 `limit/cursor/status/profile/mode` 查询和桌面抽屉/窄屏时间线面板；旧记录保持 historical/unknown，敏感字段不落库或渲染。Go/前端直接相关测试、server build、typecheck、production build、gofmt/diff-check，以及 T70 维护迁移白名单和发布控制器合同测试通过。授权停机发布已通过既有蓝绿维护路径生效，宿主记录 `/var/lib/sub2api/release-records/20260825T182804Z-production-260083.json` 为 `succeeded/promoted`、`rolled_back=false`、活动槽 `blue`；登录态线上确认桌面表格抽屉、移动时间线、详情展开和 390px 无横向溢出。许可边界保持不变：不得将上游 PolyForm Noncommercial 核心、可信基线或报告逻辑复制进商业生产镜像；未配置合法制品时保持“检测器未接入”语义。交接：`docs/handoffs/2026-08-26-t70-account-monitor-detector-v411-handoff.md`。
+
+## 当前待根审任务（2026-08-25，T69）
+
+- **T69 账号监控证据与评分回退**：状态 `VERIFYING`。候选已合入并推送为 `main@1b6c6e1d5f73eb0df58c02d1738bbd631b0527a9`，随后验收站部署成功；service/repository/handler 聚焦测试、`go build ./cmd/server`、gofmt、`git diff --check` 均通过。当前最终验收站版本为 `main@1eed79a54`，包含 T69；主站未部署，线上专项功能仍待管理员人工验收。交接：`.worktrees/t69-account-monitor-evidence-fallback/docs/handoffs/2026-08-25-t69-account-monitor-evidence-fallback-handoff.md`。
+
+## 验收站部署记录（2026-08-27）
+
+- T69 首次验收站发布：`main@1b6c6e1d5f73eb0df58c02d1738bbd631b0527a9`，脚本返回 `succeeded`。
+- T76 最终验收站发布：`main@1eed79a547a4276127beace8024869dbf0137255`，tree `ede8d8e49baf2609447944925761e9cf79d50e6c`，镜像归档 SHA-256 `230dbb772381f4d40eda33d40d6857b8a8d2cd3a9afc0de614d439531852ebb0`，脚本返回 `succeeded`。
+- `/admin/lab/health` 返回 `{"status":"ok"}`，登录页 HTTP 200，验收 API、worker、detector、PostgreSQL、Redis、Caddy 均 healthy。主站未部署。
+
+## 已完成任务（2026-08-25，T68）
+
+- **T68 分组调度运营优先级与策略护栏**：状态 `DONE`。最终生产源 `main@70925cf0d4defb20dca80cf28d2305f78b13c2ca`、tree `364545042e292674fe26c3f6f818e953585480d1` 已推送并由预加载蓝绿控制器发布；控制器返回 `succeeded`、`downtime_required=false`、活动槽 `green`，生产镜像绑定 source commit 的不可变 ID，迁移哈希保持 `2b656ebf94fac6e81a1630d40561eccf105b5925ac939c0c6e87181bd20ea4c9`。0600 证据：`/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-26-main-70925cf0d-t68-legacy-priority-fix.json`。线上设置页确认固定服务不中断护栏、1/2/3 优先级、三段微调和场景预览；旧 GPT-Pro 自定义策略的零值 priority 现在正确显示推荐 `利润 3、首字速度 1、完整耗时 2`，浏览器无业务错误，公网三项健康端点均为 200。用户确认的默认推荐配置为：GPT-特惠 `利润=1、首字速度=2、完整耗时=3`；GPT-Plus 三项均为 `1`；GPT-Pro 与【专属】GPT-PRO 为 `首字速度=1、完整耗时=2、利润=3`。直接相关 Go service/admin、server build、SettingsView 45/45、typecheck、frontend build 与 diff-check 均通过。无迁移、无生产配置或业务数据写入、无 GitHub Actions；候选 worktree `.worktrees/t68-scheduler-policy-priority` 与分支 `codex/t68-scheduler-policy-priority` 保留至清理审计完成。
+
+## 当前设计任务（2026-08-25，T67）
+
+- **T67 完全恢复 Sub 原生用户扣费**：状态 `DONE`。根 `main@d4566a5906eeb15f7d93f5085819f2b3bc015b81` 已推送并通过预加载蓝绿链发布；宿主记录 `/var/lib/sub2api/release-records/20260825T160205Z-production-4126867.json` 返回 `succeeded/promoted`、`downtime_required=false`、活动槽 `green`。推理扣费恢复为原生 `users.balance` 事务路径，充值/退款成功后失效余额缓存。直接相关 repository/admin/service 测试与 server build 通过；repository integration 的 `rootless Docker not found` 环境阻断证据保留。线上三项健康端点、管理员额度摘要及只读余额/缓存一致性核对通过。无数据库迁移、无配置变化、无生产业务数据写入。交接：`docs/handoffs/2026-08-25-t67-native-billing-handoff.md`。
+
+## 当前进行中任务（2026-08-25，T65/T66）
+
+- **T66-R1 Luna 不支持文案修复**：状态 `DONE`。基于已上线 T66 的跟进修复，仅将 Luna 本地无账号的 HTTP 503、`local_capacity_exhausted` 响应文案改为“本站暂不支持gpt-5.6-luna，请切换模型重试”，保持客户端原有 5xx 重试协议；不改状态码、错误码、非 Luna 分支、全局错误透传、自动降级、账号切号、账务或配置。生产源 `main@2e91ed721`；蓝绿发布 `succeeded/promoted`、`downtime_required=false`、活动槽 `green`，公网健康端点均 200。生产记录 `/var/lib/sub2api/release-records/20260825T143727Z-production-3940992.json`，证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-25-main-2e91ed721-t66-r1-production.json`。
+- **T65 账号监控历史最终结果回退**：状态 `DONE`。合并提交 `main@4cf11cd05`，生产源 `main@878623872`；蓝绿发布 `succeeded/promoted`、`downtime_required=false`、活动槽 `green`，公网健康端点均 200。生产记录 `/var/lib/sub2api/release-records/20260825T133438Z-production-3800920.json`，证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-25-main-878623872-t65-production.json`。范围：模型检测证据不足/失败时沿用最近一次已完成且证据充分的最终检测结果；当前窗口评分不可用时沿用最近一次有效评分；页面明确展示当前状态、回退来源和时间。不新增事实源。
+- **T66 Responses 安全切号、账号故障隔离与 Luna 不可用指引**：状态 `DONE`。生产源 `main@2c077f009`；蓝绿发布 `succeeded/promoted`、`downtime_required=false`、活动槽 `blue`，公网健康端点均 200。生产记录 `/var/lib/sub2api/release-records/20260825T135859Z-production-3855857.json`，证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-25-main-2c077f009-t66-production.json`。交付包括余额不足立即隔离、502/503 短时冷却并请求级排除、纯 `response.failed` 安全切号门禁，以及 Luna 无账号时稳定 `model_not_found` 替代指引；无迁移、无配置变更、无生产数据写入。
+
+## 当前进行中任务（2026-08-25，T64 用户导航与账号监控混合证据）
+
+- **T64 用户导航与账号监控混合证据**：状态 `DONE`。隐藏用户“我的订阅”菜单，统一“分组性能监控”文案，将分组性能监控默认时间窗改为 24 小时，移除管理员“经营分析-账号盈利”菜单挂载；同时将账号监控质量数据从仅主动探测改为真实调用与主动探测混合聚合；P95 改为秒单位并保留两位小数。保留相关路由、页面、API 和代码。原始基线 `main@fbe32c725`，发布前已刷新至 `main@6c632e036`，候选 `codex/t64-nav-monitor-hybrid@48041f572`，根合并提交 `main@1140e3563` 已推送。直接相关测试、typecheck、build、diff-check 已通过；测试证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-25-main-1140e3563-t64.json`。生产发布记录 `/var/lib/sub2api/release-records/20260825T100637Z-production-3355302.json` 返回 `succeeded/promoted`、`downtime_required=false`、`rolled_back=false`，活动槽 `blue`；公网 `/healthz`、`/readyz`、`/health` 均返回 HTTP 200。登录态线上验收确认用户导航无“我的订阅”、经营分析展开后无“账号盈利”、导航显示“分组性能监控”，页面默认选中“24 小时”且展示秒单位指标。无迁移、配置或生产数据写入。
+
+## 当前完成任务（2026-08-25，T63 经营总览移除待确认并统一空值为 0）
+
+- **T63 经营总览移除待确认并统一空值为 0**：状态 `DONE`。用户已确认重新设计：经营总览不再使用“待确认/口径待确认”语义；站内收入直接复用 `usage_logs.actual_cost`，上游成本继续复用 Sub 原生有效账号成本表达式，毛利与毛利率始终计算，时间范围内无充值/消费/成本记录统一按 ¥0.00 展示；历史充值不回填、不参与收入判断。实现已合入并推送 `main@89fe934e5623b6bb915bc5904429c32adb49cb1b`；发布证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-25-main-89fe934e-t63-business-overview-production.json`；宿主记录 `/var/lib/sub2api/release-records/20260825T092426Z-production-3258944.json` 返回 `succeeded/promoted`、`downtime_required=false`、`rolled_back=false`，活动槽 `green`；公网 `/healthz`、`/readyz`、`/health` 均 200，经营总览 `today` 管理员接口返回 `revenue_status=confirmed`、收入/成本/毛利/毛利率数值、pending counters 为 0，趋势 1 天、分组 4 个，无可见“待确认”文案。无迁移、配置或生产数据写入；候选已归档后清理。
+
+## 当前返修任务（2026-08-25，T62 第四套性能监测深色主题与呼吸动效优化）
+
+- **T62 第四套性能监测深色主题与呼吸动效优化**：状态 `DONE`。仅优化第四套页面顶部“分组状态”卡片深色表面、文字层级和圆环呼吸辉光；保留原型结构、静止百分比、绿/黄/红语义、P95、统一真实请求数、站长推荐与社区矩阵。修复提交 `3f917df12` 已合入并推送 `main@c0f9a65ffe5f975f4e0639d7f605c119194ca951`；测试证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-25-main-t62-monitor-dark-breathe-fix.json`，Monitor V2/V4 直接测试 56/56、typecheck、production build 和 diff-check 均通过。宿主记录 `/var/lib/sub2api/release-records/20260825T052721Z-production-2751024.json` 返回 `succeeded/promoted`、`downtime_required=false`、`rolled_back=false`，活动槽 `blue`；公网 `/healthz`、`/readyz`、`/health` 均 HTTP 200，登录态页面确认深色卡片、内层圆环、2.8s 呼吸动效、静止百分比，以及站长推荐和社区众测区均保留。无 API、数据库、迁移、配置或生产数据变更。
+
+## 当前返修任务（2026-08-25，T61 第四套性能监测原型结构还原）
+
+- **T61 第四套性能监测原型结构还原**：状态 `DONE`。仅替换第四套页面顶部“分组状态”区域，恢复 Monitor V2 页面骨架并保留下方 CodexRadar 站长推荐与社区矩阵；第四套圆环、P95、统一真实请求样本数和呼吸动效继续保留。已合入并推送 `main@86dc285f101f9da009d4236f1439394f306802dc`，测试证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-25-main-86dc285f-t61-monitor-prototype.json`，宿主记录 `/var/lib/sub2api/release-records/20260825T041905Z-production-2595944.json` 返回 `succeeded/promoted`、`downtime_required=false`、活动槽 `blue`；公网三项健康端点 200，登录态桌面/窄屏结构与呼吸动效验收通过。无 API、数据库、迁移、配置或生产数据变更。
+
+## 当前经营任务（2026-08-24，T57 DOCX 经营分析总览）
+
+- **T57 DOCX 经营分析总览**：状态 `DONE`。生产源 `main@f217db218` 已推送并通过既有本地/宿主预加载蓝绿链无停机发布，活动槽 `green`，迁移哈希保持 `2b656ebf94fac6e81a1630d40561eccf105b5925ac939c0c6e87181bd20ea4c9`；0600 证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-24-main-f217db218-t57-business-overview-production.json`。公网 `/healthz`、`/readyz`、`/health` 均 200；管理员经营总览 `today`/`7d` 均返回 200，真实数据正确投影 `revenue_status=pending_split`、5 个分组和 7 天趋势，前端 `BusinessOverviewView` 资源已上线。范围来自《星桥AI-Link-经营分析开发需求.docx》，继续复用 `usage_logs` 与 T55 只读契约，不新增第二账务事实源。恢复 bundle：`/Users/gongtengxinwen/Documents/sub2api-archives/t57-docx-business-analysis-adbc4837.bundle`。
+
+## 当前暂停任务（2026-08-23，T54-R2 调度预设与参数中文化）
+
+- **T54-R2 调度预设语义、中文参数与有界校验**：状态 `DONE`。生产源现为 `main@00291ce98`（后续 T55 迁移兼容修复），宿主记录 `/var/lib/sub2api/release-records/20260824T031405Z-production-3653683.json` 返回 `succeeded/promoted`、`downtime_required=false`、活动槽 `blue`；公网 `/healthz`、`/readyz`、`/health` 均 200。管理员 settings API 只读确认三个中文预设“体验优先 / 体验均衡 / 利润优先”，内部 ID 保持兼容。恢复 bundle：`/Users/gongtengxinwen/Documents/sub2api-archives/t54-r2-scheduler-labels-a4f7c906.bundle`。
+
+## 当前紧急修复（2026-08-23，T56 Responses custom-tool ID namespace repair）
+
+- **T56 Responses custom-tool ID namespace repair**：状态 `DONE`。已用真实任务 rollout 证据确认 Codex 上下文压缩后会把 `custom_tool_call.id` 写成 `fc_*`；现有中转兼容层又在续请求缺少 `tools` 声明时直接跳过 custom history 转换，OpenAI 直通输入过滤还把 custom/function 两类工具统一按 `fc_*` 规则处理。修复已提交并推送 `main@be6738b88819152639ce918743739f2a320f3c4a`：从历史调用推断 custom 工具并执行可逆 lowering；直通与 OAuth 输入按 `custom_tool_call -> ctc_*` 独立校验/归一化；保留 `call_id` 配对，不改历史数据库。定向 RED/GREEN、服务构建与 diff-check 已完成，0600 证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-23-main-be6738b8-t56-ctc-fc-repair.json`。生产授权已获并完成无停机发布；宿主记录 `/var/lib/sub2api/release-records/20260823T164955Z-production-2302751.json` 返回 `succeeded/promoted`、`downtime_required=false`、`rolled_back=false`，活动槽 `blue`，公网三项健康端点均 200。无迁移、无生产业务数据写入。
+
+## 当前设计任务（2026-08-23，T55 原生额度钱包与手动充值退款账本）
+
+- **T55 原生额度钱包与手动充值退款账本**：状态 `DONE`（主站已部署并验收）。候选迁移兼容修复保留历史负余额/技术透支语义，避免 `users.balance < 0` 阻断 `user_wallets` 初始化；根提交 `main@00291ce98` 已推送并通过受控维护发布，宿主记录 `/var/lib/sub2api/release-records/20260824T031405Z-production-3653683.json` 返回 `succeeded/promoted`、`rolled_back=false`，迁移哈希为 `2b656ebf94fac6e81a1630d40561eccf105b5925ac939c0c6e87181bd20ea4c9`。线上健康端点、钱包摘要、钱包流水、T54 设置 API 均通过；生产用户钱包按旧 `users.balance` 初始化，无历史流水回填。测试证据：`/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-24-main-00291ce98-t55-overdraft-fix-production.json`。恢复 bundle：`/Users/gongtengxinwen/Documents/sub2api-archives/t55-native-quota-ledger-7766644a.bundle`。
+
+## 当前返修任务（2026-08-23，T54-R1 分组调度三步流程与命名预设）
+
+- **T54-R1 分组调度三步流程与全局命名预设**：状态 `DONE`。用户确认按推荐方案返修已上线 T54 设置页：严格执行“选择分组 -> 选择策略模式 -> 配置参数/选择预设”；调度分组直接读取 Sub 原生有效 OpenAI 分组，不再复用默认订阅的 `subscription_type=subscription` 过滤结果；策略模式只保留“自定义参数”和“预设模式”，预设模式最终参数全部禁用；自定义参数可保存为管理员命名预设并跨分组复用。三个内置预设保持既有数值且不可变，管理员预设可重命名、被引用时不可删除，分组策略保存 `preset_id` 与完整生效快照并兼容旧 `weighted_override/fair` 数据。Task 1-4 已完成，功能已合并并推送到 `main@3ab2c3fae90c13a90990f7cb91874cfbb09b6620`；测试证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-23-main-3ab2c3fae-t54-r1-scheduler-workflow.json`（0600）。宿主发布记录 `/var/lib/sub2api/release-records/20260823T160921Z-production-2213574.json` 返回 `succeeded/promoted`、`downtime_required=false`、`rolled_back=false`，活动槽 `green`；线上 `/healthz`、`/readyz`、`/health` 均 200，管理员设置页确认五个原生 OpenAI 分组、三步顺序、custom/preset 两种模式及预设参数禁用。范围不含调度算法、内置数值、S1/S2、sticky、并发、故障域或 Monitor V2；无迁移、无生产业务数据写入。
+
+## 当前生产修复（2026-08-23，T53-R3 隔离站管理员可见性）
+
+- **T53-R4 隔离站登录页修复**：状态 `DONE`。已推送并从 `main@5e48085b0bad5e8cb7c58d9c34866a380ce8b9c0` 通过独立隔离站发布链生效；发布会话 `38311` 返回 `succeeded`、`downtime_required=false`、`lab_html_contract=passed`。仅在 `VITE_ADMIN_LAB=1` 隐藏测试站不允许使用的注册入口。线上 `/admin/lab/` 302、登录页 200 且资产基路径正确，独立测试账号登录 200 并可用 Bearer token 访问 `/admin/lab/api/v1/auth/me` 返回 200；主站 `/admin/`、`/healthz` 仍 200。截图中的 `940310446@qq.com` 为生产管理员账号，不是测试站账号。
+
+- **T53-R3 隔离站管理员可见性修复**：状态 `DONE`。基线 `main@4e05195e2a42547dbad04591d5ed4615698f16d9` 已推送并完成预加载蓝绿发布；宿主记录 `/var/lib/sub2api/release-records/20260823T083812Z-production-1250022.json` 返回 `succeeded/promoted`、`downtime_required=false`、`rolled_back=false`，活动槽 `green`，API/worker 使用 source commit `4e05195e2` 的不可变镜像且 healthy。线上验收：`/healthz`、`/readyz`、`/health` 均 200；匿名 `/admin/lab` 与 `/admin/lab/` 均 302 到 `/admin/lab/login`，登录页 200，匿名 `/admin/lab/api/v1/admin/accounts` 返回 401；主站 `/admin/` 保持 200。发布前曾发现隔离站重载完整 Caddy 配置导致运行态 upstream 漂移为 `sub2api-blue:8080`，已按 release-state 恢复为 `sub2api-green:8080` 后再执行蓝绿链，未重启 PostgreSQL、Redis、Caddy 或活动 API。0600 测试证据：`/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-23-main-4e05195e2-t53-r3-admin-only.json`；主站账号盈利页仍不在 T53/T54 范围。
+
+## 当前新增任务（2026-08-23，T54 分组调度策略与乐观体验卡）
+
+> 根总控状态：`DONE`；合并提交 `04a146e08` 已随之后生产版本持续生效。
+
+> 生产收口：状态 `DONE`。已推送 `main@67a41463fdadc4ef05dc1b97c52bc0a328586c37`，测试树 `8a5e5a8a2396fcb509f801a511a99a47f4e2556c`；预加载蓝绿链返回 `succeeded/promoted`、`downtime_required=false`，活动槽 `green`。宿主记录 `/var/lib/sub2api/release-records/20260822T204341Z-production-3918367.json` 的 requested source/tree/tested tree 与本次发布一致；公网 `/healthz`、`/readyz`、`/health` 均 200，管理员设置 API 读取 200，乐观监控资源验收通过。无迁移、无配置 schema 变化、无生产数据写入、无 GitHub Actions。
+
+- **T54 分组调度策略与乐观体验卡**：状态 `DONE`。原合并提交 `04a146e08` 与生产收口 `main@67a41463` 均为当前 `main` 祖先；其调度策略、乐观体验卡和后续 T54-R1/R2 修订已持续包含在当前生产源。原生产记录 `/var/lib/sub2api/release-records/20260822T204341Z-production-3918367.json` 为 `succeeded/promoted`、`downtime_required=false`，后续 T57 生产源 `main@f217db218` 继续包含该功能。
+
+## 当前新增任务（2026-08-22，T53 管理员隔离测试站）
+
+- **T53-R1 管理员隔离测试站生产交付修复**：状态 `DONE`。已推送 `main@84279999f767f6f22ed5c2ca5613e4a6704ed192` 并通过独立发布链上线；隔离 Compose 的 API/worker/frontend/gateway/PostgreSQL/Redis/mock upstream/mock payment 共 8 个服务均 healthy，root-owned `0600` lab env 保留独立凭据。Caddy 通过 stdin validate/reload 生效，公网 `/admin/lab/` HTTP 200，HTML 含 `/admin/lab/assets/` 且不含主站 `/assets/`；主站 `/healthz` HTTP 200，活动 API/Caddy 身份未变化。根因修复覆盖空库 AUTO_SETUP、共享 `/app/data`、lab 凭据复用、IPv4 healthcheck、Caddy 路由排除和 bind-mounted Caddy 配置 reload；不重启生产 PostgreSQL、Redis、Caddy 或活动 API，不连接生产支付/上游或写生产数据库，不使用 GitHub Actions。原 T53 范围仍不包含额度账本、充值包、经营分析或第二账务事实源。
+
+## 当前新增任务（2026-08-22，T52 调度公平性与管理员实时参数页）
+
+- **T52 调度公平性与管理员实时参数页**：状态 `DONE`。实现已合入并推送 `main@1ddc7bbfa93b3337663ba427d7bd2b34c78ffdf4`，tested tree `7e5c344f3da60c378434c2fce68ffe62e1751c43`；复用原生 settings 与 `SettingsView`，新增候选池模式、探索比例、饥饿阈值、公平权重和分组覆盖，参数旁提供作用、范围及调大/调小效果说明。直接相关 Go/Vitest、服务构建、前端 typecheck/build 和 diff-check 通过，0600 证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-22-main-1ddc7bbf-t52-scheduler-fairness.json`。预加载蓝绿链最终宿主记录 `/var/lib/sub2api/release-records/20260822T094458Z-production-3328814.json` 返回 `succeeded/promoted`、`downtime_required=false`、活动槽 `blue`；公网三项健康端点 200，管理员 settings API 已读取生产公平参数。无迁移、无配置 schema 变化、无生产数据写入、无 GitHub Actions。
+
+## 当前新增任务（2026-08-22，T51-R1 Monitor V2 生产热修）
+
+- **T51-R1 Monitor V2 生产热修**：状态 `DONE`。T51 发布后新版监控接口持续 500，生产日志为 `sql: expected 12 destination arguments in Scan, not 13`；确认外层 SQL `SELECT` 漏掉 `bm.bucket_has_result`，与已更新的 `rows.Scan` 列数不匹配。修复已合入并推送 `main@99a423510f3aa36def40d2b253be21be0d8e85e9`，补齐查询列和 SQL 列序回归断言；直接相关后端/前端测试、构建和 diff 检查通过。已通过既有无停机蓝绿链发布，宿主记录 `/var/lib/sub2api/release-records/20260822T075347Z-production-3238611.json` 为 `succeeded/promoted`、`downtime_required=false`、活动槽 `green`，API/worker/model-detector healthy，三项公网健康端点 200。无迁移、无配置和生产数据写入。
+
+## 当前新增任务（2026-08-22，T51 Monitor V2 检测失败红色状态）
+
+- **T51 Monitor V2 检测失败红色状态**：状态 `DONE`。用户补充要求主动检测失败显示红色 DOWN，不得显示为灰色无数据；根因是原生时间桶 SQL 将失败结果桶与无结果桶都投影为 `unavailable`，前端原先据 `latency_ms=null` 误判为 `no-data`。候选 `codex/t51-monitor-failed-red@b262756b76e81b263280ed657b08901c48c337cd` 已合入并推送根 `main@81366f15a9452682dced2ad67d8b001ab6cb7002`；通过原生时间线投影新增必填 `has_result`，失败桶红色、空桶灰色，Monitor V2 合同升级 v8，成功、可用率、调度资格、数据源和探测逻辑不改。Monitor V2 9 个测试文件 45/45、Go service/handler/repository 定向测试、`go build ./cmd/server`、`pnpm typecheck`、`pnpm build`、`git diff --check` 通过；发布预检 `downtime_required=false`，宿主记录 `/var/lib/sub2api/release-records/20260822T073115Z-production-3216658.json` 为 `succeeded/promoted`，活动槽 `blue`，公网 `/healthz`、`/readyz`、`/health` 均 200，API/worker/model-detector healthy。生产证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-22-main-81366f15-t51-production.json`；无迁移、无配置和生产数据写入。
+
+## 当前新增任务（2026-08-22，T50 Monitor V2 可用性字段文案精简）
+
+- **T50 Monitor V2 可用性字段文案精简**：状态 `DONE`。合并提交 `main@461844764` 为当前 `main` 祖先并已随多个后续版本生产生效；当前 `MonitorV2GroupCard` 专项测试通过，生产 `MonitorV2RouteView` 资源包含 `availabilityLabel` 且不含 `monitor-group-status`。功能保持仅移除“运行中”状态胶囊并增加“可用性”标签，无 API、数据源、迁移、配置或生产数据变化。
+
+## 当前新增任务（2026-08-22，T49 失败流水展示热修）
+
+- **T49 失败尝试从正常流水列表隔离**：状态 `DONE`。用户续接“流水登记优化”窗口反馈管理员页面频繁出现 Luna/Sol 0 token、0 元流水；已确认来源是本定制 failover 审计为每次无 usage 失败写入的 `usage_completeness='unknown'` attempt。候选提交 `f065c4d4b718d6949bc6f502af624637f597a594` 已无冲突合并到根 `main@c3971899055bb7a65e09a18729d908f7be9f26c3` 并推送 `origin/main`；范围仅在原生 usage repository 正常列表、过滤统计及 endpoint breakdown 排除 `unknown`，保留 `complete`、`partial`、历史 `NULL`；不删库、不改扣费/重试/失败审计、不新增迁移。repository 全包、admin handler focused、server build、gofmt、diff-check 均通过。预加载蓝绿链返回 `succeeded/promoted`、`downtime_required=false`，活动槽 `green`；宿主记录 `/var/lib/sub2api/release-records/20260821T205212Z-production-2739074.json`，0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-22-main-73cc438b-t49-production.json`。公网 `/healthz`、`/readyz`、`/health` 均 200；管理员 `/api/v1/admin/usage` 返回 200、固定截止点前当前页 100 行无 `unknown`，数据库只读核对为 `143537 = 6259 unknown + 137278 non-unknown`。API/worker/model-detector 已切换，PostgreSQL/Redis/Caddy 身份保留。
+
+## 当前新增任务（2026-08-21，模型检测证据增强）
+
+- **T48 模型映射/替换双证据检测与上游返回值展示**：状态 `DONE`。候选已刷新到 T47-R2 发布后的根 `main`，完成合并为 `main@86a956b5a059e46a049a6e660efe8ccdd0cb6abf`；直接相关 Go/Vitest 103/103、typecheck、build、gofmt、diff-check 已通过，证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-21-main-86a956b5a-t48-model-detection.json`。已通过既有本地/宿主蓝绿链完成推送和生产切换；宿主记录 `/var/lib/sub2api/release-records/20260821T074947Z-production-2144246.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 blue；生产 `/healthz`、`/readyz`、`/health` 均 HTTP 200，API、worker、model-detector healthy。失败尝试因预加载 SCP 600 秒超时和 GHCR 403 已保留证据，未造成生产变更；最终使用 SSH 压缩预加载传输成功。生产证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-21-main-1e8d23b05-t48-production.json`。功能语义：目录缺失但主动响应/指纹匹配为“疑似映射”，目录命中但响应模型或指纹不匹配为“疑似替换”，多项不一致为高风险；模型或指纹不匹配时页面分别显示请求模型、上游响应声明的 `model`、目录摘要、指纹候选及相似度；上游未返回 `model` 时明确标记，不将 `/models` 目录候选冒充为单次响应模型。原始完整请求/响应、API Key、Base URL 和完整输出不持久化。
+
+## 当前新增任务（2026-08-20，快速迭代-13）
+
+- **T47-R1 operational timeline color correction**: status DONE. Candidate `codex/t47-r1-operational-green@8d38819d0` was integrated and released from pushed root `main@11d871832`. Host record `/var/lib/sub2api/release-records/20260821T032911Z-production-1936940.json` reports `succeeded/promoted`, `rolled_back=false`, `downtime_required=false`, active slot `blue`; all health endpoints returned 200. Logged-in production inspection found 82 `operational` buckets, all emerald green with zero amber/non-green operational buckets; 2 no-probe buckets remained gray. Focused Vitest 20/20, `pnpm typecheck`, `pnpm build`, and `git diff --check` passed. No API, data source, migration, config, or production-data changes. Verified recovery bundle `t47-r1-operational-green-8d38819d0.bundle` was retained, and the candidate branch/worktree plus temporary release artifacts were cleaned. Report: `docs/superpowers/reports/2026-08-21-t47-r1-operational-green-production.md`.
+
+- **T47 monitor visual redesign**: status DONE. Candidate `codex/t47-performance-monitor-visual@65a02b97e` merged to root `main@b91a199aa`; release source `main@0aabd76f9` was pushed and promoted through the blue-green chain. Host record `/var/lib/sub2api/release-records/20260821T011717Z-production-1834048.json` reports `succeeded/promoted`, `rolled_back=false`, `downtime_required=false`; `/healthz`, `/readyz`, `/health` all returned HTTP 200. Focused Vitest 24/24, `pnpm typecheck`, `pnpm build`, and `git diff --check` passed; report `docs/superpowers/reports/2026-08-21-t47-performance-monitor-production.md`. No data source, API, migration, or production config changes.
+
+- **T46 性能监测自定义页面挂载**：状态 DONE。根 main@ef4401234 已推送并完成生产蓝绿发布；宿主记录 /var/lib/sub2api/release-records/20260820T174214Z-production-1481712.json 返回 result=succeeded、state=promoted、rolled_back=false，发布预检 downtime_required=false，活动槽 blue。直接相关前端 11 files/49 tests、pnpm typecheck、pnpm build、git diff --check 通过；测试证据 /Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-21-main-ef4401234-t46-performance-monitor.json。新增 /custom/performance-monitor 与“性能监测”虚拟自定义菜单，隐藏原生 /monitor 固定入口，不做旧路由重定向；无迁移、无生产数据写入。
+
+## 当前新增任务（2026-08-20，快速迭代-12）
+
+- **T44 Monitor V2 时间线布局稳定性与卡片防抖优化**：状态 `DONE`。已合入、推送并从 `main@9b4d5b7f6` 发布；桌面端 24/28/30 桶按可用宽度均匀填充，小屏仅时间线内部横向滚动；卡片和柱体 hover 不再位移/缩放，固定边框与几何避免跨卡片抖动。宿主记录 `/var/lib/sub2api/release-records/20260820T100427Z-production-1108935.json`，`downtime_required=false`、`result=succeeded`、`state=promoted`；健康端点 200。
+- **T45 CodexRadar 站长推荐与社区矩阵白天模式适配**：状态 `DONE`。已合入、推送并从 `main@9b4d5b7f6` 发布；站长推荐、社区矩阵及加载/失败/过期状态均补齐 light/dark 双主题，保留暗色视觉与分类强调色。宿主记录 `/var/lib/sub2api/release-records/20260820T100427Z-production-1108935.json`，`downtime_required=false`、`result=succeeded`、`state=promoted`；健康端点 200。
+
+## 当前新增任务（2026-08-19）
+
+- **T41 Monitor V2 时间线视觉与 Tooltip 交互优化（快速迭代-11）**：状态 `DONE`。已合入并从 `main@befce43e8` 发布；Tooltip 下置独立布局行，柱体放大为 6x20、间距 5px，`unavailable + null latency` 显示为灰色虚线无探测数据桶。固定 v7、24/28/30 桶和原生探测来源保持不变。宿主记录 `/var/lib/sub2api/release-records/20260820T080727Z-production-1014979.json`，`downtime_required=false`、`result=succeeded`、`state=promoted`、健康端点均 200。真机截图仍由用户验收。
+- **T42 Monitor V2 时间新鲜度与刷新可靠性优化（快速迭代-11）**：状态 `DONE`。与 T41 合并从 `main@befce43e8` 发布；分组显示原生最新 `checked_at`，刷新 GET 失败保留旧快照并 5 秒重试，成功后恢复设置间隔；v7、24/28/30、no-store 和原生探测执行器保持不变。宿主记录 `/var/lib/sub2api/release-records/20260820T080727Z-production-1014979.json`，`downtime_required=false`、`result=succeeded`、`state=promoted`、健康端点均 200。真机截图仍由用户验收。
+
+- **T39 Responses 流式 413 二次错误映射修复（快速迭代-10）**：状态 `DONE`。候选 `89864b957` 已合入并推送根 `main@d22e6705e`；直接 service/handler JSON/SSE 回归、后端构建和 diff-check 通过。宿主记录 `/var/lib/sub2api/release-records/20260824T041150Z-production-3782765.json` 返回 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `blue`；公网健康三项 200，匿名管理接口 401。应用内 413 保持“请求内容过大，请缩短内容后重试。”、机器类型/Responses `response.failed` 和脱敏；Cloudflare 边缘 HTML 413 不在范围。恢复 bundle 待根总控归档。
+- **T40 错误码/边缘错误中文映射补齐（快速迭代-10）**：状态 `DONE`。候选 `bcf78cfe6` 已合入并推送根 `main@f3f3d6b40`；service/诊断、JSON/SSE handler 直接回归、后端构建和 diff-check 通过。宿主记录 `/var/lib/sub2api/release-records/20260824T044525Z-production-3857843.json` 返回 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `green`；公网健康三项 200、匿名管理接口 401、管理员 settings API 200。应用侧 402、507、520–525 中文投影、499 上传中断分类和管理员脱敏边界已生效；Cloudflare 边缘 HTML 413 不在范围。恢复 bundle 待根总控归档。
+
+- **T37 渠道状态用户可见专属分组裁剪**：状态 `DONE`。最终发布源 `main@daf965a0e1fbe421e002493b1d64a239de914f0a`、tested tree `0b6c34e9727102ca2a11bec3a95eb0cde6ae115e`；0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-20-main-daf965a0-t37-feedback.json`，宿主记录 `/var/lib/sub2api/release-records/20260820T045028Z-production-862102.json`。蓝绿链 `downtime_required=false`、`result=succeeded`、`state=promoted`、`rolled_back=false`，活动槽 `blue`；Sub 原生配置分组语义、当前用户专属授权裁剪及 tooltip 下置已部署，健康端点均 200。无迁移、配置 schema 或生产数据写入；真机验收由用户自行完成。
+- **T38 可调度账号最近原生探测评分保留**：状态 `DONE`。发布源 `main@b010e6b2df57efe453b8e8551a108164cfd06a93`、tested tree `5d6ce56585540900ecbc0b961e414e8ab541c63c`；0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-20-main-b010e6b2-t38.json`，宿主记录 `/var/lib/sub2api/release-records/20260820T042911Z-production-841669.json`。蓝绿链 `downtime_required=false`、`result=succeeded`、`state=promoted`、活动槽 `green`；评分状态分离与原生探测评分保留已部署，健康端点均 200。无迁移、配置、前端、依赖或生产数据写入；真机验收由用户自行完成。
+- **根总控历史车道（2026-08-20）**：T37、T38、T41、T42、T44、T45 后续均已完成；T39/T40 的历史 BACKLOG 记录已由 2026-08-24 独立任务收口。
+
+- **根总控最近车道（2026-08-20，T36）**：独立用户可见任务 `01a01b65-be8f-7f53-b169-d9ee55456c37` 已完成规格、计划、实现、根合并、推送、无停机蓝绿发布和线上验收，当前为 `DONE`。生产源 `main@12641c3281289ce66eed48f60e46b67f19d6d356`、tested tree `6375dc0a23bc1bf779114b895ea1b5caa60359fe`；合并提交 `808be1901fb4fcb65869336041b777c76d9ee5e8`。范围仅补充中英文界面文案、组件直接测试和发布验收；不改账务公式、金额、API、查询、数据或采购链路。真机验收仍由用户自行执行，不阻塞后续任务。
+- **根总控当前车道（2026-08-20）**：T34、T35 均已完成无停机部署、线上健康验证并保持 `DONE`；T34 发布源为 `main@c1f102312cd35440a5a14c57ef8356b4cdcb5b7b`。真机验收按用户指令不阻塞后续；发布预检仅在 `downtime_required=true` 时暂停。
+
+- **T32 账号评分回归修复**：状态 `DONE`。已合入并推送 `main@584b37bba6ed05d86a5a152160d37a9f92fefc9c`，完成 focused 测试、根发布预检、无停机蓝绿发布和线上专项验收。评分、当前状态与排名只使用 Sub 原生主动探测证据；暂停账号仍可参与评分和排名；只有主动探测返回 4xx/5xx 且调度关闭时停止探测并退出排名；调度关闭但主动探测成功时继续探测、评分和排名。生产记录 `/var/lib/sub2api/release-records/20260819T153809Z-production-245313.json`，0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-19-main-584b37bba-t32.json`。
+- **T33 经营页账号卡片与搜索**：状态 `DONE`。已合入并推送 `main@0839c7878d8d0c1f59fd11a3f0d3970de784ca1a`，tested tree `9d71116de98949f965c905d8a5fb4f66ce637ce5`；前端 33/33、typecheck、production build、diff-check 通过；发布链 `downtime_required=false`、`result=succeeded`、活动槽 `blue`，公网三项健康检查 200。USD/CNY 经营视图均为每账号独立卡片并支持搜索；页面明确解释本站 CNY 与 USD 额度按 1:1 理解，不改账务公式、采购保存或生产数据。用户于 2026-08-20 明确要求后续发布不再等待真机验收，真机发现问题时另行反馈，因此现有部署与线上验证证据完成收口并释放发布单车道。恢复 bundle `/Users/gongtengxinwen/Documents/sub2api-archives/t33-profitability-cards-90cee9bf4.bundle` 已通过 `git bundle verify`，SHA-256 `a86b71a39c38a6e0749331e7f22f1f87c4c1c801d94986f313abf3e604f05670`；候选 worktree、临时发布 worktree和本地分支已清理。
+- **T34 渠道状态原生探测重构**：状态 `DONE`。独立用户可见任务 `01a01ad3-774a-7e80-a0b7-9bc9bcde54ed` 已合入并从 `main@c1f102312cd35440a5a14c57ef8356b4cdcb5b7b` 发布；证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-20-main-c1f10231-t34.json`，宿主记录 `/var/lib/sub2api/release-records/20260819T184343Z-production-394397.json`。Monitor V2 继续只读 `account_monitor_results` 原生主动探测；固定 24/28/30 桶、倍率紧邻名称、移除“旗舰”，线上三项健康端点均 200。无迁移、无配置、无生产数据写入；登录态视觉截图按用户指令留作未验证项，不阻塞任务完成。
+- **T35 采购保存 PostgreSQL 参数类型热修**：状态 `DONE`。独立用户可见任务 `01a01b11-3613-7ce0-811e-93d986e5cf16` 已完成真实 PostgreSQL 录入、清空、结算验证和三条 `jsonb_build_object` 精确类型修复；版本台账、事务、幂等、审计、成本公式和前端合同不变。无迁移、无生产数据写入；发布源、蓝绿结果和线上采购页面验收见项目进度总账。
+
+发布顺序：T32、T33 已完成；T34 与 T35 可并行刷新/设计实施，但合并、部署和线上验收仍严格单车道，一个任务包一次发布。根总控按候选就绪与故障优先级选择唯一发布候选，不再等待用户真机反馈；真机问题作为后续独立反馈处理。
+
+## 当前状态
+
+- 队列状态：S1-R2、S2、S3、T15、T16、T17、T18、T19、T20、T21、T22、T23、T24、T25、T26、T26-R1、T27、T28、T29、T30、T31、T32、T33、T34、T35、T36、T37、T38、T39、T40、T49、T50、T51、T51-R1、T52、T53-R2、T53-R3、T54、T54-R1、T54-R2、T55、T56 与 T57 均为 `DONE`；其他历史任务状态以各自条目为准。所有发布继续禁止使用 GitHub Actions。
+- 当前实施：T39/T40 已完成合并、推送、无停机蓝绿部署和线上专项验收；当前没有未过时的功能发布车道，根总控只保留历史证据和恢复 bundle。
+- 唯一发布总控：根目录 `/Users/gongtengxinwen/Documents/sub2api搭建` 的 `main`。只有发布总控可以修改全局队列/总账、根 `main`、发布证据和生产状态记录。
+- 当前发布状态：T53-R3 生产源 `main@4e05195e2a42547dbad04591d5ed4615698f16d9`、tree `a32293c649163a73ae17e8809c4d7e73a5b0b14b`、迁移哈希 `18c4ac1fc83294634c42c6d08c6511c01515406f296d40b54840f3dae726949f`；蓝绿链返回 `downtime_required=false`、`result=succeeded`、`state=promoted`、`rolled_back=false`，活动槽 `green`，API、worker 与 model-detector 使用同源不可变镜像且健康。宿主记录为 `/var/lib/sub2api/release-records/20260823T083812Z-production-1250022.json`；隔离站管理员正向登录、会话 Cookie 和匿名拒绝均通过，公网三项健康均 HTTP 200；本地 0600 证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-23-main-4e05195e2-t53-r3-admin-only.json`。
+- 非 `main` worktree 清理：T28/T29 两个功能 worktree、两个临时发布 worktree和两条已合并本地分支均已在生产验收后移除；恢复 bundle `/Users/gongtengxinwen/Documents/sub2api-archives/t28-t29-final-e0b2d99b/t28-t29-refs.bundle`，SHA-256 `a7815ce5a9111b07aea9026c6456f2d830019baacc142f46a5660451f086e741`，`git bundle verify` 通过。更早任务的清理证据沿用既有归档记录；当前仅保留用户指定保护的 `/private/tmp/sub2api-monitor-v3-preview` dirty detached 视觉证据。
+- 全局审计（2026-08-19）：T28/T29 均已完成根复核、合并、推送、发布与生产验证并转为 `DONE`。T28 的生产专项保存保持只读，真实账号保存闭环、全量 OAuth 自购表和 CNY 行内录入入口登记为 T30；T30 顶层任务已创建并处于 `DESIGNING`，尚未占用整合/部署/验收车道。恢复 bundle `/Users/gongtengxinwen/Documents/sub2api-archives/t28-t29-final-e0b2d99b/t28-t29-refs.bundle` 已通过校验；用户指定保护的 detached 视觉预览 `/private/tmp/sub2api-monitor-v3-preview` 与根目录既有未跟踪资料继续保留。
+- 最终归档：全量可恢复 bundle `/Users/gongtengxinwen/Documents/sub2api-archives/native-subtasks-final-44aaf3b70.bundle`，`git bundle verify` 通过，SHA-256 `88abe0117a85738311bf584c4d98b3fcdb4a178e821e0764571af7ef8fa381d6`。T15/T18/T19/T16 功能 worktree、分支及四个临时发布 worktree均在推送、部署、线上验收成功后安全移除；T19 根未跟踪规格/计划原件保留于 `/private/tmp/t19-root-untracked-backup.PuJrml/`，保护/历史 worktree 和根目录既有未跟踪资料未动。
+- 原生错误中文提示配置已独立完成：生产 `ErrorPassthroughRule` 是全局规则、没有 `group_id`，因此一套配置已覆盖所有分组；该工作只调用 Sub 原生管理能力，不修改工程代码、不创建功能 worktree，也不占用发布车道。下一实施任务为 T09。
+- 2026-08-10—2026-08-14 周复盘已纳入后续排序：P0 先修账号质量监控器 `203/EXEC Permission denied` 的可执行链路并完成真实运行验收；P0 将终端完成率作为 Pro 调度/经营硬门槛，不能只看排除业务失败后的平台 SLO；P1 继续处理余额/资格失败的账号准入否决和特惠账号稳定性风险；P1 规划卡片双口径（终端完成率、平台 SLO、排除量）；P2 为延时排名补充窗口、样本、模型构成、用户集中度和缓存命中上下文。以上是任务边界和验收约束，不代表本次 T08 顺带改动。
+- 冻结项：S1 旧候选 `codex/upstream-resilience-s1-native-isolation@69a93343c` 因落后主线、Task 5 复审未闭合及迁移编号 `220` 冲突而 `FROZEN_FOR_REBASE`；T05 旧 detached `a71c675b1` 只作启动审计，轮到时从届时最新干净 `main` 重建。
+- 流程偏差：T01、T02 虽有独立 worktree、规格书、计划和复审证据，但未建立用户可见的独立顶层 Codex 任务；T03 是纠偏前已在途并由根任务内部代理完成的任务。三者均不得宣称符合新增顶层任务门禁，已验证技术成果继续保留。
+- 执行方式：互不依赖的功能 worktree 可并行准备，数量不设上限；合并、推送、部署和线上验收严格单车道串行。每个新任务包必须从当时最新干净 `main` 创建用户可见独立顶层任务和独立 worktree。
+- 模型规则：所有用户可见顶层任务统一使用 `GPT-5.6 Sol / medium`；任务内部 implementer/reviewer 子代理继续使用既定设置，不随顶层模型统一调整。
+- 根任务职责：排队、创建顶层任务、读取交接、授权合并、合并后快速门禁、推送、部署和线上验收；不得用根任务内部 `spawn_agent` 代替整个任务包。
+- 顶层任务职责：完整 brainstorming、书面规格书及用户批准、实施计划、实施与直接相关验证，并在 `READY_FOR_ROOT_REVIEW` 等待根任务授权合并 `main`；自 2026-08-16 起不再为形式增加额外复审或全分支终审。
+
+## 队列
+
+### T36 经营页 CNY/USD 额度关系明示文案
+
+- 当前状态：`DONE`。独立任务 `01a01b65-be8f-7f53-b169-d9ee55456c37` 已从 `main@b02d538a0ac8d90b01ef92c45e55e72e11e9ee6b` 完成规格/计划/实现，刷新后合入根 `main`；实现合并提交为 `808be1901fb4fcb65869336041b777c76d9ee5e8`，生产源为 `main@12641c3281289ce66eed48f60e46b67f19d6d356`、tested tree `6375dc0a23bc1bf779114b895ea1b5caa60359fe`。
+- 交付：在 USD/CNY 切换控件旁显示现有 i18n 驱动的中英文额度关系说明，并由直接页面合同测试锁定 `1 USD = 1 CNY` 的额度理解和“不是汇率换算”语义；不改账务、API、采购保存或数据。
+- 合并后与发布门禁：页面+locale 32/32、`pnpm typecheck`、`pnpm build`、范围扫描和 `git diff --check` 通过；蓝绿链 `downtime_required=false`、`result=succeeded`、活动槽 `green`，公网三健康端点 200，未认证管理接口 401。无迁移、配置或生产数据变化。0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-20-main-12641c328-t36.json`，宿主记录 `/var/lib/sub2api/release-records/20260819T194230Z-production-443041.json`；恢复 bundle `/Users/gongtengxinwen/Documents/sub2api-archives/t36-profitability-quota-parity-12641c328.bundle`，SHA-256 `f3f9a44db9c164a02aea88b24b55f96d62eb47146b57861fe412ccf88a6cc417`。真机视觉验收由用户自行完成，不阻塞后续。
+
+### T31 Monitor V2 视觉放大、时间线交互与 CodexRadar 列对齐
+
+- 当前状态：`DONE`。候选 `a742997a284719897eebcb6f6c5c82a2c60d2ed0`（功能提交 `8f846c962602af4238c71c817f9c701e798e9937`，刷新基线 `main@3097968e5`）已根审查、合并并推送为 `main@3a02d78833f245576478516ca9d395817f4d93c2`、tree `90111984d134101b76ac0b2e20827ee4e8dfd584`；T31 仅修改 Monitor V2 前端/i18n/直接测试，不含 T30 或后端改动。
+- 交付：时间线固定 5px×16px 柱体与 4px 间距；悬停/键盘聚焦显示精确秒级时间、UP/DOWN、中文状态和延迟；滚动后 tooltip 夹在可视区域；整组 hover/focus 绿色底色、动画和强化倍率；可用率严格由真实 timeline 点计算，空样本显示无数据；页面最大宽度 1500px；站长推荐/社区矩阵放大；Radar 按 `ultra → max → xhigh → high → medium → low` 排列，同 effort 跨模型同列，缺档不渲染 placeholder，390px 仅组件内滚动。
+- 验证：合并后 `pnpm vitest run src/features/monitor-v2/__tests__` 为 8 files/35 tests、`pnpm typecheck`、`pnpm build`、`git diff --check` 全部通过。0600 evidence `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-19-main-3a02d78833-t31.json`；宿主记录 `/var/lib/sub2api/release-records/20260819T133045Z-production-147673.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`、活动槽 `blue`；API/worker/model-detector 同镜像且 healthy，共享 PostgreSQL/Redis/Caddy 身份未变，公网 `/healthz`、`/readyz`、`/health` 均 200。
+- 线上验收：登录态 `/monitor` 中文页面显示真实可用率（如 95%）、3 组时间线共 180 个探测点、每点带秒级 `aria-label`，Radar 社区卡 19 个且 placeholder 为 0；hover tooltip 显示 UP/DOWN、时间、状态和延迟；390px 页面 `scrollWidth=clientWidth`，时间线/社区矩阵横向滚动仅发生在自身容器。候选与发布 worktree 已生成恢复 bundle `/Users/gongtengxinwen/Documents/sub2api-archives/t31-final-3a02d7883/t31-refs.bundle`，SHA-256 `174b762c003a5a964603c568745ba3caf81bc8d0e81d303d6d1c2cd1989124ab` 并通过 `git bundle verify`；用户指定的 `/private/tmp/sub2api-monitor-v3-preview` 继续只读保护。
+
+### T26-R1 CodexRadar 三标签社区测试矩阵补齐
+
+- 当前状态：`DONE`。独立用户可见顶层任务 `01a01859-d512-7cd1-88c8-0c1dc18ab023` 候选 `da80eb11aeda7bc5bc4981d862623f49172a9591` 已根审查、合并并推送为 `main@92610b809588939b0c27f3fa831e9b24ef086de4`、tree `1a11bc8532935207b20430f4df6ad48986880ae9`；新增登录态 GET-only `/api/v1/monitor-v2/codexradar-community`，补齐综合智能、软件工程能力、视觉空间推理三标签、原站综合口径、全量模型档位和社区指标。
+- 根合并后直接相关 service/handler/routes 测试、8 项前端 Vitest、typecheck、production build、Go build、gofmt 与 diff-check 均通过；无迁移、配置、生产数据写入或 GitHub Actions。0600 证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-19-main-92610b809-t26-r1-community-matrix-v1.json`。
+- 既有蓝绿链返回 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `green`，宿主记录 `/var/lib/sub2api/release-records/20260819T052951Z-production-3967901.json`；线上登录态 `/monitor` 已确认三标签、社区众测说明、样本/IQ/平均费用/分钟字段和模型卡存在，390px `scrollWidth=clientWidth=480` 无整页横向溢出，三标签切换生效；公网健康三项均 200。
+- 候选 worktree `/Users/gongtengxinwen/.codex/worktrees/5c03/sub2api搭建` 与分支 `codex/t26-r1-codexradar-community-matrix` 已在发布成功后归档删除；`/private/tmp/sub2api-monitor-v3-preview` 继续作为用户指定的 dirty detached 视觉证据只读保护。
+
+### T27 自购账号保存、口径与双视图经营页重设计
+
+- 当前状态：`DONE`。独立用户可见实现任务 `01a0187a-5c80-74f1-ad03-d658f01b9a52` 交付候选 `1114336908305a0ed0ea4211cdc5e2ac9aaefb7f`，根合并并推送为 `main@3bc16ee2682e6e978f73a71099c010a8353f2064`。合并后 Go service/handler、前端 23/23、typecheck、production build、Go build、gofmt 与 diff-check 通过；0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-19-main-3bc16ee26-t27-oauth-dual-view-v1.json`；宿主记录 `/var/lib/sub2api/release-records/20260819T071706Z-production-4050553.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`、活动槽 `blue`。线上默认 USD、CNY 自购专题 7 项摘要与长表、OAuth 过滤和 480px 无整页横向溢出均已确认；无迁移、无生产数据写入。设计任务 `01a01875-7991-72a3-9bd6-5a0af430b61e` 只交付信息架构和统计合同。
+- 根因证据：`AccountProfitabilityService.UpdateProcurementConfig` 读取 `cost_pending` 活动版本时，把允许为 `NULL` 的成本/额度扫描到非空 `float64`，数据库驱动错误被前端归一化成 `internal error`；`GetSelfPurchasedReport` 当前只按采购投影/台账识别账号，未限制 `accounts.type='oauth'`；`AccountProfitabilityView.vue` 当前把自购面板渲染在财务摘要卡片之前。
+- 目标：1) `cost_pending -> active` 重新录入采购成本时事务成功、幂等与审计保持不变；2) 自购报告 SQL、历史投影兼容分支和结算入口只纳入 `oauth` 且已有采购台账/投影的账号；3) 页面新增一级“经营结果 · USD / 自购专题 · CNY”切换，USD 视图保持 T16 原生五项摘要、分组和账号表，CNY 视图独立显示七项自购摘要与完整长表，两种币种不相加；4) self-purchased endpoint 支持 `today|24h|7d|31d`，与 USD 使用同一北京时间窗口，保留现有显式日期参数兼容；5) 两视图按需加载、刷新与错误态隔离，390px 无整页横向溢出。
+- 非目标：不修改用户扣费、渠道 USD 经营口径、采购成本公式、账号调度、账号类型数据、历史 usage_logs 或生产数据；不新增迁移，不使用 GitHub Actions。
+- 最小验证：后端 service/sqlmock 覆盖 `cost_pending` 重录、非 oauth 排除、结算过滤与四档北京时间范围；handler/API 合同；前端 self-purchased API、AccountMonitorView、AccountProfitabilityView 的双视图/按需加载/刷新/错误隔离/390px 回归；必要 typecheck、production build、Go build、gofmt 与 diff-check。无迁移、无生产数据写入，预期 `downtime_required=false`。
+- 范围收敛：用户明确不为“切到 CNY、回 USD、改范围、再回 CNY”增加额外复杂竞态状态机；当前实现的按需加载与 `loadedRange` 基本保护满足本轮合同，不继续扩大设计。
+- 发布顺序：T27 新候选达到 `READY_FOR_ROOT_REVIEW` 后先刷新最新 main，再由根总控审查、合并、最小门禁、推送、0600 证据、预检、蓝绿发布和线上专项验收；成功后归档 T27 和设计任务，不另立并行实现包。
+
+### T28 评分方向、采购成本事实源与保存链路修复
+
+- 当前状态：`DONE`。独立用户可见顶层任务 `01a0191a-9b73-7f72-9adb-13aa48e863e6` 已在原 worktree闭合根复核三项问题，最终候选合入并推送为 `main@5be1681c58ae9e66001193e400eac25d47fb24f4`、tree `40e33c4cc043a271b0d85e1ac7964769967c74f4`。账号卡片按 `group_rank` 升序进入最终 DOM；采购-only PUT 在台账事务后直接读取账号，不再进入通用更新；幂等键按账号、弹窗会话与 payload 隔离，未知结果重试复用，关闭重开、payload/保存模式变化和确认成功均轮换。
+- 根合并后 Go 专项测试、server build、前端 101/101、typecheck、production build、gofmt、diff-check 与范围检查通过；无迁移、配置或 GitHub Actions。0600 evidence 为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-19-main-5be1681c5-t28.json`。
+- 既有蓝绿链返回 `downtime_required=false`、`result=succeeded`，活动槽 `green`；release-state、API/worker/model-detector 镜像及宿主记录均绑定该 source/tree，不可变镜像 ID `sha256:359c1018f9bc4cf841d5659c68c5d34728526c8a5965a2642e52fd6454e11ad0`，相关容器 healthy 且重启计数 0，公网三项健康端点均 200。生产验收保持只读，未为验证幂等或采购事务制造账务写入；保存、清空、未知结果重试、reload 持久化与 DOM 顺序由同一已发布 tree 的直接测试覆盖。
+- 范围：只修复目标评分组件最终 DOM 的强到弱顺序（左到右、上到下），保留评分算法与数值语义；采购成本继续复用 `accounts.procurement_cost_cny`、`accounts.estimated_usable_quota_usd` 与 `account_procurement_cost_versions`，不新增事实源或第二入口；查明并修复采购成本 PUT 保存 `internal error`，覆盖幂等键、handler/service 事务、NULL `cost_pending`、错误映射、成功 PUT+reload 反馈和重复提交幂等。
+- 验收：桌面/390px 顺序稳定且无整页横溢出；账号监控与自购 CNY 页读取同一采购字段；新录入、修改、清空、重复提交、旧 NULL 版本、服务错误和 reload 保持均有直接测试；Go/前端聚焦测试、typecheck/build、gofmt、diff-check。无迁移、无生产写入、无 GitHub Actions，预期 `downtime_required=false`。
+- 非目标：不调整评分权重或算法，不改账号监控其他卡片样式，不改变盈利口径，不扩展到其他页面或发布链。
+
+### T29 Monitor V2 二态健康展示与统一指标口径
+
+- 当前状态：`DONE`。用户可见顶层任务 `01a0191f-0386-7053-9cc1-9d01857dc92d` 的刷新候选已合入并推送为 `main@e0b2d99b91dcbaa20b1cb4d859cd58182795c60f`、tree `34ace5c193dd1c647215ed6894c7ec1945dd69b4`。合并后专项门禁通过；0600 evidence 为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-19-main-e0b2d99b9-t29.json`。蓝绿链返回 `downtime_required=false`、`succeeded/promoted`，活动槽 `blue`；宿主记录 `/var/lib/sub2api/release-records/20260819T102718Z-production-3917.json`，公网健康三项均 200。登录态 `/monitor` 已验证 v6、零旧百分比字段、严格二态、Pro 第一/旗舰、统一样本口径与 1432px/390px 无横向溢出。生产报告见 `docs/superpowers/reports/2026-08-19-t29-monitor-v2-health-semantics-production.md`。
+- 展示合同：页面删除全部百分比型值，包括服务可用率、真实请求成功率、有效调用占比和缓存命中率；真实请求成功率也不进入明细、悬浮提示或无障碍文案。用户可见状态仅为“运行中 / 服务不可用”；运行中时间线统一绿色，服务不可用时间线使用故障色，卡片状态、整体状态和时间线使用同一二态投影。
+- 指标合同：毫秒、TPS、倍率等非百分比性能事实继续来自真实数据；Monitor V2 的所有性能查询统一时间窗、`group_id`、有效计费文本请求资格及可比主模型范围，避免 TTFT、总延迟、TPS、缓存因分母和模型构成不同而不可比。Pro 固定置顶并标记“旗舰”，不复制 Plus 数值、不人工覆盖统计结果。
+- 验收：TDD 覆盖百分号/成功率文案彻底消失、二态状态、时间线配色、Pro 置顶/旗舰和统一查询谓词；运行直接相关 Go service/repository tests、Monitor V2 Vitest、typecheck、frontend build、必要 Go build、gofmt 与 diff-check，并做桌面/390px 视觉核对。无迁移、无生产数据写入、无 GitHub Actions，预期 `downtime_required=false`。
+- 非目标：不改变主动探测重试、计费价格、调度策略、分组成员、用户请求错误处理、CodexRadar 或其他管理页面。
+
+### T30 真实采购保存与全量 OAuth 自购账号
+
+- 当前状态：`DONE`。独立顶层任务 `01a019e7-34cb-7002-a91f-0a3211bdde7b` 候选 `5758e91adcd1deb30ad8b0d5c7f63f4e2c29c2e0`、tree `3d59e838fc3b458f0087f83bbfd5a59aa100a5b8` 已完成根审查、合并、推送、直接相关门禁、0600 evidence、无停机蓝绿发布和登录态专项验收。T30 未修改渠道监控、Monitor V2 或 CodexRadar；相关视觉优化继续由 T31 独立处理。
+- 保存链：真实失败根因是超长幂等键写入 `audit_logs.request_id VARCHAR(64)` 使采购事务失败；审计写入现已按 schema 边界截断。输入错误、账号不存在和幂等冲突继续保留 4xx/409；真正内部错误返回中文 `message/reason/request_id`。台账提交后账号回读失败使用可识别的 HTTP 202 partial-success 契约，前端能展示“采购成本已保存，但账号刷新失败”，重复同键只重放、不重复创建版本。
+- 自购报告与入口：`GetSelfPurchasedReport` 以全部未删除且 `type='oauth'` 的 Sub 原生账号为候选；无采购版本账号生成 `cost_pending` 投影，0 流水仍显示。CNY 自购表逐行提供“录入成本/编辑成本”，复用 `accounts.procurement_cost_cny`、`accounts.estimated_usable_quota_usd`、`account_procurement_cost_versions`、既有保存 API 和共享表单，默认预计额度 60 USD。
+- 验证与发布：合并前后 Go focused、Go build、前端 37/37、typecheck、production build、gofmt 和 diff-check 通过；无迁移/配置变化。0600 evidence `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-19-main-5758e91ad-t30.json`。宿主记录 `/var/lib/sub2api/release-records/20260819T130153Z-production-122858.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `green`；API、worker、model-detector 使用同一 T30 镜像且 healthy，共享 PostgreSQL/Redis/Caddy 身份保持不变，公网 `/healthz`、`/readyz`、`/health` 均 200。
+- 线上验收：生产数据库只读统计全部未删除 OAuth 账号为 17；登录态 CNY 自购表同样显示 17 行，其中 14 行“成本待录入”、3 行“编辑成本”，每行均有成本入口，页面未出现 `internal error`。窄视口下页面 `scrollWidth=clientWidth`，未出现整页横向溢出。用户最终收敛范围不再要求额外制造真实生产采购写入，因此本次验收保持只读。
+
+### T26 用户错误中文投影与 CodexRadar 原生站长推荐接入
+
+- 当前状态：`DONE`。用户可见顶层任务 `01a017cb-f2a7-7563-86fc-eb9afe141fed` 的中文错误投影与 CodexRadar 推荐候选已合入并完成首轮无停机发布；390px 线上验收发现时间线 64 个柱体横向溢出后，在独立修复候选 `c6aea3bdee57812cdadb424a4932bea5a7b0f4f5` 将柱体改为可收缩并约束容器溢出，增加窄屏回归测试，最终合入、推送并发布为 `main@9de147ad673ab23f92a59a36e9f075d8bbeb8897`、tree `be3d53d052dfb4fcb35f9c9e6e8661b1825be38c`。Monitor V2 18/18、typecheck、build 与 diff-check 通过；最终宿主记录 `/var/lib/sub2api/release-records/20260819T040727Z-production-3903052.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `blue`。线上登录态 `/monitor` 已确认中文界面、四类站长推荐及模型档位/IQ/耗时/费用/更新时间均存在；移动检查为 `scrollWidth=clientWidth=480`、无横向溢出；错误请求抽样的 404/403/503 响应内容均为脱敏中文。公网三项健康均 200，无迁移或生产数据修改。0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-19-main-9de147ad6-t26-mobile-overflow-v2.json`；T26 worktree/分支已归档清理，恢复 bundle 与校验值见顶部清理记录。
+- 错误语义：本站余额不足必须显示“余额不足，请充值后重试。”；本站额度、订阅、频率/并发、模型/分组权限、请求格式和服务资源类错误分别提供可操作中文提示。内部服务账号余额或外部服务异常对用户统一为透明的“服务暂时异常/繁忙”语义，不出现“上游”；管理员诊断继续保留阶段、归属、状态和经脱敏的原始证据。覆盖 Responses、Chat Completions、Anthropic，以及 JSON/SSE 终结路径，优先复用现有 `native_error_diagnostics` 与原生错误响应写入链。
+- 推荐语义：服务端只读获取 CodexRadar `radar-insights`，做严格字段校验、短超时、短时缓存与最近成功快照回退；前端只渲染其四类推荐、模型/档位、IQ、耗时、费用和来源更新时间，视觉按用户截图复刻，保留 CodexRadar 原有分类配色。不得读取本站监控、计费或模型事实来替换推荐数据，不持久化或伪造外部结果，不提交评分或触发外部写操作。
+- 验收边界：先写失败测试；只运行直接相关 service/handler、JSON/SSE 错误投影、推荐代理与 Monitor V2 组件测试，外加后端必要编译、前端 typecheck/build、桌面与 390px 页面专项验收和 diff-check。无迁移、无生产数据修改、无 GitHub Actions；预期 `downtime_required=false`，最终以根合并后的发布预检为准。
+- 工作区边界：根发布总控只登记、审查、合并、推送、发布和线上验收；实现由新建用户可见独立顶层任务及独立 worktree 承担。`/private/tmp/sub2api-monitor-v3-preview` 为 T25 detached、dirty 的只读视觉证据，HEAD 已被 `main` 包含，继续保护，不清理、不合并、不作为 T26 基线。
+
+### T25 自建渠道监控最终视觉与主动探测重试收口
+
+- 当前状态：`DONE`。候选 `codex/t25-channel-monitor-final@3e49fb8e7` 已完成规格、计划、TDD、直接相关测试、构建和视觉核对，并无冲突合入根 `main@20c563345fe802b9662faf9189ca8cc7ecb3d3aa`；最终源已推送并通过无停机蓝绿发布。宿主记录 `/var/lib/sub2api/release-records/20260818T181312Z-production-3451615.json`，结果 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `blue`；源 tree `e62afb7f22a9519ec985416a4994fb2fa216d4da`，迁移哈希保持 `18c4ac1fc83294634c42c6d08c6511c01515406f296d40b54840f3dae726949f`。线上通过原生管理员设置将 `channel_monitor_enabled=true`、`channel_monitor_mode=v1` 生效；`/monitor` 已渲染自建 Monitor V2，中文卡片保留 P50/TPS/缓存率/倍率，P95 不展示，有效调用文案为“基于 N 次真实请求。”。公网 `/healthz`、`/readyz`、`/health` 均 HTTP 200。0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-18-main-20c563345-t25-channel-monitor-v1.json`。临时历史预览 `/private/tmp/sub2api-monitor-v3-preview` 为 detached 只读视觉证据，不进入候选。
+- 原生盘点：复用现有 `MonitorV2View`、`MonitorV2GroupCard`、`MonitorV2Timeline`、Monitor V2 API/统计合同和 `channel_monitor_service` 主动探测链；T19 已实现的 `actual_cost > 0` 有效服务响应统计继续作为真实请求口径，不新增监控事实源或平行探测器。
+- 页面范围：保留旧版卡片结构、TTFT/总延迟 P50、TPS、缓存率及各指标样本数，不展示 P95；删除模型数量/展开行、模型列表、P95 解释和底部两条说明；将有效调用文案统一为“基于 N 次真实请求。”；倍率显著强化；趋势柱体统一青绿色、固定高度与宽度，耗时和探测结果不改变颜色或高低。中文预览通过既有 `sub2api_locale=zh` 验证，不修改全站语言默认或旧版布局。
+- 探测范围：每轮首次主动探测失败后再重试 5 次，任一次成功即记录本轮成功，只有总计 6 次均失败才记录本轮失败；成功不继续重试。保持既有调度、账号隔离、计费和错误分类语义不变。
+- 验收与发布：TDD 覆盖文案/删项/倍率/统一柱体，以及第 1 至第 6 次成功、六次全失败和成功后停止重试；前端 Monitor V2 27/27、typecheck/build、后端直接相关 service tests、gofmt 与 diff-check 已通过；全量 service 基线存在无关 GatewayServiceRecordUsage 请求 ID 断言失败，已记录在 handoff。无迁移、无生产数据写入，预期 `downtime_required=false`。发布脚本要求明确“部署生产”或等价授权；授权后才按既有本地/宿主蓝绿链发布并完成登录态页面、主动探测与公网健康专项验收。
+
+### P0 Cloudflare 边缘 IP 误触发会话绑定事故
+
+- 当前状态：`DONE`。生产先恢复 Sub 原生默认 `session_binding_enabled=false`，随后撤回旧 P0 自定义 refresh replay 状态机，使 auth/cache 核心恢复官方 v0.1.177；最终候选 `codex/p0-native-session-stability@f381c8802` 增加默认关闭的宿主级 `security.session_binding_allowed` 与显式 trusted-proxy 双重门禁，管理 API 无法单独重新启用绑定。
+- 根 `main@e554b7d2ec02714ac2930eb54e3fd2ede460e3ca` 已推送并通过既有本地/宿主蓝绿链发布，`downtime_required=false`，活动槽 `green`；发布记录为 `/var/lib/sub2api/release-records/20260816T185827Z-production-1362380.json`，公网三个健康端点均为 HTTP 200。
+- 管理员真实登录态已在“使用记录”加载后切换至“管理控制台”，刷新后仍保持登录并加载数据；“安全与认证”页面显示“会话 IP/UA 绑定”关闭。自发布时刻 `2026-08-16T18:58:27Z` 起，活动 API 与 worker 的 `auth.session_binding.mismatch` 均为 0。
+- 范围保持原生：不接受任意 Cloudflare 转发头作为自动启用信号，不恢复密文 replay marker，不修改生产账号/token 数据，不使用 GitHub Actions；已在事故中撤销的 token family 不可恢复，受影响用户只需重新登录一次。
+
+### P0 使用记录触发会话过期热修
+
+- 当前状态：`DONE`。独立顶层任务 `01a00b57-1365-7712-8c31-58e97d5d0941`，候选 `c25fb9ad1` 已合并并随 `main@527f2195cbec517a72fbc05ee898b6999324aced` 推送、发布和线上验收。
+- 已确认根因：“使用记录”首屏并发请求在 access token 过期时同时发起 refresh；一个请求成功轮换并删除旧 refresh token 后，另一个请求使用旧 token 触发 `Refresh token not found, possible reuse attack`，全局 401 处理清除会话并跳转登录页。
+- 范围：仅修复同一会话的并发 refresh 竞态；保留真实撤销与恶意 reuse 的安全边界。禁止忽略所有 401、无条件接受旧 token、关闭 reuse 检查或直接修改生产 Redis/数据库掩盖问题。
+- 最小验收：先有能复现并发轮换的失败测试，再完成最小修复；仅运行直接相关功能测试、必要的编译/类型检查和 `git diff --check`。候选从根 `main` 合并后使用既有本地/宿主蓝绿链发布，不使用 GitHub Actions。
+
+### T01 大上下文入站上传稳定性
+
+- 当前状态：技术交付已部署并完成线上验证；存在“未使用用户可见独立顶层任务”的流程偏差，不宣称顶层任务合规，不重做或回滚。
+
+- 目标：修复大请求或慢速网络下，请求体尚未上传完成就被 Caddy 固定 300 秒窗口终止并返回 502 的问题。
+- 范围：推理入口的 Caddy 反代超时策略、既有请求体大小保护、配置合同测试和慢速/不完整上传验证。
+- 不包含：错误中文转译、上游重试、账号调度或 CDN 改造。
+- 验收：超过 300 秒但持续上传的受控大请求不再被代理误杀；真正中断的上传可释放资源并保留可诊断日志；普通请求与健康检查不回归。
+- 预期部署属性：配置级更新；派生线程必须报告是否可安全 reload，以及 `downtime_required`。
+
+### T02 原生错误转译与管理员诊断 MVP
+
+- 当前状态：技术交付已部署并完成线上验证；存在“未使用用户可见独立顶层任务”的流程偏差，不宣称顶层任务合规，不重做或回滚。
+
+- 目标：在 Sub 原生错误透传/改写机制之外，为已持久化错误记录补充可读、脱敏的中文运营诊断。
+- 与原生能力的区别：Sub 原生 `ErrorPassthroughService` 在请求链路中按上游 HTTP 状态、平台和关键词匹配规则，可透传或改写客户端状态码/消息，并可能影响账号错误处理；T02 不替换、不重复该机制，只在读取错误记录时投影 `local_limit`、`upstream_overloaded`、`upstream_failed`、`upload_interrupted` 四类诊断。
+- 范围：优先复用 Sub 原生错误透传结果；用户显示脱敏中文含义与建议，管理员在既有错误详情查看阶段、归属、已选账号/分组、上游状态和二次脱敏证据；HTTP/SSE 传输、路由、重试、调度和计费行为保持不变。
+- 管理员入口：管理后台 -> 用量明细 -> 错误请求 -> 点击错误详情；运维总览详情复用同一字段。
+- 不包含：全尝试链、追踪系统、新错误表、自动根因推断或新的管理页面。
+- 验收：用户不再看到难懂原文；管理员能看到错误阶段、归属、是否选中账号、账号/分组及原始上游证据；请求上传失败明确显示“未选择上游”。
+
+### T03 上游扣费与利润始终有值
+
+- 当前状态：已完成。纠偏前已合并并推送 `main@0432b87491a313b006643212cccdcd8d49001ae4`，完成无停机生产部署和健康检查；明确收费自然流水均返回数值上游扣费与利润。生产没有出现 confirmed-zero 自然样本，故以同一发布树的空白值服务/Handler/前端合同测试和生产部署身份、收费路径、失败边界实证组合验收。`endpoint_unsupported`、`record_not_found`、`response_unavailable` 继续明确不可用，不伪造为 0。候选已制作并校验可恢复 bundle，worktree 和本地分支已安全删除。
+
+- 目标：管理员流水中的“上游实际扣费”和“利润”不再显示空白。
+- 范围：继续使用已部署的 Sub/New 原生精确请求 ID 查询；原生实际扣费空白按 `0`；利润按本站实际扣费减上游实际扣费计算并返回数值。
+- 不包含：估算、对账状态、异常标记、模糊匹配、历史回填或 relay-ops。
+- 验收：Sub/New 成功、上游明确收费、上游空白三类定向用例均返回数值；非管理员仍看不到上游成本与利润。
+
+### T04 账号监控移除外部控制面状态
+
+- 当前状态：已完成。候选 `63019434684a53b7b856a6acea5605e3e8b4aede` 经根任务授权合并为 `main@be9e124d65c7457477fbe6d3435a9468b1ec1f4c`，已推送并通过预加载蓝绿链无停机部署；生产活动槽为 `blue`。登录态浏览器验证初载、reload 和 7 天切换均只调用原生账号监控接口，`/xingqiao/**` 请求为零，页面无外部控制面 banner 或完整性状态条。
+
+- 目标：从原生账号监控删除“控制面暂时不可用 / 完整性 unknown”及相关外部状态请求。
+- 范围：仅账号监控页面、对应原生 API 调用和组件测试。
+- 不包含：全局评分、推荐提示、用量页或利润页。
+- 验收：账号监控只依赖并显示原生 Sub 数据，页面无外部控制面 banner、unknown 状态或失败请求。
+
+### T03-R1 上游扣费缺失与异步持久化修复
+
+- 当前状态：已完成。最终 `main@210d0397e647b91be080f0c7252da39a6e61d71d` 已推送并从受审维护链部署；生产记录 `20260814T051143Z-production-2876774.json` 为 `succeeded/promoted`，活动槽 `green`，源 tree `4e2b7be29191894a8e7fac7e7af21cb0cf4adb21`，迁移哈希 `6a0e141eb4788460a99fc3e108ce5b46c866fd2c45b9a7265ea66b0ef8faaf71`。用户已授权停机，公网 `/healthz`、`/readyz`、`/health` 均通过，生产服务健康。功能启用后首个稳定窗口内 15 笔自然流水中，3 笔明确 NewAPI 身份流水已自动登记 `confirmed`，12 笔无明确 Sub/New 身份流水按合同进入 `evidence_not_registered`；管理员财务、异常、本地详情与未认证隔离均已在线验收。维护任务 `019ffe60-c370-7290-a310-0f811e8d09ae` 因根 `main` 漂移并包含同范围旧候选而停止在 `BLOCKED_FOR_ROOT_RECONCILIATION`，未宣称为流程合规交付；不影响已审主线技术结果。
+- 历史边界：以下独立证据、人工复核、OAuth 日成本和覆盖语义作为已部署历史能力保留，但其作为经营/盈利页面取数权威的产品方向已被 T11-R1 取代；T11-R1 不破坏性删除历史数据，只停止页面依赖。
+- 目标：保持官方 `usage_logs` 不变，以独立一对一证据登记功能启用后的 Sub/New 原生逐笔成本；升级现有账号盈利页为管理员财务首页，提供全站/账号人民币营收、本站支出、利润、利润率、异常数量、用户未消费余额，以及使用记录中的异常核对 Tab。
+- 事实语义：精确命中有效非零成本为 `confirmed` 并立即纳入；精确命中数值 0 或 blank/null/empty 为 `confirmed_zero`；无精确证据、端点/鉴权/网络/解析或登记失败为 `unavailable`。后两类待管理员核对前完全不进入财务汇总；不补查、不重试、不估算。
+- 人工与 OAuth：异常可逐笔、选中项批量或当前筛选范围批量确认；未输入成本时按 0 纳入并保留原始证据状态。字面 `oauth` 类型的自购账号不查询上游、不产生成本异常，由管理员按北京自然日填写人民币成本；未填写的账号日不进入全站四项财务汇总。
+- 范围：独立证据/复核/账号日值表，查询时实时汇总，今日营收/成本直接覆盖与截止点，60 秒刷新，管理员详情本地读取，现有审计日志留痕，以及必要管理员 API/UI/测试和 expand-only 迁移。
+- 不包含：历史回填、直接扩展 `usage_logs`、定时汇总表、延迟补查、汇率/采购成本分摊、普通用户入口、审计专用 UI、外部账务源、T05 或 GitHub Actions。
+- 验收：功能启用后的官方流水具备本地证据或明确缺证据投影；管理员无需打开详情即可看到一致事实；异常核对后按批准规则纳入；每日覆盖不吞掉后续流水；OAuth 待填写/填写语义正确；全站余额快照包含未删除用户且包含 disabled、排除 deleted；非管理员完全不可见。
+
+### T05 用量页移除外部控制面状态
+
+- 当前状态：`DONE`。已完成规格批准、计划、实现、两轮刷新、专项验证、任务复审、最终全分支复审、根授权合并、推送、蓝绿发布和登录态线上验收；发布无迁移/配置变化，`downtime_required=false`，页面已移除外部控制面状态与调用。
+- 目标：从原生用量页删除外部控制面状态和调用，保留原生流水及管理员详情。
+- 范围：仅管理员用量页及其测试。
+- 不包含：成本数值规则、利润页或账号监控。
+- 验收：用量、错误请求、详情弹窗正常；无外部控制面 banner、unknown 状态或网络调用。
+
+### T06 利润页移除外部控制面状态
+
+- 当前状态：`DONE`。原始 T06 生产发布记录 `/var/lib/sub2api/release-records/20260814T154749Z-production-3329818.json` 保留为历史验收失败证据；缺陷已由 T06-R1 修复并在新的生产记录 `/var/lib/sub2api/release-records/20260814T181009Z-production-3436954.json` 完成闭环。
+
+- 目标：从原生利润页删除外部控制面状态和调用，保留原生利润数据。
+- 范围：仅利润页面、原生 API 使用和测试。
+- 不包含：成本公式修改或其他页面。
+- 验收：利润页正常加载原生数据；无外部控制面 banner、unknown 状态或网络调用。
+
+### T06-R1 利润页深色主题与中文本地化修复
+
+- 当前状态：`DONE`。用户可见独立顶层任务 `01a00117-6fae-75f0-bbc1-6f340342acdc` 已完成 brainstorming、书面规格批准、计划、TDD、fresh implementer/独立 reviewer、最终全分支终审、刷新复核、根授权合并、推送、无停机蓝绿发布和管理员登录态线上验收。候选 `d50c47d744b405f54b8bf420de68a59ed70b9e0c` 已合入 `main@459a020fd99b605c3da50ead2cbc10121e57cbcd`；8/8 页级测试、typecheck、build、diff-check、范围检查通过；无迁移/配置/依赖/GitHub Actions 变化；生产记录 `/var/lib/sub2api/release-records/20260814T181009Z-production-3436954.json` 成功、活动槽 `green`、`downtime_required=false`；线上页面显示中文范围和表头、深色主题可读、原生 API 正常、外部控制面请求为 0。T07 未启动。
+- 目标：修复利润页在深色主题下白底浅字导致内容近乎不可见的问题，并补齐中文范围名称和中文表头。
+- 范围：仅利润页主题样式、`24h`/`31d` 中文词条、表头本地化及相应页级测试。
+- 不包含：财务计算、接口字段、迁移、外部控制面、其他页面视觉重构或 T07。
+- 验收：深色主题卡片和表格内容清晰可读；范围按钮为中文；表头为中文且无硬编码英文；原 T06 的刷新、范围切换、原生 API 和无外部控制面验收继续通过。
+
+### T07 全局评分设置
+
+- 当前状态：`DONE`。用户可见顶层任务 `01a0018d-65fa-7dd2-9393-31d9e1643adc` 已完成完整规格/计划、TDD、逐任务复审、全分支审查、发布链补丁的独立 scoped/whole-branch 复审，并完成根授权合并、推送、维护部署和线上验收。最终 `main@44ec9ed2797e86ae6ad140dd85b9efa91d29756d`、tree `cb6c9fea78b406741fa5709b389ea5f45b57bc24`；发布证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-15-main-44ec9ed-t07-global-score-weights-v2.json`。新增 MAINTENANCE_8 仅放行 `6a0e141… -> d3fe99…`，未授权、错误 old/new hash 均 fail-closed；宿主/控制器合同、bash 语法、diff-check 通过。生产记录 `/var/lib/sub2api/release-records/20260815T004424Z-production-3723827.json` 为 `succeeded/promoted`、`rolled_back=false`，活动槽 `blue`，健康检查通过，管理员全局权重 API 返回 `15/45/20/20`，账号监控接口返回 7 组/78 个账号。由于候选 worktree 的 index.lock 被工具层拒绝，本次由根总控使用 Git plumbing 辅助落候选提交 `01705a694fbe91913359afe14defd2df9d9cfc88`，未改权限、未绕过复审；该流程例外已记录。T08 随后按独立顶层任务完成并已在上方条目闭环。
+- 目标：在未进入具体分组时提供全局评分权重设置。
+- 范围：全局权重持久化/API、账号监控全局设置按钮、复用分组评分弹窗；默认权重保持成本 15、成功率 45、首字延迟 20、总延迟 20。
+- 不包含：分组权重迁移、评分指标增加或调度算法修改。
+- 验收：全局与分组权重互不覆盖；全局账号排序即时反映新权重；刷新后仍保留。
+
+### T08 “暂不建议入组”轻提示
+
+- 当前状态：`DONE`。用户可见顶层任务 `01a00306-a473-73f3-9240-addaf11b119d` 已刷新、实现、独立复审、全分支终审并经根授权合并；最终文档提交 `main@1bebe479257e39c9433782836788238399e76b0e`，tested tree `6b9eb0a7f79d65f47e82e944f5d467d1f83323b9`。生产记录 `/var/lib/sub2api/release-records/20260815T085054Z-production-4053846.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 green；64/64 定向测试、typecheck、build、diff-check 和线上管理员验收通过。真实生产无 `not_recommended` 自然样本，未修改生产数据；线上页面的中文、资源身份、390x844 无横向溢出、账号操作和健康检查均通过。详细证据见 `docs/superpowers/reports/2026-08-15-t08-do-not-recommend-light-hint-production.md`。候选归档 `/Users/gongtengxinwen/Documents/sub2api-archives/t08-do-not-recommend-light-hint-772c89d4.bundle` 已验证，worktree/本地分支已删除。
+
+- 目标：保留紧凑标签，把原因收进按需提示而不是常驻文本。
+- 范围：账号卡片标签、桌面悬浮/点击、移动端点击、可访问性和防溢出测试。
+- 不包含：推荐算法、分组迁移或卡片其他布局重构。
+- 验收：默认只占一行标签空间；原因最多一到两行；桌面和移动端均可查看且不遮挡其他内容。
+
+### T10 账号质量监控器可执行链路
+
+- 当前状态：`DONE`。用户可见顶层任务 `01a004ce-6aee-76c1-8efb-7b915f43d290` 的候选已完成实现、第一轮独立复审修复、根全差异复核、定向验证和 handoff；根修复生产蓝绿上游寻址后，最终 `main@b1b92cf30a791d0573c212e865d3a52c43564d95` 已推送。实现包含 root host orchestration、UID/GID 10002 真实证据预检、正确 `[Unit] OnFailure`、脱敏稳定 `t10.failure.v1`、分阶段退出码、双文件原子发布/恢复和活动蓝绿上游严格白名单。最新 2/75、5/119、13/53 测试及 systemd/alert/relay-ops/语法/diff 合同通过；宿主安装校验、真实 service、timer、证据文件和公网健康即时验收通过。fresh reviewer 调度失败作为流程例外，不倒称 PASS；用户豁免 A6 实际送达和 A10 按时间等待，两项保留未验证。候选已归档为已验证的 0600 完整历史 bundle `/Users/gongtengxinwen/Documents/sub2api-archives/t10-account-quality-monitor-d075da534.bundle`（SHA-256 `f02cc7907bd749c8f289716c2cb4b65a8d2554a4441d8b64d2823d45e478b471`），worktree 和本地分支已删除。生产报告见 `docs/superpowers/reports/2026-08-16-t10-account-quality-monitor-production.md`。
+- 定义：T10 不是新的账号质量算法、评分系统或用户页面；它修复的是既有宿主只读采集任务因 systemd `203/EXEC` 无法执行的问题。
+- 目标：让 systemd timer 定期调用采集器，读取 Sub 原生账号监控/账号测试 API，并把结果写成两份受保护 JSON 快照；失败时可产生脱敏诊断信号。
+- 范围：ExecStart 可执行路径/目录权限或等价的受控安装布局、systemd unit 合同、只读证据输出、失败告警和真实运行验收；不写账号、路由、余额、计费、评分或调度状态。
+- 不包含：调度器权重、账号准入算法、余额/利润、监控卡片双口径、用户页面、外部控制面、官方更新冲突处理。
+- 验收：连续受控触发不再出现 `203/EXEC`；timer/service 真实运行并写入既有证据位置；采集失败仍可诊断且不会写路由、账号、余额或计费；部署属性和停机需求由顶层任务报告。
+
+### T11 经营页三层视图与异常空态修复
+
+- 当前状态：`DONE`，但只对“全站/分组/账号三层结构、时间范围和页面状态”这一历史范围成立。独立候选 `codex/account-financial-dimensions@d5df834e3` 已合入并推送为根 `main@d17968ab95cb5f9db2a7374c59222b8b01c0e46f`，生产记录 `/var/lib/sub2api/release-records/20260815T135236Z-production-75345.json` 为 `succeeded/promoted`。该任务沿用了 T03-R1 独立财务证据口径，因此不能视为经营/盈利页面的最终产品修复；数据口径由 T11-R1 纠偏。详见 `docs/superpowers/reports/2026-08-15-account-financial-dimensions-production.md`。
+- 目标：经营页提供全站固定摘要、分组 Tab 和当前分组账号列表；异常跳转后始终显示 loading、data、empty 或 error/retry，而不是空白内容区。
+- 范围：向后兼容扩展现有原生 `account-financial` 报告，按 `usage_logs.group_id` 聚合分组及 `(group_id, account_id)` 行；前端展示三层结构；异常跳转保留账号、范围和 `review=pending`。
+- 不包含：新账务源、平行经营 API、外部控制面、历史回填、延迟补查、上游重试、金额猜测分摊、数据库迁移、调度/计费写入、普通用户入口或 GitHub Actions。
+- 验收：全站流水不重复；跨分组和未归属口径正确；账号级今日覆盖/OAuth 日成本不猜测分摊；桌面/移动端三层视图可用；异常加载、空结果、失败重试均有可见状态；只调用原生管理员 API。
+
+### T11-R1 Sub 原生计费聚合经营页纠偏
+
+- 当前状态：`DONE`。最终候选 `6e38e2f9d607361145dd183384824c32cc8c3a9c` 已合入并随 `main@7a7c9abd70fb108af6a06b93ef67eea3c4b34dab` 推送、无停机部署和线上验收；生产活动槽 `green`，source tree `916aaf16ad6ac354b8981755b8072dedab4f6cf7`，迁移哈希保持 `d3fe99bba69b0cf0cca8a7f5ec45499921f3496f58dd74c3a671d90a653589b5`。前端 19/19、必要 lint/typecheck/build、后端 focused、范围/发布门禁通过；31 天 API HTTP 200/0.153 秒，精确 390×844 页面无横向溢出，金额卡片不重叠。完整证据见 `docs/superpowers/reports/2026-08-16-t11-r1-native-accounting-profitability-production.md`。
+- 目标：保留 T11 已上线的全站固定摘要、分组 Tab、账号行、今日/24 小时/7 天/31 天、刷新以及 loading/empty/error/retry 体验，但所有经营数值完全改用 Sub 原生 `usage_logs` 计费统计。
+- 官方字段：请求数 `requests`；Token 数 `tokens`；账号计费 `cost = SUM(COALESCE(account_cost, COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)))`；用户扣费 `user_cost = SUM(actual_cost)`；利润可展示为 `user_cost - cost`，利润率由该利润除以 `user_cost` 派生。
+- 聚合维度：全站、`usage_logs.group_id` 分组、`(group_id, account_id)` 账号行；所有维度和时间范围必须来自同一官方流水与美元单位。
+- 范围：优先复用 `AccountUsageService.WindowStats`、今日/窗口批量统计、`usage_log_repo_stats.go` 的官方 SQL 口径和现有原生管理员 API；允许为全站/分组聚合做最小兼容扩展，但不得建立第二套计费模型。
+- 不包含：汇率换算、人民币经营口径、独立上游成本证据、人工成本/OAuth 日成本覆盖、估算、补查、重试、历史回填、计费写入、调度修改、生产数据修改、GitHub Actions，或破坏性删除历史 T03-R1 表与证据。
+- 页面纠偏：移除与官方唯一口径冲突的白色人工覆盖输入；删除摘要“异常流水”卡片、账号行异常数量/操作和跳转成本异常页的入口，不改造成失败请求数。历史 T03/T03-R1 异常流水页面和证据表继续保留，不作破坏性删除。
+- 验收：同一时间范围内，经营页全站/分组/账号的请求、Token、账号计费、用户扣费与 Sub 原生账号统计口径一致；聚合守恒且无重复；利润和利润率仅为透明派生；旧证据缺失不再导致官方流水被排除；桌面和移动端现有页面状态不回归。
+
+### OAuth 图片编辑上传 MIME 兼容热修
+
+- 当前状态：`DONE`。用户可见顶层任务 `01a00892-2294-7083-aa01-7aa6f94d1dc4` 的刷新候选 `de462d34837a8d6ac4605e65f2f6193e1bfa867a` 已合入并随 `main@3d4580c55f106193617865c59c42dbc603fee435`、tree `5e5e3cecdcdaa4a36573c423c2f29b003260f0c8` 推送和无停机发布；生产记录 `/var/lib/sub2api/release-records/20260816T042531Z-production-727142.json` 为 `succeeded/promoted`、`rolled_back=false`，活动槽 `blue`。公网健康均 200；事故 API key `50` 的 `gpt-image-2` octet-stream 编辑返回 200/1 张图片。OAuth 精确线上重放因既有规避移出唯一生图组而安全不可执行，未恢复分组或改生产数据；发布 tree 的 focused OAuth 测试保留为该子项证据。详见 `docs/superpowers/reports/2026-08-16-oauth-images-edit-mime-compat-production.md`。
+- 任务目标：修复 OAuth 账号 `/v1/images/edits` multipart 图片被转换为 Data URL 后仍保留 `application/octet-stream`，导致上游返回 400 `unsupported MIME type` 的兼容问题。
+- 已知事故：`user_id=34`、API key `50`、生图 `group_id=19` 的请求命中；API-key 账号链路正常。生产临时规避已于 2026-08-16 10:02 将 OAuth 账号 `222/223` 移出 `group_id=19`。用户邮箱仅保留在授权交接上下文，不写入仓库总账。
+- 最小范围：仅修改 `upstream/sub2api/backend/internal/service/openai_images_responses.go` 约 320 行附近；当 MIME 为空或为 `application/octet-stream` 时用文件字节识别真实 MIME，仅接受 `image/*`，无法识别则拒绝。
+- 明确非目标：不改错误码、错误文案/中文提示、`ErrorPassthroughRule`、客户端表现，不扩大到其他上传链路，不改生产数据或账号分组策略。
+- 最小验证：相关 service 单测、后端必要构建/类型检查、diff/范围检查、发布预检；上线后仅做 OAuth/API-key `/images/edits` 定向验收和健康检查。不得使用 GitHub Actions 或从旧 `origin/main`/独立产物直接覆盖生产。
+- 发布边界：必须从 T11-R1 已部署后的最新 `main` 创建用户可见 GPT-5.6 Sol/medium 顶层任务和独立 worktree；候选部署必须包含 T11-R1 与本热修，避免回滚任一前序功能。
+
+### T09 官方 v0.1.177 更新执行
+
+- 当前状态：`DONE`（官方更新例外）。用户指定可见任务 `01a008e1-55d1-74f1-a659-fac363dcfd28` 保留官方更新执行证据，并由可见任务 `01a006a8-ef15-7960-b72a-de2fddab0339` 统筹；独立 T09-R1 顶层任务 `01a009d9-dbf9-7183-bf69-021b2d1fa7d9` 的精确维护放行补丁已合入根 `main@e91504e51` 并推送。宿主维护链已成功切换 `green`，公网 `/healthz`、`/readyz`、`/health` 均 200；发布证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-16-main-e91504e51-official-v0177-maintenance.json`。
+- 目标：把官方最新稳定版 `v0.1.177` 合入当前定制树，人工解决全部冲突，并交由总控通过既有本地/宿主发布链直接生效。
+- 范围：官方 release 发现、定制树合并、冲突解决、候选交接；根 `main` 合并、推送和发布仍由唯一总控执行。
+- 不包含：继续实现“冲突即停止”产品方向、额外功能测试/回归/类型检查/独立构建验证/上线专项验收、关闭定制模块、GitHub Actions 或 external-primary。
+- 完成条件：已取得用户停机授权并按既有发布链完成切换；不另做功能验收。迁移哈希 `d3fe99… -> ef1213…` 已由精确 allowlist 放行，发布结果为 `succeeded/promoted`，回滚依据为上一活动槽及宿主 release-state/release-record。
+
+## 串行推进门禁
+
+- 用户已于 2026-08-15 授权唯一发布总控在其离席期间代审并批准既定队列任务的规格书和实施计划；该授权不包含范围扩大、不可逆数据操作、外部付费、安全例外或 `downtime_required=true` 的生产变更。
+
+每个任务包依次经过：
+
+`根任务创建用户可见顶层任务 -> 最新 main 独立 worktree -> 完整 brainstorming -> 2–3 方案比较与分段设计批准 -> 正式规格书 -> 规格书自审 -> 用户明确批准或根总控依据离席代审授权批准书面规格书 -> writing-plans -> 计划获批 -> fresh implementer subagent -> 直接相关功能测试 -> READY_FOR_ROOT_REVIEW -> 根任务 AUTHORIZE_MERGE_TO_MAIN -> 顶层任务合并 main -> 根任务快速门禁 -> 无停机部署或停机暂停 -> 线上专项验证 -> 清理 -> 下一任务包`。自 2026-08-16 用户最新指令起，额外 task review、scoped re-review 与 whole-branch review 不再是强制门槛。
+
+未经用户明确批准书面规格书，不得调用 writing-plans 或开始实施。任何一步出现范围漂移、冲突、`main` 漂移、验证失败、线上验收未闭环或 `downtime_required=true`，队列立即暂停，不启动下一任务包。
+
+任务状态统一为：`BACKLOG -> DESIGNING -> IMPLEMENTING -> REVIEWING -> READY_FOR_ROOT_REVIEW -> REFRESH_REQUIRED -> INTEGRATING -> DEPLOYING -> VERIFYING -> DONE`，或 `FROZEN/BLOCKED`。同时只能有一个任务处于 `INTEGRATING`、`DEPLOYING` 或 `VERIFYING`。
+
+## 当前推进门禁
+
+- T04 已完成合并、推送、无停机部署、登录态线上验收、可恢复 bundle 归档及 worktree/分支清理。
+- T03-R1 已完成推送、停机维护发布和线上验收；生产活动槽为 `green`，不得重复发布同一 SHA。
+- 账号监控卡片、T05、T06/T06-R1、T07、T08 均已完成生产验收；当前没有待处理的迁移 223 停机门禁。
+- T07、T08、T09、T10、T11、T11-R1 与 OAuth MIME 热修已完成生产收口；官方 `v0.1.177` 发布车道已释放。
+- T15 已完成刷新并回到 `READY_FOR_ROOT_REVIEW`，保持独立 worktree/分支并受保护；S1-R2 已完成根 `main@2271b818` 的推送、预加载蓝绿发布与线上健康验收，进入 `DONE`。
+- S1-R2 生产发布结果为 `succeeded/promoted`、活动槽 `green`、`downtime_required=false`，不可变镜像绑定 `main@2271b818`；本地 0600 证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-17-main-2271b818-s1-r2-maintenance-ready-v1.json`，公网 `/healthz`、`/readyz`、`/health` 均 HTTP 200。未触发人为上游失败或修改生产账号；旧 S1 候选保持冻结。T15 已保留迁移编号 225，S1-R2 未使用 225/226。S1-R2 生产收口后，才允许按队列启动 S2，再完成 S2 生产验收后才允许启动 S3；三者严格串行，不得被 T16 或其他独立任务插队。
+- “正在重新连接 1/5”与 `stream disconnected before completion` 已确认属于上游 SSE 在 `response.completed` 前断开的 S1-R2 冷却/故障转移范围。S1-R2 与 S2 均已进入 `DONE`；S3 的前置依赖已满足，但仍须按独立任务/worktree 门禁从最新干净 `main` 启动。
+
+### S2 共享健康、故障域与抗故障重试
+
+- 当前状态：`DONE`。独立候选 `codex/s2-shared-health-failure-domain@33d9fdb6a` 已整合根 `main@566fc52ba`，无冲突合入 `main@d1f9bc06c`，最终发布源为已推送的根 `main@aab79007f`。合并树及最终干净发布 worktree 的 repository/service/handler/config 聚焦测试、server compile-only/build、gofmt、diff-check、零迁移和零 GitHub Actions 范围检查均通过；真实 Redis integration-tag 用例仍被既有无关 `stringPtr` 重名编译冲突阻断。既有预加载蓝绿链返回 `succeeded`、`downtime_required=false`、活动槽 `blue`；API/worker 同镜像且 healthy/restart 0，PostgreSQL/Redis/Caddy 身份未变。公网三项健康端点均 200；自然流量已生成 8 个 healthy account-model 投影、2 个故障域投影和 13 个幂等事件标记，API/worker 15 分钟内 shared-health 告警、panic、fatal 均为 0。未修改生产账号或人为制造上游故障。恢复 bundle 已验证后，S2 功能 worktree、本地分支和临时发布 worktree均已安全删除；T15/T16/历史保护 worktree 未动。交接与验证见 `docs/handoffs/2026-08-17-s2-shared-health-failure-domain-handoff.md`、`docs/superpowers/reports/2026-08-17-s2-shared-health-failure-domain-verification.md`。
+- 目标：以 Redis 承载可重建的跨实例账号模型 transient/EWMA/half-open 与故障域运行时投影；保持 S1 数据库确定性隔离为唯一权威；为单一逻辑请求统一最大尝试数、账号切换数、故障域数和总重试预算；429 尊重 `Retry-After`，5xx/连接错误受有界指数退避；Redis 故障按本地 fail-safe 降级，不放行 S1 veto、不造成全站失败。
+- 独立边界：不改变 S1 分类/原生状态、不改变 Top-K/粘性体验、不迁移管理员审计到 Redis、不改变价格、倍率、账务或外部控制面；不开启默认 TTFT 并行竞速；目标发布属性 `downtime_required=false`。
+- 依赖与门禁：S1、S2 均已完成生产验收；S3 的依赖已满足，可按队列从最新干净 `main` 创建独立任务/worktree。T15/T16 与历史冻结候选的保护状态不变。
+
+### S3 自适应选择、粘性逃逸与调度体验观测
+
+- 当前状态：`DONE`。独立候选 `codex/s3-adaptive-scheduling-experience@026b7b26d` 已无冲突合入并推送根 `main@0720b8bf0b5e23486904e571f12b483e7329a9c0`；合并树的 config/service/handler/admin/routes focused tests、server compile/build、前端 3 files / 9 tests、typecheck/build、diff-check、零迁移和零 GitHub Actions 范围检查均通过。既有本地/宿主蓝绿链返回 `result=succeeded`、`state=promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `green`；宿主记录为 `/var/lib/sub2api/release-records/20260817T093040Z-production-1990545.json`，API/worker 使用同一不可变镜像，迁移哈希保持 `aaebed88f7fb712e1f518e73cc89bd44eb214f365f3b49f003598c93883a4604`。公网 `/healthz`、`/readyz`、`/health` 均 HTTP 200。登录态 Ops Dashboard 已显示自然流量样本（22）、平均尝试 1.00/P95 1、sticky 保留 20/20、sticky 逃逸 0/20、Top-K 过滤 21/26（80.8%）、TTFT report-only 合格 2/22（9.1%）；自动恢复、重复坏账号、预算耗尽均为自然 `no_data 0/0`，未制造失败或修改生产账号。0600 发布证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-17-main-0720b8bf0-s3-adaptive-scheduling-v1.json`；恢复 bundle `/Users/gongtengxinwen/Documents/sub2api-archives/s3-adaptive-scheduling-experience-026b7b26.bundle` 已验证，SHA-256 `b8f64d71e4659dab7bd01b499b3015c1c209d24b04de7b40cbd7b77c339823c4`，随后已清理 S3 worktree、分支和临时发布 worktree。
+- 目标：消费 S1/S2 的健康与预算决定，先健康门槛、再动态 Top-K/最低质量阈值、再可解释 sticky escape；仅对安全重放且尚未输出的请求做 TTFT report-only/受控预热；在现有原生监控/运维入口呈现自动恢复率、平均尝试数、坏账号重复命中率、缓存代价和预算耗尽率。
+- 独立边界：不重新定义错误状态、S2 重试上限、价格、账务或控制面；默认不启用并行竞速；S1/S2 veto 永远优先于分数和 sticky；目标发布属性 `downtime_required=false`。
+
+### T12 经营页本站探测花费与排序/美元字段优化
+
+- 当前状态：`DONE`。原候选 `c7587599a` 因 P0 插队被根主线撤回；P0 收口后，T12 worktree 快进 `main@b16d45203`，仅反向撤销移除 T12 运行时/任务文档的 `9d9e2b758`，生成运行时候选 `35baf14ae` 和最终 handoff 候选 `4029240f4`。该候选已无冲突快进合入；首次根发布树 `59316b4a9` 的预检暴露 T12 新迁移尚未加入宿主精确维护白名单，根总控随后以 `04d171e35` 仅补齐 `ef121384… -> aaebed88…` 的 maintenance-10 哈希对、fail-closed 测试和当前 runbook，并推送至 `origin/main`。
+- 验证与生产收口：干净发布树的四组 focused Go、前端 19/19、typecheck/build、维护白名单精确允许/错误 old/new/未授权拒绝、bash 语法和 diff-check 均通过；0600 证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-17-main-04d171e35-t12-probe-cost-maintenance-ready-v1.json`。用户明确授权本次维护发布后，链路返回 `succeeded`；宿主记录 `/var/lib/sub2api/release-records/20260817T005154Z-production-1618298.json` 为 `promoted`、`rolled_back=false`，活动 `blue` 与 worker 使用同一 `04d171e35` 镜像。公网健康均 200；管理员页在线显示全站/7 分组/93 账号卡、六项排序、USD 两位、自然探测成本及不完整/暂无记录状态，390px 单列且页面无横向滚动。候选 bundle `/Users/gongtengxinwen/Documents/sub2api-archives/t12-native-probe-cost-4029240f4.bundle` 已验证，活动 worktree/分支和 T12 临时发布 worktree已清理。
+- 实施边界：沿用批准规格与计划，不新增产品范围，不恢复旧 Task 4 RED，不运行全仓测试或额外 reviewer。T12 是当前唯一允许进入 `INTEGRATING`、`DEPLOYING` 或 `VERIFYING` 的候选，worktree/分支保留到生产验证成功。
+- 恢复设计结论：独立 docs-only 分支 `codex/account-probe-cost-design@50567e862` 把页面合同修订为“全站 -> 分组 -> 账号”三层、账号层独立卡片、桌面最多两列/390px 单列/无横向滚动，并统一外部金额为 USD 两位与利润率 0.00%；这些合同及 Task 1-3 的隔离账本、原生定价、fail-open、probe 聚合均已落实到最终候选 `c7587599a`。旧 Task 4 RED 已废弃且未带入；本轮不重做功能，只将该已验证候选刷新到最新主线并复跑直接相关门禁。
+- 目标：保持未消费金额为 USD；补充六项排序（请求、Token、账号计费、用户扣费、利润、利润率）；新增独立“本站探测花费”字段、卡片和账号列。
+- 范围：探测记录与用户消费隔离；探测花费不影响账号成本、用户成本、利润或利润率；外部金额两位小数、内部原始精度保留；不做历史迁移/回填，启用后重新记录。
+- 非目标：不改变用户消费、账号计费、利润/利润率、余额事实源、调度/路由、普通用户入口，不建设第二账务源或外部控制面。
+- 设计前置：必须先复用现有 Sub 原生 `usage_logs`、账号探测/测试链路和经营页；只有正式规格证明原生能力不足后才可做最小扩展。规格批准前不得写计划或代码。
+- 旧设计证据：`/Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/account-probe-cost-design`、分支 `codex/account-probe-cost-design@893933924` 仅作冻结的 docs-only 设计证据，不作为 T12 顶层任务、不继续写入、不合并或部署。
+
+### T13 NewAPI 上游倍率自动登记
+
+- 当前状态：`DONE`。刷新候选 `codex/newapi-rate-multiplier-registration@8faf65547` 已合入并随根 `main@3673d5a9a` 推送；既有预加载蓝绿链返回 `succeeded`、活动槽 `blue`、`downtime_required=false`，宿主记录为 `/var/lib/sub2api/release-records/20260816T171553Z-production-1285992.json`。公网三项健康检查均 200；管理员登录态账号页正常加载 92 个账号、显示“上游声明倍率”列，发布资源 `AccountsView-rMmhHhPy.js` 包含 `rate_registration/registered` 合同。当前无自然“已登记”样本，未为验收制造请求或修改生产账号；功能将在后续首笔合格真实请求后按合同登记。
+- 权威输入：仅接受 NewAPI 精确匹配日志中的 `other.group_ratio`；仅适用于 NewAPI API-key 且没有原生 Sub 倍率声明的账号。
+- 写入语义：首次真实成功请求后登记 `accounts.rate_multiplier`，并在 `accounts.extra` 标记来源/登记状态；已登记账号按北京时间自然日仅首笔合格请求刷新一次。
+- 并发与失败：使用 CAS 防止并发覆盖；失败不得覆盖既有倍率或登记标记；管理员可见“已登记”。
+- 非目标：不做数据库迁移、历史回填、生产数据修改，不扩展到 OAuth、非 NewAPI、已有原生倍率声明账号或其他上游日志字段。
+
+### T14 用量详情上游扣费/利润字段兼容热修
+
+- 当前状态：`DONE`。用户可见 GPT-5.6 Sol/medium 顶层任务 `01a00a15-a76c-7be1-b66f-7a34ddb2b749` 的候选已随 `main@200d4b1c9e4745a6a54e467630c68aba14fb4028` 推送并通过本地/宿主蓝绿链切换，脚本结果为 `succeeded`、活动槽 `blue`、`downtime_required=false`。`/healthz`、`/readyz`、`/health` 均为 HTTP 200；刷新到已发布前端包后，管理员详情对自然确认样本 `usage_log_id=120896` 正确显示上游实际扣费 `$0.001010` 和利润 `$0.000505`。无迁移、配置、依赖或生产数据改动；回滚依据为宿主上一 `green` 槽/镜像和 release record。
+- 已确认根因：`/admin/usage/:id/upstream-cost` 返回 PascalCase 字段，例如 `NormalizedCostCNY`、`EvidenceStatus`；详情弹窗仅读取 snake_case 字段，例如 `normalized_cost_cny`、`evidence_status`，因此“上游实际扣费 / 利润”错误显示为 `-`，不是生产数据缺失。
+- 范围：仅对该详情弹窗/API 响应做向后兼容字段归一化，并保留 PascalCase 与 snake_case 两种响应兼容；只做直接相关页级/API 合同验证、必要类型检查/构建、diff/范围检查和发布后定向验收。
+- 非目标：不得并入 T12，不改变账号成本、用户扣费、利润/利润率口径或聚合，不做数据库迁移、历史回填、生产数据修改、账务重算、相邻页面重构或外部控制面。
+
+### T15 账号监控原生探测模型与异步模型检测
+
+- 当前状态：`DONE`。T15 已随根 `main@3e5f9393d948603019fdde212957efdbbad0d715`、tree `deadf8ec212b05c4555a108ba0b627bb12030112` 推送并通过授权维护链发布。新增 migration 225 使迁移哈希从 `aaebed88…` 推进到 `bb6ebff3…`；精确 `MAINTENANCE_11` allowlist、错误 old/new/未知/未授权拒绝、控制器合同、T15 后端与前端专项门禁均通过。宿主记录 `/var/lib/sub2api/release-records/20260817T174502Z-production-2353131.json` 为 `succeeded/promoted`、`rolled_back=false`，活动槽 `green`，API/worker 同镜像且 healthy/restart 0；PostgreSQL、Redis、Caddy 保持原容器身份。公网健康均 200；两张检测表存在；新增管理员路由保持 401 认证隔离；登录态账号监控显示 87 个账号、模型检测状态行与弹窗。生产 detector URL/token 保持未配置，页面按合同显示“不支持”。完整报告见 `docs/superpowers/reports/2026-08-17-t15-native-probe-model-detection-production.md`。
+- 原生连接测试：继续复用 `AccountTestService.ProbeAccountConnection`；每账号持久化独立 `connection_probe_model`，默认优先 `gpt-5.6-sol`，不支持时回退 Sub 原生登记的首个文本模型，页面不显示“自动选择”。近期探测标题旁提供修改连接测试模型入口。
+- 异步检测模型：新增独立 `model_detection_model`；可选模型是 Sub 原生账号模型登记（`GET /admin/accounts/:id/models` 及 sync-upstream 结果）与检测器运行时基线目录的交集。原生模型可见但无基线时置灰并显示“检测器暂不支持”。
+- 执行架构：检测器为仅执行的独立 sidecar，Sub worker 负责调度、持久化和唯一事实。北京时间 `00:00/10:00/12:00/15:00/18:00/21:00` 检测所有未删除、API Key 且检测器支持的账号，不受可调度状态影响；OAuth 不执行，每个任务只跑一轮探针。单账号可立即异步检测，同账号已排队/运行则复用；固定时隙持久化去重，错过仅在 30 分钟内补触发。
+- 页面合同：每个 `AccountMonitorCard.vue` 卡片增加默认收缩的一行检测状态；点击弹窗查看最近结果、申报模型、Juice 摘要、行为指纹候选/相似度、检测器版本、时间/错误，并可修改检测模型或立即检测。无全局摘要，不改变 `AccountMonitorView.vue` 现有卡片主样式。
+- 状态与隔离：状态仅为未检测、排队中、检测中、正常、异常、证据不足、检测失败、不支持；检测结果不参与质量评分、调度权重、可调度状态或分组建议。异常只能表述“检测器观察到异常”，不得表述“上游确认替换”。
+- 安全与失败：不保存或记录 API Key、完整提示词、完整输出或上游地址；凭据只在私网内存中传给 sidecar。sidecar 故障仅记录检测失败，不影响原生连接测试或账号状态；账号删除、变 OAuth 或模型失效时，执行前跳过或回退。
+- 验证：migration focused、service/repository/routes focused、backend compile-only、前端 2 files / 93 tests、`npm run typecheck`、`npm run build` 与 `git diff --check` 均通过；未运行全仓测试、额外 reviewer、压力/mutation/浏览器矩阵。
+- 许可证与配置门禁：参考检测器目录 `tools/gpt56_api_detector-git` 为 PolyForm Noncommercial 1.0.0；T15 未复制其核心实现或基线。未取得商业书面授权或合法独立实现前，生产不得配置 `SUB2API_MODEL_DETECTOR_URL` 或 `SUB2API_MODEL_DETECTOR_TOKEN`；未配置时页面显示“不支持”，不影响原生监控。
+- 发布边界：候选阶段尚未运行发布预检、未合并根 `main`、未推送、未部署或线上验收；继续使用本地/宿主发布链，不增加 GitHub Actions。发布预检若返回 `downtime_required=false`，按全局约束无需再次询问即可继续；若返回 `true`，必须停在用户授权门禁。原生证据入口为 `backend/internal/service/account_monitor_probe.go`、`account_monitor_service.go`、前端 `AccountMonitorCard.vue` 与 `AccountMonitorView.vue`。
+
+### S1-R2 确定性故障原生隔离编排
+
+- 当前状态：`DONE`。用户可见顶层任务 `01a00da8-ed25-7b72-b9d9-cdcee5fa75c1` 已合入并推送根 `main@2271b81874d9dfc5eb0894bd02e0f30c2a1f085b`；合并后直接相关 service/unit/config/compile-only/build/gofmt/diff-check 全部通过。生产发布结果为 `succeeded/promoted`、活动槽 `green`、`downtime_required=false`，不可变镜像为 `ghcr.io/leesssong/xingqiao-sub2api:release-2271b81874d9dfc5eb0894bd02e0f30c2a1f085b-93a0a891bcaf6acc2457fa37329cb86229199c6545bf67259e96b8cae5ca01ba`；本地 0600 证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-17-main-2271b818-s1-r2-maintenance-ready-v1.json`。公网 `/healthz`、`/readyz`、`/health` 均 HTTP 200，未触发人为上游失败或修改生产账号；交接见 `docs/handoffs/2026-08-17-s1-r2-native-deterministic-failure-isolation-handoff.md`。
+- 目标：把明确且可确定归因的上游账号/模型故障映射到 Sub 原生隔离、冷却与恢复机制，包括页面“正在重新连接 1/5”、`stream disconnected before completion` 以及上游 SSE 在 `response.completed` 前断开的账号模型冷却/故障转移边界。
+- 已有合同：余额不足复用原生 `temp_unschedulable`（默认 90 分钟，允许范围 60–120 分钟）；确认凭据失效使用原生 `status=error/schedulable=false` 并要求受控探测或管理员恢复；明确模型不支持使用原生 `model_rate_limits`，作用域为账号 + canonical model；episode 仅作审计解释，不形成第二套 scheduler veto。
+- 实现与验证：余额不足统一落原生 90 分钟账号冷却（配置允许 60–120，越界回退 90）；明确模型不支持落账号 + canonical model 的原生 `model_rate_limits/probe_required`；API Key 明确凭据失效继续原生 error/不可调度；未收到成功终态的 SSE 进入既有账号模型 transient，同时保留输出后禁止重放。直接相关 service、unit 回归、config、受影响包 compile-only、server build、gofmt 与全候选 diff-check 通过；无迁移、未使用 225/226、无 GitHub Actions 变化。
+- 安全边界：泛化 403、网络失败、空/截断/不完整模型清单不得硬隔离；继续复用现有 transient cooldown、half-open、sticky、scheduler outbox、计费幂等和流式恢复。`downtime_required=unverified`；用户解除部署冻结前不得合并、push、预检、部署或触碰生产，S2/S3 不得启动。
+
+### T16 经营页真实结果与视觉层级重设计
+
+- 当前状态：`DONE`。T16 刷新候选 `84b08ac9cbef6abeb4cb16b3cb2f36863f8f2164` 已合入并随根 `main@ad49f9004418d779dfb0d7967d3fc3681486fbbe` 推送和无停机发布；宿主记录 `/var/lib/sub2api/release-records/20260817T184654Z-production-2406458.json` 为 `succeeded/promoted`、`rolled_back=false`，活动槽 `blue`。登录态经营页与原生财务 API 均已验收。报告：`docs/superpowers/reports/2026-08-17-t16-profitability-visual-hierarchy-production.md`。
+- 默认视图与字段：默认打开“全部真实结果”；账号明细只显示运营消耗、业务消耗、业务营收、总消耗、净利润五项。摘要强调业务营收、总消耗、净利润和对外毛利率，并单独显示“内部运营消耗”且说明已包含在总消耗中。
+- 原生事实源与公式：继续复用同一 Sub 原生 `usage_logs`，不建立第二套账务源，不改变 `cost`/`user_cost` 基础公式。运营消耗为管理员/内部使用的上游 `cost`；业务消耗为对外业务上游 `cost`；业务营收为对外用户 `user_cost`；总消耗为运营消耗加业务消耗；净利润为业务营收减总消耗。管理员免费使用仍保留真实上游成本，归为内部运营消耗，不能从总成本删除。
+- 身份边界：禁止用 `user_cost=0` 猜管理员身份。正式规格必须先核查当前 `usage_logs` 与用户角色事实，说明用 `user_id/role` 查询时的历史角色变化风险；若需要不可变 actor type，必须作为最小数据契约变化单独论证，不得无声回填或猜测历史。
+- 视觉合同：业务营收使用蓝色语义，真实上游消耗使用琥珀色，内部运营使用紫色，净利润使用绿色，真实亏损/内部补贴成本使用红色或警示语义；账号明细为紧凑表格。桌面层级清晰，390px 摘要两列且整页无横向溢出；若明细采用受控横向滚动，必须限制在表格容器内。
+- 发布边界：本项保持冻结，不执行原生盘点、brainstorming、planning、实现或测试。只有 S1-R2 完成生产验收、S2 完成生产验收且总控重新 GO 后，才可解冻并从届时最新干净 `main` 重新核对基线。
+
+### T17 用量详情“上游扣费/利润”统一 Sub 原生有效账号成本口径热修
+
+- 当前状态：`DONE`。T17 已无冲突合入并推送根 `main@892db8cefb37bcab14b0aded8082811ac3935f48`；前端 38/38 focused tests、typecheck/build、后端管理员/DTO focused tests、server compile-only/build 和范围检查均通过。普通预加载蓝绿链完成 `succeeded/promoted`，活动槽 `blue`，迁移哈希未变，API/worker 同镜像且 healthy/restart 0，公网三项健康端点均 200。登录态页面确认 evidence unavailable 时详情仍显示有效账号成本和利润并与列表一致；控制器在宿主成功 final record 后遇到 SSH 关闭产生本地假阴性，已通过 release-state、final record、容器和标签只读核对完成收口。宿主记录 `/var/lib/sub2api/release-records/20260817T102828Z-production-2034943.json`，0600 证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-17-main-892db8cef-t17-effective-account-cost-v1.json`。恢复 bundle `/Users/gongtengxinwen/Documents/sub2api-archives/t17-effective-account-cost-hotfix-9ffbdbc2.bundle` 已验证，SHA-256 `c8aa71b345f74486e97cafdd2a6078afe22b8fa6da62c7c35386646c767c3879`；功能 worktree/分支和临时 release worktree 已清理，另一个既有用户可见 T17 worktree 未动。不得并入 S3。
+- 已确认问题：使用记录列表与账号利润/经营页均使用 Sub 原生有效账号成本 `COALESCE(account_cost, COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1))`；用量详情弹窗却以 `usage_upstream_cost_evidence.normalized_cost_cny` 决定主金额，严格 evidence 为 `unavailable` 时显示 `-`，造成同一流水口径不一致；T14 只修复了 PascalCase/snake_case 兼容，未修改事实源。
+- 生产证据：`usage_log_id=125444/125509/125512` 的 `account_cost` 分别为 `0.0033144600/0.0058255200/0.0060059400`，对应利润为 `0.0022096400/0.0038836800/0.0040039600`，详情当前均显示 `-`。账号 214 当日 518 笔均有 `account_cost`，账号成本合计与利润页成本均为 `4.9629669888`，用户扣费 `8.2716116480`，利润 `3.3086446592`，但 518 笔严格 evidence 均为 `unavailable`。两个详情 API 均 HTTP 200，证明为选错主事实源而非接口失败。
+- 目标：详情“上游扣费”读取 effective account cost，利润统一为 `actual_cost - effective_account_cost`；历史 `account_cost` 为空时使用上述 fallback。`usage_upstream_cost_evidence` 只作严格账单核验状态/原因，不得决定主金额是否显示或成为利润主事实源。同一流水在列表、详情和账号利润/经营页的成本数学值必须一致，允许展示精度不同。
+- 最小验收：增加直接相关前端/API/公式回归，覆盖 `account_cost`、历史 fallback 和 `evidence_status=unavailable` 三类；不改价格、倍率、`actual_cost/account_cost` 写入逻辑或经营页聚合公式。
+- 边界：无数据库迁移、历史回填、生产数据修改、账务重算或历史 evidence 表删除；不并入 S3，不使用 GitHub Actions。预检 `downtime_required=false` 时按全局规则直接发布，为 `true` 时暂停请求授权。
+
+### T18 渠道状态官方聚合/自建监控可切换
+
+- 当前状态：`DONE`。T18 刷新候选 `99f7d5f7cde8926d57bd095c331483afb8040f8a` 已合入并随根 `main@80e5fe2a66a5eef11ad220ff280c7e3796dbb2d7` 推送和无停机发布；宿主记录 `/var/lib/sub2api/release-records/20260817T180044Z-production-2367549.json` 为 `succeeded/promoted`、`rolled_back=false`，活动槽 `blue`。生产公开设置为 `channel_monitor_enabled=true`、`channel_monitor_mode=v2`；登录态 `/monitor` 显示官方渠道监控聚合页，资源记录中 `/api/v1/monitor-v2` 请求为 0。公网三项健康均 200，API/worker 同镜像，共享服务身份不变。报告：`docs/superpowers/reports/2026-08-17-t18-channel-status-official-toggle-production.md`。
+- 范围：仅改 `MonitorV2RouteView` 入口与专项测试；复用已有 `channel_monitor_mode=v1|v2`。`v2` 直接渲染官方 `ChannelStatusView` 并跳过 `/api/v1/monitor-v2`，`v1` 保留自建页及失败回退；无后端、迁移、配置 schema 或 GitHub Actions 变化。
+- 验证：`MonitorV2RouteView` 1 文件 3 tests、`pnpm typecheck`、`pnpm build`、`git diff --check` 均通过；预期 `downtime_required=false`，最终以根合并后的发布预检为准。上线参数为 `channel_monitor_enabled=true`、`channel_monitor_mode=v2`；回滚为 `channel_monitor_mode=v1`。
+- 车道约束：T15 当前仍停在 `downtime_required=true` 的停机授权门禁；T18 不自行插队、合并、推送、发布或改生产配置，待 T15 生产收口或明确冻结后再由根总控单独授权。
+
+### T19 Monitor V2 缓存命中率有效样本口径修正
+
+- 当前状态：`DONE`。T19 刷新候选 `b2945a5d35fe05381f5095ae354144284a5a01a7` 已合入并随根 `main@949f200f3ad6fc0455cef7788abdc941a756c65f` 推送和无停机发布；宿主记录 `/var/lib/sub2api/release-records/20260817T181347Z-production-2379500.json` 为 `succeeded/promoted`、`rolled_back=false`，活动槽 `green`。24h/7d API 与固定 `generated_at` SQL 交叉核对中，三组有效样本和命中数全部一致。报告：`docs/superpowers/reports/2026-08-17-t19-monitor-v2-cache-eligibility-production.md`。
+- 候选：worktree `/Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/t19-monitor-v2-cache-eligibility`，分支 `codex/t19-monitor-v2-cache-eligibility`，基线 `main@8729884a113cf844a2850ba87463c2f7f711577c`，候选 tip `1b8832461`，tree `1484c609a9a4f4281eae6dcf0ce71b1f16d0c6a6`，刷新合并提交 `c4fc01c53802300bec61c5c8e5d55c58cff82a2a`；功能提交 `0f9ef38f2a0621d9afe5b5c965da025161dba399`；交接 `docs/handoffs/2026-08-17-t19-monitor-v2-cache-eligibility-handoff.md`。
+- 规格与计划：`docs/superpowers/specs/2026-08-17-monitor-v2-cache-hit-rate-eligibility-design.md`；`docs/superpowers/plans/2026-08-17-monitor-v2-cache-hit-rate-eligibility.md`。候选已携带正式规格、计划和交接文件；待发布前须刷新到届时最新干净 `main` 并重跑直接相关门禁。
+- 范围：仅修正 `upstream/sub2api/backend/internal/repository/monitor_v2_repo.go` 的 Monitor V2 缓存统计 SQL 及直接相关 sqlmock 测试。分子/分母统一限定为 `actual_cost > 0`、成功流水且具备文本 Token Prompt Cache 语义：`billing_mode='token'`，或历史 `billing_mode` 为空且图片/视频字段全零；排除 `billing_mode=image|video|per_request` 及 `actual_cost=0` 的失败占位。保持 API 响应、前端、账务/价格/倍率、缓存策略不变；无迁移、无生产数据写入，预期 `downtime_required=false`。
+- 验证与发布：TDD RED/GREEN、仓储/服务聚焦测试、后端 compile-only/build、gofmt、diff-check 已通过；发布后仍需进行 24 小时/7 天只读交叉验收。预检若返回 `downtime_required=false`，按全局约束直接继续蓝绿发布与线上验证；若返回 `true`，停在用户授权门禁。当前按用户指令暂停所有发布动作，不得使用 GitHub Actions。
+
+### T20 用量详情过时提示清理与盈利页零流水账号补齐
+
+- 当前状态：`DONE`。候选 `3b120046e328535ce587db60a5ef750586d652d0` 已合入并推送根 `main@c2a1429623b22d0e5c3d4746a508d0f34e0a93e9`，tree `e41c1460b05ad1b040c2700fb54227b2dad0f947`。
+- 候选：隔离 checkout `/Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/t20-usage-detail-zero-flow`，分支 `codex/t20-usage-detail-zero-flow`，基线 `main@d579e6f99f4f281227578676dff060df92e3f870`，提交 `3b120046e328535ce587db60a5ef750586d652d0`，bundle `/private/tmp/t20-usage-detail-zero-flow-ready.bundle`（SHA-256 `09f352f1c19c14336c280f24342d4366735933377578a7a2678214a4c0800c82`），交接 `docs/handoffs/2026-08-18-t20-usage-detail-zero-flow-handoff.md`。
+- 范围：删除 `UsageDetailDialog` 中过时的严格上游账单提示及对应前端断言；保留后端 evidence 接口、`evidence_status` 与 `reason_code`，不改变 T17 已上线的有效账号成本主口径。`account-financial` 分组读模型先从 `account_groups` 加载全部有效账号并初始化零值，再叠加 `usage_logs` 与探测成本聚合，使时间窗内无流水的有效账号仍显示且金额均为零。
+- 原生事实与边界：复用 Sub 原生有效账号、`usage_logs`、现有财务字段和聚合公式；保持 API 响应、字段结构、成本/收入/利润数学、探测成本语义及账号绑定状态不变。不做迁移、回填、生产数据写入、账务重算、evidence 表删除、S3/T22 顺带实现或 GitHub Actions。
+- 验收与验证：详情过时提示消失；分组账号数与当前有效绑定一致；零流水账号金额为零；有流水账号与现有结果一致。新增直接相关前端/API/读模型回归，执行后端仓储/服务聚焦、受影响包 compile-only/build、前端聚焦测试、typecheck/build、gofmt 与 diff-check。候选已完成根合并、推送、发布和线上验收；`downtime_required=false` 按全局规约直接蓝绿发布，`true` 停在停机授权门禁。
+- 生产与验收：既有本地/宿主链返回 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `blue`，宿主记录 `/var/lib/sub2api/release-records/20260818T051214Z-production-2858199.json`。三项公网健康均 200；生产用量样本 125444/125509/125512 的 `actual_cost` 与 `account_cost` 继续按 T17 口径返回，evidence 仍为 `unavailable` 但不再决定主金额；24h 财务读模型中零流水有效绑定账号仍出现且金额全为零。回滚使用宿主保留槽与上一已验证镜像，不改生产数据。
+
+### T21 生产模型检测 sidecar 接入与离线状态纠正
+
+- 当前状态：`DONE`。sidecar 收口候选合入后，首次发布在生产变更前由镜像构建门禁发现 detector Go module cache 未指定 target；根以 TDD 增加 Dockerfile 合同并修复，最终 `main@aee203ac4` 已推送、无停机蓝绿发布和线上验收。
+- 候选：`codex/t21-model-detector-sidecar@7120593f2db99757b4cf0d7de664d40e18391320`，基线 `main@74aa0d0126e7097cecb4d6d6df33b767da65a494`，worktree `/Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/t21-model-detector-sidecar`，交接 `docs/handoffs/2026-08-18-t21-model-detector-sidecar-handoff.md`。
+- 范围：后端显式区分 `ready`、`unconfigured`、`unavailable` detector 状态并通过现有 admin API/projection 暴露；前端显示“检测服务未接入/暂不可用”，仅在 `ready` catalog 中对未收录模型显示“检测器暂不支持”；原生连接测试和账号卡片原生探测保持不变；Compose 向 blue、green、worker 透传既有 URL/token 配置。
+- 验证：后端检测器 focused tests、前端账号监控 `51/51`、typecheck/build、Compose 合同、compile-only、gofmt 与 diff-check 均通过；无迁移、无业务数据写入，预期 `downtime_required=false`，以根预检为准。
+- 生产验收边界：宿主当前未配置 `SUB2API_MODEL_DETECTOR_URL/TOKEN`，也没有合规 sidecar 制品；本次发布可验收离线语义（显示未接入、不误报模型不支持、连接测试正常），至少一个模型真实检测需在提供符合 T15 许可/合同门禁的 sidecar 后补验收。禁止复制 `tools/gpt56_api_detector-git` 核心/基线/报告，禁止使用 GitHub Actions。
+- 生产结果：根 `main@65d70601a024e4f9b8c4c23e4756b6ae67ec8df8`、tree `61670b6394de7b58c6aeb79eb94f861875c767a4` 已推送；宿主记录 `/var/lib/sub2api/release-records/20260818T054645Z-production-2885531.json` 为 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `green`，API/worker 同一不可变镜像 `...ffc6c25deac5b2327e1f769c256046140c7d7d01c4ab615d077c548c604b2369`。公网三项健康均 200；登录态 admin API 显示 90 个账号，API Key 账号 `detector_state=unconfigured`、状态 `service_unconfigured`、原因 `detector_unconfigured`，连接测试模型仍存在；未配置 sidecar，T22 继续等待 T21 完整验收。
+- 最终验收：宿主记录 `/var/lib/sub2api/release-records/20260818T110720Z-production-3118657.json` 为 `succeeded/promoted`，活动槽 `blue`；detector/API/worker 同镜像且 healthy。catalog 在线返回 `gpt-5.6-terra`、`gpt-5.6-sol`、`gpt-5.4`；账号 `#23` 真实检测运行 `9dc7b02a-f5f2-4ea1-a25f-2f2f6ab2c6dd` 进入 `normal`，模型 `gpt-5.6-terra`、detector `native-1`。最近日志精确扫描未出现 API Key 值、base URL、Authorization/Bearer 或 detector token。
+
+### T22 官方 Channel Monitor V2 简洁运营视图
+
+- 当前状态：`DONE`。候选已在根 `main@cbfe9ab7d10b071373afecb9b427a103f1df72cc` 合入并推送；宿主预加载蓝绿链返回 `succeeded/promoted`、`rolled_back=false`、`downtime_required=false`，活动槽 `green`。发布证据：`/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-18-main-cbfe9ab7d-t22-channel-monitor-v1.json`；线上专项验收由登录态页面完成，默认 24h、90m/7d/30d 四窗口、详细分析按需加载、自然零流量状态和真实 critical/warning 评分均确认，公网 `/healthz`、`/readyz`、`/health` 均 HTTP 200，1440/390 视口无整页横向溢出。截图证据目录：`/Users/gongtengxinwen/.codex/visualizations/2026/08/18/01a0149d-b946-78e1-b0f3-200fed647f00/`。
+- 范围：默认时间窗改为 24h，保留 90m/7d/30d；首屏保留分组状态、成功率、首 Token、缓存率和最近趋势，模型明细/错误分类/用户排行移入“详细分析”。低流量/样本不足显示“已就绪·暂无流量”或“待观察”，不计入整体异常和健康评分且不伪造健康；真实错误、低成功率、高延迟仍黄/红显示。
+- 口径与验收：复用 T19 有效样本分母，排除本地拒绝、禁用模型、参数校验失败等未获上游响应请求；确认不重复实现已完成能力。桌面/移动端无溢出，v1 可回滚，预期无迁移且 `downtime_required=false`。
+
+### T23 自购账号独立采购成本与人民币利润模型
+
+- 当前状态：`DONE`。根 `main@d295e73050750c58edd040b6c6d517aad31358db`、tree `33b0053bc3dd3b743d74e7f64e71f59bb9cfe12f` 已推送 `origin/main`，包含 T23 合并提交 `95ef3c713` 与 migration 226 宿主 allowlist 提交 `d295e7305`。发布证据为 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-18-main-d295e7305-t23-procurement-v2.json`（0600）；宿主记录 `/var/lib/sub2api/release-records/20260818T140601Z-production-3259304.json` 返回 `succeeded/promoted`、`rolled_back=false`、活动槽 `blue`，`release-state` 绑定 source/tree 与迁移哈希 `18c4ac1fc83294634c42c6d08c6511c01515406f296d40b54840f3dae726949f`。首次缺少网络探针 allowlist 的发布尝试在宿主变更前 fail-closed，补齐精确 allowlist 后同一车道重试成功。
+- 依赖与窗口：T21/T22/T23 均已完成 `DONE`；T16 等冻结/保护 worktree 未解冻，未启动后续任务。
+- 目标：为明确归属的自购账号建立独立、可审计的人民币采购成本与利润模型，不与渠道账号 USD 上游成本混加，不修改用户扣费规则、原始 `usage_logs` 成本事实或渠道经营口径。采购成本、预计可用标准 Token 额度、版本化台账、历史生效、剩余成本/额度、采购损失、失效结算、审计、幂等与并发保护均按已批准业务规则实施。
+- 核心公式：采购成本倍率 = 采购成本 CNY / 预计可用额度 USD；已确认采购成本基于倍率前的标准 Token 消耗额度并以采购周期真实采购价封顶；人民币营收按已实际消耗的站内 USD 额度 1:1 计入；净利润 = CNY 营收 - 已确认采购成本 - 采购损失，内部运营消耗单列进入总成本。未录入成本显示“成本待录入”，不按零成本计算。
+- 数据边界：保留 `accounts.procurement_cost_cny`、`estimated_usable_quota_usd`、`procurement_cost_effective_at` 作为当前投影；新增 expand-only、版本化、可审计采购成本台账，记录账号、成本、额度、生效/结束/结算、损失、状态、操作者和时间戳。不得迁移删除、历史回填、生产数据修改或重算账务。
+- 页面与验收：经营页新增独立“自购账号”人民币视图，展示采购成本、预计额度、标准额度消耗、利用率、已确认成本、待摊成本、采购损失、人民币营收、净利润、利润率和成本状态；提供明确的“确认失效并结算”二次确认；桌面及 390px 移动端无横向溢出。覆盖首次录入历史生效、后续版本生效、额度变更剩余摊销、失效结算、超额封顶、未配置和渠道 USD 汇总隔离。
+- 发布属性：宿主最终记录为 `downtime_required=false`；迁移 226 按用户已给出的停机授权走受控维护切换，PostgreSQL/Redis/Caddy 身份保持不变。不得使用 GitHub Actions。
+- 线上专项验收：登录态经营页确认独立“自购账号 · 人民币”视图与渠道 USD 汇总分离，成本待录入、采购成本/预计额度、利用率、确认/待摊/损失/营收/净利润字段均按规则展示；账号监控真实入口显示“采购成本（CNY）”“预计可用额度（USD）”及派生倍率。公网 `/healthz`、`/readyz`、`/health` 均 HTTP 200。宿主数据库确认 `226_account_procurement_cost_versions.sql` 已应用，版本台账当前 0 行，未发生历史回填；成本封顶、失效结算采购损失、幂等与 actor 审计由 T23 直接相关测试覆盖，本次未为制造样本修改生产数据。
+
+### T24 特惠分组本地调度耗尽 503 纠正
+
+- 当前状态：`DONE`。独立候选 `codex/t24-local-scheduling-exhaustion@6871ddaac` 经根审查合入，最终发布源为 `main@a76dff256d53b7e3b9f0d3df8aa8d1699edcd39b`。根合并后直接门禁、推送、无停机蓝绿发布和线上验收均完成。线上历史真实本地 503 样本 `19877` 已投影为 `LOCAL_CAPACITY_EXHAUSTED / routing / platform / 未选择账号`，上游样本 `20190` 仍归属 `upstream_failed / provider / 已选择账号`；公网健康均 200，未制造新失败流量或修改生产数据。
+- 依赖与窗口：T23/T24 均已完成 `DONE`；当前没有功能任务占用整合/发布/验收车道；T16 等冻结/保护 worktree 不解冻。
+- 验收边界：覆盖特惠分组仅允许自购账号且全部不可调度时的 `/responses`、Chat Completions 与流式/非流式本地拒绝；保留上游真实 503 透传；用户侧中文泛化提示与管理员诊断阶段/归属可区分；无迁移、无生产数据修改，预期 `downtime_required=false`。
+
+- **T47-R2 Monitor V2 紧凑布局与信息层级优化（2026-08-21）**：状态 `DONE`。候选已合入并推送根 `main`，生产源 `main@525b35d3aa2ec567cef5570a16bdfe1dd6803411` 已通过宿主蓝绿发布；宿主记录 `/var/lib/sub2api/release-records/20260821T063951Z-production-2086588.json` 返回 `result=succeeded`、`state=promoted`、`rolled_back=false`，`downtime_required=false`，活动槽为 green。生产 `sub2api-green`、worker、model-detector 均 healthy；公网 `/healthz`、`/readyz`、`/health` 和 `/custom/performance-monitor` 均返回 HTTP 200。直接相关 Vitest 10/10、`pnpm typecheck`、`pnpm build`、`git diff --check` 通过；无 API、数据源、迁移、配置或生产数据变更。测试证据 `/Users/gongtengxinwen/.codex/release-evidence/sub2api/2026-08-21-main-525b35d3a-t47-r2.json`。
+**最新发布事实（2026-08-28）：** T76-v2 已合入根 `main`（`964f2f00e` + `a27ac4e64`），推送至 `origin/main`，并从干净根工作区成功发布验收站；当前验收站运行 `main@a27ac4e64dfd9ce33f4e2132c007370ed2e2195f`，source tree `113f089c94c794a4be49319715545456f920c69b`，六服务均 healthy。T76 保持 `VERIFYING`，等待管理员人工功能验收；主站未部署。
+**T114 多窗口服务质量评分与慢首输出观测（2026-09-02）：** 状态 `IMPLEMENTING`。用户已批准正式规格并明确要求开始实施，目标是把普通 HTTP 文本统一质量调度改为 `1h + 24h + 7d` 多窗口综合质量分，成功质量 40%、P50/P90 首字体验 40%、输出速度与实时负载 20%；不设置 TTFT 硬淘汰线。60 秒无有效语义首输出只写 `openai.first_output_slow` 右删失证据并即时降低后续请求排名，当前上游继续运行，严禁因纯慢响应取消、自动换号或创建第二 attempt，平台不承担重复上游计费风险。规格：`docs/superpowers/specs/2026-09-02-t114-multi-window-quality-scheduling-design.md`。创建专属 worktree 前的全量盘点发现并已整合 `codex/account-monitor-scheduler-real-first@bef0a3a89`；合并提交为 `13d2d9193`，repository/handler 定向测试、前端精确 58 项、server build、前端 typecheck 与 diff-check 通过。全量前端误触发运行的 7 个失败均在 HomeView/refresh/MonitorForm/ChannelStatus/OpsErrorDetail 等非本任务路径，已记录但不扩大修复。T114 将从该更新后的干净 `main` 创建 `.worktrees/t114-multi-window-quality-scheduling`。本任务不修改生产配置、账号池、账务或业务数据，不授权推送或部署。

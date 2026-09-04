@@ -1,0 +1,1052 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { afterEach, test } from 'node:test'
+
+const require = createRequire(import.meta.url)
+const { JSDOM } = require('../../homepage/node_modules/jsdom')
+const UI_SCRIPT = new URL('../../infra/sub2api-update-ui/update-ui.js', import.meta.url)
+const UI_HTML = new URL('../../infra/sub2api-update-ui/index.html', import.meta.url)
+const openBrowsers = []
+
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+function response(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+async function createBrowser({ fetchImpl, autoPrepare = true } = {}) {
+  const dom = new JSDOM(
+    '<!doctype html><html><body><button id="official-update">Update Now</button><button id="other">Refresh</button></body></html>',
+    { url: 'https://api.xingqiaolab.top/admin/system', runScripts: 'outside-only' },
+  )
+  const { window } = dom
+  window.Date.now = () => new Date('2026-07-20T00:00:00Z').getTime()
+  const requests = []
+  const defaultFetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url
+    const method = (init.method || input.method || 'GET').toUpperCase()
+    requests.push({ url, method, body: init.body, headers: init.headers })
+    if (url.endsWith('/api/v1/admin/system/check-updates')) {
+      return response({ code: 0, data: { current_version: '1.2.2', latest_version: '1.2.3' } })
+    }
+    if (url.endsWith('/api/v1/admin/system/host-update/status')) {
+      return response({ code: 0, data: null })
+    }
+    if (url.endsWith('/api/v1/admin/system/host-update/readiness?target_version=1.2.3')) {
+      return response({ code: 0, data: { target_version: '1.2.3', ready: true } })
+    }
+    if (url.endsWith('/api/v1/admin/system/host-update/prepare')) {
+      return response({ code: 0, data: { target_version: '1.2.3', stage: 'accepted' } })
+    }
+    if (url.endsWith('/api/v1/admin/system/update')) {
+      return response({ code: 0, data: { operation_id: 'op-now', stage: 'accepted' } })
+    }
+    if (url.endsWith('/api/v1/admin/system/host-update/schedule')) {
+      return response({ code: 0, data: { cancelled: true } })
+    }
+    throw new Error(`unexpected request: ${method} ${url}`)
+  }
+  window.fetch = fetchImpl ? fetchImpl(requests, defaultFetch) : defaultFetch
+  window.localStorage.setItem('auth_token', 'admin-token')
+  const script = await readFile(UI_SCRIPT, 'utf8')
+  window.eval(script)
+  await flush()
+  const browser = { dom, window, requests, ui: window.__XingqiaoUpdateUI__ }
+  if (autoPrepare) {
+    const openConfirmation = browser.ui.openConfirmation
+    browser.ui.openConfirmation = async () => {
+      const dialog = await openConfirmation()
+      const prepare = dialog.querySelector('[data-action="prepare"]')
+      if (prepare && !prepare.hidden) {
+        prepare.click()
+        await flush()
+      }
+      return dialog
+    }
+  }
+  openBrowsers.push(browser)
+  return browser
+}
+
+afterEach(() => {
+  while (openBrowsers.length) {
+    const browser = openBrowsers.pop()
+    browser.ui.stopPolling()
+    browser.dom.window.close()
+  }
+})
+
+function scheduledFetch(requests, fallback) {
+  return async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url
+    if (url.endsWith('/host-update/status')) {
+      requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+      return response({ code: 0, data: { operation_id: 'old-op', stage: 'scheduled', target_version: '1.2.3', scheduled_at: '2026-07-26T04:00:00Z' } })
+    }
+    if (url.endsWith('/host-update/schedule') && (init.method || 'GET') === 'DELETE') {
+      requests.push({ url, method: 'DELETE', body: init.body, headers: init.headers })
+      return response({ code: 0, data: { cancelled: true } })
+    }
+    return fallback(input, init)
+  }
+}
+
+function runningFetch(requests, fallback) {
+  return async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url
+    if (url.endsWith('/host-update/status')) {
+      requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+      return response({
+        code: 0,
+        data: {
+          operation_id: 'running-op',
+          stage: 'running',
+          target_version: '1.2.3',
+          events: ['inspect', 'recreate-sub2api'],
+        },
+      })
+    }
+    return fallback(input, init)
+  }
+}
+
+function transientAuthFetch(requests, fallback) {
+  let updateAccepted = false
+  return async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url
+    const method = (init.method || 'GET').toUpperCase()
+    if (url.endsWith('/api/v1/admin/system/update')) {
+      updateAccepted = true
+      requests.push({ url, method, body: init.body, headers: init.headers })
+      return response({ code: 0, data: { operation_id: 'op-now', stage: 'accepted' } })
+    }
+    if (url.endsWith('/host-update/status') && updateAccepted) {
+      requests.push({ url, method, body: init.body, headers: init.headers })
+      return response({ code: 'UPDATE_AUTH_REQUIRED' }, 401)
+    }
+    return fallback(input, init)
+  }
+}
+
+function runningWithInfoFailureFetch(requests, fallback) {
+  return async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url
+    if (url.endsWith('/check-updates')) {
+      requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+      return response({ code: 'TEMPORARILY_UNAVAILABLE' }, 503)
+    }
+    return runningFetch(requests, fallback)(input, init)
+  }
+}
+
+function transientNetworkFetch(requests, fallback) {
+  let updateAccepted = false
+  return async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url
+    const method = (init.method || 'GET').toUpperCase()
+    if (url.endsWith('/api/v1/admin/system/update')) {
+      updateAccepted = true
+      requests.push({ url, method, body: init.body, headers: init.headers })
+      return response({ code: 0, data: { operation_id: 'op-now', stage: 'accepted' } })
+    }
+    if (url.endsWith('/host-update/status') && updateAccepted) {
+      requests.push({ url, method, body: init.body, headers: init.headers })
+      throw new TypeError('Failed to fetch')
+    }
+    return fallback(input, init)
+  }
+}
+
+function preSubmitAuthFailureFetch(requests, fallback) {
+  return async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url
+    if (url.endsWith('/host-update/status')) {
+      requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+      return response({ code: 'UPDATE_AUTH_REQUIRED' }, 401)
+    }
+    return fallback(input, init)
+  }
+}
+
+test('captures the localized official update button before its Vue handler', async () => {
+  const browser = await createBrowser()
+  let officialHandlerCalled = false
+  browser.window.document.addEventListener('click', () => {
+    officialHandlerCalled = true
+  })
+
+  browser.window.document.querySelector('#official-update').click()
+  await flush()
+
+  assert.equal(officialHandlerCalled, false)
+  assert.equal(browser.window.document.querySelector('[role="dialog"]') !== null, true)
+  assert.match(browser.window.document.body.textContent, /1\.2\.2/)
+  assert.match(browser.window.document.body.textContent, /1\.2\.3/)
+  assert.equal(browser.window.document.querySelector('[name="mode"][value="now"]').checked, true)
+})
+
+test('ignores a stale failed operation when the current version already equals the target', async () => {
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/api/v1/admin/system/check-updates')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({ code: 0, data: { current_version: '1.2.3', latest_version: '1.2.3' } })
+      }
+      if (url.endsWith('/api/v1/admin/system/host-update/status')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({
+          code: 0,
+          data: { operation_id: 'stale-failed-op', stage: 'failed', target_version: '1.2.3' },
+        })
+      }
+      return fallback(input, init)
+    },
+  })
+
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+
+  assert.match(dialog.querySelector('[data-role="readiness-status"]').textContent, /当前版本已是目标版本/)
+  assert.match(dialog.querySelector('[data-role="message"]').textContent, /无需重复升级/)
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  assert.equal(browser.requests.some((request) => request.url.includes('/host-update/readiness')), false)
+})
+
+test('requires explicit confirmation and converts Beijing time to UTC RFC3339', async () => {
+  const browser = await createBrowser()
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+  const submit = dialog.querySelector('[data-action="submit"]')
+  assert.equal(submit.disabled, true)
+
+  dialog.querySelector('[name="mode"][value="schedule"]').click()
+  const input = dialog.querySelector('input[type="datetime-local"]')
+  input.value = '2026-07-26T12:34'
+  dialog.querySelector('[name="confirm"]').click()
+  await submit.click()
+  await flush()
+
+  const updateRequest = browser.requests.find((request) => request.url.endsWith('/api/v1/admin/system/update'))
+  assert.ok(updateRequest)
+  assert.deepEqual(JSON.parse(updateRequest.body), {
+    mode: 'schedule',
+    target_version: '1.2.3',
+    scheduled_at: '2026-07-26T04:34:00.000Z',
+  })
+  browser.ui.stopPolling()
+})
+
+test('replaces an existing schedule with a JSON DELETE request', async () => {
+  const browser = await createBrowser({ fetchImpl: scheduledFetch })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+  assert.match(dialog.textContent, /已有定时升级/)
+  assert.ok(dialog.querySelector('[data-action="replace"]'))
+  assert.ok(dialog.querySelector('[data-action="cancel-schedule"]'))
+
+  dialog.querySelector('[data-action="replace"]').click()
+  assert.equal(dialog.querySelector('[data-action="replace"]').hidden, true)
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  dialog.querySelector('input[type="datetime-local"]').value = '2026-07-26T13:00'
+  dialog.querySelector('[name="confirm"]').click()
+  dialog.querySelector('[data-action="submit"]').click()
+  await flush()
+  browser.ui.stopPolling()
+
+  const replacementDelete = browser.requests.find(
+    (request) => request.url.endsWith('/host-update/schedule') && request.method === 'DELETE',
+  )
+  assert.ok(replacementDelete)
+  assert.equal(replacementDelete.headers['Content-Type'], 'application/json')
+})
+
+test('cancels an existing schedule with a JSON DELETE request', async () => {
+  const browser = await createBrowser({ fetchImpl: scheduledFetch })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+  dialog.querySelector('[data-action="cancel-schedule"]').click()
+  await flush()
+  const cancelRequest = browser.requests.find(
+    (request) => request.url.endsWith('/host-update/schedule') && request.method === 'DELETE',
+  )
+  assert.ok(cancelRequest)
+  assert.equal(cancelRequest.headers['Content-Type'], 'application/json')
+})
+
+test('starts status polling after an accepted operation', async () => {
+  const browser = await createBrowser()
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+  dialog.querySelector('[name="confirm"]').click()
+  await dialog.querySelector('[data-action="submit"]').click()
+  await flush()
+
+  assert.equal(browser.ui.isPolling(), true)
+  await browser.ui.pollStatus()
+  assert.equal(browser.requests.some((request) => request.url.endsWith('/host-update/status')), true)
+  browser.ui.stopPolling()
+})
+
+test('resumes a running upgrade after the admin page reloads', async () => {
+  const browser = await createBrowser({ fetchImpl: runningFetch })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+
+  assert.equal(dialog.querySelector('[name="mode"][value="now"]').disabled, true)
+  assert.equal(dialog.querySelector('[data-role="submit-label"]').textContent, '升级中…')
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '切换应用容器中')
+  assert.match(dialog.querySelector('[data-role="message"]').textContent, /升级正在执行/)
+  assert.match(dialog.querySelector('[data-role="progress-log"]').textContent, /检查运行环境/)
+  dialog.querySelector('[data-action="submit"]').click()
+  await flush()
+  assert.equal(browser.requests.some((request) => request.url.endsWith('/api/v1/admin/system/update')), false)
+  assert.equal(browser.ui.isPolling(), true)
+  browser.ui.stopPolling()
+})
+
+test('resumes a running upgrade when version lookup is temporarily unavailable', async () => {
+  const browser = await createBrowser({ fetchImpl: runningWithInfoFailureFetch })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+
+  assert.equal(dialog.querySelector('[name="mode"][value="now"]').disabled, true)
+  assert.equal(dialog.querySelector('[data-role="submit-label"]').textContent, '升级中…')
+  assert.equal(browser.ui.isPolling(), true)
+  browser.ui.stopPolling()
+})
+
+test('keeps waiting through transient authentication loss after update acceptance', async () => {
+  const browser = await createBrowser({ fetchImpl: transientAuthFetch })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+  dialog.querySelector('[name="confirm"]').click()
+  dialog.querySelector('[data-action="submit"]').click()
+  await flush()
+
+  await browser.ui.pollStatus()
+
+  const message = dialog.querySelector('[data-role="message"]').textContent
+  assert.match(message, /应用容器正在重启/)
+  assert.doesNotMatch(message, /更新服务不可用/)
+  assert.equal(browser.ui.isPolling(), true)
+  browser.ui.stopPolling()
+})
+
+test('keeps waiting through a network disconnect after update acceptance', async () => {
+  const browser = await createBrowser({ fetchImpl: transientNetworkFetch })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+  dialog.querySelector('[name="confirm"]').click()
+  dialog.querySelector('[data-action="submit"]').click()
+  await flush()
+
+  await browser.ui.pollStatus()
+
+  assert.match(dialog.querySelector('[data-role="message"]').textContent, /应用容器正在重启/)
+  assert.equal(browser.ui.isPolling(), true)
+  browser.ui.stopPolling()
+})
+
+test('continues readiness checking when only operation status lookup fails', async () => {
+  const browser = await createBrowser({ fetchImpl: preSubmitAuthFailureFetch })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本已准备完成')
+  assert.equal(dialog.querySelector('[data-role="message"]').textContent, '')
+  assert.equal(browser.ui.isPolling(), false)
+})
+
+test('does not intercept unrelated buttons and fail-closes direct update fetches', async () => {
+  const browser = await createBrowser()
+  let unrelatedCalled = false
+  browser.window.document.addEventListener('click', (event) => {
+    if (event.target.id === 'other') unrelatedCalled = true
+  })
+  browser.window.document.querySelector('#other').click()
+  assert.equal(unrelatedCalled, true)
+
+  const directResponse = await browser.window.fetch('/api/v1/admin/system/update', { method: 'POST', body: '{}' })
+  await flush()
+  assert.equal(directResponse.status, 409)
+  assert.equal(browser.requests.some((request) => request.url.endsWith('/api/v1/admin/system/update')), false)
+  assert.equal(browser.window.document.querySelector('[role="dialog"]') !== null, true)
+})
+
+test('keeps submit disabled until the qualified candidate becomes ready and stops polling on close', async () => {
+  let ready = false
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/host-update/readiness?target_version=1.2.3')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({
+          code: 0,
+          data: {
+            target_version: '1.2.3',
+            ready,
+            ...(ready ? {} : { reason: 'candidate_not_ready' }),
+          },
+        })
+      }
+      if (url.endsWith('/host-update/prepare')) {
+        requests.push({ url, method: 'POST', body: init.body, headers: init.headers })
+        return response({ code: 0, data: { target_version: '1.2.3', stage: 'accepted' } })
+      }
+      return fallback(input, init)
+    },
+  })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+  const submit = dialog.querySelector('[data-action="submit"]')
+  dialog.querySelector('[name="confirm"]').click()
+
+  assert.equal(dialog.querySelectorAll('[data-role="readiness-status"]').length, 1)
+  assert.equal(dialog.querySelector('[data-role="message"]').textContent, '')
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本准备中')
+  assert.equal(submit.disabled, true)
+  assert.equal(browser.ui.isReadinessPolling(), true)
+  submit.click()
+  await flush()
+  assert.equal(browser.requests.some((request) => request.url.endsWith('/api/v1/admin/system/update')), false)
+
+  ready = true
+  await browser.ui.pollReadiness()
+  assert.equal(submit.disabled, false)
+  dialog.querySelector('[data-action="close"]').click()
+  assert.equal(browser.ui.isReadinessPolling(), false)
+})
+
+test('waits for an explicit candidate preparation action before readiness polling', async () => {
+  let ready = false
+  const browser = await createBrowser({ autoPrepare: false,
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/host-update/readiness?target_version=1.2.3')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({
+          code: 0,
+          data: { target_version: '1.2.3', ready, ...(ready ? {} : { reason: 'candidate_not_ready' }) },
+        })
+      }
+      if (url.endsWith('/host-update/prepare')) {
+        requests.push({ url, method: 'POST', body: init.body, headers: init.headers })
+        return response({ code: 0, data: { target_version: '1.2.3', stage: 'accepted' } })
+      }
+      return fallback(input, init)
+    },
+  })
+
+  const dialog = await browser.ui.openConfirmation()
+  const prepare = dialog.querySelector('[data-action="prepare"]')
+  assert.ok(prepare)
+  assert.equal(browser.requests.some((request) => request.url.includes('/host-update/readiness')), false)
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本待准备')
+
+  prepare.click()
+  await flush()
+  const prepareRequest = browser.requests.find((request) => request.url.endsWith('/host-update/prepare'))
+  assert.ok(prepareRequest)
+  assert.equal(prepareRequest.method, 'POST')
+  assert.equal(prepareRequest.headers['Content-Type'], 'application/json')
+  assert.deepEqual(JSON.parse(prepareRequest.body), { target_version: '1.2.3' })
+  assert.equal(browser.requests.filter((request) => request.url.includes('/host-update/readiness')).length, 1)
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本准备中')
+  assert.equal(browser.ui.isReadinessPolling(), true)
+  assert.equal(prepare.disabled, true)
+
+  dialog.querySelector('[name="confirm"]').click()
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  ready = true
+  await browser.ui.pollReadiness()
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本已准备完成')
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, false)
+  assert.equal(prepare.hidden, true)
+  browser.ui.stopPolling()
+})
+
+test('restores an in-flight candidate preparation after the admin page reloads', async () => {
+  const browser = await createBrowser({ autoPrepare: false,
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/host-update/status')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({ code: 0, data: { candidate: { preparation_id: 'prep-1', target_version: '1.2.3', stage: 'preparing', reason: 'preparing' } } })
+      }
+      if (url.endsWith('/host-update/readiness?target_version=1.2.3')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({ code: 0, data: { target_version: '1.2.3', ready: false, stage: 'preparing', reason: 'preparing' } })
+      }
+      return fallback(input, init)
+    },
+  })
+
+  const dialog = await browser.ui.openConfirmation()
+
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本准备中')
+  assert.match(dialog.querySelector('[data-role="readiness-reason"]').textContent, /候选镜像正在准备/)
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  assert.equal(dialog.querySelector('[data-action="prepare"]').disabled, true)
+  assert.equal(browser.ui.isReadinessPolling(), true)
+})
+
+test('restores a ready candidate after the admin page reloads', async () => {
+  const browser = await createBrowser({ autoPrepare: false,
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/host-update/status')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({ code: 0, data: { candidate: { preparation_id: 'prep-1', target_version: '1.2.3', stage: 'ready' } } })
+      }
+      return fallback(input, init)
+    },
+  })
+
+  const dialog = await browser.ui.openConfirmation()
+
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本已准备完成')
+  assert.equal(dialog.querySelector('[data-action="prepare"]').hidden, true)
+  dialog.querySelector('[name="confirm"]').click()
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, false)
+  assert.equal(browser.ui.isReadinessPolling(), false)
+})
+
+test('restores a failed candidate reason after the admin page reloads', async () => {
+  const browser = await createBrowser({ autoPrepare: false,
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/host-update/status')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({ code: 0, data: { candidate: { preparation_id: 'prep-1', target_version: '1.2.3', stage: 'failed', reason: 'candidate_image_missing' } } })
+      }
+      return fallback(input, init)
+    },
+  })
+
+  const dialog = await browser.ui.openConfirmation()
+
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本准备失败')
+  assert.match(dialog.querySelector('[data-role="readiness-reason"]').textContent, /候选镜像尚未暂存/)
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  assert.equal(browser.ui.isReadinessPolling(), false)
+})
+
+test('refreshes the official target after a target-changed candidate state', async () => {
+  let infoCalls = 0
+  const browser = await createBrowser({ autoPrepare: false,
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/check-updates')) {
+        infoCalls += 1
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({ code: 0, data: { current_version: '1.2.2', latest_version: infoCalls === 1 ? '1.2.3' : '1.2.4' } })
+      }
+      if (url.endsWith('/host-update/status')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({ code: 0, data: { candidate: { preparation_id: 'prep-1', target_version: '1.2.3', stage: 'target_changed', reason: 'target changed' } } })
+      }
+      if (url.endsWith('/host-update/prepare')) {
+        requests.push({ url, method: 'POST', body: init.body, headers: init.headers })
+        return response({ code: 0, data: { target_version: '1.2.4', stage: 'preparing' } })
+      }
+      return fallback(input, init)
+    },
+  })
+
+  const dialog = await browser.ui.openConfirmation()
+
+  assert.equal(infoCalls, 2)
+  assert.equal(dialog.querySelector('[data-role="target-version"]').textContent, '1.2.4')
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本待准备')
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  assert.equal(browser.ui.isReadinessPolling(), false)
+  dialog.querySelector('[data-action="prepare"]').click()
+  await flush()
+  const prepareRequest = browser.requests.find((request) => request.url.endsWith('/host-update/prepare'))
+  assert.deepEqual(JSON.parse(prepareRequest.body), { target_version: '1.2.4' })
+})
+
+test('shows a candidate preparation failure reason while keeping upgrade disabled', async () => {
+  const browser = await createBrowser({ autoPrepare: false,
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/host-update/readiness?target_version=1.2.3')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({
+          code: 0,
+          data: { target_version: '1.2.3', ready: false, reason: 'candidate_image_missing' },
+        })
+      }
+      if (url.endsWith('/host-update/prepare')) {
+        requests.push({ url, method: 'POST', body: init.body, headers: init.headers })
+        return response({ code: 'UPDATE_PREPARE_FAILED', message: 'candidate_image_missing' }, 409)
+      }
+      return fallback(input, init)
+    },
+  })
+  const dialog = await browser.ui.openConfirmation()
+  dialog.querySelector('[data-action="prepare"]').click()
+  await flush()
+
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本准备失败')
+  assert.match(dialog.querySelector('[data-role="readiness-reason"]').textContent, /候选镜像尚未暂存/)
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  assert.equal(browser.ui.isReadinessPolling(), false)
+})
+
+test('ignores duplicate candidate preparation clicks while the request is pending', async () => {
+  let resolvePrepare
+  const browser = await createBrowser({
+    autoPrepare: false,
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/host-update/prepare')) {
+        requests.push({ url, method: 'POST', body: init.body, headers: init.headers })
+        return new Promise((resolve) => { resolvePrepare = resolve })
+      }
+      return fallback(input, init)
+    },
+  })
+  const dialog = await browser.ui.openConfirmation()
+  const prepare = dialog.querySelector('[data-action="prepare"]')
+  prepare.click()
+  prepare.click()
+  await flush()
+
+  assert.equal(browser.requests.filter((request) => request.url.endsWith('/host-update/prepare')).length, 1)
+  resolvePrepare(response({ code: 0, data: { target_version: '1.2.3', stage: 'accepted' } }))
+  await flush()
+  browser.ui.stopPolling()
+})
+
+test('stops readiness polling when preparation status reports a terminal failure', async () => {
+  const browser = await createBrowser({
+    autoPrepare: false,
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/host-update/prepare')) {
+        requests.push({ url, method: 'POST', body: init.body, headers: init.headers })
+        return response({ code: 0, data: { target_version: '1.2.3', stage: 'preparing' } }, 202)
+      }
+      if (url.endsWith('/host-update/readiness?target_version=1.2.3')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({
+          code: 0,
+          data: {
+            target_version: '1.2.3',
+            ready: false,
+            stage: 'failed',
+            preparation_reason: 'candidate_image_missing',
+          },
+        })
+      }
+      return fallback(input, init)
+    },
+  })
+  const dialog = await browser.ui.openConfirmation()
+  dialog.querySelector('[data-action="prepare"]').click()
+  await flush()
+
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本准备失败')
+  assert.match(dialog.querySelector('[data-role="readiness-reason"]').textContent, /候选镜像尚未暂存/)
+  assert.equal(browser.ui.isReadinessPolling(), false)
+})
+
+test('reloads the official target after readiness reports UPDATE_TARGET_CHANGED', async () => {
+  let target = '1.2.3'
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      const method = (init.method || input.method || 'GET').toUpperCase()
+      if (url.endsWith('/check-updates')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        return response({ code: 0, data: { current_version: '1.2.2', latest_version: target } })
+      }
+      if (url.endsWith('/host-update/readiness?target_version=1.2.3')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        target = '1.2.4'
+        return response({ code: 'UPDATE_TARGET_CHANGED' }, 409)
+      }
+      if (url.endsWith('/host-update/readiness?target_version=1.2.4')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        return response({ code: 0, data: { target_version: '1.2.4', ready: false, reason: 'candidate_not_ready' } })
+      }
+      return fallback(input, init)
+    },
+  })
+
+  const dialog = await browser.ui.openConfirmation()
+  dialog.querySelector('[name="confirm"]').click()
+
+  const readinessTargets = browser.requests
+    .filter((request) => request.url.includes('/host-update/readiness'))
+    .map((request) => new URL(request.url, browser.window.location.href).searchParams.get('target_version'))
+  assert.deepEqual(readinessTargets, ['1.2.3'])
+  assert.match(dialog.textContent, /1\.2\.4/)
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本待准备')
+  assert.equal(dialog.querySelector('[data-role="message"]').textContent, '')
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  assert.equal(browser.requests.some((request) => request.method === 'POST' && request.url.endsWith('/system/update')), false)
+  dialog.querySelector('[data-action="prepare"]').click()
+  await flush()
+  assert.deepEqual(browser.requests
+    .filter((request) => request.url.includes('/host-update/readiness'))
+    .map((request) => new URL(request.url, browser.window.location.href).searchParams.get('target_version')), ['1.2.3', '1.2.4'])
+})
+
+test('fails closed when refreshed update info still returns the changed target', async () => {
+  let readinessCalls = 0
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      const method = (init.method || input.method || 'GET').toUpperCase()
+      if (url.endsWith('/check-updates')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        return response({ code: 0, data: { current_version: '1.2.2', latest_version: '1.2.3' } })
+      }
+      if (url.endsWith('/host-update/readiness?target_version=1.2.3')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        readinessCalls += 1
+        if (readinessCalls === 1) return response({ code: 'UPDATE_TARGET_CHANGED' }, 409)
+        return response({ code: 0, data: { target_version: '1.2.3', ready: true } })
+      }
+      return fallback(input, init)
+    },
+  })
+
+  const dialog = await browser.ui.openConfirmation()
+  dialog.querySelector('[name="confirm"]').click()
+
+  assert.equal(readinessCalls, 1)
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本准备失败')
+  assert.equal(dialog.querySelector('[data-role="message"]').textContent, '')
+  assert.equal(browser.ui.isReadinessPolling(), false)
+})
+
+test('fails closed when refreshed update info omits the target', async () => {
+  let infoCalls = 0
+  let readinessCalls = 0
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      const method = (init.method || input.method || 'GET').toUpperCase()
+      if (url.endsWith('/check-updates')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        infoCalls += 1
+        return response({
+          code: 0,
+          data: { current_version: '1.2.2', latest_version: infoCalls === 1 ? '1.2.3' : '' },
+        })
+      }
+      if (url.includes('/host-update/readiness')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        readinessCalls += 1
+        if (readinessCalls === 1) return response({ code: 'UPDATE_TARGET_CHANGED' }, 409)
+        return response({ code: 0, data: { target_version: '未知', ready: true } })
+      }
+      return fallback(input, init)
+    },
+  })
+
+  const dialog = await browser.ui.openConfirmation()
+  dialog.querySelector('[name="confirm"]').click()
+
+  assert.equal(readinessCalls, 1)
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本准备失败')
+  assert.equal(dialog.querySelector('[data-role="message"]').textContent, '')
+  assert.equal(browser.ui.isReadinessPolling(), false)
+})
+
+test('ignores out-of-order target reloads and keeps the changed target disabled', async () => {
+  let infoCalls = 0
+  let readinessCalls = 0
+  let resolveUpdate
+  const infoResolvers = []
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      const method = (init.method || input.method || 'GET').toUpperCase()
+      if (url.endsWith('/check-updates')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        infoCalls += 1
+        if (infoCalls === 1) {
+          return response({ code: 0, data: { current_version: '1.2.2', latest_version: '1.2.3' } })
+        }
+        return new Promise((resolve) => infoResolvers.push(resolve))
+      }
+      if (url.endsWith('/host-update/readiness?target_version=1.2.3')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        readinessCalls += 1
+        if (readinessCalls === 1) {
+          return response({ code: 0, data: { target_version: '1.2.3', ready: true } })
+        }
+        if (readinessCalls === 2) return response({ code: 'UPDATE_TARGET_CHANGED' }, 409)
+        return response({ code: 0, data: { target_version: '1.2.3', ready: true } })
+      }
+      if (url.endsWith('/host-update/readiness?target_version=1.2.4')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        return response({ code: 0, data: { target_version: '1.2.4', ready: true } })
+      }
+      if (url.endsWith('/api/v1/admin/system/update')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        return new Promise((resolve) => { resolveUpdate = resolve })
+      }
+      return fallback(input, init)
+    },
+  })
+
+  const dialog = await browser.ui.openConfirmation()
+  dialog.querySelector('[name="confirm"]').click()
+  dialog.querySelector('[data-action="submit"]').click()
+  await flush()
+  assert.ok(resolveUpdate)
+
+  const poll = browser.ui.pollReadiness()
+  await flush()
+  assert.equal(infoResolvers.length, 1)
+  resolveUpdate(response({ code: 'UPDATE_TARGET_CHANGED' }, 409))
+  await flush()
+  assert.equal(infoResolvers.length, 2)
+
+  infoResolvers[0](response({ code: 0, data: { current_version: '1.2.2', latest_version: '1.2.4' } }))
+  await poll
+  infoResolvers[1](response({ code: 0, data: { current_version: '1.2.2', latest_version: '1.2.3' } }))
+  await flush()
+
+  assert.equal(readinessCalls, 2)
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本准备失败')
+  assert.equal(dialog.querySelector('[data-role="message"]').textContent, '')
+  assert.equal(browser.ui.isReadinessPolling(), false)
+})
+
+test('fails closed and refreshes readiness when POST reports UPDATE_TARGET_CHANGED', async () => {
+  let target = '1.2.3'
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      const method = (init.method || input.method || 'GET').toUpperCase()
+      if (url.endsWith('/check-updates')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        return response({ code: 0, data: { current_version: '1.2.2', latest_version: target } })
+      }
+      if (url.endsWith('/host-update/readiness?target_version=1.2.3')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        return response({ code: 0, data: { target_version: '1.2.3', ready: true } })
+      }
+      if (url.endsWith('/api/v1/admin/system/update')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        target = '1.2.4'
+        return response({ code: 'UPDATE_TARGET_CHANGED' }, 409)
+      }
+      if (url.endsWith('/host-update/readiness?target_version=1.2.4')) {
+        requests.push({ url, method, body: init.body, headers: init.headers })
+        return response({ code: 0, data: { target_version: '1.2.4', ready: false, reason: 'candidate_not_ready' } })
+      }
+      return fallback(input, init)
+    },
+  })
+
+  const dialog = await browser.ui.openConfirmation()
+  dialog.querySelector('[name="confirm"]').click()
+  dialog.querySelector('[data-action="submit"]').click()
+  await flush()
+
+  const updates = browser.requests.filter((request) => request.method === 'POST' && request.url.endsWith('/system/update'))
+  assert.deepEqual(updates.map((request) => JSON.parse(request.body).target_version), ['1.2.3'])
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+  assert.equal(browser.requests.some((request) => request.url.endsWith('/host-update/readiness?target_version=1.2.4')), false)
+  dialog.querySelector('[data-action="prepare"]').click()
+  await flush()
+  assert.equal(browser.requests.some((request) => request.url.endsWith('/host-update/readiness?target_version=1.2.4')), true)
+})
+
+test('ignores readiness responses from a closed dialog when a new dialog opens', async () => {
+  const readinessResolvers = []
+  let readinessCalls = 0
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/host-update/readiness?target_version=1.2.3')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        readinessCalls += 1
+        if (readinessCalls === 1) {
+          return response({
+            code: 0,
+            data: { target_version: '1.2.3', ready: false, reason: 'candidate_not_ready' },
+          })
+        }
+        return new Promise((resolve) => readinessResolvers.push(resolve))
+      }
+      return fallback(input, init)
+    },
+  })
+
+  await browser.ui.openConfirmation()
+  const stalePoll = browser.ui.pollReadiness()
+  await flush()
+  const firstDialog = browser.window.document.querySelector('[role="dialog"]')
+  assert.ok(firstDialog)
+  assert.equal(readinessResolvers.length, 1)
+  firstDialog.querySelector('[data-action="close"]').click()
+
+  const secondOpen = browser.ui.openConfirmation()
+  await flush()
+  const secondDialog = browser.window.document.querySelector('[role="dialog"]')
+  assert.ok(secondDialog)
+  assert.equal(readinessResolvers.length, 2)
+  readinessResolvers[0](response({ code: 0, data: { target_version: '1.2.3', ready: true } }))
+  await stalePoll
+  secondDialog.querySelector('[name="confirm"]').click()
+  assert.equal(secondDialog.querySelector('[data-action="submit"]').disabled, true)
+
+  readinessResolvers[1](response({
+    code: 0,
+    data: { target_version: '1.2.3', ready: false, reason: 'candidate_not_ready' },
+  }))
+  await secondOpen
+})
+
+test('renders candidate-not-ready POST errors as preparation state', async () => {
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/api/v1/admin/system/update')) {
+        requests.push({ url, method: 'POST', body: init.body, headers: init.headers })
+        return response({ code: 'UPDATE_CANDIDATE_NOT_READY' }, 409)
+      }
+      return fallback(input, init)
+    },
+  })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+  dialog.querySelector('[name="confirm"]').click()
+  dialog.querySelector('[data-action="submit"]').click()
+  await flush()
+
+  assert.equal(dialog.querySelector('[data-role="message"]').textContent, '')
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本准备中')
+})
+
+test('shows readiness endpoint failures only in the concise status line', async () => {
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.includes('/host-update/readiness')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return response({ code: 'UPDATE_AUTH_REQUIRED' }, 401)
+      }
+      return fallback(input, init)
+    },
+  })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本准备失败')
+  assert.equal(dialog.querySelector('[data-role="message"]').textContent, '')
+  assert.equal(dialog.querySelector('[data-action="submit"]').disabled, true)
+})
+
+test('shows the real running step and concise terminal operation status', async () => {
+  let statusCalls = 0
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/host-update/status')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        statusCalls += 1
+        if (statusCalls === 1) return response({ code: 0, data: null })
+        if (statusCalls === 2) {
+          return response({ code: 0, data: { operation_id: 'op-now', stage: 'running', events: [] } })
+        }
+        if (statusCalls === 3) {
+          return response({ code: 0, data: { operation_id: 'op-now', stage: 'running', events: ['inspect', 'health'] } })
+        }
+        return response({ code: 0, data: { operation_id: 'op-now', stage: 'failed', events: ['inspect', 'health'] } })
+      }
+      return fallback(input, init)
+    },
+  })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+
+  await browser.ui.pollStatus()
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '升级中')
+
+  await browser.ui.pollStatus()
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '等待健康检查中')
+
+  await browser.ui.pollStatus()
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '升级失败')
+  assert.equal(dialog.querySelector('[data-role="message"]').textContent, '')
+})
+
+test('shows administrator intervention as a concise terminal status', async () => {
+  let statusCalls = 0
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/host-update/status')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        statusCalls += 1
+        if (statusCalls === 1) return response({ code: 0, data: null })
+        return response({ code: 0, data: { operation_id: 'op-gate', stage: 'intervention_required', result: 'migration_set_changed' } })
+      }
+      return fallback(input, init)
+    },
+  })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+
+  await browser.ui.pollStatus()
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '需要管理员介入')
+  assert.equal(dialog.querySelector('[data-role="message"]').textContent, '')
+})
+
+test('resets the status while reloading a changed target', async () => {
+  let readinessCalls = 0
+  let resolveReload
+  const browser = await createBrowser({
+    fetchImpl: (requests, fallback) => async (input, init = {}) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url.endsWith('/check-updates') && readinessCalls > 0) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        return new Promise((resolve) => { resolveReload = resolve })
+      }
+      if (url.includes('/host-update/readiness')) {
+        requests.push({ url, method: 'GET', body: init.body, headers: init.headers })
+        readinessCalls += 1
+        if (readinessCalls === 1) return response({ code: 0, data: { target_version: '1.2.3', ready: true } })
+        if (readinessCalls === 2) return response({ code: 'UPDATE_TARGET_CHANGED' }, 409)
+        return response({ code: 0, data: { target_version: '1.2.4', ready: true } })
+      }
+      return fallback(input, init)
+    },
+  })
+  await browser.ui.openConfirmation()
+  const dialog = browser.window.document.querySelector('[role="dialog"]')
+  const reload = browser.ui.pollReadiness()
+  await flush()
+
+  assert.ok(resolveReload)
+  assert.equal(dialog.querySelector('[data-role="readiness-status"]').textContent, '候选版本检查中')
+  assert.equal(dialog.querySelector('[data-role="message"]').textContent, '')
+
+  resolveReload(response({ code: 0, data: { current_version: '1.2.2', latest_version: '1.2.4' } }))
+  await reload
+})
+
+test('serves a template shell with external UI assets only', async () => {
+  const html = await readFile(UI_HTML, 'utf8')
+  assert.match(html, /\{\{\s*httpInclude\s+"\/__sub2api-official-index"\s*\}\}/)
+  assert.match(html, /href="\/xingqiao-update-ui\.css\?v=20260807-2"/)
+  assert.match(html, /src="\/xingqiao-update-ui\.js\?v=20260807-2"/)
+  assert.doesNotMatch(html, /<script[^>]*>[^<]+<\/script>/)
+})
