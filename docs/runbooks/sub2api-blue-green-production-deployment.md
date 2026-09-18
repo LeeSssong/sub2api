@@ -155,6 +155,14 @@ to   a01097cc0beb4376aca6982f0c993b5e2dd34cc8b8a739757cf178feb26c9a8d
 file 236_account_model_detection_trigger_evidence.sql (SHA-256 89e5b4f68afb7d21c4f95d24a13623e1cc8a8198e36e4b31f8e2e710740ad8bf) — add-only nullable JSONB trigger evidence for model-detection runs; no historical backfill, credential/prompt/output persistence, usage/accounting rewrite, or destructive data operation.
 ```
 
+Current legacy administrator balance-history cleanup transition:
+
+```text
+from 6dfcbaf9f6c451cdd2c28c43c807b9e3cd15e9e4708a6ad25b509df331545757
+to   fe924d3c21c3dc4a5f41e26ba444c08c074cfed04de52042e37f57a2e9a811bb
+file 236_remove_legacy_admin_balance_history.sql (SHA-256 1426278b991ac1c6f3a96e36ca259716ed766bc0e41a2866d39aa07779114943) — deletes only legacy `redeem_codes` rows whose type is `admin_balance`; quota accounting facts, wallets, payment orders, and concurrency history remain unchanged.
+```
+
 Invoke the same controller with the explicit maintenance flag:
 
 ```bash

@@ -1910,6 +1910,53 @@ test_t140_official_024_maintenance_transition_allowlist() {
   assert_no_mutation t140_official_024_wrong_new_hash
 }
 
+test_legacy_admin_balance_history_maintenance_transition_allowlist() {
+  local production_hash=6dfcbaf9f6c451cdd2c28c43c807b9e3cd15e9e4708a6ad25b509df331545757
+  local candidate_hash=fe924d3c21c3dc4a5f41e26ba444c08c074cfed04de52042e37f57a2e9a811bb
+  local wrong_old_hash=6dfcbaf9f6c451cdd2c28c43c807b9e3cd15e9e4708a6ad25b509df331545756
+  local wrong_new_hash=fe924d3c21c3dc4a5f41e26ba444c08c074cfed04de52042e37f57a2e9a811ba
+
+  setup_case legacy_admin_balance_history_unauthorized
+  write_meminfo
+  MIGRATIONS_HASH=$candidate_hash
+  "$REAL_JQ" --arg hash "$production_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  expect_failure legacy_admin_balance_history_unauthorized run_executor
+  grep -q 'migration_set_changed' "$CASE_DIR/stdout" \
+    || fail 'unauthorized legacy admin balance history transition was not gated'
+  assert_no_mutation legacy_admin_balance_history_unauthorized
+
+  setup_case legacy_admin_balance_history_wrong_old_hash
+  write_meminfo
+  MIGRATIONS_HASH=$candidate_hash
+  "$REAL_JQ" --arg hash "$wrong_old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  MAINTENANCE_MODE=true MAINTENANCE_FROM_HASH=$wrong_old_hash expect_failure legacy_admin_balance_history_wrong_old_hash run_executor
+  grep -q 'migration_set_changed' "$CASE_DIR/stdout" \
+    || fail 'legacy admin balance history wrong old hash was not gated'
+  assert_no_mutation legacy_admin_balance_history_wrong_old_hash
+
+  setup_case legacy_admin_balance_history_wrong_new_hash
+  write_meminfo
+  MIGRATIONS_HASH=$wrong_new_hash
+  "$REAL_JQ" --arg hash "$production_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  MAINTENANCE_MODE=true MAINTENANCE_FROM_HASH=$production_hash expect_failure legacy_admin_balance_history_wrong_new_hash run_executor
+  grep -q 'migration_set_changed' "$CASE_DIR/stdout" \
+    || fail 'legacy admin balance history wrong new hash was not gated'
+  assert_no_mutation legacy_admin_balance_history_wrong_new_hash
+
+  setup_case legacy_admin_balance_history_success
+  write_meminfo
+  MIGRATIONS_HASH=$candidate_hash
+  "$REAL_JQ" --arg hash "$production_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  MAINTENANCE_MODE=true MAINTENANCE_FROM_HASH=$production_hash run_executor >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "legacy admin balance history transition failed: $(cat "$CASE_DIR/stdout") $(cat "$CASE_DIR/stderr")"
+  grep -q 'maintenance stop api-worker' "$EVENT_LOG" \
+    || fail 'legacy admin balance history transition did not enter maintenance path'
+}
+
 test_maintenance_window_hard_maximum() {
   local old_hash=ac8b0b33d7ea31a1a4f0117716ba56efec4bd66be9c38267a88d4c512d01bf39
   local new_hash=0204f39423f3218ffa0c8d4e3d665f7113c4990610e0dd22e9f5910c4d578c6d
@@ -2657,6 +2704,7 @@ case "${ONLY_TEST:-all}" in
 		test_t128_maintenance_transition_allowlist
 		test_t132_maintenance_transition_allowlist
 		test_t140_official_024_maintenance_transition_allowlist
+		test_legacy_admin_balance_history_maintenance_transition_allowlist
 		test_maintenance_window_hard_maximum
 		test_maintenance_pre_worker_failure_restores_previous_api
 		test_maintenance_deadline_bounds_post_stop_operation
@@ -2688,6 +2736,7 @@ case "${ONLY_TEST:-all}" in
 	maintenance-t128-transition) test_t128_maintenance_transition_allowlist ;;
 	maintenance-t132-transition) test_t132_maintenance_transition_allowlist ;;
 	maintenance-t140-official-024-transition) test_t140_official_024_maintenance_transition_allowlist ;;
+	maintenance-legacy-admin-balance-history-transition) test_legacy_admin_balance_history_maintenance_transition_allowlist ;;
 	gates) test_downtime_gates ;;
 	preloaded) test_preloaded_transport_loads_archive_without_pull ;;
   *) fail "unknown ONLY_TEST: ${ONLY_TEST}" ;;
