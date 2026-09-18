@@ -207,6 +207,9 @@ EOF
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'curl %s\n' "$*" >>"${FAKE_EVENT_LOG:?}"
+for arg in "$@"; do
+  case "$arg" in @*) [[ -s "${arg#@}" ]] || exit 26 ;; esac
+done
 case "${FAKE_SCENARIO:-success}:$*" in
 	public_failure:*example.invalid*) exit 22 ;;
 	rollback_shared_id_drift:*example.invalid*) [[ -e "${FAKE_EVENT_LOG}.live-route-green" ]] && exit 22 ;;
@@ -377,7 +380,9 @@ JSON
     ;;
   *'run --rm --network '*'/api/v1/admin/system/version'|*'run --pull never --rm --network '*'/api/v1/admin/system/version'*) printf '{"data":{"version":"1.2.3"}}\n' ;;
   *'run --rm --network '*'/api/v1/settings/public'|*'run --pull never --rm --network '*'/api/v1/settings/public'*) printf '{"data":{}}\n' ;;
-  *'run --rm --network '*'/v1/models'|*'run --pull never --rm --network '*'/v1/models'*) printf '{"data":[]}\n' ;;
+  *'run --rm --network '*'/v1/models'|*'run --pull never --rm --network '*'/v1/models'*)
+    [[ "$scenario" != candidate_models_failure ]] || exit 22
+    printf '{"data":[]}\n' ;;
   *'exec -T -e SUB2API_ACTIVE_UPSTREAM='*' caddy caddy validate'*)
     [[ "$scenario" != caddy_validate_failure ]] || exit 1
     ;;
@@ -2415,7 +2420,7 @@ test_review_recovery_and_cleanup() {
 
   setup_case credential_cleanup
   write_meminfo
-  expect_failure credential_cleanup run_executor FAKE_SCENARIO=candidate_health_failure
+  expect_failure credential_cleanup run_executor FAKE_SCENARIO=candidate_models_failure
   record=$(find "$CASE_DIR/records" -maxdepth 1 -type f -name '*.json' -print -quit)
   "$REAL_JQ" -e '.state == "rolled_back" and .rolled_back == true' "$record" >/dev/null \
     || fail 'candidate failure cleanup removed acceptance credentials before rollback proof'

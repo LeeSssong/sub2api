@@ -1050,11 +1050,6 @@ on_exit() {
   local status=$?
   trap - EXIT HUP INT TERM
   set +e
-  run_post_stop_operation '
-    for path in "$@"; do
-      [[ -z "$path" ]] || rm -f -- "$path" || exit $?
-    done
-  ' "$candidate_env" "$rollback_env" "$admin_header" "$gateway_header" || true
   if [[ "$status" -ne 0 ]]; then
     restore_detector_topology || true
   fi
@@ -1080,6 +1075,11 @@ on_exit() {
       run_post_stop_command rm -f -- "$partial_path" || true
     fi
   fi
+  run_post_stop_operation '
+    for path in "$@"; do
+      [[ -z "$path" ]] || rm -f -- "$path" || exit $?
+    done
+  ' "$candidate_env" "$rollback_env" "$admin_header" "$gateway_header" || true
   if [[ "$status" -eq 0 && "$record_finalized" == true ]]; then
     rm -f -- "$detector_compose_backup" "$detector_secret_backup"
   elif [[ "$status" -ne 0 && "$record_finalized" == true && "$rollback_completed" == true ]]; then
