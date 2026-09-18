@@ -359,6 +359,8 @@ export default {
     cacheBreakdown: 'Cache Token Breakdown',
     cacheCreationTokensLabel: 'Cache Creation',
     cacheReadTokensLabel: 'Cache Read',
+    cacheHitValue: 'Cache hit: {value}',
+    cacheSaved: 'Cache saved ${value}',
     totalCost: 'Total Cost',
     standardCost: 'Standard',
     actualCost: 'Actual',

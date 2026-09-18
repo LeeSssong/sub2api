@@ -364,6 +364,8 @@ export default {
     cacheBreakdown: '缓存 Token 明细',
     cacheCreationTokensLabel: '缓存创建',
     cacheReadTokensLabel: '缓存读取',
+    cacheHitValue: '缓存命中：{value}',
+    cacheSaved: '缓存省 ${value}',
     totalCost: '总消费',
     standardCost: '标准',
     actualCost: '实际',

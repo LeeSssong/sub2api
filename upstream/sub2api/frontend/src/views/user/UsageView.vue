@@ -180,6 +180,7 @@
           :server-side-sort="true"
           :show-account-billing="false"
           :show-upstream-endpoint="false"
+          :show-cache-metrics="true"
           default-sort-key="created_at"
           default-sort-order="desc"
           @sort="handleSort"

@@ -25,6 +25,8 @@ const messages: Record<string, string> = {
   'admin.usage.outputCost': 'Output Cost',
   'admin.usage.cacheCreationCost': 'Cache Creation Cost',
   'admin.usage.cacheReadCost': 'Cache Read Cost',
+  'usage.cacheHitValue': 'Cache hit: {value}',
+  'usage.cacheSaved': 'Cache saved ${value}',
   'usage.inputTokenPrice': 'Input price',
   'usage.outputTokenPrice': 'Output price',
   'usage.perMillionTokens': '/ 1M tokens',
@@ -74,7 +76,10 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? key,
+      t: (key: string, params?: Record<string, unknown>) => {
+        const template = messages[key] ?? key
+        return template.replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? `{${name}}`))
+      },
     }),
   }
 })
@@ -137,6 +142,71 @@ describe('admin UsageTable tooltip', () => {
       height: 20,
       toJSON: () => ({}),
     } as DOMRect)
+  })
+
+  it('shows cache hit rate and savings when user cache metrics are enabled', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{
+          ...baseImageRow,
+          request_id: 'req-user-cache-metrics',
+          billing_mode: 'token',
+          image_count: 0,
+          input_tokens: 4_000,
+          input_cost: 0.02,
+          output_tokens: 100,
+          cache_read_tokens: 100_000,
+          cache_read_cost: 0.05,
+          rate_multiplier: 0.5,
+        }],
+        loading: false,
+        columns: [],
+        showCacheMetrics: true,
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('Cache hit: 96.2%')
+    expect(wrapper.text()).toContain('Cache saved $0.2250')
+  })
+
+  it('keeps cache metrics hidden by default for the admin table', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{
+          ...baseImageRow,
+          request_id: 'req-admin-cache-metrics',
+          billing_mode: 'token',
+          image_count: 0,
+          input_tokens: 4_000,
+          input_cost: 0.02,
+          output_tokens: 100,
+          cache_read_tokens: 100_000,
+          cache_read_cost: 0.05,
+          rate_multiplier: 0.5,
+        }],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).not.toContain('Cache hit:')
+    expect(wrapper.text()).not.toContain('Cache saved')
   })
 
   it('marks only usage rows that actually applied long-context billing', () => {
