@@ -2416,6 +2416,11 @@ test_review_recovery_and_cleanup() {
   setup_case credential_cleanup
   write_meminfo
   expect_failure credential_cleanup run_executor FAKE_SCENARIO=candidate_health_failure
+  record=$(find "$CASE_DIR/records" -maxdepth 1 -type f -name '*.json' -print -quit)
+  "$REAL_JQ" -e '.state == "rolled_back" and .rolled_back == true' "$record" >/dev/null \
+    || fail 'candidate failure cleanup removed acceptance credentials before rollback proof'
+  [[ -z "$(find "$CASE_DIR/records" -maxdepth 1 -name '*.partial' -print -quit)" ]] \
+    || fail 'candidate failure retained a checkpoint after successful rollback proof'
   [[ -z "$(find "$CASE_DIR/records" -maxdepth 1 \( -name '*.admin.header' -o -name '*.gateway.header' \) -print -quit)" ]] \
     || fail 'credential header survived failed candidate acceptance'
 
