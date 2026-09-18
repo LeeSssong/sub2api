@@ -445,6 +445,17 @@ WITH scopes AS (
   WHERE u.created_at >= $1::timestamptz AND u.created_at < $2::timestamptz
     AND NOT (u.created_at >= TIMESTAMPTZ '2026-08-31 00:00:00+08' AND u.created_at < TIMESTAMPTZ '2026-09-02 00:00:00+08')
     AND u.usage_completeness IS DISTINCT FROM 'unknown'
+), cache_usage AS (
+  SELECT group_id,
+         COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
+         COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
+         COALESCE(SUM(cache_creation_tokens), 0)::bigint AS cache_creation_tokens,
+         COALESCE(SUM(input_tokens + cache_creation_tokens + cache_read_tokens), 0)::bigint AS cache_hit_denominator,
+         SUM(cache_read_tokens)
+           / NULLIF(SUM(input_tokens + cache_creation_tokens + cache_read_tokens), 0) AS cache_hit_rate
+  FROM raw_usage_candidates
+  WHERE successful
+  GROUP BY group_id
 ), unknown_usage_keys AS (
   SELECT DISTINCT u.group_id, NULLIF(u.request_id, '') AS request_key
   FROM usage_logs u
@@ -660,12 +671,6 @@ WITH scopes AS (
          COUNT(*) FILTER (WHERE s.successful AND s.first_token_ms IS NOT NULL)::int AS ttft_sample_count,
          MAX(ms.latency_trimmed_mean) AS latency_p95_ms,
          COUNT(*) FILTER (WHERE s.successful AND s.duration_ms IS NOT NULL)::int AS latency_sample_count,
-		 COALESCE(SUM(s.input_tokens) FILTER (WHERE s.successful), 0)::bigint AS input_tokens,
-         COALESCE(SUM(s.cache_read_tokens) FILTER (WHERE s.successful), 0)::bigint AS cache_read_tokens,
-         COALESCE(SUM(s.cache_creation_tokens) FILTER (WHERE s.successful), 0)::bigint AS cache_creation_tokens,
-		 COALESCE(SUM(s.input_tokens + s.cache_creation_tokens + s.cache_read_tokens) FILTER (WHERE s.successful), 0)::bigint AS cache_hit_denominator,
-         SUM(s.cache_read_tokens) FILTER (WHERE s.successful)
-		   / NULLIF(SUM(s.input_tokens + s.cache_creation_tokens + s.cache_read_tokens) FILTER (WHERE s.successful), 0) AS cache_hit_rate,
          MAX(s.observed_at) AS source_updated_at,
          COALESCE(BOOL_OR(ls.successful), FALSE) AS current_operational
   FROM groups g
@@ -674,13 +679,15 @@ WITH scopes AS (
   LEFT JOIN metric_stats ms ON ms.group_id = g.group_id
   GROUP BY g.group_id
 )
-	SELECT group_id, success_rate, request_count, success_count, real_request_count, real_success_count,
-	       probe_fallback_bucket_count, probe_fallback_request_count, missing_probe_terminal_count,
-	       ttft_p95_ms, ttft_sample_count,
-	       latency_p95_ms, latency_sample_count, input_tokens, cache_read_tokens, cache_creation_tokens,
-	       cache_hit_denominator, cache_hit_rate, source_updated_at, current_operational
-FROM aggregate
-ORDER BY group_id
+	SELECT a.group_id, a.success_rate, a.request_count, a.success_count, a.real_request_count, a.real_success_count,
+	       a.probe_fallback_bucket_count, a.probe_fallback_request_count, a.missing_probe_terminal_count,
+	       a.ttft_p95_ms, a.ttft_sample_count,
+	       a.latency_p95_ms, a.latency_sample_count,
+	       COALESCE(cu.input_tokens, 0), COALESCE(cu.cache_read_tokens, 0), COALESCE(cu.cache_creation_tokens, 0),
+	       COALESCE(cu.cache_hit_denominator, 0), cu.cache_hit_rate, a.source_updated_at, a.current_operational
+FROM aggregate a
+LEFT JOIN cache_usage cu ON cu.group_id = a.group_id
+ORDER BY a.group_id
 `, start.UTC(), end.UTC(), bucketSize.String(), pq.Array(scopeGroupIDs), pq.Array(accountIDs), pq.Array(uniqueGroupIDs))
 	if err != nil {
 		return nil, fmt.Errorf("query hybrid monitor v4 groups: %w", err)
