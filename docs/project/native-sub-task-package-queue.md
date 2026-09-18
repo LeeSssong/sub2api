@@ -773,3 +773,11 @@ T103 发布门禁边界补齐：`main@4ce15f896` 将 admission/slow-session 调�
 - 最终发布源：`main@8843a9ca9990a523f9665a8d5d48dbfe27ce6f7c`，tree `514aec6abaf9d1755e33ac7d73c757eb47ff2568`，已推送 `origin/main`。
 - 官方 v0.2.4 新增迁移 `235/236/237` 已登记受控维护转换 `3c0db678... -> 6dfcbaf9...`；停机维护发布成功，活动槽 `green`，线上三项健康检查均 200。
 - 测试站按用户授权未同步；非 `main` worktree 已归档并删除，恢复证据目录为 `/Users/gongtengxinwen/Documents/sub2api-archives/2026-09-12-all-non-main-rollout-v2`。
+
+## 2026-09-19 非 main 全量整合与主站-only维护发布
+
+- 当前状态：`DEPLOYING`。用户已明确授权 C 路径“快速部署主站，不同步验收站”，并授权发布预检需要时停机。
+- 已整合候选：轻量运行时更新规则、NewAPI 倍率同步合并、Monitor V4 真实缓存命中率；合并后直接相关测试、构建、发布控制器合同和 diff-check 已通过。
+- 不可推广分支：仅含旧版本候选或旧发布脚本、会倒退当前 0.2.4 主线的远端非 `main` 分支；不得合入，将在发布成功后先制作可恢复 bundle，再删除远端分支。
+- 发布边界：只从干净、已推送且与 `origin/main` commit/tree 一致的根 `main` 运行既有预加载蓝绿链；测试站保持独立，不部署、不合并、不复制数据或凭据。
+- 清理边界：主站健康与版本核对完成后，归档全部剩余非 `main` refs/worktree，再删除本地和 `origin` 非 `main` 分支；`test-station` 远端作为独立环境代码源不纳入删除。
