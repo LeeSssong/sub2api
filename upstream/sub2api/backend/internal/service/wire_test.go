@@ -23,7 +23,7 @@ type usageCostEvidenceWireAccountRepo struct {
 	AccountRepository
 }
 
-func (usageCostEvidenceWireAccountRepo) ClaimNewAPIRateRefresh(context.Context, int64, string, string, time.Time) (bool, error) {
+func (usageCostEvidenceWireAccountRepo) ClaimNewAPIRateRefresh(context.Context, int64, float64, string, string, time.Time) (bool, error) {
 	return false, nil
 }
 

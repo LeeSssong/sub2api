@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,7 +25,7 @@ func TestNewAPIRateRefreshRepositoryContract(t *testing.T) {
 	ctx := context.Background()
 	date := "2026-08-16"
 	until := time.Date(2026, 8, 16, 10, 5, 0, 0, time.FixedZone("CST", 8*3600))
-	claimed, err := repo.ClaimNewAPIRateRefresh(ctx, 1, date, "claim-token", until)
+	claimed, err := repo.ClaimNewAPIRateRefresh(ctx, 1, 0.17, date, "claim-token", until)
 	if err != nil || !claimed {
 		t.Fatalf("claim contract: claimed=%v err=%v", claimed, err)
 	}
@@ -60,5 +62,33 @@ func TestCompleteNewAPIRateRefreshRemovesNestedClaimFields(t *testing.T) {
 		ObservedAt: time.Date(2026, 8, 16, 2, 0, 0, 0, time.UTC), UsageLogID: 9,
 	})
 	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestClaimNewAPIRateRefreshUsesObservedRateInsteadOfDailyGate(t *testing.T) {
+	matcher := sqlmock.QueryMatcherFunc(func(_ string, actual string) error {
+		if strings.Contains(actual, "last_refresh_date") {
+			return fmt.Errorf("claim must not use the daily last_refresh_date gate")
+		}
+		if !strings.Contains(actual, "rate_multiplier IS DISTINCT FROM ROUND($7::numeric, 4)") {
+			return fmt.Errorf("claim must skip only when the observed rate already matches")
+		}
+		return nil
+	})
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(matcher))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	client := dbent.NewClient(dbent.Driver(entsql.OpenDB(dialect.Postgres, db)))
+	t.Cleanup(func() { _ = client.Close() })
+
+	mock.ExpectExec("claim changed rate").
+		WithArgs(sqlmock.AnyArg(), int64(339), service.AccountTypeAPIKey, service.AccountMonitorBalanceSourceNewAPI,
+			service.UpstreamBillingProbeStatusUnsupported, service.UpstreamBillingProbeStatusOK, 0.2).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	repo := newAccountRepositoryWithSQL(client, db, nil)
+	claimed, err := repo.ClaimNewAPIRateRefresh(context.Background(), 339, 0.2, "2026-09-19", "claim", time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	require.True(t, claimed)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

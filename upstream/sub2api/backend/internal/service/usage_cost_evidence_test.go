@@ -28,7 +28,7 @@ type newAPIRateRefreshRepoStub struct {
 	completed []NewAPIRateRefreshCompletion
 }
 
-func (s *newAPIRateRefreshRepoStub) ClaimNewAPIRateRefresh(context.Context, int64, string, string, time.Time) (bool, error) {
+func (s *newAPIRateRefreshRepoStub) ClaimNewAPIRateRefresh(context.Context, int64, float64, string, string, time.Time) (bool, error) {
 	return s.claimed, nil
 }
 
@@ -227,6 +227,73 @@ func TestUsageCostEvidenceRegistrarReusesNewAPILogForRateRegistration(t *testing
 	require.Equal(t, 1, logRequests)
 	require.Len(t, rateRepo.completed, 1)
 	require.InDelta(t, 0.17, rateRepo.completed[0].GroupRatio, 1e-9)
+}
+
+func TestUsageCostEvidenceRegistrarSkipsNewAPIRateWriteWhenObservedRateIsUnchanged(t *testing.T) {
+	upstreamID := "provider-newapi-rate-unchanged"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/log/token":
+			_, _ = w.Write([]byte(`{"data":[{"type":2,"quota":125000,"request_id":"local-newapi-rate-unchanged","upstream_request_id":"provider-newapi-rate-unchanged","other":"{\"group_ratio\":0.17}"}]}`))
+		case "/api/status":
+			_, _ = w.Write([]byte(`{"data":{"quota_per_unit":500000}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	currentRate := 0.17
+	usageRepo := &subUpstreamCostUsageRepoStub{record: &UsageLog{
+		ID: 199, RequestID: "local-newapi-rate-unchanged", UpstreamRequestID: &upstreamID, ActualCost: 0.3, CreatedAt: time.Now(),
+		Account: &Account{ID: 199, Type: AccountTypeAPIKey, RateMultiplier: &currentRate, Credentials: map[string]any{"base_url": server.URL, "api_key": "secret"}, Extra: map[string]any{
+			UpstreamBillingProbeEnabledExtraKey:    true,
+			UpstreamBillingRateSyncEnabledExtraKey: true,
+			UpstreamBillingProbeExtraKey:           UpstreamBillingProbeSnapshot{Status: UpstreamBillingProbeStatusUnsupported},
+		}},
+	}}
+	evidenceRepo := &usageCostEvidenceRepoStub{inserted: true}
+	rateRepo := &newAPIRateRefreshRepoStub{claimed: true}
+	registrar := enabledUsageCostEvidenceRegistrar(usageRepo, evidenceRepo)
+	registrar.SetNewAPIRateRefreshRepository(rateRepo)
+
+	require.NoError(t, registrar.RegisterOnce(context.Background(), 199))
+	require.Empty(t, rateRepo.completed)
+}
+
+func TestUsageCostEvidenceRegistrarLooksUpNewAPIEvidenceBeforeRateSyncClaim(t *testing.T) {
+	upstreamID := "provider-newapi-rate-contended"
+	logRequests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/log/token":
+			logRequests++
+			_, _ = w.Write([]byte(`{"data":[{"type":2,"quota":125000,"request_id":"local-newapi-rate-contended","upstream_request_id":"provider-newapi-rate-contended","other":"{\"group_ratio\":0.2}"}]}`))
+		case "/api/status":
+			_, _ = w.Write([]byte(`{"data":{"quota_per_unit":500000}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	currentRate := 0.15
+	usageRepo := &subUpstreamCostUsageRepoStub{record: &UsageLog{
+		ID: 200, RequestID: "local-newapi-rate-contended", UpstreamRequestID: &upstreamID, ActualCost: 0.3, CreatedAt: time.Now(),
+		Account: &Account{ID: 200, Type: AccountTypeAPIKey, RateMultiplier: &currentRate, Credentials: map[string]any{"base_url": server.URL, "api_key": "secret"}, Extra: map[string]any{
+			UpstreamBillingProbeEnabledExtraKey:    true,
+			UpstreamBillingRateSyncEnabledExtraKey: true,
+			UpstreamBillingProbeExtraKey:           UpstreamBillingProbeSnapshot{Status: UpstreamBillingProbeStatusUnsupported},
+		}},
+	}}
+	evidenceRepo := &usageCostEvidenceRepoStub{inserted: true}
+	rateRepo := &newAPIRateRefreshRepoStub{claimed: false}
+	registrar := enabledUsageCostEvidenceRegistrar(usageRepo, evidenceRepo)
+	registrar.SetNewAPIRateRefreshRepository(rateRepo)
+
+	require.NoError(t, registrar.RegisterOnce(context.Background(), 200))
+	require.Equal(t, 1, logRequests)
+	require.Empty(t, rateRepo.completed)
 }
 
 func TestUsageCostEvidenceRegistrarDoesNotRegisterNewAPIRateWhenNativeBillingIsAvailable(t *testing.T) {
