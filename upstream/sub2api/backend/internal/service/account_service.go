@@ -140,7 +140,7 @@ type NewAPIRateRefreshCompletion struct {
 // NewAPIRateRefreshRepository owns the CAS lifecycle for automatic NewAPI
 // multiplier registration without widening the general account repository.
 type NewAPIRateRefreshRepository interface {
-	ClaimNewAPIRateRefresh(ctx context.Context, accountID int64, refreshDate, claimToken string, claimUntil time.Time) (bool, error)
+	ClaimNewAPIRateRefresh(ctx context.Context, accountID int64, observedRate float64, refreshDate, claimToken string, claimUntil time.Time) (bool, error)
 	CompleteNewAPIRateRefresh(ctx context.Context, input NewAPIRateRefreshCompletion) error
 	ReleaseNewAPIRateRefresh(ctx context.Context, accountID int64, claimToken string) error
 }

@@ -14,11 +14,11 @@ import (
 
 const newAPIRateRegistrationExtraKey = "newapi_rate_registration"
 
-func (r *accountRepository) ClaimNewAPIRateRefresh(ctx context.Context, accountID int64, refreshDate, claimToken string, claimUntil time.Time) (bool, error) {
+func (r *accountRepository) ClaimNewAPIRateRefresh(ctx context.Context, accountID int64, observedRate float64, refreshDate, claimToken string, claimUntil time.Time) (bool, error) {
 	if r == nil || r.sql == nil {
 		return false, errors.New("account repository SQL executor is not configured")
 	}
-	if accountID <= 0 || claimToken == "" || refreshDate == "" || claimUntil.IsZero() {
+	if accountID <= 0 || claimToken == "" || refreshDate == "" || claimUntil.IsZero() || math.IsNaN(observedRate) || math.IsInf(observedRate, 0) || observedRate < 0 || observedRate > 100 {
 		return false, service.ErrAccountNilInput
 	}
 	claim, err := json.Marshal(map[string]any{
@@ -49,14 +49,14 @@ func (r *accountRepository) ClaimNewAPIRateRefresh(ctx context.Context, accountI
 		  AND COALESCE((extra ->> 'upstream_billing_probe_enabled')::boolean, false)
 		  AND COALESCE((extra ->> 'upstream_billing_rate_sync_enabled')::boolean, false)
 		  AND COALESCE(extra ->> 'rate_multiplier_mode', 'auto') <> 'manual'
-		  AND COALESCE(extra -> 'newapi_rate_registration' ->> 'last_refresh_date', '') <> $7
+		  AND rate_multiplier IS DISTINCT FROM ROUND($7::numeric, 4)
 		  AND (
 			(extra -> 'newapi_rate_registration' ->> 'claim_token') IS NULL
 			OR (extra -> 'newapi_rate_registration' ->> 'claim_expires_at') IS NULL
 			OR (extra -> 'newapi_rate_registration' ->> 'claim_expires_at' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T' AND
 				(extra -> 'newapi_rate_registration' ->> 'claim_expires_at')::timestamptz <= clock_timestamp())
 		  )
-	`, string(claim), accountID, service.AccountTypeAPIKey, service.AccountMonitorBalanceSourceNewAPI, service.UpstreamBillingProbeStatusUnsupported, service.UpstreamBillingProbeStatusOK, refreshDate)
+	`, string(claim), accountID, service.AccountTypeAPIKey, service.AccountMonitorBalanceSourceNewAPI, service.UpstreamBillingProbeStatusUnsupported, service.UpstreamBillingProbeStatusOK, observedRate)
 	if err != nil {
 		return false, err
 	}
