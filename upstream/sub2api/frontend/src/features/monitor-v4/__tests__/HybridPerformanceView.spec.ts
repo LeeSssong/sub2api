@@ -55,6 +55,42 @@ describe('HybridPerformanceView', () => {
     wrapper.unmount()
   })
 
+  it('renders returned group performance cards above recommendations', async () => {
+    getSnapshot.mockReset()
+    getSnapshot.mockResolvedValueOnce({
+      contract_version: '2', window: '24h', refresh_interval_seconds: 0,
+      generated_at: '2026-09-19T00:00:00Z',
+      groups: [{
+        id: 1, name: '主力分组', platform: 'openai', rate_multiplier: 0.3,
+        success_rate: 95, request_count: 20, success_count: 19,
+        real_request_count: 20, real_success_count: 19,
+        probe_fallback_bucket_count: 0, probe_fallback_request_count: 0,
+        ttft_p95_ms: 120, ttft_sample_count: 19,
+        latency_p95_ms: 900, latency_sample_count: 19,
+        cache_hit_rate: 0.9684, cache_read_tokens: 9684,
+        cache_creation_tokens: 0, cache_hit_denominator: 10000,
+        source_updated_at: '2026-09-19T00:00:00Z', current_operational: true,
+      }],
+    })
+    const wrapper = mount(HybridPerformanceView, {
+      global: { stubs: {
+        AppLayout: { template: '<main><slot /></main>' },
+        CodexRadarRecommendations: { template: '<section data-test="codexradar-panel" />' },
+      } },
+    })
+    try {
+      await vi.waitFor(() => expect(wrapper.find('[data-test="hybrid-group-card"]').exists()).toBe(true))
+      const card = wrapper.get('[data-test="hybrid-group-card"]')
+      expect(card.text()).toContain('主力分组')
+      expect(card.get('[data-test="success-rate"]').text()).toBe('95%')
+      expect(card.get('[data-test="cache-hit-rate"]').text()).toBe('96.84%')
+      const section = wrapper.get('[data-test="hybrid-performance-view"]')
+      expect(section.element.firstElementChild?.getAttribute('data-test')).toBe('hybrid-performance-panel')
+    } finally {
+      wrapper.unmount()
+    }
+  })
+
   it('shows a retryable error while keeping the last successful window', async () => {
     getSnapshot.mockReset()
     getSnapshot.mockRejectedValueOnce(new Error('timeout'))

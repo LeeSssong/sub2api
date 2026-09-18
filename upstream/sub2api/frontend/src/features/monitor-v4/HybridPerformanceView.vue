@@ -10,4 +10,5 @@
 <script setup lang="ts">
 import AppLayout from '@/components/layout/AppLayout.vue'
 import CodexRadarRecommendations from '@/features/monitor-v2/CodexRadarRecommendations.vue'
+import HybridPerformancePanel from './HybridPerformancePanel.vue'
 </script>

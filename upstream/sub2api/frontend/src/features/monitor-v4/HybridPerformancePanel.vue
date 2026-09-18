@@ -61,7 +61,6 @@ let controller: AbortController | null = null
 let timer: number | null = null
 
 const windowOptions = computed(() => [
-  { value: '1h' as const, label: t('monitorV2.window.1h') },
   { value: '24h' as const, label: t('monitorV2.window.24h') },
   { value: '7d' as const, label: t('monitorV2.window.7d') },
 ])
