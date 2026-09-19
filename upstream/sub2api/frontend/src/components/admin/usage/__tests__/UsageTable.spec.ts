@@ -177,7 +177,7 @@ describe('admin UsageTable tooltip', () => {
     expect(wrapper.text()).toContain('Cache saved $0.2250')
   })
 
-  it('keeps cache metrics hidden by default for the admin table', () => {
+  it('shows cache hit rate without user savings in the admin table', () => {
     const wrapper = mount(UsageTable, {
       props: {
         data: [{
@@ -205,7 +205,7 @@ describe('admin UsageTable tooltip', () => {
       },
     })
 
-    expect(wrapper.text()).not.toContain('Cache hit:')
+    expect(wrapper.text()).toContain('Cache hit: 96.2%')
     expect(wrapper.text()).not.toContain('Cache saved')
   })
 
