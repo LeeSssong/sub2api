@@ -62,53 +62,14 @@ func TestAggregateOpenAISchedulerExperienceNoData(t *testing.T) {
 	require.Nil(t, got.Metrics.AverageAttempts.Value)
 }
 
-func TestOpsServiceGetOpenAISchedulerExperienceFiltersRuntimeLedger(t *testing.T) {
-	openAIResilienceEventLedger.Lock()
-	previous := append([]OpenAIResilienceEvent(nil), openAIResilienceEventLedger.events...)
-	openAIResilienceEventLedger.events = nil
-	openAIResilienceEventLedger.Unlock()
-	t.Cleanup(func() {
-		openAIResilienceEventLedger.Lock()
-		openAIResilienceEventLedger.events = previous
-		openAIResilienceEventLedger.Unlock()
-	})
-
-	start := time.Date(2026, 8, 17, 8, 0, 0, 0, time.UTC)
-	end := start.Add(time.Hour)
-	groupID := int64(11)
-	otherGroupID := int64(12)
-	RecordOpenAIResilienceOutcome(OpenAIResilienceEvent{
-		At: start.Add(time.Minute), Platform: PlatformOpenAI, GroupID: &groupID,
-		CorrelationID: "included", Name: OpenAIEventSchedulerSelection, EligibleCount: 2, EffectiveTopK: 1,
-	})
-	RecordOpenAIResilienceOutcome(OpenAIResilienceEvent{
-		At: start.Add(2 * time.Minute), Platform: PlatformOpenAI, GroupID: &groupID,
-		CorrelationID: "included", Name: OpenAIEventSchedulerRequestOutcome, FinalOutcome: "success",
-	})
-	RecordOpenAIResilienceOutcome(OpenAIResilienceEvent{
-		At: start.Add(3 * time.Minute), Platform: PlatformOpenAI, GroupID: &otherGroupID,
-		CorrelationID: "wrong-group", Name: OpenAIEventSchedulerSelection,
-	})
-	RecordOpenAIResilienceOutcome(OpenAIResilienceEvent{
-		At: start.Add(4 * time.Minute), Platform: PlatformAnthropic, GroupID: &groupID,
-		CorrelationID: "wrong-platform", Name: OpenAIEventSchedulerSelection,
-	})
-	RecordOpenAIResilienceOutcome(OpenAIResilienceEvent{
-		At: end.Add(time.Minute), Platform: PlatformOpenAI, GroupID: &groupID,
-		CorrelationID: "outside-window", Name: OpenAIEventSchedulerSelection,
-	})
-
+func TestOpsServiceGetOpenAISchedulerExperienceReportsRetired(t *testing.T) {
+	now := time.Now()
 	svc := &OpsService{}
-	got, err := svc.GetOpenAISchedulerExperience(context.Background(), &OpsDashboardFilter{
-		StartTime: start,
-		EndTime:   end,
-		Platform:  PlatformOpenAI,
-		GroupID:   &groupID,
-	})
+	got, err := svc.GetOpenAISchedulerExperience(context.Background(), &OpsDashboardFilter{StartTime: now.Add(-time.Hour), EndTime: now})
 	require.NoError(t, err)
-	require.Equal(t, int64(1), got.SampleSize)
-	require.Equal(t, int64(2), got.Metrics.TopKFilteredRate.Denominator)
-	require.Equal(t, start.Add(2*time.Minute), *got.LatestEventAt)
+	require.Equal(t, "retired", got.Availability)
+	require.Nil(t, got.Metrics.AutoRecoveryRate.Value)
+	require.Nil(t, got.LatestEventAt)
 }
 
 func TestOpsServiceGetOpenAISchedulerExperienceValidatesFilter(t *testing.T) {

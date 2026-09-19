@@ -1,0 +1,55 @@
+ M upstream/sub2api/backend/internal/handler/admin/ops_scheduler_experience_handler_test.go
+ M upstream/sub2api/backend/internal/handler/admin/scheduler_log_handler.go
+ M upstream/sub2api/backend/internal/handler/admin/setting_handler_update.go
+ M upstream/sub2api/backend/internal/handler/openai_chat_completions.go
+ M upstream/sub2api/backend/internal/handler/openai_embeddings.go
+ M upstream/sub2api/backend/internal/handler/openai_gateway_handler.go
+ M upstream/sub2api/backend/internal/handler/openai_profit_slot_recheck_test.go
+ M upstream/sub2api/backend/internal/handler/openai_retry_budget.go
+ M upstream/sub2api/backend/internal/service/account_monitor_service.go
+ M upstream/sub2api/backend/internal/service/grok_media_selection_test.go
+ M upstream/sub2api/backend/internal/service/openai_account_quality.go
+ D upstream/sub2api/backend/internal/service/openai_account_quality_test.go
+ M upstream/sub2api/backend/internal/service/openai_account_scheduler.go
+ M upstream/sub2api/backend/internal/service/openai_account_scheduler_adaptive_test.go
+ M upstream/sub2api/backend/internal/service/openai_account_scheduler_projection.go
+ M upstream/sub2api/backend/internal/service/openai_account_scheduler_projection_test.go
+ M upstream/sub2api/backend/internal/service/openai_account_scheduler_test.go
+ M upstream/sub2api/backend/internal/service/openai_first_output_slow_test.go
+ M upstream/sub2api/backend/internal/service/openai_gateway_record_usage_test.go
+ M upstream/sub2api/backend/internal/service/openai_gateway_service.go
+ M upstream/sub2api/backend/internal/service/openai_gateway_usage.go
+ D upstream/sub2api/backend/internal/service/openai_quality_score.go
+ D upstream/sub2api/backend/internal/service/openai_quality_score_test.go
+ M upstream/sub2api/backend/internal/service/openai_resilience_observability.go
+ D upstream/sub2api/backend/internal/service/openai_resilience_observability_test.go
+ M upstream/sub2api/backend/internal/service/openai_scheduler_log_sink.go
+ D upstream/sub2api/backend/internal/service/openai_unified_quality_observability_test.go
+ D upstream/sub2api/backend/internal/service/openai_unified_quality_scheduler.go
+ D upstream/sub2api/backend/internal/service/openai_unified_quality_scheduler_test.go
+ D upstream/sub2api/backend/internal/service/openai_unified_quality_score_test.go
+ M upstream/sub2api/backend/internal/service/ops_alert_evaluator_service.go
+ M upstream/sub2api/backend/internal/service/ops_alert_models.go
+ M upstream/sub2api/backend/internal/service/ops_alerts.go
+ M upstream/sub2api/backend/internal/service/ops_openai_scheduler_experience.go
+ M upstream/sub2api/backend/internal/service/ops_openai_scheduler_experience_test.go
+ M upstream/sub2api/backend/internal/service/wire.go
+ M upstream/sub2api/frontend/src/api/admin/ops.ts
+ M upstream/sub2api/frontend/src/api/admin/schedulerLogs.ts
+ M upstream/sub2api/frontend/src/views/admin/AccountMonitorView.vue
+ M upstream/sub2api/frontend/src/views/admin/SchedulerLogsView.vue
+ M upstream/sub2api/frontend/src/views/admin/SettingsView.vue
+ M upstream/sub2api/frontend/src/views/admin/ops/components/OpsAlertRulesCard.vue
+ M upstream/sub2api/frontend/src/views/admin/ops/components/OpsOpenAISchedulerExperienceCard.vue
+ M upstream/sub2api/frontend/src/views/admin/ops/components/__tests__/OpsOpenAISchedulerExperienceCard.spec.ts
+?? docs/handoffs/scheduler-native-convergence-evidence/
+?? docs/superpowers/plans/2026-09-19-scheduler-native-convergence.md
+?? docs/superpowers/reports/2026-09-19-scheduler-convergence-evidence.md
+?? docs/superpowers/specs/2026-09-19-scheduler-native-convergence-design.md
+?? upstream/sub2api/backend/internal/handler/admin/scheduler_retirement_test.go
+?? upstream/sub2api/backend/internal/handler/openai_native_capacity_test.go
+?? upstream/sub2api/backend/internal/handler/openai_native_convergence_test.go
+?? upstream/sub2api/backend/internal/handler/openai_native_load_test.go
+?? upstream/sub2api/backend/internal/service/openai_native_convergence_fixture_test.go
+?? upstream/sub2api/backend/internal/service/openai_native_convergence_test.go
+?? upstream/sub2api/frontend/node_modules

@@ -1,0 +1,21 @@
+ok      github.com/Wei-Shaw/sub2api/internal/service    1.122s
+ok      github.com/Wei-Shaw/sub2api/internal/handler    1.006s
+2026/09/20 00:54:41 INFO settings updated audit=true user_id=0 role="" changed="[promo_code_enabled dingtalk_connect_sync_corp_email_attr_key dingtalk_connect_sync_display_name_attr_key dingtalk_connect_sync_dept_attr_key oidc_connect_provider_name oidc_connect_use_pkce oidc_connect_validate_id_token oidc_connect_clock_skew_seconds site_name site_subtitle default_concurrency fallback_model_anthropic fallback_model_openai fallback_model_gemini fallback_model_antigravity enable_identity_patch codex_cli_only_engine_fingerprint_signals openai_advanced_scheduler_lb_top_k]"
+--- FAIL: TestSchedulerRetirementOrdinarySavePreservesStoredPolicies (0.00s)
+    scheduler_retirement_test.go:43:
+            Error Trace:    /Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/scheduler-native-convergence/upstream/sub2api/backend/internal/handler/admin/scheduler_retirement_test.go:43
+            Error:          Not equal:
+                            expected: "fair"
+                            actual  : "hybrid"
+
+                            Diff:
+                            --- Expected
+                            +++ Actual
+                            @@ -1 +1 @@
+                            -fair
+                            +hybrid
+            Test:           TestSchedulerRetirementOrdinarySavePreservesStoredPolicies
+            Messages:       openai_advanced_scheduler_candidate_pool_mode
+FAIL
+FAIL    github.com/Wei-Shaw/sub2api/internal/handler/admin  1.896s
+FAIL

@@ -21,7 +21,7 @@ func newOpsSchedulerExperienceTestRouter(handler *OpsHandler) *gin.Engine {
 	return router
 }
 
-func TestOpsSchedulerExperienceHandlerReturnsFilteredMetrics(t *testing.T) {
+func TestOpsSchedulerExperienceHandlerReturnsRetiredCollection(t *testing.T) {
 	start := time.Date(2026, 8, 17, 9, 0, 0, 0, time.UTC)
 	end := start.Add(time.Hour)
 	groupID := int64(987650)
@@ -49,16 +49,18 @@ func TestOpsSchedulerExperienceHandlerReturnsFilteredMetrics(t *testing.T) {
 	var envelope struct {
 		Code int `json:"code"`
 		Data struct {
-			SampleSize int64 `json:"sample_size"`
-			Metrics    struct {
+			Availability string `json:"availability"`
+			SampleSize   int64  `json:"sample_size"`
+			Metrics      struct {
 				TopKFilteredRate service.OpsSchedulerRateMetric `json:"top_k_filtered_rate"`
 			} `json:"metrics"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
-	require.Equal(t, int64(1), envelope.Data.SampleSize)
-	require.Equal(t, int64(1), envelope.Data.Metrics.TopKFilteredRate.Numerator)
-	require.Equal(t, int64(2), envelope.Data.Metrics.TopKFilteredRate.Denominator)
+	require.Equal(t, "retired", envelope.Data.Availability)
+	require.Zero(t, envelope.Data.SampleSize)
+	require.Nil(t, envelope.Data.Metrics.TopKFilteredRate.Value)
+	require.Zero(t, envelope.Data.Metrics.TopKFilteredRate.Denominator)
 }
 
 func TestOpsSchedulerExperienceHandlerRejectsInvalidFilters(t *testing.T) {

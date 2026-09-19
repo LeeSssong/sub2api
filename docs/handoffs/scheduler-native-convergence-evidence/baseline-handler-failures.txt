@@ -1,0 +1,76 @@
+--- FAIL: TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError (0.00s)
+    --- FAIL: TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError/native_openai (0.00s)
+        openai_gateway_credential_failover_test.go:108:
+                Error Trace:    /Users/gongtengxinwen/Documents/sub2api搭建/upstream/sub2api/backend/internal/handler/openai_gateway_credential_failover_test.go:108
+                Error:          Not equal:
+                                expected: "Our servers are currently overloaded. Please try again later."
+                                actual  : "服务暂时异常，请稍后重试。"
+
+                                Diff:
+                                --- Expected
+                                +++ Actual
+                                @@ -1 +1 @@
+                                -Our servers are currently overloaded. Please try again later.
+                                +服务暂时异常，请稍后重试。
+                Test:           TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError/native_openai
+    --- FAIL: TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError/responses_compat (0.00s)
+        openai_gateway_credential_failover_test.go:118:
+                Error Trace:    /Users/gongtengxinwen/Documents/sub2api搭建/upstream/sub2api/backend/internal/handler/openai_gateway_credential_failover_test.go:118
+                Error:          Not equal:
+                                expected: "Our servers are currently overloaded. Please try again later."
+                                actual  : "服务暂时异常，请稍后重试。"
+
+                                Diff:
+                                --- Expected
+                                +++ Actual
+                                @@ -1 +1 @@
+                                -Our servers are currently overloaded. Please try again later.
+                                +服务暂时异常，请稍后重试。
+                Test:           TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError/responses_compat
+    --- FAIL: TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError/anthropic_compat (0.00s)
+        openai_gateway_credential_failover_test.go:127:
+                Error Trace:    /Users/gongtengxinwen/Documents/sub2api搭建/upstream/sub2api/backend/internal/handler/openai_gateway_credential_failover_test.go:127
+                Error:          Not equal:
+                                expected: "Our servers are currently overloaded. Please try again later."
+                                actual  : "服务暂时异常，请稍后重试。"
+
+                                Diff:
+                                --- Expected
+                                +++ Actual
+                                @@ -1 +1 @@
+                                -Our servers are currently overloaded. Please try again later.
+                                +服务暂时异常，请稍后重试。
+                Test:           TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError/anthropic_compat
+2026/09/20 00:32:49 [OpenAI WS Mode][openai_ws_mode=true] bootstrap enabled=false oauth_enabled=false apikey_enabled=false force_http=false responses_websockets_v2=false responses_websockets=false payload_log_sample_rate=0.000 event_flush_batch_size=0 event_flush_interval_ms=0 prewarm_cooldown_ms=0 retry_backoff_initial_ms=0 retry_backoff_max_ms=0 retry_jitter_ratio=0.000 retry_total_budget_ms=0 ws_read_limit_bytes=16777216
+2026/09/20 00:32:49 [OpenAI] Upstream model resolved: gpt-5.1 -> gpt-5.4 (account: responses-account-1, type: oauth, isCodexCLI: false)
+2026/09/20 00:32:49 INFO openai.account_model_soft_failure account_id=1 canonical_scheduling_model=gpt-5.1 attempt=1 status_code=520 output_started=false usage_produced=false cache_preservation_mode=sticky cooldown_seconds=0 retry_after_seconds=0
+2026/09/20 00:32:49 [OpenAI] Upstream model resolved: gpt-5.1 -> gpt-5.4 (account: responses-account-1, type: oauth, isCodexCLI: false)
+2026/09/20 00:32:49 INFO openai.account_model_soft_failure account_id=1 canonical_scheduling_model=gpt-5.1 attempt=2 status_code=520 output_started=false usage_produced=false cache_preservation_mode=same_account_retry cooldown_seconds=60 retry_after_seconds=60
+2026/09/20 00:32:49 WARN openai.account_model_cooldown_started account_id=1 canonical_scheduling_model=gpt-5.1 attempt=2 status_code=520 output_started=false usage_produced=false cache_preservation_mode=same_account_retry cooldown_seconds=60 retry_after_seconds=60
+2026/09/20 00:32:49 [OpenAI] Upstream model resolved: gpt-5.1 -> gpt-5.4 (account: responses-account-2, type: oauth, isCodexCLI: false)
+2026/09/20 00:32:49 INFO openai.account_model_soft_failure account_id=2 canonical_scheduling_model=gpt-5.1 attempt=1 status_code=520 output_started=false usage_produced=false cache_preservation_mode=failover_after_failure cooldown_seconds=0 retry_after_seconds=0
+2026/09/20 00:32:49 [OpenAI] Upstream model resolved: gpt-5.1 -> gpt-5.4 (account: responses-account-2, type: oauth, isCodexCLI: false)
+2026/09/20 00:32:49 INFO openai.account_model_soft_failure account_id=2 canonical_scheduling_model=gpt-5.1 attempt=2 status_code=520 output_started=false usage_produced=false cache_preservation_mode=same_account_retry cooldown_seconds=60 retry_after_seconds=60
+2026/09/20 00:32:49 WARN openai.account_model_cooldown_started account_id=2 canonical_scheduling_model=gpt-5.1 attempt=2 status_code=520 output_started=false usage_produced=false cache_preservation_mode=same_account_retry cooldown_seconds=60 retry_after_seconds=60
+--- FAIL: TestOpenAIGatewayHandlerResponses_FailoverContinuesForConnectedClient (0.28s)
+    openai_responses_failover_cancel_test.go:191:
+            Error Trace:    /Users/gongtengxinwen/Documents/sub2api搭建/upstream/sub2api/backend/internal/handler/openai_responses_failover_cancel_test.go:191
+            Error:          Not equal:
+                            expected: []int64{1, 2}
+                            actual  : []int64{1, 1, 2, 2}
+
+                            Diff:
+                            --- Expected
+                            +++ Actual
+                            @@ -1,3 +1,5 @@
+                            -([]int64) (len=2) {
+                            +([]int64) (len=4) {
+                              (int64) 1,
+                            + (int64) 1,
+                            + (int64) 2,
+                              (int64) 2
+            Test:           TestOpenAIGatewayHandlerResponses_FailoverContinuesForConnectedClient
+            Messages:       在线客户端应正常切换账号
+FAIL
+FAIL    github.com/Wei-Shaw/sub2api/internal/handler    2.177s
+FAIL

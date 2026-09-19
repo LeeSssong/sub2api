@@ -491,11 +491,23 @@ func settingsAuditRequest(req UpdateSettingsRequest) UpdateSettingsRequest {
 	return req
 }
 
+var retiredOpenAISchedulerSettingKeys = []string{
+	"openai_advanced_scheduler_candidate_pool_mode", "openai_advanced_scheduler_exploration_ratio",
+	"openai_advanced_scheduler_starvation_threshold_seconds", "openai_advanced_scheduler_fairness_weight",
+	"openai_advanced_scheduler_group_overrides", "openai_advanced_scheduler_group_policies", "openai_advanced_scheduler_custom_presets",
+}
+
 func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	var sentFields map[string]json.RawMessage
 	if err := c.ShouldBindBodyWith(&sentFields, binding.JSON); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
+	}
+	for _, key := range retiredOpenAISchedulerSettingKeys {
+		if _, sent := sentFields[key]; sent {
+			response.BadRequest(c, "scheduler setting retired: "+key)
+			return
+		}
 	}
 	var req UpdateSettingsRequest
 	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
@@ -504,6 +516,11 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	auditReq := settingsAuditRequest(req)
 	omitted := omittedSettingKeys(sentFields)
+	// Retirement preserves raw stored values, including legacy encodings. The
+	// pointer merge below would otherwise normalize and rewrite them on save.
+	for _, key := range retiredOpenAISchedulerSettingKeys {
+		omitted[key] = struct{}{}
+	}
 
 	previousSettings, err := h.settingService.GetAllSettings(c.Request.Context())
 	if err != nil {

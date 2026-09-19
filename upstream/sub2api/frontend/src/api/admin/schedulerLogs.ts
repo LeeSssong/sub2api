@@ -27,6 +27,7 @@ export interface SchedulerLogEvent {
 }
 
 export interface SchedulerLogListResponse {
+  collection_status?: 'active' | 'retired'
   items: SchedulerLogSummary[]
   next_cursor?: string | null
   incomplete: boolean

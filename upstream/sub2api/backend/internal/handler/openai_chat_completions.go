@@ -154,14 +154,13 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	sessionHash := h.gatewayService.GenerateSessionHash(c, body)
 	promptCacheKey := h.gatewayService.ExtractSessionID(c, body)
 
-	maxAccountSwitches := h.maxAccountSwitches
+	maxAccountSwitches := h.requestMaxAccountSwitches(requestPlatform, false)
 	switchCount := 0
-	recordedSwitchCount := 0
 	profitVetoCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	sameAccountRetryCount := make(map[int64]int)
 	requestHasSideEffects := openAIRequestHasSideEffects(body)
-	retryBudget := newOpenAIRetryBudget(openAIRetryBudgetConfigFromConfig(h.cfg), time.Now)
+	retryBudget := newOpenAIRetryBudget(openAIRetryBudgetConfigForRequest(h.cfg, requestPlatform, false), time.Now)
 	attemptSequence := newOpenAIRequestAttemptSequence(c)
 	attemptCachePreservationMode := openAICachePreservationModeSticky
 	var lastFailoverErr *service.UpstreamFailoverError
@@ -179,7 +178,6 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		}
 		reqLog.Debug("openai_chat_completions.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
 		selectionCtx := service.WithOpenAIFailureDomainPreference(c.Request.Context(), retryBudget.ObservedDomains(), channelMapping.ChannelID)
-		selectionCtx = service.WithOpenAIUnifiedQualityScheduling(selectionCtx)
 		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
 			selectionCtx,
 			apiKey.GroupID,
@@ -194,7 +192,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			true,
 			requestPlatform,
 		)
-		retryBudget = adoptOpenAIUnifiedRetryBudget(retryBudget, scheduleDecision, h.gatewayService, c.Request.Context(), apiKey.GroupID)
+
 		if sharedHealthTracker.Degraded() {
 			retryBudget.NarrowForSharedHealthDegraded()
 		}
@@ -216,7 +214,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 				h.handleStreamingAwareError(c, cls.Status, cls.ErrType, cls.Message, streamStarted)
 				return
 			} else {
-				if shouldUseLegacyOpenAIOAuth429GroupRecovery(scheduleDecision.UnifiedQuality) && recoverOpenAIOAuth429GroupOnce(c.Request.Context(), h.gatewayService, apiKey.GroupID, failedAccountIDs, lastFailoverErr, streamStarted, &recoveryPassUsed, nil) {
+				if recoverOpenAIOAuth429GroupOnce(c.Request.Context(), h.gatewayService, apiKey.GroupID, failedAccountIDs, lastFailoverErr, streamStarted, &recoveryPassUsed, nil) {
 					continue
 				}
 				if lastFailoverErr != nil {
@@ -256,7 +254,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		if slotResult != openAISlotAcquireOK {
 			return
 		}
-		if !retryBudget.unified && !retryBudget.consumeAccountAttempt(account) {
+		if !retryBudget.consumeAccountAttempt(account) {
 			if accountReleaseFunc != nil {
 				accountReleaseFunc()
 			}
@@ -278,21 +276,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		writerSizeBeforeForward := c.Writer.Size()
 		attemptMetadata := attemptSequence.next(account.ID, canonicalSchedulingModel, attemptCachePreservationMode)
 		attemptCtx := service.WithOpenAIRequestAttemptMetadata(c.Request.Context(), attemptMetadata)
-		if retryBudget.unified && !retryBudget.RecordForwardStarted(account.ID) {
-			if accountReleaseFunc != nil {
-				accountReleaseFunc()
-			}
-			h.handleStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream request failed", streamStarted)
-			return
-		}
-		if retryBudget.unified {
-			switchCount = retryBudget.ExtraUsed()
-			for recordedSwitchCount < switchCount {
-				h.gatewayService.RecordOpenAIAccountSwitch()
-				recordedSwitchCount++
-			}
-		}
-		annotateOpenAIUnifiedDecision(&scheduleDecision, retryBudget, false, switchCount)
+
 		service.RecordOpenAISchedulerSelection(attemptCtx, requestPlatform, apiKey.GroupID, scheduleDecision)
 		result, err := func() (*service.OpenAIForwardResult, error) {
 			defer func() {
@@ -388,29 +372,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 				HasSideEffect: failure.HasSideEffect, UsageKnown: attemptMetadata.UsageProduced,
 				Platform: requestPlatform, GroupID: apiKey.GroupID, CacheMode: attemptMetadata.CachePreservationMode,
 			})
-			if retryBudget.unified {
-				retryBudget.RecordObservedDomains(openAIRetryFailureDomains(account, channelMapping.ChannelID))
-				if handleOpenAIUnifiedOAuth429(h.gatewayService, c.Request.Context(), account, classifiedFailoverErr, retryBudget.ExtraUsed()+1, &oauth429FailoverState) {
-					h.handleFailoverExhausted(c, classifiedFailoverErr, streamStarted)
-					return
-				}
-				if classifiedFailoverErr == nil || !openAIUnifiedFailureSafeToReplay(failure, classifiedFailoverErr, attemptMetadata.UsageProduced) {
-					if classifiedFailoverErr == nil {
-						h.handleStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream request failed", streamStarted)
-					} else {
-						h.handleFailoverExhausted(c, classifiedFailoverErr, streamStarted)
-					}
-					return
-				}
-				failedAccountIDs[account.ID] = struct{}{}
-				attemptCachePreservationMode = openAICachePreservationModeFailoverAfterFailure
-				lastFailoverErr = classifiedFailoverErr
-				if !retryBudget.CanSwitch(0, failure.OutputStarted, failure.HasSideEffect) {
-					h.handleFailoverExhausted(c, classifiedFailoverErr, streamStarted)
-					return
-				}
-				continue
-			}
+
 			if result != nil && result.ImageCount > 0 {
 				reqLog.Warn("openai_chat_completions.forward_partial_error_with_image_result",
 					zap.Int64("account_id", account.ID),

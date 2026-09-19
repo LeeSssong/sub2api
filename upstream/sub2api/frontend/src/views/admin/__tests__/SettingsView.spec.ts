@@ -1813,6 +1813,26 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(button.attributes("disabled")).toBeDefined();
   });
 
+  it("shows scheduler retirement and omits retired policies from ordinary saves", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      openai_advanced_scheduler_group_policies: { 12: { mode: "custom", top_k: 9 } },
+      openai_advanced_scheduler_exploration_ratio: 37,
+    });
+    const wrapper = mountView();
+    await flushPromises();
+    await openGatewayTab(wrapper);
+    expect(wrapper.get('[data-testid="scheduler-retirement-notice"]').text()).toContain("普通 OpenAI 文本");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalled();
+    const payload = updateSettings.mock.calls.at(-1)?.[0];
+    for (const key of ["candidate_pool_mode", "exploration_ratio", "starvation_threshold_seconds", "fairness_weight", "group_overrides", "group_policies", "custom_presets"]) {
+      expect(payload).not.toHaveProperty(`openai_advanced_scheduler_${key}`);
+    }
+    expect(payload).toHaveProperty("openai_advanced_scheduler_lb_top_k");
+  });
+
   it("does not expose the legacy scheduler controls after the workbench moves to its own page", async () => {
     const wrapper = mountView();
 

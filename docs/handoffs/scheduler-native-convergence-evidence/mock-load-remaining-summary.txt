@@ -1,0 +1,19 @@
+=== RUN   TestNativeConvergenceHTTPMockBurst
+=== RUN   TestNativeConvergenceHTTPMockBurst/stream_false_workers_32
+    openai_native_load_test.go:111: requests=1000 workers=32 stream=false p99=16.81625ms goroutines_before=14 after=14
+=== RUN   TestNativeConvergenceHTTPMockBurst/stream_false_workers_128
+    openai_native_load_test.go:111: requests=1000 workers=128 stream=false p99=31.7215ms goroutines_before=15 after=14
+=== RUN   TestNativeConvergenceHTTPMockBurst/stream_true_workers_1
+    openai_native_load_test.go:111: requests=20 workers=1 stream=true p99=1.025376167s goroutines_before=15 after=15
+=== RUN   TestNativeConvergenceHTTPMockBurst/stream_true_workers_32
+    openai_native_load_test.go:111: requests=1000 workers=32 stream=true p99=1.0266285s goroutines_before=16 after=14
+=== RUN   TestNativeConvergenceHTTPMockBurst/stream_true_workers_128
+    openai_native_load_test.go:111: requests=1000 workers=128 stream=true p99=1.034816958s goroutines_before=15 after=14
+--- PASS: TestNativeConvergenceHTTPMockBurst (61.91s)
+    --- PASS: TestNativeConvergenceHTTPMockBurst/stream_false_workers_32 (0.38s)
+    --- PASS: TestNativeConvergenceHTTPMockBurst/stream_false_workers_128 (0.14s)
+    --- PASS: TestNativeConvergenceHTTPMockBurst/stream_true_workers_1 (20.45s)
+    --- PASS: TestNativeConvergenceHTTPMockBurst/stream_true_workers_32 (32.75s)
+    --- PASS: TestNativeConvergenceHTTPMockBurst/stream_true_workers_128 (8.19s)
+PASS
+ok      github.com/Wei-Shaw/sub2api/internal/handler    63.874s

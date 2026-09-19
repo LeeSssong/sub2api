@@ -101,15 +101,9 @@ type OpenAIAccountScheduleRequest struct {
 	RequireCompact  bool
 	ExcludedIDs     map[int64]struct{}
 	ForcedAccountID int64
-	// unifiedQuality is set by the enabled advanced OpenAI text path. Keeping
-	// it request-scoped preserves direct legacy scheduler callers.
-	unifiedQuality  bool
 	halfOpenProbe   bool
 	halfOpenLease   *openAIAccountModelHalfOpenLease
 	decisionDetails *openAIAccountScheduleDecisionDetails
-	// Resolved once at the start of a unified-quality selection and reused by
-	// request-local rechecks.
-	unifiedQualityPriorityCaps *openAIUnifiedQualityPriorityCaps
 }
 
 type openAIAccountScheduleDecisionDetails struct {
@@ -125,27 +119,6 @@ type openAIAccountScheduleDecisionDetails struct {
 }
 
 type openAIForcedAccountContextKey struct{}
-
-type openAIUnifiedQualitySchedulingContextKey struct{}
-
-// WithOpenAIUnifiedQualityScheduling explicitly opts an ordinary HTTP text
-// request into T96's unified quality selector. Special protocol paths (for
-// example Responses WebSocket and alpha-search) intentionally omit this
-// marker so their existing scheduler/recovery semantics remain aligned.
-func WithOpenAIUnifiedQualityScheduling(ctx context.Context) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	return context.WithValue(ctx, openAIUnifiedQualitySchedulingContextKey{}, true)
-}
-
-func OpenAIUnifiedQualitySchedulingRequested(ctx context.Context) bool {
-	if ctx == nil {
-		return false
-	}
-	requested, _ := ctx.Value(openAIUnifiedQualitySchedulingContextKey{}).(bool)
-	return requested
-}
 
 // WithOpenAIForcedAccount pins one retry attempt to the account that just
 // failed. The scheduler still validates its current availability and capacity.
@@ -535,7 +508,6 @@ type defaultOpenAIAccountScheduler struct {
 	service                *OpenAIGatewayService
 	metrics                openAIAccountSchedulerMetrics
 	stats                  *openAIAccountRuntimeStats
-	unifiedQualityEnabled  bool
 	now                    func() time.Time
 	grokFreeQuotaGateCache sync.Map // key: int64(accountID), value: grokFreeQuotaGateCacheEntry
 }
@@ -777,21 +749,6 @@ func (s *defaultOpenAIAccountScheduler) Select(
 		}
 	}
 
-	// Ordinary OpenAI text requests use the deterministic quality selector.
-	// Protocol-mandated bindings above remain authoritative; image requests and
-	// non-OpenAI-compatible platforms continue through their native path below.
-	if req.unifiedQuality && req.RequiredImageCapability == "" && NormalizeOpenAICompatiblePlatform(req.Platform) == PlatformOpenAI {
-		selection, unifiedDecision, err := s.selectByUnifiedQuality(ctx, req)
-		unifiedDecision.ExcludedAccountIDs = append(unifiedDecision.ExcludedAccountIDs, decision.ExcludedAccountIDs...)
-		if len(unifiedDecision.ExcludedAccountIDs) > 1 {
-			sort.Slice(unifiedDecision.ExcludedAccountIDs, func(i, j int) bool {
-				return unifiedDecision.ExcludedAccountIDs[i] < unifiedDecision.ExcludedAccountIDs[j]
-			})
-		}
-		decision = unifiedDecision
-		return selection, decision, err
-	}
-
 	if !req.StickyWeighted {
 		selection, stickyEscapeReason, err := s.selectBySessionHash(ctx, req)
 		if err != nil {
@@ -1005,7 +962,15 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	}
 	escapeCfg := s.service.openAIStickyEscapeConfig()
 	groupID := schedulerGroupID(req.GroupID)
-	if reason, errorRate, ttft, shouldEscape := s.shouldEscapeStickyAccountForGroup(ctx, groupID, accountID, s.selectionNow()); shouldEscape && !req.DisableStickyEscape {
+	var reason string
+	var errorRate, ttft float64
+	var shouldEscape bool
+	if usesNativeOpenAITextSelection(req) {
+		reason, errorRate, ttft, shouldEscape = s.shouldEscapeStickyAccount(accountID, escapeCfg)
+	} else {
+		reason, errorRate, ttft, shouldEscape = s.shouldEscapeStickyAccountForGroup(ctx, groupID, accountID, s.selectionNow())
+	}
+	if shouldEscape && !req.DisableStickyEscape {
 		slog.Info("sticky_escape_triggered",
 			"account_id", accountID,
 			"reason", reason,
@@ -1540,6 +1505,12 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlanAt(
 	return s.buildOpenAIAccountLoadPlanAtWithPolicy(ctx, req, filtered, loadMap, now, nil, true)
 }
 
+// Ordinary HTTP text routing uses the upstream selector. Protocol-specific
+// WebSocket and image policies retain their existing behavior.
+func usesNativeOpenAITextSelection(req OpenAIAccountScheduleRequest) bool {
+	return normalizeOpenAICompatiblePlatform(req.Platform) == PlatformOpenAI && req.RequiredImageCapability == "" && (req.RequiredTransport == OpenAIUpstreamTransportAny || req.RequiredTransport == OpenAIUpstreamTransportHTTPSSE)
+}
+
 func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlanAtWithPolicy(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
@@ -1549,6 +1520,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlanAtWithPolicy(
 	resolvedPolicy *openAIAccountSchedulerPolicyResolution,
 	populateSelectionOrder bool,
 ) openAIAccountLoadPlan {
+	nativeText := usesNativeOpenAITextSelection(req)
 	allCandidates := make([]openAIAccountCandidateScore, 0, len(filtered))
 	for _, account := range filtered {
 		loadInfo, loadKnown := loadMap[account.ID]
@@ -1558,9 +1530,16 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlanAtWithPolicy(
 		}
 		errorRate, ttft, hasTTFT := 0.0, 0.0, false
 		if s.stats != nil {
-			errorRate, ttft, hasTTFT = s.stats.snapshotForGroup(schedulerGroupID(req.GroupID), account.ID)
+			if nativeText {
+				errorRate, ttft, hasTTFT = s.stats.snapshot(account.ID)
+			} else {
+				errorRate, ttft, hasTTFT = s.stats.snapshotForGroup(schedulerGroupID(req.GroupID), account.ID)
+			}
 		}
 		priority, prioritySet := accountSchedulingPriorityForGroupWithPresence(account, req.GroupID)
+		if nativeText {
+			priority, prioritySet = openAIAccountSchedulingPriority(account), true
+		}
 		allCandidates = append(allCandidates, openAIAccountCandidateScore{
 			account:     account,
 			loadInfo:    loadInfo,
@@ -1598,7 +1577,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlanAtWithPolicy(
 		}
 		return plan
 	}
-	if resolvedPolicy == nil {
+	if !nativeText && resolvedPolicy == nil {
 		policy := s.resolveOpenAIAccountSchedulerPolicy(ctx, valueOrZero(req.GroupID))
 		resolvedPolicy = &policy
 	}
@@ -1639,9 +1618,17 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlanAtWithPolicy(
 	}
 	plan.loadSkew = calcLoadSkewByMoments(loadRateSum, loadRateSumSquares, len(candidates))
 
-	fairness := resolvedPolicy.fairness
-	weights := resolvedPolicy.weights
-	configuredTopK := resolvedPolicy.topK
+	var fairness OpenAISchedulerFairnessSettings
+	var weights GatewayOpenAIWSSchedulerScoreWeightsView
+	var configuredTopK int
+	if nativeText {
+		fairness = OpenAISchedulerFairnessSettings{CandidatePoolMode: OpenAISchedulerCandidatePoolModeTopK}
+		weights = s.service.openAIWSSchedulerWeightsForRequest(ctx)
+		configuredTopK = s.service.openAIWSLBTopKForRequest(ctx)
+	} else {
+		fairness, weights, configuredTopK = resolvedPolicy.fairness, resolvedPolicy.weights, resolvedPolicy.topK
+	}
+
 	upstreamCostFactors := map[int64]float64(nil)
 	if req.UseUpstreamTokenCost && weights.UpstreamCost > 0 {
 		accounts := make([]*Account, 0, len(candidates))
@@ -1724,8 +1711,10 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlanAtWithPolicy(
 			weights.Reset*resetFactor +
 			weights.QuotaHeadroom*quotaHeadroomFactor +
 			weights.UpstreamCost*(upstreamCostFactor-openAIUpstreamCostNeutralFactor)
-		item.fairness = openAIFairnessFactor(item.account, candidates, now)
-		item.score += fairness.FairnessWeight * item.fairness
+		if !nativeText {
+			item.fairness = openAIFairnessFactor(item.account, candidates, now)
+			item.score += fairness.FairnessWeight * item.fairness
+		}
 		if req.StickyWeighted {
 			if req.PreviousResponseCanMove && req.StickyPreviousAccountID > 0 && item.account.ID == req.StickyPreviousAccountID {
 				item.score += weights.Previous
@@ -1740,7 +1729,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAIAccountLoadPlanAtWithPolicy(
 	if configuredTopK <= 0 {
 		configuredTopK = 1
 	}
-	adaptiveEnabled := s.service != nil && s.service.cfg != nil && s.service.cfg.Gateway.OpenAIScheduler.AdaptiveTopKEnabled && fairness.CandidatePoolMode != OpenAISchedulerCandidatePoolModeAllEligible
+	adaptiveEnabled := !nativeText && s.service != nil && s.service.cfg != nil && s.service.cfg.Gateway.OpenAIScheduler.AdaptiveTopKEnabled && fairness.CandidatePoolMode != OpenAISchedulerCandidatePoolModeAllEligible
 	if adaptiveEnabled {
 		policy := chooseOpenAIAdaptivePolicy(candidates, configuredTopK, s.service.cfg.Gateway.OpenAIScheduler.AdaptiveTopKMax, fairness.ExplorationRatio, fairness.CandidatePoolMode)
 		if req.StickyWeighted && policy.mode == OpenAISchedulerCandidatePoolModeAllEligible {
@@ -1907,7 +1896,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 			primary = buildOpenAIWeightedSelectionOrder(ranked, req)
 		}
 		fairness := defaultOpenAISchedulerFairnessSettings()
-		if s.service != nil {
+		if s.service != nil && !usesNativeOpenAITextSelection(req) {
 			runtime := s.service.openAIAdvancedSchedulerRuntimeSettings(ctx)
 			fairness = resolveOpenAISchedulerFairnessForGroup(runtime.fairness, schedulerGroupID(req.GroupID))
 			if policy, ok := runtime.groupPolicies[schedulerGroupID(req.GroupID)]; ok {
@@ -1918,7 +1907,7 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 			fairness.CandidatePoolMode = plan.adaptivePolicy.mode
 			fairness.ExplorationRatio = plan.adaptivePolicy.explorationRate
 		}
-		if fairness.CandidatePoolMode != OpenAISchedulerCandidatePoolModeTopK && !req.StickyWeighted {
+		if !usesNativeOpenAITextSelection(req) && fairness.CandidatePoolMode != OpenAISchedulerCandidatePoolModeTopK && !req.StickyWeighted {
 			now := time.Now()
 			allIdle := sortOpenAIFairnessCandidates(pool, now)
 			threshold := time.Duration(fairness.StarvationThresholdSeconds) * time.Second
@@ -2410,7 +2399,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			filterStats.excludeAccount(account.ID, "runtime_blocked")
 			continue
 		}
-		if groupID := schedulerGroupID(req.GroupID); groupID > 0 {
+		if groupID := schedulerGroupID(req.GroupID); groupID > 0 && !usesNativeOpenAITextSelection(req) {
 			if policy, enabled := s.qualityGatePolicyForGroup(ctx, groupID); enabled && s.qualityGateBlockedForGroup(ctx, groupID, account.ID, policy, s.selectionNow(), true) {
 				filterStats.excludeAccount(account.ID, "quality_gate")
 				qualityBlocked = append(qualityBlocked, account)
@@ -2440,6 +2429,21 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		}
 		req.decisionDetails.excludeReasons = filterStats.reasons
 	}
+	// Preserve the existing ordinary-text availability fallback only when no
+	// profit-qualified eligible account remains. Capacity exhaustion does not
+	// bypass the gate. All other eligibility and fresh-slot checks still run.
+	if len(filtered) == 0 && usesNativeOpenAITextSelection(req) && gatewayProfitControlGateActive(ctx) {
+		_, bypassed := ctx.Value(openAIProfitControlBypassCtxKey{}).(struct{})
+		if !bypassed && (filterStats.reasons["profit_threshold"] > 0 || filterStats.reasons["profit_invalid_account_rate"] > 0) {
+			bypassCtx := context.WithValue(ctx, openAIProfitControlBypassCtxKey{}, struct{}{})
+			result, count, topK, skew, err := s.selectByLoadBalance(bypassCtx, req)
+			if result != nil {
+				result.profitBypass = true
+			}
+			return result, count, topK, skew, err
+		}
+	}
+
 	if len(filtered) == 0 {
 		if len(qualityBlocked) > 0 {
 			blockedIDs := make(map[int64]struct{}, len(qualityBlocked))
@@ -2836,6 +2840,11 @@ func (s *defaultOpenAIAccountScheduler) ReportResultForGroup(groupID, accountID 
 		return
 	}
 	s.stats.reportForGroup(groupID, accountID, success, firstTokenMs)
+	// Ordinary HTTP uses upstream account-wide signals; special paths still
+	// consume the isolated group bucket. A group-zero report already is global.
+	if groupID != 0 {
+		s.stats.report(accountID, success, firstTokenMs)
+	}
 }
 
 func (s *defaultOpenAIAccountScheduler) ReportSwitch() {
@@ -2999,31 +3008,23 @@ func (s *OpenAIGatewayService) openAIAdvancedSchedulerRuntimeSettings(ctx contex
 	return settings
 }
 
-func (s *OpenAIGatewayService) isOpenAIAdvancedSchedulerEnabled(ctx context.Context) bool {
-	return s.openAIAdvancedSchedulerRuntimeSettings(ctx).enabled
+// Global settings readers do not need to copy retired per-group policies.
+// Weight overrides are immutable once cached and only read by these callers.
+func (s *OpenAIGatewayService) openAIAdvancedSchedulerGlobalSettings(ctx context.Context) openAIAdvancedSchedulerRuntimeSettings {
+	if cached, ok := openAIAdvancedSchedulerSettingCache.Load().(*cachedOpenAIAdvancedSchedulerSetting); ok && cached != nil && time.Now().UnixNano() < cached.expiresAt {
+		return openAIAdvancedSchedulerRuntimeSettings{
+			lowUpstreamRatePriorityEnabled: cached.lowUpstreamRatePriorityEnabled,
+			oauthSchedulingRateMultiplier:  cached.oauthSchedulingRateMultiplier,
+			enabled:                        cached.enabled, stickyWeightedEnabled: cached.stickyWeightedEnabled,
+			subscriptionPriorityEnabled: cached.subscriptionPriorityEnabled,
+			lbTopKOverride:              cached.lbTopKOverride, weightOverrides: cached.weightOverrides,
+		}
+	}
+	return s.openAIAdvancedSchedulerRuntimeSettings(ctx)
 }
 
-func (s *OpenAIGatewayService) openAIUnifiedQualityPriorityCapsForRequest(ctx context.Context, groupID int64) openAIUnifiedQualityPriorityCaps {
-	caps := openAIUnifiedQualityPriorityCaps{
-		ColdStartMax: defaultOpenAIUnifiedQualityPriorityColdStartMax,
-		DailyMax:     defaultOpenAIUnifiedQualityPriorityDailyMax,
-	}
-	if s == nil || s.cfg == nil {
-		return caps
-	}
-	caps.ColdStartMax = safeOpenAIUnifiedQualityPriorityCap(s.cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax, caps.ColdStartMax)
-	caps.DailyMax = safeOpenAIUnifiedQualityPriorityCap(s.cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax, caps.DailyMax)
-	if groupID <= 0 {
-		return caps
-	}
-	policy := s.openAIAdvancedSchedulerRuntimeSettings(ctx).groupPolicies[groupID]
-	if policy.UnifiedQualityPriorityColdStartMax != nil {
-		caps.ColdStartMax = safeOpenAIUnifiedQualityPriorityCap(*policy.UnifiedQualityPriorityColdStartMax, caps.ColdStartMax)
-	}
-	if policy.UnifiedQualityPriorityDailyMax != nil {
-		caps.DailyMax = safeOpenAIUnifiedQualityPriorityCap(*policy.UnifiedQualityPriorityDailyMax, caps.DailyMax)
-	}
-	return caps
+func (s *OpenAIGatewayService) isOpenAIAdvancedSchedulerEnabled(ctx context.Context) bool {
+	return s.openAIAdvancedSchedulerGlobalSettings(ctx).enabled
 }
 
 func safeOpenAIUnifiedQualityPriorityCap(value, fallback float64) float64 {
@@ -3034,39 +3035,22 @@ func safeOpenAIUnifiedQualityPriorityCap(value, fallback float64) float64 {
 }
 
 func (s *OpenAIGatewayService) isOpenAILowUpstreamRatePriorityEnabled(ctx context.Context) bool {
-	settings := s.openAIAdvancedSchedulerRuntimeSettings(ctx)
+	settings := s.openAIAdvancedSchedulerGlobalSettings(ctx)
 	return !settings.enabled && settings.lowUpstreamRatePriorityEnabled
 }
 
 func (s *OpenAIGatewayService) openAIOAuthSchedulingRateMultiplier(ctx context.Context) float64 {
-	return s.openAIAdvancedSchedulerRuntimeSettings(ctx).oauthSchedulingRateMultiplier
+	return s.openAIAdvancedSchedulerGlobalSettings(ctx).oauthSchedulingRateMultiplier
 }
 
 func (s *OpenAIGatewayService) isOpenAIAdvancedSchedulerStickyWeightedEnabled(ctx context.Context) bool {
-	settings := s.openAIAdvancedSchedulerRuntimeSettings(ctx)
+	settings := s.openAIAdvancedSchedulerGlobalSettings(ctx)
 	return settings.enabled && settings.stickyWeightedEnabled
 }
 
 func (s *OpenAIGatewayService) isOpenAIAdvancedSchedulerSubscriptionPriorityEnabled(ctx context.Context) bool {
-	settings := s.openAIAdvancedSchedulerRuntimeSettings(ctx)
+	settings := s.openAIAdvancedSchedulerGlobalSettings(ctx)
 	return settings.enabled && settings.subscriptionPriorityEnabled
-}
-
-// OpenAIUnifiedQualityEnabled reports whether the T96 selector is available for
-// an ordinary OpenAI text request. Image and non-OpenAI-compatible paths remain
-// on their existing native selectors.
-func (s *OpenAIGatewayService) OpenAIUnifiedQualityEnabled(ctx context.Context, platform string, image bool) bool {
-	return s != nil && !image && NormalizeOpenAICompatiblePlatform(platform) == PlatformOpenAI && s.openaiQuality != nil && s.isOpenAIAdvancedSchedulerEnabled(ctx)
-}
-
-// OpenAIUnifiedExtraRetryCount resolves the group-scoped T96 recovery budget;
-// missing or invalid policy data deliberately defaults to zero.
-func (s *OpenAIGatewayService) OpenAIUnifiedExtraRetryCount(ctx context.Context, groupID *int64) int {
-	if s == nil || groupID == nil || *groupID <= 0 {
-		return 0
-	}
-	runtime := s.openAIAdvancedSchedulerRuntimeSettings(ctx)
-	return resolveOpenAIExtraRetryCount(runtime.groupPolicies[*groupID])
 }
 
 func openAIAdvancedSchedulerRuntimeSettingKeys() []string {
@@ -3262,11 +3246,6 @@ func (s *OpenAIGatewayService) getOrCreateOpenAIAccountScheduler() OpenAIAccount
 		}
 		if s.openaiScheduler == nil {
 			s.openaiScheduler = newDefaultOpenAIAccountScheduler(s, s.openaiAccountStats)
-			if scheduler, ok := s.openaiScheduler.(*defaultOpenAIAccountScheduler); ok {
-				// getOrCreate is reached only after the advanced scheduler switch has
-				// been confirmed enabled; this flag selects T96's unified text layer.
-				scheduler.unifiedQualityEnabled = true
-			}
 		}
 	})
 	return s.openaiScheduler
@@ -3581,7 +3560,6 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 		CacheMode:               openAIResilienceCacheModeFromContext(ctx),
 		ExcludedIDs:             excludedIDs,
 		ForcedAccountID:         openAIForcedAccountFromContext(ctx),
-		unifiedQuality:          OpenAIUnifiedQualitySchedulingRequested(ctx) && requiredImageCapability == "" && platform == PlatformOpenAI && s.openaiQuality != nil,
 	})
 }
 
@@ -3749,7 +3727,7 @@ func (s *OpenAIGatewayService) openAIWSLBTopK() int {
 
 func (s *OpenAIGatewayService) openAIWSLBTopKForRequest(ctx context.Context) int {
 	base := s.openAIWSLBTopK()
-	settings := s.openAIAdvancedSchedulerRuntimeSettings(ctx)
+	settings := s.openAIAdvancedSchedulerGlobalSettings(ctx)
 	// DB 覆盖值与 stickyWeighted/subscriptionPriority 一样受总开关门控：
 	// 关闭高级调度器后所有调用方（含管理页分数快照）都应回到配置/默认行为。
 	if !settings.enabled {
@@ -3823,7 +3801,7 @@ func (s *OpenAIGatewayService) openAIWSSchedulerWeights() GatewayOpenAIWSSchedul
 
 func (s *OpenAIGatewayService) openAIWSSchedulerWeightsForRequest(ctx context.Context) GatewayOpenAIWSSchedulerScoreWeightsView {
 	weights := s.openAIWSSchedulerWeights()
-	settings := s.openAIAdvancedSchedulerRuntimeSettings(ctx)
+	settings := s.openAIAdvancedSchedulerGlobalSettings(ctx)
 	// 同 openAIWSLBTopKForRequest：总开关关闭时不应用 DB 覆盖值。
 	if !settings.enabled {
 		return weights

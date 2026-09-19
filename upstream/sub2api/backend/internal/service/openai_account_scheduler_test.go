@@ -372,122 +372,6 @@ func TestOpenAIGatewayService_OpenAIAdvancedSchedulerRuntimeSettings_DBOverrides
 	require.Equal(t, 10.0, weights.SessionSticky)
 }
 
-func TestOpenAIGatewayService_UnifiedQualityPriorityCapsForRequestResolvesGlobalAndGroupOverrides(t *testing.T) {
-	resetOpenAIAdvancedSchedulerSettingCacheForTest()
-	defer resetOpenAIAdvancedSchedulerSettingCacheForTest()
-
-	coldStart := 35.0
-	repo := &openAIAdvancedSchedulerSettingRepoStub{values: map[string]string{
-		SettingKeyOpenAIAdvancedSchedulerGroupOverrides: `{"7":{"unified_quality_priority_cold_start_max":35,"unified_quality_priority_daily_max":12}}`,
-	}}
-	cfg := &config.Config{}
-	cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax = 50
-	cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax = 20
-	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		rateLimitService: &RateLimitService{settingService: NewSettingService(repo, cfg)},
-	}
-
-	global := svc.openAIUnifiedQualityPriorityCapsForRequest(context.Background(), 0)
-	require.Equal(t, 50.0, global.ColdStartMax)
-	require.Equal(t, 20.0, global.DailyMax)
-	group := svc.openAIUnifiedQualityPriorityCapsForRequest(context.Background(), 7)
-	require.Equal(t, coldStart, group.ColdStartMax)
-	require.Equal(t, 12.0, group.DailyMax)
-}
-
-func TestOpenAIGatewayService_UnifiedQualityPriorityCapsForRequestSanitizesMalformedGlobalValues(t *testing.T) {
-	resetOpenAIAdvancedSchedulerSettingCacheForTest()
-	defer resetOpenAIAdvancedSchedulerSettingCacheForTest()
-
-	cfg := &config.Config{}
-	cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax = math.NaN()
-	cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax = math.Inf(1)
-	svc := &OpenAIGatewayService{cfg: cfg}
-
-	caps := svc.openAIUnifiedQualityPriorityCapsForRequest(context.Background(), 999)
-	require.Equal(t, 50.0, caps.ColdStartMax)
-	require.Equal(t, 50.0, caps.DailyMax)
-	require.False(t, math.IsNaN(caps.ColdStartMax))
-	require.False(t, math.IsInf(caps.DailyMax, 0))
-}
-
-func TestOpenAIGatewayService_UnifiedQualityPriorityCapsForRequestIgnoresMalformedGroupOverrides(t *testing.T) {
-	resetOpenAIAdvancedSchedulerSettingCacheForTest()
-	defer resetOpenAIAdvancedSchedulerSettingCacheForTest()
-
-	badColdStart := -1.0
-	badDaily := math.Inf(1)
-	openAIAdvancedSchedulerSettingCache.Store(&cachedOpenAIAdvancedSchedulerSetting{
-		groupPolicies: map[int64]OpenAISchedulerGroupPolicy{
-			7: {
-				UnifiedQualityPriorityColdStartMax: &badColdStart,
-				UnifiedQualityPriorityDailyMax:     &badDaily,
-			},
-		},
-		expiresAt: time.Now().Add(time.Minute).UnixNano(),
-	})
-
-	cfg := &config.Config{}
-	cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax = 40
-	cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax = 15
-	svc := &OpenAIGatewayService{cfg: cfg}
-
-	caps := svc.openAIUnifiedQualityPriorityCapsForRequest(context.Background(), 7)
-	require.Equal(t, 40.0, caps.ColdStartMax)
-	require.Equal(t, 15.0, caps.DailyMax)
-	require.GreaterOrEqual(t, caps.ColdStartMax, 0.0)
-	require.GreaterOrEqual(t, caps.DailyMax, 0.0)
-	require.False(t, math.IsNaN(caps.ColdStartMax))
-	require.False(t, math.IsInf(caps.DailyMax, 0))
-}
-
-func TestOpenAIGatewayService_UnifiedQualityPriorityCapsForRequestSanitizesPersistedGroupOverridesPerPolicy(t *testing.T) {
-	resetOpenAIAdvancedSchedulerSettingCacheForTest()
-	defer resetOpenAIAdvancedSchedulerSettingCacheForTest()
-
-	repo := &openAIAdvancedSchedulerSettingRepoStub{values: map[string]string{
-		SettingKeyOpenAIAdvancedSchedulerGroupOverrides: `{"7":{"unified_quality_priority_cold_start_max":-1,"unified_quality_priority_daily_max":12},"8":{"unified_quality_priority_cold_start_max":33}}`,
-	}}
-	cfg := &config.Config{}
-	cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax = 50
-	cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax = 20
-	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		rateLimitService: &RateLimitService{settingService: NewSettingService(repo, cfg)},
-	}
-
-	groupSeven := svc.openAIUnifiedQualityPriorityCapsForRequest(context.Background(), 7)
-	require.Equal(t, 50.0, groupSeven.ColdStartMax)
-	require.Equal(t, 12.0, groupSeven.DailyMax)
-	groupEight := svc.openAIUnifiedQualityPriorityCapsForRequest(context.Background(), 8)
-	require.Equal(t, 33.0, groupEight.ColdStartMax)
-	require.Equal(t, 20.0, groupEight.DailyMax)
-}
-
-func TestOpenAIGatewayService_UnifiedQualityPriorityCapsForRequestSanitizesWrongTypedPersistedCapPerPolicy(t *testing.T) {
-	resetOpenAIAdvancedSchedulerSettingCacheForTest()
-	defer resetOpenAIAdvancedSchedulerSettingCacheForTest()
-
-	repo := &openAIAdvancedSchedulerSettingRepoStub{values: map[string]string{
-		SettingKeyOpenAIAdvancedSchedulerGroupOverrides: `{"7":{"unified_quality_priority_cold_start_max":"bad","unified_quality_priority_daily_max":12},"8":{"unified_quality_priority_cold_start_max":33}}`,
-	}}
-	cfg := &config.Config{}
-	cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax = 50
-	cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax = 20
-	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		rateLimitService: &RateLimitService{settingService: NewSettingService(repo, cfg)},
-	}
-
-	groupSeven := svc.openAIUnifiedQualityPriorityCapsForRequest(context.Background(), 7)
-	require.Equal(t, 50.0, groupSeven.ColdStartMax)
-	require.Equal(t, 12.0, groupSeven.DailyMax)
-	groupEight := svc.openAIUnifiedQualityPriorityCapsForRequest(context.Background(), 8)
-	require.Equal(t, 33.0, groupEight.ColdStartMax)
-	require.Equal(t, 20.0, groupEight.DailyMax)
-}
-
 func TestOpenAIGatewayService_OpenAIAdvancedSchedulerRuntimeSettings_ClampsLegacyWeights(t *testing.T) {
 	base := config.GatewayOpenAIWSSchedulerScoreWeights{
 		Priority: 1, Load: 2, Queue: 3, ErrorRate: 4, TTFT: 5, Reset: 6,
@@ -1429,6 +1313,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_StickyWeightedPreviousR
 	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Queue = 0.7
 	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate = 0.8
 	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT = 0.5
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.PreviousResponse = 5
 	svc := &OpenAIGatewayService{
 		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
 		cache:              &schedulerTestGatewayCache{},

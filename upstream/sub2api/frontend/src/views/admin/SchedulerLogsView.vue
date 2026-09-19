@@ -13,6 +13,7 @@ const error = ref('')
 const items = ref<SchedulerLogSummary[]>([])
 const nextCursor = ref<string | null>(null)
 const incomplete = ref(false)
+const collectionRetired = ref(false)
 const droppedCount = ref(0)
 const selectedID = ref('')
 const detail = ref<SchedulerLogDetail | null>(null)
@@ -43,6 +44,7 @@ async function load(reset = true): Promise<void> {
     const response = await adminAPI.schedulerLogs.list({ time_range: range.value, limit: 50, cursor: reset ? undefined : nextCursor.value ?? undefined })
     items.value = reset ? response.items : [...items.value, ...response.items]
     nextCursor.value = response.next_cursor ?? null
+    collectionRetired.value = response.collection_status === 'retired'
     incomplete.value = Boolean(response.incomplete)
     droppedCount.value = response.dropped_count ?? 0
     if (reset) { selectedID.value = ''; detail.value = null }
@@ -75,6 +77,7 @@ onMounted(() => void load(true))
           <button v-for="value in (['1h','24h','7d'] as SchedulerLogRange[])" :key="value" type="button" :class="{ active: range === value }" @click="selectRange(value)">{{ value === '1h' ? t('admin.schedulerLogs.oneHour') : value === '24h' ? t('admin.schedulerLogs.day') : t('admin.schedulerLogs.week') }}</button>
         </div>
       </header>
+      <p v-if="collectionRetired" class="scheduler-log-warning" role="status">已停止采集自定义调度日志。此处仅展示保留期内的历史记录，时间为事件发生时间。</p>
       <p v-if="incomplete" class="scheduler-log-warning" role="status">{{ t('admin.schedulerLogs.incomplete', { count: droppedCount }) }}</p>
       <p v-if="error" class="scheduler-log-error" role="alert">{{ error }}</p>
       <div class="scheduler-log-workspace">

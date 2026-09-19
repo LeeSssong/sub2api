@@ -430,6 +430,7 @@ function cancelDelete() {
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <div class="text-xs font-bold text-gray-900 dark:text-white">{{ row.name }}</div>
+                <p v-if="row.availability === 'retired'" class="text-xs text-amber-700 dark:text-amber-400">{{ row.availability_reason }}</p>
                 <div v-if="row.description" class="mt-0.5 line-clamp-2 text-[11px] text-gray-500 dark:text-gray-400">
                   {{ row.description }}
                 </div>
@@ -479,6 +480,7 @@ function cancelDelete() {
             <tr v-for="row in sortedRules" :key="row.id" class="hover:bg-gray-50 dark:hover:bg-dark-700/50">
               <td class="px-4 py-3">
                 <div class="text-xs font-bold text-gray-900 dark:text-white">{{ row.name }}</div>
+                <p v-if="row.availability === 'retired'" class="text-xs text-amber-700 dark:text-amber-400">{{ row.availability_reason }}</p>
                 <div v-if="row.description" class="mt-0.5 line-clamp-2 text-[11px] text-gray-500 dark:text-gray-400">
                   {{ row.description }}
                 </div>

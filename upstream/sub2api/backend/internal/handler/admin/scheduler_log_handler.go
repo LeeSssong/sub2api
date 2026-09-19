@@ -80,8 +80,9 @@ func (h *SchedulerLogHandler) List(c *gin.Context) {
 	}
 	response.Success(c, gin.H{
 		"items": summarizeOpenAISchedulerLogs(result.Logs), "next_cursor": result.NextCursor,
-		"incomplete":    health.DroppedCount > 0 || health.WriteFailed > 0,
-		"dropped_count": health.DroppedCount, "write_failed_count": health.WriteFailed,
+		"collection_status": "retired",
+		"incomplete":        health.DroppedCount > 0 || health.WriteFailed > 0,
+		"dropped_count":     health.DroppedCount, "write_failed_count": health.WriteFailed,
 		"from": from, "to": to,
 	})
 }

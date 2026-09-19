@@ -297,6 +297,8 @@ export interface OpsOpenAISchedulerExperienceMetrics {
 }
 
 export interface OpsOpenAISchedulerExperienceResponse {
+  availability?: 'active' | 'retired'
+  reason?: string
   start_time: string
   end_time: string
   generated_at: string
@@ -760,6 +762,8 @@ export type MetricType =
 export type Operator = '>' | '>=' | '<' | '<=' | '==' | '!='
 
 export interface AlertRule {
+  availability?: 'active' | 'retired'
+  availability_reason?: string
   id?: number
   name: string
   description?: string

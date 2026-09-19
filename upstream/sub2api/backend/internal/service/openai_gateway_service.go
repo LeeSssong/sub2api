@@ -507,7 +507,6 @@ type OpenAIGatewayService struct {
 	openaiWSPassthroughDialer      openAIWSClientDialer
 	openaiWSSessionPreemptions     openAIWSSessionPreemptRegistry
 	openaiAccountStats             *openAIAccountRuntimeStats
-	openaiQuality                  OpenAIAccountQualitySnapshotProvider
 	openaiFirstOutputSlow          *OpenAIFirstOutputSlowTracker
 	openaiModelTransient           *openAIAccountModelTransientState
 	openaiRecoveryExclusions       *openAIRecoveryExclusionState
@@ -634,9 +633,7 @@ func NewOpenAIGatewayService(
 			Outcome: "slow", UpstreamTTFTMs: int64(ttftMS),
 		})
 	}
-	if qualityRepo, ok := usageLogRepo.(OpenAIAccountQualityRepository); ok {
-		svc.openaiQuality = NewOpenAIAccountQualitySnapshotProviderWithRefreshInterval(qualityRepo, 5*time.Minute, 5*time.Minute, time.Now)
-	}
+
 	if rateLimitService != nil {
 		rateLimitService.SetAccountRuntimeBlocker(svc)
 	}
@@ -645,25 +642,6 @@ func NewOpenAIGatewayService(
 	}
 	svc.logOpenAIWSModeBootstrap()
 	return svc
-}
-
-// OpenAIAccountQualitySnapshot returns the latest read-only account quality
-// projection. A missing repository/provider is intentionally non-blocking and
-// yields an empty stale snapshot so routing can continue with NULL quality.
-func (s *OpenAIGatewayService) OpenAIAccountQualitySnapshot(ctx context.Context) OpenAIAccountQualitySnapshot {
-	if s == nil || s.openaiQuality == nil {
-		return OpenAIAccountQualitySnapshot{Stale: true, Accounts: map[int64]OpenAIAccountQuality{}}
-	}
-	return s.openaiQuality.Snapshot(ctx)
-}
-
-func (s *OpenAIGatewayService) RequestOpenAIAccountQualityRefresh(ctx context.Context) {
-	if s == nil || s.openaiQuality == nil {
-		return
-	}
-	if requester, ok := s.openaiQuality.(OpenAIAccountQualityRefreshRequester); ok {
-		requester.RequestRefresh(ctx)
-	}
 }
 
 func (s *OpenAIGatewayService) BeginOpenAIFirstOutputSlowObservation(ctx context.Context, groupID, accountID int64, attemptID string, startedAt time.Time) context.Context {

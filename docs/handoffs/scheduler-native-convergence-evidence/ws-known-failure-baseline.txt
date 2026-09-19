@@ -1,0 +1,10 @@
+2026/09/20 01:04:16 [OpenAI WS Mode][openai_ws_mode=true] bootstrap enabled=false oauth_enabled=false apikey_enabled=false force_http=false responses_websockets_v2=false responses_websockets=false payload_log_sample_rate=0.000 event_flush_batch_size=0 event_flush_interval_ms=0 prewarm_cooldown_ms=0 retry_backoff_initial_ms=0 retry_backoff_max_ms=0 retry_jitter_ratio=0.000 retry_total_budget_ms=0 ws_read_limit_bytes=16777216
+--- FAIL: TestResponsesWebSocketCredentialFailoverLoop (0.00s)
+    --- FAIL: TestResponsesWebSocketCredentialFailoverLoop/provider_configuration_stops (0.00s)
+        openai_gateway_credential_failover_loop_test.go:812:
+                Error Trace:    /Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/scheduler-native-convergence/upstream/sub2api/backend/internal/handler/openai_gateway_credential_failover_loop_test.go:812
+                Error:          "服务暂时异常，请稍后重试。" does not contain "No healthy Grok OAuth account is currently available"
+                Test:           TestResponsesWebSocketCredentialFailoverLoop/provider_configuration_stops
+FAIL
+FAIL    github.com/Wei-Shaw/sub2api/internal/handler    1.873s
+FAIL
