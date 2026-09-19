@@ -3993,8 +3993,6 @@ interface OAuthFlowExposed {
 const { t } = useI18n()
 const upstreamRequestIdHeader = ref('')
 const upstreamModelsPreviewed = ref(false)
-const zhipuOrganization = ref('')
-const zhipuProject = ref('')
 const openAIImagesUrlToB64JsonEnabled = ref(false)
 const withUpstreamRequestIdHeader = <T extends Record<string, unknown> | undefined>(extra: T) => {
   const name = upstreamRequestIdHeader.value.trim()
