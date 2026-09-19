@@ -230,12 +230,12 @@ func (s *OpenAIGatewayService) sweepOpenAITurnStateHarvester(ctx context.Context
 		select {
 		case sem <- struct{}{}:
 			jobs.Add(1)
-			go func(account Account, key OpenAITurnStateKey, existing OpenAITurnStateTicket, hadTicket bool, route, stateKey string) {
+			go func(account Account, key OpenAITurnStateKey, hadTicket bool, route, stateKey string) {
 				defer jobs.Done()
 				defer func() { <-sem }()
 				defer s.openAITurnStateStore.ReleaseLease(context.Background(), key, owner)
-				s.harvestOpenAITurnStateAccount(ctx, &account, key, existing, hadTicket, route, stateKey, settings, now)
-			}(account, key, ticket, found, route, stateKey)
+				s.harvestOpenAITurnStateAccount(ctx, &account, key, hadTicket, route, stateKey, settings, now)
+			}(account, key, found, route, stateKey)
 		case <-ctx.Done():
 			_ = s.openAITurnStateStore.ReleaseLease(context.Background(), key, owner)
 			return
@@ -245,7 +245,7 @@ func (s *OpenAIGatewayService) sweepOpenAITurnStateHarvester(ctx context.Context
 	}
 }
 
-func (s *OpenAIGatewayService) harvestOpenAITurnStateAccount(ctx context.Context, account *Account, key OpenAITurnStateKey, existing OpenAITurnStateTicket, hadTicket bool, route, stateKey string, settings *OpenAITurnStateReuseSettings, now time.Time) {
+func (s *OpenAIGatewayService) harvestOpenAITurnStateAccount(ctx context.Context, account *Account, key OpenAITurnStateKey, hadTicket bool, route, stateKey string, settings *OpenAITurnStateReuseSettings, now time.Time) {
 	result, err := s.harvestOpenAITurnStateTicket(ctx, account, route, now)
 	s.updateOpenAITurnStateWorkerState(stateKey, func(st *openAITurnStateWorkerAccountState) {
 		st.LastHTTPStatus = result.StatusCode
@@ -265,9 +265,6 @@ func (s *OpenAIGatewayService) harvestOpenAITurnStateAccount(ctx context.Context
 		return
 	}
 	if result.AuthFailed {
-		if hadTicket {
-			_, _ = s.openAITurnStateStore.DeleteIfMatch(ctx, key, existing.Raw)
-		}
 		s.updateOpenAITurnStateWorkerState(stateKey, func(st *openAITurnStateWorkerAccountState) { st.AuthPaused, st.Status = true, "paused_auth" })
 		if !hadTicket && !s.openAITurnStateMissAlreadyApplied(stateKey) {
 			_ = s.applyOpenAITurnStateMissAction(ctx, account, settings, now)

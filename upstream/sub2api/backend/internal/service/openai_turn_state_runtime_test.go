@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -442,6 +443,31 @@ func TestOpenAITurnStateHarvesterClassifies429AndAuth(t *testing.T) {
 			require.Len(t, upstream.requests, 1)
 		})
 	}
+}
+
+func TestOpenAITurnStateHarvesterKeepsStoredTicketOnAuthFailure(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	existing, err := ParseOpenAITurnStateReuseTicket(makeOpenAITurnStateTicket(217, now.Add(-time.Minute)), now)
+	require.NoError(t, err)
+	account := &Account{ID: 201, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Concurrency: 1, Credentials: map[string]any{"access_token": "token", "chatgpt_account_id": "workspace"}}
+	key := OpenAITurnStateKey{AccountID: account.ID, Model: OpenAITurnStateHarvestModel, CredentialHash: OpenAITurnStateCredentialHash("token", "workspace")}
+	stateKey := fmt.Sprintf("%d:%s", key.AccountID, key.CredentialHash)
+	store := &openAITurnStateWorkerStoreStub{ticket: existing, found: true}
+	svc := &OpenAIGatewayService{
+		httpUpstream:         &openAITurnStateHarvestUpstreamStub{responses: []*http.Response{{StatusCode: http.StatusUnauthorized, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(""))}}},
+		openAITurnStateStore: store,
+		openAITurnStateWorkerState: map[string]*openAITurnStateWorkerAccountState{
+			stateKey: {},
+		},
+	}
+
+	svc.harvestOpenAITurnStateAccount(context.Background(), account, key, true, "", stateKey, &OpenAITurnStateReuseSettings{}, now)
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	require.True(t, store.found)
+	require.Equal(t, existing.Raw, store.ticket.Raw)
+	require.Empty(t, store.deleteRaw)
 }
 
 func TestOpenAITurnStateHarvesterRoutesUseExplicitThenActivePool(t *testing.T) {
