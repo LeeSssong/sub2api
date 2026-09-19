@@ -204,6 +204,20 @@ func (_c *GroupCreate) SetNillableActiveProbeEnabled(v *bool) *GroupCreate {
 	return _c
 }
 
+// SetTurnStateInjectEnabled sets the "turn_state_inject_enabled" field.
+func (_c *GroupCreate) SetTurnStateInjectEnabled(v bool) *GroupCreate {
+	_c.mutation.SetTurnStateInjectEnabled(v)
+	return _c
+}
+
+// SetNillableTurnStateInjectEnabled sets the "turn_state_inject_enabled" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableTurnStateInjectEnabled(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetTurnStateInjectEnabled(*v)
+	}
+	return _c
+}
+
 // SetDuplicateOperationID sets the "duplicate_operation_id" field.
 func (_c *GroupCreate) SetDuplicateOperationID(v string) *GroupCreate {
 	_c.mutation.SetDuplicateOperationID(v)
@@ -1093,6 +1107,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultActiveProbeEnabled
 		_c.mutation.SetActiveProbeEnabled(v)
 	}
+	if _, ok := _c.mutation.TurnStateInjectEnabled(); !ok {
+		v := group.DefaultTurnStateInjectEnabled
+		_c.mutation.SetTurnStateInjectEnabled(v)
+	}
 	if _, ok := _c.mutation.Platform(); !ok {
 		v := group.DefaultPlatform
 		_c.mutation.SetPlatform(v)
@@ -1286,6 +1304,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.ActiveProbeEnabled(); !ok {
 		return &ValidationError{Name: "active_probe_enabled", err: errors.New(`ent: missing required field "Group.active_probe_enabled"`)}
+	}
+	if _, ok := _c.mutation.TurnStateInjectEnabled(); !ok {
+		return &ValidationError{Name: "turn_state_inject_enabled", err: errors.New(`ent: missing required field "Group.turn_state_inject_enabled"`)}
 	}
 	if v, ok := _c.mutation.DuplicateOperationID(); ok {
 		if err := group.DuplicateOperationIDValidator(v); err != nil {
@@ -1517,6 +1538,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ActiveProbeEnabled(); ok {
 		_spec.SetField(group.FieldActiveProbeEnabled, field.TypeBool, value)
 		_node.ActiveProbeEnabled = value
+	}
+	if value, ok := _c.mutation.TurnStateInjectEnabled(); ok {
+		_spec.SetField(group.FieldTurnStateInjectEnabled, field.TypeBool, value)
+		_node.TurnStateInjectEnabled = value
 	}
 	if value, ok := _c.mutation.DuplicateOperationID(); ok {
 		_spec.SetField(group.FieldDuplicateOperationID, field.TypeString, value)
@@ -2055,6 +2080,18 @@ func (u *GroupUpsert) SetActiveProbeEnabled(v bool) *GroupUpsert {
 // UpdateActiveProbeEnabled sets the "active_probe_enabled" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateActiveProbeEnabled() *GroupUpsert {
 	u.SetExcluded(group.FieldActiveProbeEnabled)
+	return u
+}
+
+// SetTurnStateInjectEnabled sets the "turn_state_inject_enabled" field.
+func (u *GroupUpsert) SetTurnStateInjectEnabled(v bool) *GroupUpsert {
+	u.Set(group.FieldTurnStateInjectEnabled, v)
+	return u
+}
+
+// UpdateTurnStateInjectEnabled sets the "turn_state_inject_enabled" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateTurnStateInjectEnabled() *GroupUpsert {
+	u.SetExcluded(group.FieldTurnStateInjectEnabled)
 	return u
 }
 
@@ -3199,6 +3236,20 @@ func (u *GroupUpsertOne) SetActiveProbeEnabled(v bool) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateActiveProbeEnabled() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateActiveProbeEnabled()
+	})
+}
+
+// SetTurnStateInjectEnabled sets the "turn_state_inject_enabled" field.
+func (u *GroupUpsertOne) SetTurnStateInjectEnabled(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetTurnStateInjectEnabled(v)
+	})
+}
+
+// UpdateTurnStateInjectEnabled sets the "turn_state_inject_enabled" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateTurnStateInjectEnabled() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateTurnStateInjectEnabled()
 	})
 }
 
@@ -4659,6 +4710,20 @@ func (u *GroupUpsertBulk) SetActiveProbeEnabled(v bool) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateActiveProbeEnabled() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateActiveProbeEnabled()
+	})
+}
+
+// SetTurnStateInjectEnabled sets the "turn_state_inject_enabled" field.
+func (u *GroupUpsertBulk) SetTurnStateInjectEnabled(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetTurnStateInjectEnabled(v)
+	})
+}
+
+// UpdateTurnStateInjectEnabled sets the "turn_state_inject_enabled" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateTurnStateInjectEnabled() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateTurnStateInjectEnabled()
 	})
 }
 

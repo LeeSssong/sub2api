@@ -46,6 +46,8 @@ type Group struct {
 	Status string `json:"status,omitempty"`
 	// 是否允许该分组内账号执行自动主动探测
 	ActiveProbeEnabled bool `json:"active_probe_enabled,omitempty"`
+	// 是否为此 OpenAI 分组启用账号级 Codex turn-state 复用
+	TurnStateInjectEnabled bool `json:"turn_state_inject_enabled,omitempty"`
 	// 内部幂等恢复标识，不对 API 暴露
 	DuplicateOperationID *string `json:"duplicate_operation_id,omitempty"`
 	// Platform holds the value of the "platform" field.
@@ -262,7 +264,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case group.FieldVideoModelPrices, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelAllowlist, group.FieldCodexModelsManifestConfig, group.FieldReasoningEffortMappings:
 			values[i] = new([]byte)
-		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldActiveProbeEnabled, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldProfitControlEnabled:
+		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldActiveProbeEnabled, group.FieldTurnStateInjectEnabled, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldProfitControlEnabled:
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldWebSearchPricePerCall, group.FieldSearchPricePer1k, group.FieldAudioRealtimePricePerMin, group.FieldAudioTtsPricePerMillionChars, group.FieldAudioSttPricePerHour, group.FieldProfitMinMargin, group.FieldProfitSafetyBuffer:
 			values[i] = new(sql.NullFloat64)
@@ -372,6 +374,12 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field active_probe_enabled", values[i])
 			} else if value.Valid {
 				_m.ActiveProbeEnabled = value.Bool
+			}
+		case group.FieldTurnStateInjectEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field turn_state_inject_enabled", values[i])
+			} else if value.Valid {
+				_m.TurnStateInjectEnabled = value.Bool
 			}
 		case group.FieldDuplicateOperationID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -848,6 +856,9 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("active_probe_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ActiveProbeEnabled))
+	builder.WriteString(", ")
+	builder.WriteString("turn_state_inject_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.TurnStateInjectEnabled))
 	builder.WriteString(", ")
 	if v := _m.DuplicateOperationID; v != nil {
 		builder.WriteString("duplicate_operation_id=")

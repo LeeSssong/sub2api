@@ -615,6 +615,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		// 固定账号 manifest 配置：账号绑定发生在分组创建之后，创建路径禁止开启，
 		// 成员关系无从校验（前端创建对话框也不展示）。
 		CodexModelsManifestConfig:   normalizeCodexModelsManifestConfig(platform, input.CodexModelsManifestConfig),
+		TurnStateInjectEnabled:      input.TurnStateInjectEnabled && platform == PlatformOpenAI,
 		RPMLimit:                    input.RPMLimit,
 		MaxReasoningEffort:          maxReasoningEffort,
 		MaxReasoningEffortOverLimit: maxReasoningEffortOverLimit,
@@ -1014,6 +1015,12 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.CodexModelsManifestConfig != nil {
 		group.CodexModelsManifestConfig = *input.CodexModelsManifestConfig
 	}
+	if input.TurnStateInjectEnabled != nil {
+		if *input.TurnStateInjectEnabled && group.Platform != PlatformOpenAI {
+			return nil, infraerrors.BadRequest("TURN_STATE_GROUP_PLATFORM_INVALID", "turn-state reuse is only supported for openai groups")
+		}
+		group.TurnStateInjectEnabled = *input.TurnStateInjectEnabled
+	}
 	if input.RPMLimit != nil {
 		group.RPMLimit = *input.RPMLimit
 	}
@@ -1048,6 +1055,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	// 与 ForceOpenAIFast 同一收口）；校验仅在本次显式携带配置时进行，
 	// 避免脏 ID 阻塞无关字段更新。
 	group.CodexModelsManifestConfig = normalizeCodexModelsManifestConfig(group.Platform, group.CodexModelsManifestConfig)
+	if group.Platform != PlatformOpenAI {
+		group.TurnStateInjectEnabled = false
+	}
 	if input.CodexModelsManifestConfig != nil {
 		if err := s.validateCodexModelsManifestConfig(ctx, id, group.CodexModelsManifestConfig); err != nil {
 			return nil, err

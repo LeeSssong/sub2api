@@ -973,6 +973,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		IsExclusive:                     g.IsExclusive,
 		Status:                          g.Status,
 		ActiveProbeEnabled:              g.ActiveProbeEnabled,
+		TurnStateInjectEnabled:          g.TurnStateInjectEnabled,
 		Hydrated:                        true,
 		DuplicateOperationID:            derefString(g.DuplicateOperationID),
 		SubscriptionType:                g.SubscriptionType,

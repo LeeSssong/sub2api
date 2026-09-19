@@ -120,6 +120,11 @@ func ActiveProbeEnabled(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldActiveProbeEnabled, v))
 }
 
+// TurnStateInjectEnabled applies equality check predicate on the "turn_state_inject_enabled" field. It's identical to TurnStateInjectEnabledEQ.
+func TurnStateInjectEnabled(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldTurnStateInjectEnabled, v))
+}
+
 // DuplicateOperationID applies equality check predicate on the "duplicate_operation_id" field. It's identical to DuplicateOperationIDEQ.
 func DuplicateOperationID(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldDuplicateOperationID, v))
@@ -923,6 +928,16 @@ func ActiveProbeEnabledEQ(v bool) predicate.Group {
 // ActiveProbeEnabledNEQ applies the NEQ predicate on the "active_probe_enabled" field.
 func ActiveProbeEnabledNEQ(v bool) predicate.Group {
 	return predicate.Group(sql.FieldNEQ(FieldActiveProbeEnabled, v))
+}
+
+// TurnStateInjectEnabledEQ applies the EQ predicate on the "turn_state_inject_enabled" field.
+func TurnStateInjectEnabledEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldTurnStateInjectEnabled, v))
+}
+
+// TurnStateInjectEnabledNEQ applies the NEQ predicate on the "turn_state_inject_enabled" field.
+func TurnStateInjectEnabledNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldTurnStateInjectEnabled, v))
 }
 
 // DuplicateOperationIDEQ applies the EQ predicate on the "duplicate_operation_id" field.

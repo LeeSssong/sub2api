@@ -71,6 +71,9 @@ func (Group) Fields() []ent.Field {
 		field.Bool("active_probe_enabled").
 			Default(true).
 			Comment("是否允许该分组内账号执行自动主动探测"),
+		field.Bool("turn_state_inject_enabled").
+			Default(false).
+			Comment("是否为此 OpenAI 分组启用账号级 Codex turn-state 复用"),
 		field.String("duplicate_operation_id").
 			MaxLen(64).
 			Optional().

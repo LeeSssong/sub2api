@@ -583,7 +583,8 @@ const (
 	// =========================
 
 	// SettingKeyOverloadCooldownSettings stores JSON config for 529 overload cooldown handling.
-	SettingKeyOverloadCooldownSettings = "overload_cooldown_settings"
+	SettingKeyOverloadCooldownSettings     = "overload_cooldown_settings"
+	SettingKeyOpenAITurnStateReuseSettings = "openai_turn_state_reuse_settings"
 
 	// SettingKeyRateLimit429CooldownSettings stores JSON config for 429 fallback cooldown handling.
 	SettingKeyRateLimit429CooldownSettings = "rate_limit_429_cooldown_settings"
