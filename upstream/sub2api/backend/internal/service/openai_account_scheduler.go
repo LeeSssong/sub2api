@@ -2950,8 +2950,6 @@ func (s *OpenAIGatewayService) openAIAdvancedSchedulerRuntimeSettings(ctx contex
 				subscriptionPriorityEnabled = strings.EqualFold(strings.TrimSpace(values[SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled]), "true")
 				lbTopKOverride = parsePositiveIntOverride(values[SettingKeyOpenAIAdvancedSchedulerLBTopK])
 				weightOverrides = parseOpenAIAdvancedSchedulerWeightOverrides(values)
-				fairness = parseOpenAISchedulerFairnessRuntimeSettings(values)
-				groupPolicies = normalizeOpenAISchedulerRuntimeGroupPolicies(lbTopKOverride, weightOverrides, fairness, values[SettingKeyOpenAIAdvancedSchedulerGroupOverrides])
 			} else {
 				// 批量读取失败时逐键降级，覆盖全部键（含 TopK/权重），避免只加载布尔开关
 				// 而静默丢弃管理员配置的覆盖值；降级状态会被缓存一个 TTL，必须留痕。
@@ -2969,8 +2967,6 @@ func (s *OpenAIGatewayService) openAIAdvancedSchedulerRuntimeSettings(ctx contex
 				subscriptionPriorityEnabled = strings.EqualFold(strings.TrimSpace(fallbackValues[SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled]), "true")
 				lbTopKOverride = parsePositiveIntOverride(fallbackValues[SettingKeyOpenAIAdvancedSchedulerLBTopK])
 				weightOverrides = parseOpenAIAdvancedSchedulerWeightOverrides(fallbackValues)
-				fairness = parseOpenAISchedulerFairnessRuntimeSettings(fallbackValues)
-				groupPolicies = normalizeOpenAISchedulerRuntimeGroupPolicies(lbTopKOverride, weightOverrides, fairness, fallbackValues[SettingKeyOpenAIAdvancedSchedulerGroupOverrides])
 			}
 		}
 
@@ -3061,11 +3057,6 @@ func openAIAdvancedSchedulerRuntimeSettingKeys() []string {
 		SettingKeyOpenAIAdvancedSchedulerStickyWeightedEnabled,
 		SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled,
 		SettingKeyOpenAIAdvancedSchedulerLBTopK,
-		SettingKeyOpenAIAdvancedSchedulerCandidatePoolMode,
-		SettingKeyOpenAIAdvancedSchedulerExplorationRatio,
-		SettingKeyOpenAIAdvancedSchedulerStarvationThresholdSeconds,
-		SettingKeyOpenAIAdvancedSchedulerFairnessWeight,
-		SettingKeyOpenAIAdvancedSchedulerGroupOverrides,
 	}
 	for _, spec := range openAIAdvancedSchedulerWeightOverrideSpecs() {
 		keys = append(keys, spec.key)
@@ -3127,17 +3118,6 @@ func parseOpenAIAdvancedSchedulerWeightOverrides(values map[string]string) map[s
 	return overrides
 }
 
-func parseOpenAISchedulerFairnessRuntimeSettings(values map[string]string) OpenAISchedulerFairnessSettings {
-	settings := OpenAISchedulerFairnessSettings{
-		CandidatePoolMode:          values[SettingKeyOpenAIAdvancedSchedulerCandidatePoolMode],
-		ExplorationRatio:           parseIntSettingOrDefault(values[SettingKeyOpenAIAdvancedSchedulerExplorationRatio], 20),
-		StarvationThresholdSeconds: parseIntSettingOrDefault(values[SettingKeyOpenAIAdvancedSchedulerStarvationThresholdSeconds], 21600),
-		FairnessWeight:             parseFloatSettingOrDefault(values[SettingKeyOpenAIAdvancedSchedulerFairnessWeight], 2),
-		GroupOverrides:             parseOpenAISchedulerFairnessOverrides(values[SettingKeyOpenAIAdvancedSchedulerGroupOverrides]),
-	}
-	return normalizeOpenAISchedulerFairnessSettingsForRead(settings)
-}
-
 func cloneOpenAIAdvancedSchedulerWeightOverrides(in map[string]float64) map[string]float64 {
 	if len(in) == 0 {
 		return nil
@@ -3147,59 +3127,6 @@ func cloneOpenAIAdvancedSchedulerWeightOverrides(in map[string]float64) map[stri
 		out[key] = value
 	}
 	return out
-}
-
-func normalizeOpenAISchedulerRuntimeGroupPolicies(topK int, overrides map[string]float64, fairness OpenAISchedulerFairnessSettings, raw string) map[int64]OpenAISchedulerGroupPolicy {
-	parsed, err := parseOpenAISchedulerGroupPolicies(sanitizeOpenAISchedulerRuntimeGroupPolicyCapTypes(raw))
-	if err != nil || len(parsed) == 0 {
-		return map[int64]OpenAISchedulerGroupPolicy{}
-	}
-	// Runtime settings are read from persisted admin values. Drop only malformed
-	// cap fields before validating the rest of each policy so one bad cap cannot
-	// erase valid policies or the other cap on the same policy.
-	parsed = normalizeOpenAISchedulerGroupPoliciesForRead(parsed)
-	global := openAISchedulerPresetValues(OpenAISchedulerPresetBalanced)
-	if topK > 0 {
-		global.TopK = topK
-	}
-	global.CandidatePoolMode = fairness.CandidatePoolMode
-	global.ExplorationRatio = fairness.ExplorationRatio
-	global.StarvationThresholdSeconds = fairness.StarvationThresholdSeconds
-	global.FairnessWeight = fairness.FairnessWeight
-	for key, value := range overrides {
-		switch key {
-		case "priority":
-			global.Priority = value
-		case "load":
-			global.Load = value
-		case "queue":
-			global.Queue = value
-		case "error_rate":
-			global.ErrorRate = value
-		case "ttft":
-			global.TTFT = value
-		case "reset":
-			global.Reset = value
-		case "quota_headroom":
-			global.QuotaHeadroom = value
-		case "upstream_cost":
-			global.UpstreamCost = value
-		case "previous_response":
-			global.PreviousResponse = value
-		case "session_sticky":
-			global.SessionSticky = value
-		}
-	}
-	normalized, err := normalizeOpenAISchedulerGroupPoliciesWithPresets(parsed, global, nil, nil)
-	if err != nil {
-		return map[int64]OpenAISchedulerGroupPolicy{}
-	}
-	for id, policy := range normalized {
-		if policy.LegacyFairness.CandidatePoolMode != nil || policy.LegacyFairness.ExplorationRatio != nil || policy.LegacyFairness.StarvationThresholdSeconds != nil || policy.LegacyFairness.FairnessWeight != nil {
-			delete(normalized, id)
-		}
-	}
-	return normalized
 }
 
 func cloneOpenAISchedulerGroupPolicies(in map[int64]OpenAISchedulerGroupPolicy) map[int64]OpenAISchedulerGroupPolicy {

@@ -653,15 +653,6 @@ func ProvideOpsSystemLogSink(opsRepo OpsRepository, cfg *config.Config) *OpsSyst
 	return sink
 }
 
-// ProvideOpenAISchedulerLogSink installs the best-effort durable decision-log
-// sink before API request handlers begin emitting scheduler events.
-func ProvideOpenAISchedulerLogSink(repo OpenAISchedulerLogRepository, cfg *config.Config) *OpenAISchedulerLogSink {
-	if !shouldStartRequestLocal(cfg) {
-		return &OpenAISchedulerLogSink{}
-	}
-	return ConfigureDefaultOpenAISchedulerLogSink(repo)
-}
-
 // ProvideAuditLogService 创建操作审计日志服务并启动异步写入与保留期清理协程。
 // 停止逻辑挂在 cmd/server 的 provideCleanup。
 func ProvideAuditLogService(repo AuditLogRepository, settingService *SettingService, cfg *config.Config) *AuditLogService {
@@ -1109,7 +1100,6 @@ var ProviderSet = wire.NewSet(
 	NewDataManagementService,
 	ProvideBackupService,
 	ProvideOpsSystemLogSink,
-	ProvideOpenAISchedulerLogSink,
 	ProvideOpsService,
 	ProvideOpsIngressRejectAggregator,
 	ProvideAuditLogService,

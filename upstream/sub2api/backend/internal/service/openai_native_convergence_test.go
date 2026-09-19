@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -36,42 +35,6 @@ func TestNativeConvergenceUsageDoesNotRefreshQuality(t *testing.T) {
 	require.Equal(t, 1, repo.calls)
 	require.Equal(t, 1, billing.calls)
 	require.Zero(t, repo.queries, "successful usage must not trigger historical aggregation")
-}
-
-func TestNativeConvergenceObservabilityDoesNotCollectRequests(t *testing.T) {
-	old := defaultOpenAISchedulerLogSink
-	writer := &schedulerLogWriterStub{}
-	sink := NewOpenAISchedulerLogSinkWithWriter(writer, 16)
-	defaultOpenAISchedulerLogSink = sink
-	t.Cleanup(func() { defaultOpenAISchedulerLogSink = old })
-	for i := 0; i < 4; i++ {
-		RecordOpenAIResilienceOutcome(OpenAIResilienceEvent{Name: OpenAIEventSchedulerSelection, CorrelationID: "native-request", CandidateAccountIDs: []int64{1, 2}})
-	}
-	require.NoError(t, sink.Flush(context.Background()))
-	require.Empty(t, writer.inputs, "retired event collection must not persist successful requests")
-}
-
-func TestNativeConvergenceHistoricalCleanupDrainsMultipleBatches(t *testing.T) {
-	cleaner := &convergenceLogCleaner{remaining: 2500}
-	sink := NewOpenAISchedulerLogSinkWithWriter(cleaner, 1)
-	sink.cleanupWithTimeout(context.Background())
-	require.Equal(t, 0, cleaner.remaining)
-	require.Equal(t, 3, cleaner.calls)
-}
-
-type convergenceLogCleaner struct{ remaining, calls int }
-
-func (c *convergenceLogCleaner) BatchInsertOpenAISchedulerLogs(context.Context, []OpenAISchedulerLogInsert) (int, error) {
-	return 0, nil
-}
-func (c *convergenceLogCleaner) DeleteOpenAISchedulerLogsBefore(ctx context.Context, cutoff time.Time, limit int) (int64, error) {
-	c.calls++
-	if limit <= 0 {
-		limit = 1000
-	}
-	n := min(c.remaining, limit)
-	c.remaining -= n
-	return int64(n), ctx.Err()
 }
 
 func TestNativeConvergenceTextIgnoresAdaptiveSelection(t *testing.T) {
@@ -195,62 +158,6 @@ func TestNativeConvergenceProfitBypassDoesNotReviveIneligibleAccounts(t *testing
 	}
 }
 
-type convergenceBoundedCleaner struct {
-	convergenceLogCleaner
-	callsAt   []time.Time
-	deadlines []time.Time
-	limits    []int
-	cancel    context.CancelFunc
-	err       error
-}
-
-func (c *convergenceBoundedCleaner) DeleteOpenAISchedulerLogsBefore(ctx context.Context, cutoff time.Time, limit int) (int64, error) {
-	c.callsAt = append(c.callsAt, cutoff)
-	deadline, _ := ctx.Deadline()
-	c.deadlines = append(c.deadlines, deadline)
-	c.limits = append(c.limits, limit)
-	if c.cancel != nil {
-		c.cancel()
-	}
-	if c.err != nil {
-		return 0, c.err
-	}
-	return 1000, nil
-}
-func TestNativeConvergenceHistoricalCleanupBounds(t *testing.T) {
-	for _, scenario := range []string{"limit", "canceled_before", "canceled_during", "error"} {
-		t.Run(scenario, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			cleaner := &convergenceBoundedCleaner{}
-			want := 10
-			switch scenario {
-			case "canceled_before":
-				cancel()
-				want = 0
-			case "canceled_during":
-				cleaner.cancel = cancel
-				want = 1
-			case "error":
-				cleaner.err = errors.New("database unavailable")
-				want = 1
-			}
-			started := time.Now()
-			sink := NewOpenAISchedulerLogSinkWithWriter(cleaner, 1)
-			sink.cleanupWithTimeout(ctx)
-			require.Len(t, cleaner.callsAt, want)
-			for i, cutoff := range cleaner.callsAt {
-				require.WithinDuration(t, started.Add(-7*24*time.Hour), cutoff, time.Second)
-				require.WithinDuration(t, started.Add(2*time.Second), cleaner.deadlines[i], time.Second)
-				require.Equal(t, 1000, cleaner.limits[i])
-			}
-			if scenario == "error" {
-				require.EqualValues(t, 1, sink.Health().WriteFailed)
-			}
-		})
-	}
-}
-
 func TestNativeConvergenceGroupedReportsFeedNativeRuntime(t *testing.T) {
 	resetOpenAIAdvancedSchedulerSettingCacheForTest()
 	t.Cleanup(resetOpenAIAdvancedSchedulerSettingCacheForTest)
@@ -283,34 +190,5 @@ func BenchmarkNativeConvergenceRetiredEvent(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		RecordOpenAIResilienceOutcome(event)
-	}
-}
-
-type convergenceCancelableCleaner struct {
-	convergenceLogCleaner
-	started chan struct{}
-}
-
-func (c *convergenceCancelableCleaner) DeleteOpenAISchedulerLogsBefore(ctx context.Context, _ time.Time, _ int) (int64, error) {
-	close(c.started)
-	<-ctx.Done()
-	return 0, ctx.Err()
-}
-func TestNativeConvergenceHistoricalCleanupStopCancelsInFlight(t *testing.T) {
-	cleaner := &convergenceCancelableCleaner{started: make(chan struct{})}
-	sink := NewOpenAISchedulerLogSinkWithWriter(cleaner, 1)
-	sink.Start()
-	defer sink.Stop()
-	select {
-	case <-cleaner.started:
-	case <-time.After(time.Second):
-		t.Fatal("startup must begin cleanup without a write event")
-	}
-	stopped := make(chan struct{})
-	go func() { sink.Stop(); close(stopped) }()
-	select {
-	case <-stopped:
-	case <-time.After(time.Second):
-		t.Fatal("Stop must cancel and join in-flight cleanup")
 	}
 }

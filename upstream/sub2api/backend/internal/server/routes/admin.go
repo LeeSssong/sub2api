@@ -137,18 +137,6 @@ func RegisterAdminRoutes(
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
 
-		// OpenAI 调度决策日志（只读）
-		if h != nil && h.Admin != nil && h.Admin.SchedulerLog != nil {
-			registerSchedulerLogRoutes(admin, h)
-		}
-	}
-}
-
-func registerSchedulerLogRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	logs := admin.Group("/scheduler/logs")
-	{
-		logs.GET("", h.Admin.SchedulerLog.List)
-		logs.GET("/:logical_request_id", h.Admin.SchedulerLog.GetTimeline)
 	}
 }
 
@@ -285,7 +273,6 @@ func registerOpsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		ops.GET("/ingress-rejections", h.Admin.Ops.ListIngressRejects)
 		ops.GET("/ingress-rejections/health", h.Admin.Ops.GetIngressRejectHealth)
 		ops.GET("/auth-cache-invalidation/health", h.Admin.Ops.GetAuthCacheInvalidationHealth)
-		ops.GET("/openai-scheduler-experience", h.Admin.Ops.GetOpenAISchedulerExperience)
 
 		// Upstream errors (independent upstream failures)
 		ops.GET("/upstream-errors", h.Admin.Ops.ListUpstreamErrors)

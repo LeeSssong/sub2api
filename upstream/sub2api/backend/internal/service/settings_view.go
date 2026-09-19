@@ -557,14 +557,6 @@ type SystemSettings struct {
 	OpenAIAdvancedSchedulerWeightUpstreamCost              string
 	OpenAIAdvancedSchedulerWeightPreviousResponse          string
 	OpenAIAdvancedSchedulerWeightSessionSticky             string
-	OpenAIAdvancedSchedulerCandidatePoolMode               string
-	OpenAIAdvancedSchedulerExplorationRatio                int
-	OpenAIAdvancedSchedulerStarvationThresholdSeconds      int
-	OpenAIAdvancedSchedulerFairnessWeight                  float64
-	OpenAIAdvancedSchedulerGroupOverrides                  map[int64]OpenAISchedulerFairnessOverride
-	OpenAIAdvancedSchedulerGroupPolicies                   map[int64]OpenAISchedulerGroupPolicy
-	OpenAIAdvancedSchedulerCustomPresets                   map[string]OpenAISchedulerCustomPreset
-	OpenAIAdvancedSchedulerAvailablePresets                []OpenAISchedulerPresetDefinition
 	OpenAIAdvancedSchedulerEffectiveLBTopK                 string
 	OpenAIAdvancedSchedulerEffectiveWeightPriority         string
 	OpenAIAdvancedSchedulerEffectiveWeightLoad             string

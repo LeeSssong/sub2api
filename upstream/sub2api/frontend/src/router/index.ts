@@ -622,18 +622,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/scheduler-logs',
-    name: 'AdminSchedulerLogs',
-    component: () => import('@/views/admin/SchedulerLogsView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Scheduler Logs',
-      titleKey: 'admin.schedulerLogs.title',
-      descriptionKey: 'admin.schedulerLogs.description'
-    }
-  },
-  {
     path: '/admin/settings',
     name: 'AdminSettings',
     component: () => import('@/views/admin/SettingsView.vue'),

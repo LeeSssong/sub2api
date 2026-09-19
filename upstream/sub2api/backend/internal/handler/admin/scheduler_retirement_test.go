@@ -27,9 +27,9 @@ func TestSchedulerRetirementRejectsInactiveSettingsBeforeWrite(t *testing.T) {
 
 func TestSchedulerRetirementOrdinarySavePreservesStoredPolicies(t *testing.T) {
 	stored := map[string]string{
-		service.SettingKeyOpenAIAdvancedSchedulerGroupOverrides:    `{"11":{"mode":"custom","extra_retry_count":2,"top_k":9}}`,
-		service.SettingKeyOpenAIAdvancedSchedulerExplorationRatio:  "37",
-		service.SettingKeyOpenAIAdvancedSchedulerCandidatePoolMode: "fair",
+		"openai_advanced_scheduler_group_overrides":     `{"11":{"mode":"custom","extra_retry_count":2,"top_k":9}}`,
+		"openai_advanced_scheduler_exploration_ratio":   "37",
+		"openai_advanced_scheduler_candidate_pool_mode": "fair",
 	}
 	h, repo := newStepUpSwitchTestHandler(t, stored)
 	before := make(map[string]string, len(stored))

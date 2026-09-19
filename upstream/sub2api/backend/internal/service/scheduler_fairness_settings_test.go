@@ -135,26 +135,6 @@ func TestNormalizeOpenAISchedulerCustomPresetsForReadKeepsValidIDsAndClampsValue
 	require.Equal(t, 10.0, got[customID].Values.Priority)
 }
 
-func TestSettingServiceParseSettingsClampsLegacySchedulerValues(t *testing.T) {
-	svc := NewSettingService(nil, &config.Config{})
-	got := svc.parseSettings(map[string]string{
-		SettingKeyOpenAIAdvancedSchedulerLBTopK:                     "99",
-		SettingKeyOpenAIAdvancedSchedulerWeightPriority:             "-1",
-		SettingKeyOpenAIAdvancedSchedulerWeightLoad:                 "11",
-		SettingKeyOpenAIAdvancedSchedulerCandidatePoolMode:          "invalid",
-		SettingKeyOpenAIAdvancedSchedulerExplorationRatio:           "101",
-		SettingKeyOpenAIAdvancedSchedulerStarvationThresholdSeconds: "60",
-		SettingKeyOpenAIAdvancedSchedulerFairnessWeight:             "NaN",
-	})
-	require.Equal(t, "32", got.OpenAIAdvancedSchedulerLBTopK)
-	require.Equal(t, "0", got.OpenAIAdvancedSchedulerWeightPriority)
-	require.Equal(t, "10", got.OpenAIAdvancedSchedulerWeightLoad)
-	require.Equal(t, OpenAISchedulerCandidatePoolModeHybrid, got.OpenAIAdvancedSchedulerCandidatePoolMode)
-	require.Equal(t, 100, got.OpenAIAdvancedSchedulerExplorationRatio)
-	require.Equal(t, 300, got.OpenAIAdvancedSchedulerStarvationThresholdSeconds)
-	require.Equal(t, 2.0, got.OpenAIAdvancedSchedulerFairnessWeight)
-}
-
 func TestNormalizeOpenAISchedulerGroupPoliciesForReadClampsLegacySnapshots(t *testing.T) {
 	topK := 99
 	priority := 11.0
@@ -377,17 +357,6 @@ func TestNormalizeOpenAISchedulerBusinessPriorityPreservesEqualPriorityTiers(t *
 		_, err := normalizeOpenAISchedulerBusinessPriority(value)
 		require.Error(t, err)
 	}
-}
-
-func TestNormalizeOpenAISchedulerRuntimeGroupPoliciesCompilesBusinessPolicy(t *testing.T) {
-	raw := `{"7":{"mode":"custom","priority":{"profit":1,"ttft":2,"latency":3},"operations":{"balance":"high","peak_protection":"strict","session_continuity":"keep"},"compiled_snapshot":{"top_k":32,"weight_overrides":{"upstream_cost":99}}}}`
-	got := normalizeOpenAISchedulerRuntimeGroupPolicies(7, nil, defaultOpenAISchedulerFairnessSettings(), raw)
-	require.Contains(t, got, int64(7))
-	policy := got[7]
-	require.Equal(t, OpenAISchedulerBusinessPriority{Profit: 1, TTFT: 2, Latency: 3}, policy.Priority)
-	require.NotEqual(t, 99.0, policy.Values.UpstreamCost)
-	require.Equal(t, 0, policy.Values.ExplorationRatio)
-	require.Equal(t, OpenAISchedulerCandidatePoolModeAllEligible, policy.Values.CandidatePoolMode)
 }
 
 func TestNormalizeOpenAISchedulerOperationsValidatesEnumsAndDefaultsMissingValues(t *testing.T) {

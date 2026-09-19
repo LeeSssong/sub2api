@@ -35,13 +35,6 @@ func ProvideAdminUsageHandler(
 	return h
 }
 
-func ProvideSchedulerLogHandler(repo service.OpenAISchedulerLogRepository, sink *service.OpenAISchedulerLogSink) *admin.SchedulerLogHandler {
-	if sink == nil {
-		return admin.NewSchedulerLogHandler(repo, nil)
-	}
-	return admin.NewSchedulerLogHandler(repo, sink.Health)
-}
-
 // ProvideAdminHandlers creates the AdminHandlers struct
 func ProvideAdminHandlers(
 	dashboardHandler *admin.DashboardHandler,
@@ -85,7 +78,6 @@ func ProvideAdminHandlers(
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	accountFinancialHandler *admin.AccountFinancialHandler,
 	accountProfitabilityService *service.AccountProfitabilityService,
-	schedulerLogHandler *admin.SchedulerLogHandler,
 ) *AdminHandlers {
 	accountHandler.SetUpstreamBillingProbeService(upstreamBillingProbe)
 	accountHandler.SetOllamaCloudUsageService(ollamaCloudUsage)
@@ -129,7 +121,6 @@ func ProvideAdminHandlers(
 		Compliance:             complianceHandler,
 		AuditLog:               auditLogHandler,
 		AccountFinancial:       accountFinancialHandler,
-		SchedulerLog:           schedulerLogHandler,
 	}
 }
 
@@ -371,8 +362,6 @@ var ProviderSet = wire.NewSet(
 	admin.NewAffiliateHandler,
 	admin.NewComplianceHandler,
 	admin.NewAuditLogHandler,
-	ProvideSchedulerLogHandler,
-
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,
 	ProvideHandlers,

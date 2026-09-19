@@ -22,12 +22,6 @@ export default {
     ...settings.settings,
     openaiExperimentalScheduler: settings.settings.openaiExperimentalScheduler,
   },
-  schedulerLogs: {
-    title: '调度日志', description: '追溯每个 OpenAI / Codex 请求为何选中当前账号。', range: '时间范围', oneHour: '1 小时', day: '24 小时', week: '7 天',
-    incomplete: '该时间范围内日志可能不完整，已丢弃 {count} 条尽力记录。', loadFailed: '加载调度日志失败', detailFailed: '加载调度详情失败',
-    requests: '调度请求', request: '请求', runtime: '实际运行', empty: '当前时间范围内暂无调度日志', selectRequest: '选择一条请求查看决策链', loadMore: '加载更多', detail: '调度详情',
-    algorithm: '实际算法版本', budget: '运行时重试预算', switches: '真实切号次数', account: '账号', attemptTimeline: 'Attempt 决策链', attempt: 'Attempt', statusCode: '上游状态', rank: '请求时点排名', score: '质量分', replay: '允许安全重放',
-  },
   accountProfitability: {
     eyebrow: '经营分析',
     title: '账号盈利',

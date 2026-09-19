@@ -522,29 +522,6 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyOpenAIAdvancedSchedulerWeightUpstreamCost] = settings.OpenAIAdvancedSchedulerWeightUpstreamCost
 	updates[SettingKeyOpenAIAdvancedSchedulerWeightPreviousResponse] = settings.OpenAIAdvancedSchedulerWeightPreviousResponse
 	updates[SettingKeyOpenAIAdvancedSchedulerWeightSessionSticky] = settings.OpenAIAdvancedSchedulerWeightSessionSticky
-	updates[SettingKeyOpenAIAdvancedSchedulerCandidatePoolMode] = settings.OpenAIAdvancedSchedulerCandidatePoolMode
-	updates[SettingKeyOpenAIAdvancedSchedulerExplorationRatio] = strconv.Itoa(settings.OpenAIAdvancedSchedulerExplorationRatio)
-	updates[SettingKeyOpenAIAdvancedSchedulerStarvationThresholdSeconds] = strconv.Itoa(settings.OpenAIAdvancedSchedulerStarvationThresholdSeconds)
-	updates[SettingKeyOpenAIAdvancedSchedulerFairnessWeight] = strconv.FormatFloat(settings.OpenAIAdvancedSchedulerFairnessWeight, 'f', -1, 64)
-	groupOverrides := any(settings.OpenAIAdvancedSchedulerGroupOverrides)
-	if settings.OpenAIAdvancedSchedulerGroupPolicies != nil {
-		groupOverrides = settings.OpenAIAdvancedSchedulerGroupPolicies
-	}
-	overridesJSON, err := json.Marshal(groupOverrides)
-	if err != nil {
-		return nil, fmt.Errorf("marshal scheduler fairness group overrides: %w", err)
-	}
-	updates[SettingKeyOpenAIAdvancedSchedulerGroupOverrides] = string(overridesJSON)
-	customPresets, err := normalizeOpenAISchedulerCustomPresets(settings.OpenAIAdvancedSchedulerCustomPresets)
-	if err != nil {
-		return nil, err
-	}
-	settings.OpenAIAdvancedSchedulerCustomPresets = customPresets
-	presetsJSON, err := json.Marshal(customPresets)
-	if err != nil {
-		return nil, fmt.Errorf("marshal openai scheduler custom presets: %w", err)
-	}
-	updates[SettingKeyOpenAIAdvancedSchedulerCustomPresets] = string(presetsJSON)
 
 	// 余额、订阅到期与账号限额通知
 	updates[SettingKeyBalanceLowNotifyEnabled] = strconv.FormatBool(settings.BalanceLowNotifyEnabled)

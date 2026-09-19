@@ -268,11 +268,6 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOpenAIAdvancedSchedulerWeightUpstreamCost:          "",
 		SettingKeyOpenAIAdvancedSchedulerWeightPreviousResponse:      "",
 		SettingKeyOpenAIAdvancedSchedulerWeightSessionSticky:         "",
-		SettingKeyOpenAIAdvancedSchedulerCandidatePoolMode:           OpenAISchedulerCandidatePoolModeHybrid,
-		SettingKeyOpenAIAdvancedSchedulerExplorationRatio:            "20",
-		SettingKeyOpenAIAdvancedSchedulerStarvationThresholdSeconds:  "21600",
-		SettingKeyOpenAIAdvancedSchedulerFairnessWeight:              "2",
-		SettingKeyOpenAIAdvancedSchedulerGroupOverrides:              "{}",
 
 		SettingKeyAllowUserViewErrorRequests: "false",
 	}
@@ -940,25 +935,6 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.OpenAIAdvancedSchedulerWeightUpstreamCost = normalizeOpenAISchedulerWeightForRead(settings[SettingKeyOpenAIAdvancedSchedulerWeightUpstreamCost])
 	result.OpenAIAdvancedSchedulerWeightPreviousResponse = normalizeOpenAISchedulerWeightForRead(settings[SettingKeyOpenAIAdvancedSchedulerWeightPreviousResponse])
 	result.OpenAIAdvancedSchedulerWeightSessionSticky = normalizeOpenAISchedulerWeightForRead(settings[SettingKeyOpenAIAdvancedSchedulerWeightSessionSticky])
-	fairness := normalizeOpenAISchedulerFairnessSettingsForRead(OpenAISchedulerFairnessSettings{
-		CandidatePoolMode:          settings[SettingKeyOpenAIAdvancedSchedulerCandidatePoolMode],
-		ExplorationRatio:           parseIntSettingOrDefault(settings[SettingKeyOpenAIAdvancedSchedulerExplorationRatio], 20),
-		StarvationThresholdSeconds: parseIntSettingOrDefault(settings[SettingKeyOpenAIAdvancedSchedulerStarvationThresholdSeconds], 21600),
-		FairnessWeight:             parseFloatSettingOrDefault(settings[SettingKeyOpenAIAdvancedSchedulerFairnessWeight], 2),
-	})
-	result.OpenAIAdvancedSchedulerCandidatePoolMode = fairness.CandidatePoolMode
-	result.OpenAIAdvancedSchedulerExplorationRatio = fairness.ExplorationRatio
-	result.OpenAIAdvancedSchedulerStarvationThresholdSeconds = fairness.StarvationThresholdSeconds
-	result.OpenAIAdvancedSchedulerFairnessWeight = fairness.FairnessWeight
-	result.OpenAIAdvancedSchedulerGroupOverrides = normalizeOpenAISchedulerFairnessOverridesForRead(parseOpenAISchedulerFairnessOverrides(settings[SettingKeyOpenAIAdvancedSchedulerGroupOverrides]))
-	result.OpenAIAdvancedSchedulerCustomPresets, _ = parseOpenAISchedulerCustomPresets(settings[SettingKeyOpenAIAdvancedSchedulerCustomPresets])
-	result.OpenAIAdvancedSchedulerGroupPolicies, _ = parseOpenAISchedulerGroupPolicies(settings[SettingKeyOpenAIAdvancedSchedulerGroupOverrides])
-	result.OpenAIAdvancedSchedulerGroupPolicies = normalizeOpenAISchedulerGroupPoliciesForRead(result.OpenAIAdvancedSchedulerGroupPolicies)
-	global := openAISchedulerPolicyValuesFromSettings(result)
-	if policies, err := normalizeOpenAISchedulerGroupPoliciesWithPresets(result.OpenAIAdvancedSchedulerGroupPolicies, global, nil, result.OpenAIAdvancedSchedulerCustomPresets); err == nil {
-		result.OpenAIAdvancedSchedulerGroupPolicies = policies
-	}
-	result.OpenAIAdvancedSchedulerAvailablePresets = openAISchedulerAvailablePresets(result.OpenAIAdvancedSchedulerCustomPresets)
 	result.OpenAIAdvancedSchedulerEffectiveLBTopK = s.openAIAdvancedSchedulerEffectiveLBTopK()
 	effectiveWeights := s.openAIAdvancedSchedulerEffectiveWeights()
 	result.OpenAIAdvancedSchedulerEffectiveWeightPriority = formatOpenAIAdvancedSchedulerFloat(effectiveWeights.Priority)
@@ -1174,40 +1150,7 @@ func (s *SettingService) normalizeOpenAIAdvancedSchedulerOverrides(settings *Sys
 	if !resolved.IsValid() {
 		return infraerrors.BadRequest("INVALID_OPENAI_ADVANCED_SCHEDULER_WEIGHT", "openai advanced scheduler weights must have finite non-zero base and total sums")
 	}
-	fairness, err := normalizeOpenAISchedulerFairnessSettings(OpenAISchedulerFairnessSettings{
-		CandidatePoolMode:          settings.OpenAIAdvancedSchedulerCandidatePoolMode,
-		ExplorationRatio:           settings.OpenAIAdvancedSchedulerExplorationRatio,
-		StarvationThresholdSeconds: settings.OpenAIAdvancedSchedulerStarvationThresholdSeconds,
-		FairnessWeight:             settings.OpenAIAdvancedSchedulerFairnessWeight,
-		GroupOverrides:             settings.OpenAIAdvancedSchedulerGroupOverrides,
-	})
-	if err != nil {
-		return err
-	}
-	settings.OpenAIAdvancedSchedulerCandidatePoolMode = fairness.CandidatePoolMode
-	settings.OpenAIAdvancedSchedulerExplorationRatio = fairness.ExplorationRatio
-	settings.OpenAIAdvancedSchedulerStarvationThresholdSeconds = fairness.StarvationThresholdSeconds
-	settings.OpenAIAdvancedSchedulerFairnessWeight = fairness.FairnessWeight
-	settings.OpenAIAdvancedSchedulerGroupOverrides = fairness.GroupOverrides
-	if settings.OpenAIAdvancedSchedulerGroupPolicies != nil {
-		global := openAISchedulerPolicyValuesFromSettings(settings)
-		customPresets, err := normalizeOpenAISchedulerCustomPresets(settings.OpenAIAdvancedSchedulerCustomPresets)
-		if err != nil {
-			return err
-		}
-		normalized, err := normalizeOpenAISchedulerGroupPoliciesWithPresets(settings.OpenAIAdvancedSchedulerGroupPolicies, global, nil, customPresets)
-		if err != nil {
-			return err
-		}
-		settings.OpenAIAdvancedSchedulerGroupPolicies = normalized
-		settings.OpenAIAdvancedSchedulerCustomPresets = customPresets
-		settings.OpenAIAdvancedSchedulerAvailablePresets = openAISchedulerAvailablePresets(customPresets)
-	}
 	return nil
-}
-
-func openAISchedulerPolicyValuesFromSettings(settings *SystemSettings) OpenAISchedulerPolicyValues {
-	return OpenAISchedulerPolicyValues{TopK: parsePositiveIntOverride(settings.OpenAIAdvancedSchedulerLBTopK), Priority: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightPriority, 1), Load: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightLoad, 1), Queue: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightQueue, .7), ErrorRate: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightErrorRate, .8), TTFT: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightTTFT, .5), Reset: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightReset, 0), QuotaHeadroom: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightQuotaHeadroom, 0), UpstreamCost: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightUpstreamCost, 0), PreviousResponse: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightPreviousResponse, 5), SessionSticky: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightSessionSticky, 3), CandidatePoolMode: settings.OpenAIAdvancedSchedulerCandidatePoolMode, ExplorationRatio: settings.OpenAIAdvancedSchedulerExplorationRatio, StarvationThresholdSeconds: settings.OpenAIAdvancedSchedulerStarvationThresholdSeconds, FairnessWeight: settings.OpenAIAdvancedSchedulerFairnessWeight}
 }
 
 func normalizeOpenAISchedulerFairnessSettings(value OpenAISchedulerFairnessSettings) (OpenAISchedulerFairnessSettings, error) {

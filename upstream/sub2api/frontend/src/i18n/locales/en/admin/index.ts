@@ -22,12 +22,6 @@ export default {
     ...settings.settings,
     openaiExperimentalScheduler: settings.settings.openaiExperimentalScheduler,
   },
-  schedulerLogs: {
-    title: 'Scheduler Logs', description: 'Trace why each OpenAI / Codex request selected its account.', range: 'Time range', oneHour: '1 hour', day: '24 hours', week: '7 days',
-    incomplete: 'Logs may be incomplete in this window; {count} best-effort events were dropped.', loadFailed: 'Failed to load scheduler logs', detailFailed: 'Failed to load scheduler detail',
-    requests: 'Scheduled requests', request: 'Request', runtime: 'Actual runtime', empty: 'No scheduler logs in this time range', selectRequest: 'Select a request to inspect its decision chain', loadMore: 'Load more', detail: 'Scheduler detail',
-    algorithm: 'Actual algorithm version', budget: 'Runtime retry budget', switches: 'Actual account switches', account: 'Account', attemptTimeline: 'Attempt decision chain', attempt: 'Attempt', statusCode: 'Upstream status', rank: 'Request-time rank', score: 'Quality score', replay: 'Safe to replay',
-  },
   accountProfitability: {
     eyebrow: 'Operations',
     title: 'Account Profitability',
