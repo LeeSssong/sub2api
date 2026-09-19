@@ -319,11 +319,11 @@ func resolveOpenAIMessagesDispatchMappedModel(c *gin.Context, apiKey *service.AP
 	if apiKey == nil || apiKey.Group == nil {
 		return ""
 	}
-	// composite 解析到 grok/CN 目标时调度级映射不适用（Group 级映射的 gpt-5.x
-	// 默认值是 openai 专属,发给这些上游必错）,模型改写交给账号级 model_mapping。
+	// composite 解析到 grok/CN/OpenCode 目标时调度级映射不适用（Group 级映射的
+	// gpt-5.x 默认值是 openai 专属,发给这些上游必错）,模型改写交给账号级 model_mapping。
 	if apiKey.Group.Platform == service.PlatformComposite && c != nil && c.Request != nil {
 		if platform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok &&
-			(platform == service.PlatformGrok || service.IsCNProvider(platform)) {
+			(platform == service.PlatformGrok || service.IsMultiProtocolAPIKeyProvider(platform)) {
 			return ""
 		}
 	}
@@ -433,14 +433,14 @@ func allowOpenAICompatibleMessagesDispatch(c *gin.Context, apiKey *service.APIKe
 	// 协议账号原生直通 Claude Code),无需 allow_messages_dispatch 开关授权——
 	// 该开关对非 openai/composite 平台恒被 sanitizeGroupMessagesDispatchFields 置 false,
 	// 若不豁免,CN 分组将永远 403。
-	if service.IsCNProvider(apiKey.Group.Platform) {
+	if service.IsMultiProtocolAPIKeyProvider(apiKey.Group.Platform) {
 		return true
 	}
-	// composite 分组解析到 grok/CN 目标时与对应独立分组同语义豁免；
+	// composite 分组解析到 grok/CN/OpenCode Go 目标时与对应独立分组同语义豁免；
 	// 解析到 openai 目标则受 composite 分组自身的可配置开关控制。
 	if apiKey.Group.Platform == service.PlatformComposite && c != nil && c.Request != nil {
 		if platform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok &&
-			(platform == service.PlatformGrok || service.IsCNProvider(platform)) {
+			(platform == service.PlatformGrok || service.IsMultiProtocolAPIKeyProvider(platform)) {
 			return true
 		}
 	}
@@ -450,7 +450,8 @@ func allowOpenAICompatibleMessagesDispatch(c *gin.Context, apiKey *service.APIKe
 func openAICompatibleTextTargetAllowed(c *gin.Context, apiKey *service.APIKey, model string) bool {
 	return compositeTargetPlatformAllowed(c, apiKey, model,
 		service.PlatformOpenAI, service.PlatformGrok,
-		service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek, service.PlatformMiniMax)
+		service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek,
+		service.PlatformMiniMax, service.PlatformOpenCodeGo)
 }
 
 // isResponsesWebSocketCompositePlatform 限定 composite 分组在 Responses WebSocket
@@ -2447,6 +2448,397 @@ func (h *OpenAIGatewayHandler) validateFunctionCallOutputRequest(c *gin.Context,
 	return false
 }
 
+func normalizeCodexDelegationBootstrap(body []byte) ([]byte, bool) {
+	// 已有任务通过 send_message_to_thread 唤醒时会携带 previous_response_id；
+	// 完整历史回放还会带有已配对的调用项。delegation 仍是客户端注入的用户输入，
+	// 不属于这些历史调用的结果，因此允许它与可明确配对的历史上下文共存。
+	return normalizeCodexCallOutputBootstrap(body, isCodexDelegationCandidate, true)
+}
+
+func normalizeCodexAutomationBootstrap(body []byte) ([]byte, bool) {
+	return normalizeCodexCallOutputBootstrap(body, isCodexAutomationCandidate, false)
+}
+
+func normalizeCodexCallOutputBootstrap(body []byte, isCandidate func(map[string]any) bool, allowHistoricalContext bool) ([]byte, bool) {
+	if !hasUniqueJSONMembers(body) {
+		return body, false
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	var request map[string]any
+	if err := decoder.Decode(&request); err != nil {
+		return body, false
+	}
+	if previousResponseID, exists := request["previous_response_id"]; exists {
+		value, ok := previousResponseID.(string)
+		if !ok || (!allowHistoricalContext && strings.TrimSpace(value) != "") {
+			return body, false
+		}
+	}
+	input, ok := request["input"].([]any)
+	if !ok {
+		return body, false
+	}
+
+	// Responses built-ins follow the *_call / *_call_output naming convention,
+	// so classify by the wire type shape instead of maintaining an incomplete
+	// allowlist. Delegation may coexist with historical anchors only when their
+	// IDs make them unambiguous; automation retains the bootstrap-only boundary.
+	for _, raw := range input {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		typ := stringField(item, "type")
+		if isCandidate(item) {
+			callIDValue, exists := item["call_id"]
+			callID, isString := callIDValue.(string)
+			if exists && (!isString || strings.TrimSpace(callID) != "") {
+				return body, false
+			}
+			continue
+		}
+		if typ == "item_reference" {
+			if allowHistoricalContext && strings.TrimSpace(stringField(item, "id")) != "" {
+				continue
+			}
+			return body, false
+		}
+		if strings.HasSuffix(typ, "_call") || isResponsesCallOutputType(typ) {
+			if allowHistoricalContext && strings.TrimSpace(stringField(item, "call_id")) != "" {
+				continue
+			}
+			return body, false
+		}
+	}
+
+	changed := false
+	for i, raw := range input {
+		item, ok := raw.(map[string]any)
+		if !ok || !isCandidate(item) {
+			continue
+		}
+		output, ok := item["output"].(string)
+		if !ok {
+			continue
+		}
+		input[i] = map[string]any{
+			"type": "message",
+			"role": "user",
+			"content": []any{map[string]any{
+				"type": "input_text",
+				"text": output,
+			}},
+		}
+		changed = true
+	}
+	if !changed {
+		return body, false
+	}
+	normalized, err := json.Marshal(request)
+	if err != nil {
+		return body, false
+	}
+	return normalized, true
+}
+
+func hasUniqueJSONMembers(body []byte) bool {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	if !consumeUniqueJSONValue(decoder) {
+		return false
+	}
+	_, err := decoder.Token()
+	return err == io.EOF
+}
+
+func consumeUniqueJSONValue(decoder *json.Decoder) bool {
+	token, err := decoder.Token()
+	if err != nil {
+		return false
+	}
+	delim, ok := token.(json.Delim)
+	if !ok {
+		return true
+	}
+
+	switch delim {
+	case '{':
+		members := make(map[string]struct{})
+		for decoder.More() {
+			keyToken, err := decoder.Token()
+			if err != nil {
+				return false
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return false
+			}
+			if _, duplicate := members[key]; duplicate {
+				return false
+			}
+			members[key] = struct{}{}
+			if !consumeUniqueJSONValue(decoder) {
+				return false
+			}
+		}
+		end, err := decoder.Token()
+		return err == nil && end == json.Delim('}')
+	case '[':
+		for decoder.More() {
+			if !consumeUniqueJSONValue(decoder) {
+				return false
+			}
+		}
+		end, err := decoder.Token()
+		return err == nil && end == json.Delim(']')
+	default:
+		return false
+	}
+}
+
+func isResponsesCallOutputType(typ string) bool {
+	return strings.HasSuffix(typ, "_call_output") || typ == "tool_search_output"
+}
+
+func isCodexDelegationCandidate(item map[string]any) bool {
+	if stringField(item, "type") != "function_call_output" ||
+		!isCodexDelegationTool(stringField(item, "namespace"), stringField(item, "name")) {
+		return false
+	}
+	output, ok := item["output"].(string)
+	return ok && validCodexDelegationEnvelope(output)
+}
+
+func isCodexAutomationCandidate(item map[string]any) bool {
+	if stringField(item, "type") != "function_call_output" ||
+		stringField(item, "namespace") != "codex_app" ||
+		stringField(item, "name") != "automation_update" {
+		return false
+	}
+	output, ok := item["output"].(string)
+	return ok && (validCodexAutomationBootstrap(output) || validCodexAutomationHeartbeat(output))
+}
+
+func stringField(item map[string]any, key string) string {
+	value, _ := item[key].(string)
+	return value
+}
+
+func isCodexDelegationTool(namespace, name string) bool {
+	return (namespace == "codex_app" || namespace == "codex_tui") &&
+		(name == "create_thread" || name == "send_message_to_thread")
+}
+
+func validCodexAutomationBootstrap(value string) bool {
+	normalized := strings.ReplaceAll(value, "\r\n", "\n")
+	if strings.ContainsRune(normalized, '\r') {
+		return false
+	}
+	lines := strings.Split(normalized, "\n")
+	if len(lines) < 6 {
+		return false
+	}
+	if _, ok := codexAutomationHeaderValue(lines[0], "Automation: "); !ok {
+		return false
+	}
+	automationID, ok := codexAutomationHeaderValue(lines[1], "Automation ID: ")
+	if !ok || !validCodexAutomationID(automationID) {
+		return false
+	}
+	expectedMemory := "Automation memory: $CODEX_HOME/automations/" + automationID + "/memory.md"
+	if lines[2] != expectedMemory {
+		return false
+	}
+	lastRun, ok := codexAutomationHeaderValue(lines[3], "Last run: ")
+	if !ok || !validCodexAutomationLastRun(lastRun) || lines[4] != "" {
+		return false
+	}
+	return strings.TrimSpace(strings.Join(lines[5:], "\n")) != ""
+}
+
+func codexAutomationHeaderValue(line, prefix string) (string, bool) {
+	if !strings.HasPrefix(line, prefix) {
+		return "", false
+	}
+	value := strings.TrimPrefix(line, prefix)
+	return value, value != "" && strings.TrimSpace(value) == value
+}
+
+func validCodexAutomationID(value string) bool {
+	if len(value) == 0 || len(value) > 128 || value == "." || value == ".." {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		c := value[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func validCodexAutomationLastRun(value string) bool {
+	if value == "never" {
+		return true
+	}
+	separator := strings.LastIndex(value, " (")
+	if separator <= 0 || !strings.HasSuffix(value, ")") {
+		return false
+	}
+	runAt, err := time.Parse(time.RFC3339Nano, value[:separator])
+	if err != nil {
+		return false
+	}
+	epochMillis, err := strconv.ParseInt(value[separator+2:len(value)-1], 10, 64)
+	return err == nil && runAt.UnixMilli() == epochMillis
+}
+
+func validCodexAutomationHeartbeat(value string) bool {
+	decoder := xml.NewDecoder(strings.NewReader(value))
+	var rootSeen, automationIDSeen bool
+	var childName string
+	var childText bytes.Buffer
+	fields := make(map[string]string)
+	depth := 0
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			id := fields["automation_id"]
+			timestamp, hasTime := fields["current_time_iso"]
+			instructions, hasInstructions := fields["instructions"]
+			if hasTime != hasInstructions {
+				return false
+			}
+			if hasTime {
+				if _, err := time.Parse(time.RFC3339Nano, timestamp); err != nil || strings.TrimSpace(instructions) == "" {
+					return false
+				}
+			}
+			return rootSeen && automationIDSeen && depth == 0 &&
+				strings.TrimSpace(id) == id && validCodexAutomationID(id)
+		}
+		if err != nil {
+			return false
+		}
+		switch current := token.(type) {
+		case xml.StartElement:
+			depth++
+			if current.Name.Space != "" || len(current.Attr) != 0 || depth > 2 {
+				return false
+			}
+			if depth == 1 {
+				if rootSeen || current.Name.Local != "heartbeat" {
+					return false
+				}
+				rootSeen = true
+			} else {
+				childName = current.Name.Local
+				switch childName {
+				case "automation_id", "current_time_iso", "instructions":
+				default:
+					return false
+				}
+				if _, duplicate := fields[childName]; duplicate {
+					return false
+				}
+				childText.Reset()
+			}
+		case xml.EndElement:
+			if current.Name.Space != "" {
+				return false
+			}
+			if depth == 2 {
+				fields[childName] = childText.String()
+				automationIDSeen = automationIDSeen || childName == "automation_id"
+			}
+			depth--
+			if depth < 0 {
+				return false
+			}
+		case xml.CharData:
+			if depth == 2 {
+				_, _ = childText.Write(current)
+			} else if len(bytes.TrimSpace(current)) != 0 {
+				return false
+			}
+		case xml.Comment, xml.ProcInst, xml.Directive:
+			return false
+		}
+	}
+}
+
+func validCodexDelegationEnvelope(value string) bool {
+	decoder := xml.NewDecoder(strings.NewReader(value))
+	var rootSeen, sourceSeen, inputSeen bool
+	var childName string
+	var childText bytes.Buffer
+	depth := 0
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			return rootSeen && depth == 0 && sourceSeen && inputSeen
+		}
+		if err != nil {
+			return false
+		}
+		switch current := token.(type) {
+		case xml.StartElement:
+			depth++
+			if current.Name.Space != "" || len(current.Attr) != 0 || (depth == 1 && current.Name.Local != "codex_delegation") || depth > 2 {
+				return false
+			}
+			if depth == 1 {
+				if rootSeen {
+					return false
+				}
+				rootSeen = true
+				continue
+			}
+			if current.Name.Local != "source_thread_id" && current.Name.Local != "input" {
+				return false
+			}
+			childName = current.Name.Local
+			childText.Reset()
+		case xml.EndElement:
+			if current.Name.Space != "" {
+				return false
+			}
+			if depth == 2 {
+				if current.Name.Local != childName || strings.TrimSpace(childText.String()) == "" {
+					return false
+				}
+				if childName == "source_thread_id" {
+					if sourceSeen {
+						return false
+					}
+					sourceSeen = true
+				} else {
+					if inputSeen {
+						return false
+					}
+					inputSeen = true
+				}
+				childName = ""
+			}
+			depth--
+			if depth < 0 {
+				return false
+			}
+		case xml.CharData:
+			if depth == 2 {
+				_, _ = childText.Write(current)
+			} else if len(bytes.TrimSpace(current)) != 0 {
+				return false
+			}
+		case xml.Comment:
+			return false
+		case xml.ProcInst, xml.Directive:
+			return false
+		}
+	}
+}
+
 func (h *OpenAIGatewayHandler) acquireResponsesUserSlot(
 	c *gin.Context,
 	userID int64,
@@ -3454,7 +3846,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 
 		// WebSocket 首包可能很大，hash 必须在 hooks 外算成字符串，避免 AfterTurn 闭包保活请求体。
 		requestPayloadHash = service.HashUsageRequestPayload(wsFirstMessage)
-		if preemptCtx, cleanupPreempt, armed := h.gatewayService.BeginOpenAIWSIngressSessionPreemption(ctx, c, account, wsFirstMessage); armed {
+		if preemptCtx, cleanupPreempt, armed := h.gatewayService.BeginOpenAIWSIngressSessionPreemptionWithClient(ctx, c, account, wsFirstMessage, wsConn); armed {
 			ctx = preemptCtx
 			defer cleanupPreempt()
 		}
@@ -3466,6 +3858,8 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				return
 			}
 			if service.IsOpenAIWSSessionPreemptedError(err) {
+				// 关闭帧已由抢占登记在取消前发给本连接，这里只记录并释放。
+				reqLog.Info("openai.websocket_ingress_preempted", zap.Int64("account_id", account.ID))
 				return
 			}
 			var failoverErr *service.UpstreamFailoverError

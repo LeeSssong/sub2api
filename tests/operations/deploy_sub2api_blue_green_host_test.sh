@@ -1962,6 +1962,30 @@ test_legacy_admin_balance_history_maintenance_transition_allowlist() {
     || fail 'legacy admin balance history transition did not enter maintenance path'
 }
 
+test_official_027_maintenance_transition_allowlist() {
+  local production_hash=fe924d3c21c3dc4a5f41e26ba444c08c074cfed04de52042e37f57a2e9a811bb
+  local candidate_hash=fca9ca2b278404dc6d2dd08e4486ac1c5ac57440b4e6fa20f2de9dfee2c86330
+  local wrong_new_hash=fca9ca2b278404dc6d2dd08e4486ac1c5ac57440b4e6fa20f2de9dfee2c86331
+
+  setup_case official_027_success
+  write_meminfo
+  MIGRATIONS_HASH=$candidate_hash
+  "$REAL_JQ" --arg hash "$production_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  MAINTENANCE_MODE=true MAINTENANCE_FROM_HASH=$production_hash run_executor >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "official v0.2.7 transition failed: $(cat "$CASE_DIR/stdout") $(cat "$CASE_DIR/stderr")"
+  grep -q 'maintenance stop api-worker' "$EVENT_LOG" || fail 'official v0.2.7 transition did not enter maintenance path'
+
+  setup_case official_027_wrong_new_hash
+  write_meminfo
+  MIGRATIONS_HASH=$wrong_new_hash
+  "$REAL_JQ" --arg hash "$production_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  MAINTENANCE_MODE=true MAINTENANCE_FROM_HASH=$production_hash expect_failure official_027_wrong_new_hash run_executor
+  grep -q 'migration_set_changed' "$CASE_DIR/stdout" || fail 'official v0.2.7 wrong new hash was not gated'
+  assert_no_mutation official_027_wrong_new_hash
+}
+
 test_maintenance_window_hard_maximum() {
   local old_hash=ac8b0b33d7ea31a1a4f0117716ba56efec4bd66be9c38267a88d4c512d01bf39
   local new_hash=0204f39423f3218ffa0c8d4e3d665f7113c4990610e0dd22e9f5910c4d578c6d
@@ -2715,6 +2739,7 @@ case "${ONLY_TEST:-all}" in
 		test_t132_maintenance_transition_allowlist
 		test_t140_official_024_maintenance_transition_allowlist
 		test_legacy_admin_balance_history_maintenance_transition_allowlist
+		test_official_027_maintenance_transition_allowlist
 		test_maintenance_window_hard_maximum
 		test_maintenance_pre_worker_failure_restores_previous_api
 		test_maintenance_deadline_bounds_post_stop_operation
@@ -2747,6 +2772,7 @@ case "${ONLY_TEST:-all}" in
 	maintenance-t132-transition) test_t132_maintenance_transition_allowlist ;;
 	maintenance-t140-official-024-transition) test_t140_official_024_maintenance_transition_allowlist ;;
 	maintenance-legacy-admin-balance-history-transition) test_legacy_admin_balance_history_maintenance_transition_allowlist ;;
+	maintenance-official-027-transition) test_official_027_maintenance_transition_allowlist ;;
 	gates) test_downtime_gates ;;
 	preloaded) test_preloaded_transport_loads_archive_without_pull ;;
   *) fail "unknown ONLY_TEST: ${ONLY_TEST}" ;;

@@ -63,23 +63,20 @@ describe('AppSidebar header styles', () => {
   })
 })
 
-describe('AppSidebar user navigation structure', () => {
-  it('keeps only the confirmed primary entries for regular users', () => {
-    const userItemsSource = componentSource.slice(
-      componentSource.indexOf('function buildUserNavItems'),
-      componentSource.indexOf('// Personal navigation items'),
-    )
+describe('AppSidebar subscription feature flag', () => {
+  it('gates the My Subscriptions entry behind the subscription public-settings flag', () => {
+    expect(componentSource).toContain('const flagSubscription = makeSidebarFlag(FeatureFlags.subscription)')
+    expect(componentSource).toMatch(/path: '\/subscriptions'[^\n]*featureFlag: flagSubscription/)
+  })
 
-    expect(userItemsSource).toContain("{ path: '/dashboard', label: userNavLabel('myRoutes', '我的线路'), icon: DashboardIcon }")
-    expect(userItemsSource).toContain("{ path: '/usage', label: t('nav.usage'), icon: ChartIcon }")
-    expect(userItemsSource).toContain("{ path: '/keys', label: userNavLabel('myKeys', '我的密钥'), icon: KeyIcon }")
-    expect(userItemsSource).not.toContain("path: '/purchase'")
-    expect(userItemsSource).not.toContain("path: '/orders'")
-    expect(userItemsSource).not.toContain("path: '/redeem'")
-    expect(userItemsSource).not.toContain("path: '/profile'")
-    expect(componentSource).toContain('data-testid="user-sidebar-recharge"')
-    expect(componentSource).toContain('data-testid="user-sidebar-account"')
-    expect(componentSource).toContain('data-testid="user-sidebar-support"')
-    expect(componentSource).toContain("'/xingqiao-brand-logo.png'")
+  it('also hides the admin Subscription Management entry on recharge-only sites', () => {
+    expect(componentSource).toMatch(/path: '\/admin\/subscriptions'[^\n]*featureFlag: flagSubscription/)
+  })
+
+  it('derives the purchase entry label from the site billing mode', () => {
+    expect(componentSource).toContain("import { resolveSiteBillingMode } from '@/utils/siteBillingMode'")
+    expect(componentSource).toMatch(/case 'recharge_only':\s*return t\('nav\.recharge'\)/)
+    expect(componentSource).toMatch(/case 'subscription_only':\s*return t\('nav\.subscribe'\)/)
+    expect(componentSource).toMatch(/path: '\/purchase'[^\n]*label: purchaseNavLabel\.value/)
   })
 })
