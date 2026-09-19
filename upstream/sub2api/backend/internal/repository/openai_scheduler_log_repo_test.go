@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"regexp"
 	"testing"
 	"time"
 
@@ -64,5 +65,19 @@ func TestOpenAISchedulerLogRepositoryPaginatesLogicalRequestsAndReturnsCompleteE
 	require.Len(t, result.Logs, 2)
 	require.Equal(t, "req-1", result.Logs[0].LogicalRequestID)
 	require.NotEmpty(t, result.NextCursor)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestOpenAISchedulerLogCleanupUsesStrictRetentionCutoff(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	cutoff := time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
+	// The emitted query must exclude timestamps equal to or newer than cutoff.
+	query := `WITH doomed AS ( SELECT id FROM openai_scheduler_logs WHERE event_at < $1 ORDER BY event_at ASC, id ASC LIMIT $2 ) DELETE FROM openai_scheduler_logs AS logs USING doomed WHERE logs.id = doomed.id`
+	mock.ExpectExec(regexp.QuoteMeta(query)).WithArgs(cutoff, 1000).WillReturnResult(sqlmock.NewResult(0, 0))
+	deleted, err := NewOpenAISchedulerLogRepository(db).DeleteOpenAISchedulerLogsBefore(context.Background(), cutoff, 1000)
+	require.NoError(t, err)
+	require.Zero(t, deleted)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

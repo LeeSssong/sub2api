@@ -1,0 +1,23 @@
+
+ RUN  v2.1.9 /Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/scheduler-native-convergence/upstream/sub2api/frontend
+
+(node:86015) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:86016) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:86014) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:86017) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/views/admin/scheduler/__tests__/schedulerPolicy.spec.ts (3 tests) 3ms
+Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+ ✓ src/views/admin/ops/components/__tests__/OpsOpenAISchedulerExperienceCard.spec.ts (6 tests) 59ms
+ ✓ src/views/admin/__tests__/SchedulerLogsView.spec.ts (2 tests) 31ms
+ ✓ src/views/admin/__tests__/AccountMonitorView.spec.ts (36 tests) 243ms
+
+ Test Files  4 passed (4)
+      Tests  47 passed (47)
+   Start at  00:30:58
+   Duration  2.55s (transform 2.11s, setup 260ms, collect 3.01s, tests 335ms, environment 1.35s, prepare 217ms)

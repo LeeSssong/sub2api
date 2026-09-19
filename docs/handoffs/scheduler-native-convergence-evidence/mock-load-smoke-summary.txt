@@ -1,0 +1,6 @@
+=== RUN   TestNativeConvergenceHTTPMockBurst
+=== RUN   TestNativeConvergenceHTTPMockBurst/stream_false_workers_1
+    openai_native_load_test.go:111: requests=1000 workers=1 stream=false p99=15.498375ms goroutines_before=14 after=14
+--- PASS: TestNativeConvergenceHTTPMockBurst (13.24s)
+    --- PASS: TestNativeConvergenceHTTPMockBurst/stream_false_workers_1 (13.24s)
+PASS

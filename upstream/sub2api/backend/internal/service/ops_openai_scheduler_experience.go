@@ -44,6 +44,8 @@ type OpsOpenAISchedulerExperienceMetrics struct {
 }
 
 type OpsOpenAISchedulerExperienceResponse struct {
+	Availability  string                              `json:"availability,omitempty"`
+	Reason        string                              `json:"reason,omitempty"`
 	StartTime     time.Time                           `json:"start_time"`
 	EndTime       time.Time                           `json:"end_time"`
 	GeneratedAt   time.Time                           `json:"generated_at"`
@@ -77,13 +79,10 @@ func (s *OpsService) GetOpenAISchedulerExperience(ctx context.Context, filter *O
 		return nil, infraerrors.BadRequest("OPS_GROUP_ID_INVALID", "group_id must be > 0")
 	}
 
-	events := openAIResilienceEventsForWindow(
-		filter.StartTime,
-		filter.EndTime,
-		strings.TrimSpace(filter.Platform),
-		filter.GroupID,
-	)
-	return aggregateOpenAISchedulerExperience(events, filter.StartTime, filter.EndTime), nil
+	response := aggregateOpenAISchedulerExperience(nil, filter.StartTime, filter.EndTime)
+	response.Availability = "retired"
+	response.Reason = "已恢复原生调度，该自定义统计停止采集"
+	return response, nil
 }
 
 func aggregateOpenAISchedulerExperience(events []OpenAIResilienceEvent, start, end time.Time) *OpsOpenAISchedulerExperienceResponse {

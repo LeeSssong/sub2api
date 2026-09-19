@@ -34,9 +34,11 @@ type OpenAIAccountSchedulerProjectionRequest struct {
 // OpenAIAccountSchedulerProjection is the scheduler-owned, side-effect-free
 // candidate view consumed by account monitoring.
 type OpenAIAccountSchedulerProjection struct {
-	SnapshotAt  time.Time `json:"snapshot_at"`
-	PolicyKey   string    `json:"policy_key"`
-	PolicyLabel string    `json:"policy_label"`
+	Availability string    `json:"availability,omitempty"`
+	Reason       string    `json:"reason,omitempty"`
+	SnapshotAt   time.Time `json:"snapshot_at"`
+	PolicyKey    string    `json:"policy_key"`
+	PolicyLabel  string    `json:"policy_label"`
 	// EffectiveWeights remains available to in-process callers but is not part
 	// of the public projection JSON; EffectiveFacts is the readable contract.
 	EffectiveWeights map[string]float64                          `json:"-"`
@@ -193,6 +195,10 @@ func schedulerProjectionPolicyLabel(policy OpenAISchedulerGroupPolicy, configure
 // deliberately accepts the caller's account/load snapshot so monitor reads do
 // not acquire slots, create sticky bindings, or refresh runtime state.
 func (s *defaultOpenAIAccountScheduler) Project(ctx context.Context, req OpenAIAccountSchedulerProjectionRequest) (*OpenAIAccountSchedulerProjection, error) {
+	if normalizeOpenAICompatiblePlatform(req.Platform) == PlatformOpenAI && req.RequiredImageCapability == "" && (req.RequiredTransport == OpenAIUpstreamTransportAny || req.RequiredTransport == OpenAIUpstreamTransportHTTPSSE) {
+		return &OpenAIAccountSchedulerProjection{Availability: "retired", Reason: "已恢复原生调度，原自定义排名停止提供；实际选择包含粘性与加权随机", SnapshotAt: time.Now().UTC(), Candidates: []OpenAIAccountSchedulerProjectionCandidate{}}, nil
+	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -347,51 +353,7 @@ func (s *defaultOpenAIAccountScheduler) Project(ctx context.Context, req OpenAIA
 	}
 
 	if len(eligible) > 0 {
-		unifiedQuality := s.service != nil && s.service.OpenAIUnifiedQualityEnabled(ctx, platform, false)
-		qualityBreakdowns := map[int64]OpenAIQualityBreakdown{}
-		var unifiedQualityPriorityCaps openAIUnifiedQualityPriorityCaps
-		if unifiedQuality {
-			unifiedQualityPriorityCaps = s.service.openAIUnifiedQualityPriorityCapsForRequest(ctx, req.GroupID)
-			snapshot := s.service.OpenAIAccountQualitySnapshot(ctx)
-			qualityBreakdowns = buildOpenAIQualityBreakdowns(eligible, snapshot.Accounts, req.LoadMap, s.service.openaiFirstOutputSlow)
-		}
 		rankPool := func(pool []*Account) []openAIAccountCandidateScore {
-			if unifiedQuality {
-				loads := req.LoadMap
-				qualityCandidates := make([]openAIUnifiedQualityCandidate, 0, len(pool))
-				for _, account := range pool {
-					cost := EffectiveCostForAccount(account)
-					var u *float64
-					if cost.Status == EffectiveCostStatusReady {
-						u = finiteQualityPointer(cost.U)
-					}
-					quality := qualityBreakdowns[account.ID]
-					resourceTier := openAIUnifiedQualityResourceTierForAccount(account)
-					priority := openAIUnifiedQualitySchedulingPriority(account)
-					qualityCandidates = append(qualityCandidates, openAIUnifiedQualityCandidate{
-						account: account, quality: quality, effectiveU: u, effectiveCostStatus: cost.Status,
-						resourceTier: resourceTier, priority: priority, loadInfo: loads[account.ID],
-						coldStart: resourceTier == openAIUnifiedQualityResourceTierAPIKey && quality.Confidence < openAIUnifiedQualityMaturityConfidence,
-					})
-				}
-				for i := range qualityCandidates {
-					applyOpenAIUnifiedQualityPrioritySignals(&qualityCandidates[i], unifiedQualityPriorityCaps)
-				}
-				ordered := selectOpenAIUnifiedQualityResourceTier(partitionOpenAIUnifiedQualityCandidates(ctx, qualityCandidates).candidates)
-				result := make([]openAIAccountCandidateScore, 0, len(ordered))
-				for _, candidate := range ordered {
-					loadInfo := loads[candidate.account.ID]
-					if loadInfo == nil {
-						loadInfo = &AccountLoadInfo{AccountID: candidate.account.ID}
-					}
-					result = append(result, openAIAccountCandidateScore{
-						account: candidate.account, loadInfo: loadInfo, loadKnown: loads[candidate.account.ID] != nil,
-						score:    candidate.quality.QualityScore + openAIUnifiedQualityCandidatePrioritySignal(candidate),
-						priority: candidate.priority, prioritySet: true,
-					})
-				}
-				return result
-			}
 			plan := s.buildOpenAIAccountLoadPlanAtWithPolicy(ctx, scheduleReq, pool, req.LoadMap, now, &policy, false)
 			ranked := append([]openAIAccountCandidateScore(nil), plan.preTopKCandidates...)
 			sort.SliceStable(ranked, func(i, j int) bool {
@@ -413,14 +375,6 @@ func (s *defaultOpenAIAccountScheduler) Project(ctx context.Context, req OpenAIA
 				AccountID: rankedCandidate.account.ID,
 				Rank:      &rank,
 				Eligible:  true,
-			}
-			if unifiedQuality {
-				quality := qualityBreakdowns[rankedCandidate.account.ID]
-				candidate.QualityScore = floatPointer(quality.QualityScore)
-				candidate.SuccessScore = floatPointer(quality.SuccessScore)
-				candidate.FirstOutputScore = floatPointer(quality.FirstOutputScore)
-				candidate.OutputRateScore = floatPointer(quality.OutputRateScore)
-				candidate.LiveLoadScore = floatPointer(quality.LiveLoadScore)
 			}
 			// Eligibility fallback is a stronger explanation than a policy/order
 			// difference. A quality-gate fallback can change the visible first row

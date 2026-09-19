@@ -2,6 +2,7 @@
   <AppLayout>
     <div class="min-h-full bg-[#f4f7f9] px-5 py-8 dark:bg-slate-950 max-sm:px-3 max-sm:pt-[22px] sm:py-9">
       <div class="mx-auto flex w-full max-w-[1240px] flex-col gap-[18px]" data-test="account-monitor-page">
+      <p role="status" class="text-sm text-gray-500 dark:text-gray-400">OpenAI 普通文本已恢复原生调度，自定义质量排名已停用；监控数据不代表下一次请求的选号顺序。</p>
       <header class="flex items-start justify-between gap-4">
         <div class="min-w-0">
           <h1 class="text-[27px] font-semibold leading-[1.25] text-gray-900 max-[430px]:text-[23px] dark:text-white">

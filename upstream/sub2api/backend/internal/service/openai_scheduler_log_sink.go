@@ -78,8 +78,7 @@ func NewOpenAISchedulerLogSinkWithWriter(writer OpenAISchedulerLogWriter, capaci
 	return sink
 }
 
-// Start owns asynchronous batch persistence. Enqueue stays non-blocking even
-// while the database is unavailable.
+// Start owns historical retention cleanup only; request collection is retired.
 func (s *OpenAISchedulerLogSink) Start() {
 	if s == nil || s.writer == nil {
 		return
@@ -103,35 +102,19 @@ func (s *OpenAISchedulerLogSink) Stop() {
 	})
 }
 
+// run only maintains the historical table. Request event collection is retired.
 func (s *OpenAISchedulerLogSink) run() {
 	defer s.wg.Done()
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
-	cleanupTicker := time.NewTicker(time.Hour)
-	defer cleanupTicker.Stop()
-	s.cleanupWithTimeout(context.Background())
+	s.cleanupWithTimeout(s.ctx)
 	for {
 		select {
 		case <-s.ctx.Done():
-			s.flushWithTimeout(context.Background())
 			return
 		case <-ticker.C:
-			s.flushWithTimeout(s.ctx)
-		case <-cleanupTicker.C:
 			s.cleanupWithTimeout(s.ctx)
 		}
-	}
-}
-
-func (s *OpenAISchedulerLogSink) flushWithTimeout(base context.Context) {
-	if base == nil || base.Err() != nil {
-		base = context.Background()
-	}
-	ctx, cancel := context.WithTimeout(base, 5*time.Second)
-	defer cancel()
-	if err := s.Flush(ctx); err != nil {
-		s.writeFailed.Add(1)
-		s.lastErrorUnixNano.Store(time.Now().UTC().UnixNano())
 	}
 }
 
@@ -140,14 +123,23 @@ func (s *OpenAISchedulerLogSink) cleanupWithTimeout(base context.Context) {
 	if !ok {
 		return
 	}
-	if base == nil || base.Err() != nil {
+	if base == nil {
 		base = context.Background()
 	}
-	ctx, cancel := context.WithTimeout(base, 5*time.Second)
+	ctx, cancel := context.WithTimeout(base, 2*time.Second)
 	defer cancel()
-	if _, err := cleaner.DeleteOpenAISchedulerLogsBefore(ctx, OpenAISchedulerLogRetentionCutoff(time.Now()), 0); err != nil {
-		s.writeFailed.Add(1)
-		s.lastErrorUnixNano.Store(time.Now().UTC().UnixNano())
+	cutoff := OpenAISchedulerLogRetentionCutoff(time.Now())
+	for deleted := int64(0); deleted < 10000 && ctx.Err() == nil; {
+		n, err := cleaner.DeleteOpenAISchedulerLogsBefore(ctx, cutoff, 1000)
+		if err != nil {
+			s.writeFailed.Add(1)
+			s.lastErrorUnixNano.Store(time.Now().UTC().UnixNano())
+			return
+		}
+		deleted += n
+		if n < 1000 {
+			return
+		}
 	}
 }
 
@@ -215,8 +207,8 @@ func (s *OpenAISchedulerLogSink) Health() OpenAISchedulerLogSinkHealth {
 	return health
 }
 
-// Flush persists the currently queued batch. It is invoked only by the
-// background writer (and tests), never by the request path.
+// Flush supports explicit legacy consumers and tests. Runtime cleanup never
+// flushes, and request producers no longer enqueue events.
 func (s *OpenAISchedulerLogSink) Flush(ctx context.Context) error {
 	if s == nil || s.writer == nil {
 		return nil
@@ -284,12 +276,12 @@ func OpenAISchedulerLogRetentionCutoff(now time.Time) time.Time {
 	return now.UTC().Add(-7 * 24 * time.Hour)
 }
 
-var defaultOpenAISchedulerLogSink = NewOpenAISchedulerLogSink(openAISchedulerLogDefaultQueueCapacity)
+var defaultOpenAISchedulerLogSink = &OpenAISchedulerLogSink{}
 
 // ConfigureDefaultOpenAISchedulerLogSink replaces the unstarted in-memory
 // sink during application wiring. It is called once during startup only.
 func ConfigureDefaultOpenAISchedulerLogSink(writer OpenAISchedulerLogWriter) *OpenAISchedulerLogSink {
-	sink := NewOpenAISchedulerLogSinkWithWriter(writer, openAISchedulerLogDefaultQueueCapacity)
+	sink := &OpenAISchedulerLogSink{writer: writer}
 	sink.Start()
 	defaultOpenAISchedulerLogSink = sink
 	return sink

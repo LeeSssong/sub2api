@@ -1436,6 +1436,15 @@ func (s *AccountMonitorService) attachSchedulerProjection(
 		markSchedulerProjectionUnavailable(rows)
 		return
 	}
+	if projection.Availability == "retired" {
+		markSchedulerProjectionUnavailable(rows)
+		for i := range rows {
+			rows[i].SchedulerRank = nil
+			rows[i].SchedulerRankTotal = 0
+			rows[i].SchedulerQualityScore = nil
+		}
+		return
+	}
 	candidates := make(map[int64]OpenAIAccountSchedulerProjectionCandidate, len(projection.Candidates))
 	eligibleTotal := 0
 	for _, candidate := range projection.Candidates {

@@ -37,6 +37,7 @@ func openAISameAccountRetryLimit(statusCode, configuredLimit int) int {
 
 type openAIRetryBudgetConfig struct {
 	MaxAttempts        int
+	NativeHTTP         bool
 	MaxAccountSwitches int
 	MaxFailureDomains  int
 	Total              time.Duration
@@ -46,6 +47,7 @@ type openAIRetryBudgetConfig struct {
 
 type openAIRetryBudget struct {
 	cfg           openAIRetryBudgetConfig
+	nativeHTTP    bool
 	now           func() time.Time
 	deadline      time.Time
 	attempts      int
@@ -57,12 +59,6 @@ type openAIRetryBudget struct {
 	reason        string
 	degraded      bool
 	maxSwitches   int
-	// unified enables the T96 group-level budget. It counts only distinct
-	// accounts that actually reach Forward and never applies a wall-clock or
-	// failure-domain cap.
-	unified           bool
-	forwardedAccounts map[int64]struct{}
-	extraUsed         int
 }
 
 func openAIRetryBudgetConfigFromConfig(cfg *config.Config) openAIRetryBudgetConfig {
@@ -120,6 +116,20 @@ func openAIRetryBudgetConfigFromConfig(cfg *config.Config) openAIRetryBudgetConf
 	}
 }
 
+// openAIRetryBudgetConfigForRequest scopes native admission to ordinary OpenAI text.
+func openAIRetryBudgetConfigForRequest(cfg *config.Config, platform string, imageIntent bool) openAIRetryBudgetConfig {
+	budget := openAIRetryBudgetConfigFromConfig(cfg)
+	budget.NativeHTTP = platform == service.PlatformOpenAI && !imageIntent
+	return budget
+}
+
+func (h *OpenAIGatewayHandler) requestMaxAccountSwitches(platform string, imageIntent bool) int {
+	if platform == service.PlatformOpenAI && !imageIntent && h.nativeMaxAccountSwitches > 0 {
+		return h.nativeMaxAccountSwitches
+	}
+	return h.maxAccountSwitches
+}
+
 func newOpenAIRetryBudget(cfg openAIRetryBudgetConfig, now func() time.Time) *openAIRetryBudget {
 	if now == nil {
 		now = time.Now
@@ -147,105 +157,24 @@ func newOpenAIRetryBudget(cfg openAIRetryBudgetConfig, now func() time.Time) *op
 	}
 	startedAt := now()
 	return &openAIRetryBudget{
-		cfg: cfg, now: now, deadline: startedAt.Add(cfg.Total), domains: make(map[string]struct{}),
-		maxSwitches: cfg.MaxAccountSwitches, forwardedAccounts: make(map[int64]struct{}),
+		nativeHTTP: cfg.NativeHTTP, cfg: cfg, now: now, deadline: startedAt.Add(cfg.Total), domains: make(map[string]struct{}),
+		maxSwitches: cfg.MaxAccountSwitches,
 	}
-}
-
-func newOpenAIUnifiedRetryBudget(extraRetryCount int, now func() time.Time) *openAIRetryBudget {
-	if extraRetryCount < 0 {
-		extraRetryCount = 0
-	} else if extraRetryCount > 3 {
-		extraRetryCount = 3
-	}
-	if now == nil {
-		now = time.Now
-	}
-	return &openAIRetryBudget{
-		cfg: openAIRetryBudgetConfig{
-			MaxAttempts:        1 + extraRetryCount,
-			MaxAccountSwitches: extraRetryCount,
-		},
-		now: now, maxSwitches: extraRetryCount, unified: true,
-		domains: make(map[string]struct{}), forwardedAccounts: make(map[int64]struct{}),
-	}
-}
-
-func adoptOpenAIUnifiedRetryBudget(current *openAIRetryBudget, decision service.OpenAIAccountScheduleDecision, gateway *service.OpenAIGatewayService, ctx context.Context, groupID *int64) *openAIRetryBudget {
-	// T96's extra_retry_count remains a settings/API compatibility field, but
-	// ordinary OpenAI HTTP requests use the native failover budget. Quality
-	// scheduling may still annotate the decision; it must not change runtime
-	// attempt or account-switch capacity.
-	return current
-}
-
-// annotateOpenAIUnifiedDecision copies request-local recovery counters into the
-// existing scheduler decision before it is emitted to the process-local event
-// ledger. It intentionally carries no credentials or request payload.
-func annotateOpenAIUnifiedDecision(decision *service.OpenAIAccountScheduleDecision, budget *openAIRetryBudget, imageIntent bool, switchCount int) {
-	if decision == nil {
-		return
-	}
-	decision.ImageIntent = imageIntent
-	if budget == nil {
-		return
-	}
-	decision.RuntimeRetryBudget = budget.cfg.MaxAttempts - 1
-	decision.SwitchCount = switchCount
-	if !budget.unified {
-		return
-	}
-	decision.ExtraRetryCount = budget.cfg.MaxAttempts - 1
-	decision.ExtraUsed = budget.ExtraUsed()
-}
-
-// handleOpenAIUnifiedOAuth429 preserves T105's native account cooldown and
-// storm-stop semantics while leaving the T96 group budget responsible for how
-// many distinct accounts may be attempted. The persistence helper is a no-op
-// for non-OAuth accounts and non-transient 429 classifications.
-type openAIUnifiedOAuth429Gateway interface {
-	PersistOpenAIOAuth429Cooldown(context.Context, *service.Account, int, http.Header, []byte)
-	ShouldStopOpenAIOAuth429Failover(*service.Account, int, int, *service.OpenAIOAuth429FailoverState) bool
-}
-
-func handleOpenAIUnifiedOAuth429(
-	gateway openAIUnifiedOAuth429Gateway,
-	ctx context.Context,
-	account *service.Account,
-	failure *service.UpstreamFailoverError,
-	failedSwitches int,
-	state *service.OpenAIOAuth429FailoverState,
-) bool {
-	if gateway == nil || failure == nil || failure.StatusCode != http.StatusTooManyRequests {
-		return false
-	}
-	gateway.PersistOpenAIOAuth429Cooldown(ctx, account, failure.StatusCode, failure.ResponseHeaders, failure.ResponseBody)
-	return gateway.ShouldStopOpenAIOAuth429Failover(account, failure.StatusCode, failedSwitches, state)
-}
-
-// shouldUseLegacyOpenAIOAuth429GroupRecovery keeps Sub's native OAuth 429
-// cooldown/recovery behavior. T96 no longer owns a runtime retry budget.
-func shouldUseLegacyOpenAIOAuth429GroupRecovery(unifiedQuality bool) bool {
-	return true
-}
-
-func openAIUnifiedFailureSafeToReplay(failure service.OpenAIUpstreamFailureClass, failoverErr *service.UpstreamFailoverError, usageProduced bool) bool {
-	if !failure.SafeToReplay || failure.OutputStarted || failure.HasSideEffect || usageProduced {
-		return false
-	}
-	if failoverErr == nil {
-		return true
-	}
-	if failoverErr.UsageKnown || failoverErr.UnsafeToReplay || !failoverErr.ShouldRetryNextAccount() {
-		return false
-	}
-	return true
 }
 
 func (b *openAIRetryBudget) ConsumeAttempt(accountID int64) bool {
-	if b != nil && b.unified {
-		return b.RecordForwardStarted(accountID)
+	if b != nil && b.nativeHTTP {
+		if accountID <= 0 {
+			return false
+		}
+		if b.lastAccountID > 0 && b.lastAccountID != accountID {
+			b.switches++
+		}
+		b.attempts++
+		b.lastAccountID = accountID
+		return true
 	}
+
 	if b == nil || accountID <= 0 {
 		return false
 	}
@@ -269,65 +198,11 @@ func (b *openAIRetryBudget) ConsumeAttempt(accountID int64) bool {
 	return true
 }
 
-// CanStartForward reports whether a unified request may enter another real
-// upstream Forward. It has no side effects; callers invoke RecordForwardStarted
-// at the Forward boundary after slot and safety checks pass.
-func (b *openAIRetryBudget) CanStartForward(accountID int64) bool {
-	if b == nil || accountID <= 0 {
-		return false
-	}
-	if !b.unified {
-		return b.attempts < b.cfg.MaxAttempts
-	}
-	if b.attempts >= b.cfg.MaxAttempts {
-		b.reason = openAIRetryReasonAttemptLimit
-		return false
-	}
-	if _, exists := b.forwardedAccounts[accountID]; exists {
-		b.reason = openAIRetryReasonAccountSwitchLimit
-		return false
-	}
-	if b.attempts > 0 && b.switches >= b.maxSwitches {
-		b.reason = openAIRetryReasonAccountSwitchLimit
-		return false
-	}
-	return true
-}
-
-// RecordForwardStarted records one distinct-account Forward. For unified mode
-// this is the only operation that consumes an attempt or switch budget.
-func (b *openAIRetryBudget) RecordForwardStarted(accountID int64) bool {
-	if b == nil || accountID <= 0 {
-		return false
-	}
-	if !b.unified {
-		return b.ConsumeAttempt(accountID)
-	}
-	if !b.CanStartForward(accountID) {
-		return false
-	}
-	if b.attempts > 0 {
-		b.switches++
-		b.extraUsed++
-	}
-	b.attempts++
-	b.lastAccountID = accountID
-	b.forwardedAccounts[accountID] = struct{}{}
-	return true
-}
-
 func (b *openAIRetryBudget) Attempts() int {
 	if b == nil {
 		return 0
 	}
 	return b.attempts
-}
-
-func (b *openAIRetryBudget) ExtraUsed() int {
-	if b == nil {
-		return 0
-	}
-	return b.extraUsed
 }
 
 func (b *openAIRetryBudget) consumeAccountAttempt(account *service.Account) bool {
@@ -346,6 +221,9 @@ func openAIRetryFailureDomains(account *service.Account, channelID int64) []serv
 }
 
 func (b *openAIRetryBudget) CanSwitch(nextAccountID int64, outputStarted, hasSideEffect bool) bool {
+	if b != nil && b.nativeHTTP {
+		return !outputStarted && !hasSideEffect
+	}
 	if b == nil {
 		return false
 	}
@@ -353,16 +231,7 @@ func (b *openAIRetryBudget) CanSwitch(nextAccountID int64, outputStarted, hasSid
 		b.reason = openAIRetryReasonUnsafeToReplay
 		return false
 	}
-	if b.unified {
-		if nextAccountID <= 0 {
-			if b.attempts >= b.cfg.MaxAttempts || (b.attempts > 0 && b.switches >= b.maxSwitches) {
-				b.reason = openAIRetryReasonAccountSwitchLimit
-				return false
-			}
-			return true
-		}
-		return b.CanStartForward(nextAccountID)
-	}
+
 	if b.DeadlineReached() {
 		b.reason = openAIRetryReasonRetryDeadline
 		return false
@@ -379,13 +248,14 @@ func (b *openAIRetryBudget) CanSwitch(nextAccountID int64, outputStarted, hasSid
 }
 
 func (b *openAIRetryBudget) ObserveDomain(domains []service.OpenAIFailureDomain) bool {
-	if b == nil {
-		return false
-	}
-	if b.unified {
+	if b != nil && b.nativeHTTP {
 		b.RecordObservedDomains(domains)
 		return true
 	}
+	if b == nil {
+		return false
+	}
+
 	newKeys := make([]string, 0, len(domains))
 	unknown := false
 	for _, domain := range domains {
@@ -421,7 +291,7 @@ func (b *openAIRetryBudget) ObserveDomain(domains []service.OpenAIFailureDomain)
 }
 
 // RecordObservedDomains retains diagnostic domains without turning their count
-// into a second attempt budget in unified mode.
+// into a second attempt budget in native HTTP mode.
 func (b *openAIRetryBudget) RecordObservedDomains(domains []service.OpenAIFailureDomain) {
 	if b == nil {
 		return
@@ -451,7 +321,7 @@ func (b *openAIRetryBudget) ObservedDomains() []service.OpenAIFailureDomain {
 }
 
 func (b *openAIRetryBudget) NarrowForSharedHealthDegraded() {
-	if b == nil || b.unified || b.degraded {
+	if b == nil || b.nativeHTTP || b.degraded {
 		return
 	}
 	b.degraded = true
@@ -472,9 +342,7 @@ func (b *openAIRetryBudget) Remaining() time.Duration {
 	if b == nil {
 		return 0
 	}
-	if b.unified {
-		return time.Duration(1<<63 - 1)
-	}
+
 	remaining := b.deadline.Sub(b.now())
 	if remaining < 0 {
 		return 0
@@ -483,7 +351,7 @@ func (b *openAIRetryBudget) Remaining() time.Duration {
 }
 
 func (b *openAIRetryBudget) DeadlineReached() bool {
-	if b != nil && b.unified {
+	if b != nil && (b.nativeHTTP) {
 		return false
 	}
 	return b == nil || b.Remaining() <= 0
@@ -493,9 +361,7 @@ func (b *openAIRetryBudget) hasAdditionalSwitchAttemptCapacity() bool {
 	if b == nil || b.DeadlineReached() || b.attempts >= b.cfg.MaxAttempts {
 		return false
 	}
-	if b.unified {
-		return b.switches < b.maxSwitches
-	}
+
 	return b.lastAccountID == 0 || b.switches < b.maxSwitches
 }
 
@@ -513,12 +379,13 @@ func openAIRetryBudgetExhausted(reason string) bool {
 }
 
 func (b *openAIRetryBudget) RetryDelay(failure *service.UpstreamFailoverError, retryCount int) (time.Duration, bool) {
+	if b != nil && b.nativeHTTP {
+		return sameAccountRetryDelayFor(failure, retryCount), true
+	}
 	if b == nil {
 		return 0, false
 	}
-	if b.unified {
-		return 0, true
-	}
+
 	if b.DeadlineReached() {
 		b.reason = openAIRetryReasonRetryDeadline
 		return 0, false

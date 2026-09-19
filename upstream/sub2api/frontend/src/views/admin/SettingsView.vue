@@ -5009,6 +5009,14 @@
                 </div>
               </div>
 
+              <p
+                role="status"
+                data-testid="scheduler-retirement-notice"
+                class="border-t border-gray-100 pt-5 text-sm text-gray-500 dark:border-dark-700 dark:text-gray-400"
+              >
+                普通 OpenAI 文本已恢复原生调度，自定义质量评分与调度事件采集已停用。历史记录仍可查询；旧分组策略保留，可能仍用于 WebSocket、图片等专用路径，当前不开放编辑。
+              </p>
+
               <template v-if="false">
               <div
                 v-if="!form.openai_advanced_scheduler_enabled"
@@ -5198,6 +5206,7 @@
                 class="border-t border-gray-100 pt-5 dark:border-dark-700"
                 data-testid="openai-scheduler-fairness"
               >
+<fieldset disabled class="opacity-60">
                 <div class="mb-4">
                   <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
                     {{ t("admin.settings.openaiExperimentalScheduler.title") }}
@@ -5344,7 +5353,8 @@
                   </div>
                   </div>
                 </div>
-              </div>
+              </fieldset>
+</div>
               </template>
             </div>
           </div>
@@ -10494,43 +10504,6 @@ defineExpose({
   deleteSchedulerCustomPreset,
 });
 
-function serializeSchedulerPolicies(): Record<string, OpenAISchedulerGroupPolicy> {
-  storeSchedulerPolicyDraft();
-  const policies = { ...form.openai_advanced_scheduler_group_policies };
-  for (const [groupId, draft] of Object.entries(schedulerPolicyDrafts)) {
-    const business = {
-      priority: { ...draft.priority },
-      operations: { ...draft.operations },
-    };
-    if (draft.mode === "preset") {
-      const values = schedulerPolicySnapshots[groupId] || presetDefinition(draft.preset_id)?.values;
-      policies[groupId] = {
-        ...business,
-        mode: "preset",
-        preset_id: draft.preset_id,
-      };
-      if (values) {
-        policies[groupId].top_k = values.top_k;
-        policies[groupId].weight_overrides = { ...values.weight_overrides };
-        policies[groupId].fairness = { ...values.fairness };
-      }
-      continue;
-    }
-    const weightOverrides = Object.fromEntries(
-      schedulerPolicyWeightKeys
-        .map((key) => [key, draft.weight_overrides[key]])
-        .filter(([, value]) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 10),
-    );
-    policies[groupId] = {
-      ...business,
-      mode: "custom",
-      top_k: Math.min(32, Math.max(1, Math.trunc(draft.top_k))),
-      weight_overrides: weightOverrides,
-      fairness: normalizeSchedulerFairness(draft.fairness),
-    };
-  }
-  return policies;
-}
 
 function clearSchedulerPolicy(): void {
   if (!schedulerSelectedGroupId.value) return;
@@ -10541,17 +10514,6 @@ function clearSchedulerPolicy(): void {
   loadSchedulerPolicyDraft(schedulerSelectedGroupId.value);
 }
 
-function validateSchedulerPolicyDraft(): boolean {
-  if (!schedulerSelectedGroupId.value) return true;
-  if (!Number.isInteger(schedulerPolicyDraft.top_k) || schedulerPolicyDraft.top_k < 1 || schedulerPolicyDraft.top_k > 32) return false;
-  for (const value of Object.values(schedulerPolicyDraft.weight_overrides)) {
-    if (value !== undefined && (!Number.isFinite(value) || value < 0 || value > 10)) return false;
-  }
-  const fairness = schedulerPolicyDraft.fairness;
-  if (fairness.exploration_ratio < 0 || fairness.exploration_ratio > 100 || fairness.fairness_weight < 0 || fairness.fairness_weight > 10) return false;
-  if (fairness.starvation_threshold_seconds !== 0 && (fairness.starvation_threshold_seconds < 300 || fairness.starvation_threshold_seconds > 86400)) return false;
-  return true;
-}
 
 // 人机验证 UI 状态：单卡片「总开关 + 服务商单选」，落库仍是三个独立
 // enabled 键（与上游一致），由下面的映射保证同一时间至多一家启用。
@@ -11802,10 +11764,7 @@ const siteBillingModeHint = computed(() =>
 );
 
 async function saveSettings() {
-  if (!validateSchedulerPolicyDraft()) {
-    appStore.showError(t("admin.settings.openaiExperimentalScheduler.groupOverridesInvalid"));
-    return;
-  }
+
   saving.value = true;
   try {
     const normalizedTableDefaultPageSize = Math.floor(
@@ -12240,18 +12199,6 @@ async function saveSettings() {
         form.openai_advanced_scheduler_weight_previous_response.trim(),
       openai_advanced_scheduler_weight_session_sticky:
         form.openai_advanced_scheduler_weight_session_sticky.trim(),
-      openai_advanced_scheduler_candidate_pool_mode:
-        form.openai_advanced_scheduler_candidate_pool_mode,
-      openai_advanced_scheduler_exploration_ratio:
-        form.openai_advanced_scheduler_exploration_ratio,
-      openai_advanced_scheduler_starvation_threshold_seconds:
-        form.openai_advanced_scheduler_starvation_threshold_seconds,
-      openai_advanced_scheduler_fairness_weight:
-        form.openai_advanced_scheduler_fairness_weight,
-      openai_advanced_scheduler_group_policies: serializeSchedulerPolicies(),
-      openai_advanced_scheduler_custom_presets: {
-        ...form.openai_advanced_scheduler_custom_presets,
-      },
       // 余额、订阅到期与账号限额通知
       balance_low_notify_enabled: form.balance_low_notify_enabled,
       balance_low_notify_threshold:

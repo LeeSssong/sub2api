@@ -1,0 +1,32 @@
+# github.com/Wei-Shaw/sub2api/internal/service [github.com/Wei-Shaw/sub2api/internal/service.test]
+internal/service/payment_config_plans_validation_test.go:137:6: ptrFloat redeclared in this block
+    internal/service/account_monitor_quality_fusion_test.go:25:6: other declaration of ptrFloat
+internal/service/account_stats_pricing_test.go:1037:84: not enough arguments in call to resolveAccountStatsCostResolution
+    have ("context".Context, *ChannelService, nil, number, number, string, BillingMode, string, int, UsageTokens, int, number, string)
+    want ("context".Context, *ChannelService, *BillingService, int64, int64, string, BillingMode, string, int, UsageTokens, int, float64, string, "time".Time, ...string)
+internal/service/account_stats_pricing_test.go:1058:70: not enough arguments in call to resolveAccountStatsCostResolution
+    have ("context".Context, *ChannelService, nil, number, number, string, BillingMode, string, number, UsageTokens, number, number, string)
+    want ("context".Context, *ChannelService, *BillingService, int64, int64, string, BillingMode, string, int, UsageTokens, int, float64, string, "time".Time, ...string)
+internal/service/gateway_forward_as_chat_completions_test.go:202:52: undefined: context
+internal/service/gateway_forward_as_chat_completions_test.go:239:52: undefined: context
+internal/service/openai_images_tool_cooldown_test.go:65:5: unknown field SynthesizedFromModelText in struct literal of type OpenAIImagesUpstreamError
+internal/service/openai_images_tool_cooldown_test.go:82:30: undefined: shouldCoolOpenAIImagesToolForError
+internal/service/openai_images_tool_cooldown_test.go:140:23: err.SynthesizedFromModelText undefined (type *OpenAIImagesUpstreamError has no field or method SynthesizedFromModelText)
+internal/service/openai_images_tool_cooldown_test.go:152:23: err.SynthesizedFromModelText undefined (type *OpenAIImagesUpstreamError has no field or method SynthesizedFromModelText)
+internal/service/openai_images_tool_cooldown_test.go:162:24: err.SynthesizedFromModelText undefined (type *OpenAIImagesUpstreamError has no field or method SynthesizedFromModelText)
+internal/service/openai_images_tool_cooldown_test.go:162:24: too many errors
+FAIL    github.com/Wei-Shaw/sub2api/internal/service [build failed]
+FAIL    github.com/Wei-Shaw/sub2api/internal/service [build failed]
+--- FAIL: TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError (0.00s)
+    --- FAIL: TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError/native_openai (0.00s)
+    --- FAIL: TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError/responses_compat (0.00s)
+    --- FAIL: TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError/anthropic_compat (0.00s)
+--- FAIL: TestOpenAIGatewayHandlerResponses_FailoverContinuesForConnectedClient (1.01s)
+FAIL
+FAIL    github.com/Wei-Shaw/sub2api/internal/handler    11.755s
+--- FAIL: TestAccountMonitorHandlerReturnsCompleteWindowTimelineAndGlobalRanking (0.00s)
+--- FAIL: TestAccountMonitorHandlerReturnsUnavailableAndStaleRowsWithRetainedNativeScores (0.00s)
+--- FAIL: TestOpsSchedulerExperienceHandlerReturnsFilteredMetrics (0.00s)
+FAIL
+FAIL    github.com/Wei-Shaw/sub2api/internal/handler/admin  0.982s
+FAIL

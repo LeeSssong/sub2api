@@ -195,3 +195,11 @@ describe('OpsOpenAISchedulerExperienceCard', () => {
     expect(wrapper.findAll('[data-metric]').every((metric) => metric.classes().includes('min-w-0'))).toBe(true)
   })
 })
+
+it('shows retired collection without presenting stale success rates', async () => {
+  mockGetOpenAISchedulerExperience.mockResolvedValue({ ...sampleResponse, availability: 'retired', reason: '已恢复原生调度，该自定义统计停止采集' })
+  const wrapper = mountCard()
+  await flushPromises()
+  expect(wrapper.text()).toContain('已恢复原生调度')
+  expect(wrapper.find('[data-test="scheduler-metrics-grid"]').exists()).toBe(false)
+})

@@ -141,13 +141,13 @@ onUnmounted(abortRequest)
         <h3 class="break-words text-sm font-bold text-gray-900 dark:text-white">
           {{ t('admin.ops.openaiSchedulerExperience.title') }}
         </h3>
-        <p class="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">
+        <p v-if="response?.availability !== 'retired'" class="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">
           {{ t('admin.ops.openaiSchedulerExperience.sampleSize', { count: response?.sample_size ?? 0 }) }}
           <template v-if="response?.latest_event_at">
             · {{ t('admin.ops.openaiSchedulerExperience.latestEvent') }} {{ formatTime(response.latest_event_at) }}
           </template>
         </p>
-        <p v-if="response" data-test="scheduler-runtime-window" class="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">
+        <p v-if="response && response.availability !== 'retired'" data-test="scheduler-runtime-window" class="mt-1 break-words text-xs text-gray-500 dark:text-gray-400">
           {{ t('admin.ops.openaiSchedulerExperience.runtimeWindow') }} {{ formatTime(response.start_time) }} – {{ formatTime(response.end_time) }}
         </p>
       </div>
@@ -164,6 +164,10 @@ onUnmounted(abortRequest)
     <div v-else-if="loading && !response" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
       {{ t('admin.ops.loadingText') }}
     </div>
+
+    <p v-else-if="response?.availability === 'retired'" role="status" class="text-sm text-gray-500 dark:text-gray-400">
+      {{ response.reason }}
+    </p>
 
     <EmptyState
       v-else-if="hasNoData"

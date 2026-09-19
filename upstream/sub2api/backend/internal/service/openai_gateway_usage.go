@@ -560,7 +560,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		if writeUsageLogBestEffortWithRegistrar(ctx, s.usageLogRepo, usageLog, s.usageCostEvidenceRegistrarFor(account), "service.openai_gateway") {
-			s.requestQualityRefreshAfterUsage(ctx, result, usageCompleteness)
+			// Historical quality aggregation is not part of usage persistence.
 		}
 		s.UpdateActualResponseModel(ctx, result)
 		logger.LegacyPrintf("service.openai_gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
@@ -612,23 +612,16 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if billingErr != nil {
 		usageLog.ActualCost = 0
 		if writeUsageLogBestEffortWithRegistrar(ctx, s.usageLogRepo, usageLog, s.usageCostEvidenceRegistrarFor(account), "service.openai_gateway") {
-			s.requestQualityRefreshAfterUsage(ctx, result, usageCompleteness)
+			// Historical quality aggregation is not part of usage persistence.
 		}
 		return billingErr
 	}
 	if writeUsageLogBestEffortWithRegistrar(ctx, s.usageLogRepo, usageLog, s.usageCostEvidenceRegistrarFor(account), "service.openai_gateway") {
-		s.requestQualityRefreshAfterUsage(ctx, result, usageCompleteness)
+		// Historical quality aggregation is not part of usage persistence.
 	}
 	s.UpdateActualResponseModel(ctx, result)
 
 	return nil
-}
-
-func (s *OpenAIGatewayService) requestQualityRefreshAfterUsage(ctx context.Context, result *OpenAIForwardResult, completeness UsageCompleteness) {
-	if result == nil || completeness != UsageCompletenessComplete || result.ImageCount > 0 || result.VideoCount > 0 || result.WebSearchCalls > 0 {
-		return
-	}
-	s.RequestOpenAIAccountQualityRefresh(ctx)
 }
 
 // hasIdentifiedOpenAIResponsePricing 判断上游自报的响应模型是否可以作为计费基准，

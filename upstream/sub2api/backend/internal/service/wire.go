@@ -657,7 +657,7 @@ func ProvideOpsSystemLogSink(opsRepo OpsRepository, cfg *config.Config) *OpsSyst
 // sink before API request handlers begin emitting scheduler events.
 func ProvideOpenAISchedulerLogSink(repo OpenAISchedulerLogRepository, cfg *config.Config) *OpenAISchedulerLogSink {
 	if !shouldStartRequestLocal(cfg) {
-		return NewOpenAISchedulerLogSink(openAISchedulerLogDefaultQueueCapacity)
+		return &OpenAISchedulerLogSink{}
 	}
 	return ConfigureDefaultOpenAISchedulerLogSink(repo)
 }

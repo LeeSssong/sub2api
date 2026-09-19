@@ -17,7 +17,19 @@ func (s *OpsService) ListAlertRules(ctx context.Context) ([]*OpsAlertRule, error
 	if s.opsRepo == nil {
 		return []*OpsAlertRule{}, nil
 	}
-	return s.opsRepo.ListAlertRules(ctx)
+	rules, err := s.opsRepo.ListAlertRules(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i, rule := range rules {
+		if rule != nil && isRetiredSchedulerAlertMetric(rule.MetricType) {
+			copy := *rule
+			copy.Availability = "retired"
+			copy.AvailabilityReason = "自定义调度事件已停止采集，此规则不再评估"
+			rules[i] = &copy
+		}
+	}
+	return rules, nil
 }
 
 func (s *OpsService) CreateAlertRule(ctx context.Context, rule *OpsAlertRule) (*OpsAlertRule, error) {
@@ -229,4 +241,13 @@ func (s *OpsService) UpdateAlertEventEmailSent(ctx context.Context, eventID int6
 		return infraerrors.BadRequest("INVALID_EVENT_ID", "invalid event id")
 	}
 	return s.opsRepo.UpdateAlertEventEmailSent(ctx, eventID, emailSent)
+}
+
+func isRetiredSchedulerAlertMetric(metric string) bool {
+	switch strings.TrimSpace(metric) {
+	case "openai_account_model_repeated_failure_count", "openai_account_model_cooldown_saturation_count", "openai_stream_failover_degradation_count", "openai_post_failure_selection_count", "openai_cache_hit_failover_decline_count":
+		return true
+	default:
+		return false
+	}
 }

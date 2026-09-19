@@ -21,9 +21,11 @@ const (
 )
 
 type OpsAlertRule struct {
-	ID          int64  `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	Availability       string `json:"availability,omitempty"`
+	AvailabilityReason string `json:"availability_reason,omitempty"`
+	ID                 int64  `json:"id"`
+	Name               string `json:"name"`
+	Description        string `json:"description"`
 
 	Enabled  bool   `json:"enabled"`
 	Severity string `json:"severity"`

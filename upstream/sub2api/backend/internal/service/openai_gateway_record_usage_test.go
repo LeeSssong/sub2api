@@ -322,7 +322,7 @@ func TestOpenAIGatewayServiceRecordUsage_PartialUsageRequiresReconciliation(t *t
 	require.True(t, billingRepo.lastCmd.ReconciliationRequired)
 }
 
-func TestOpenAIGatewayServiceRecordUsageEmitsRetryBillingReconciledOnlyAfterCompleteDedupConfirmation(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsageKeepsReconciliationWithoutEventLedger(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{results: []*UsageBillingApplyResult{{Applied: true}, {Applied: false}}}
 	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(
@@ -336,7 +336,6 @@ func TestOpenAIGatewayServiceRecordUsageEmitsRetryBillingReconciledOnlyAfterComp
 	apiKey := &APIKey{ID: 1004, GroupID: &groupID, Group: &Group{Platform: PlatformOpenAI, RateMultiplier: 1}}
 	user := &User{ID: 2004}
 	account := &Account{ID: 3004, Platform: PlatformOpenAI}
-	start := time.Now().Add(-time.Second)
 
 	partial := &OpenAIRecordUsageInput{
 		Result: &OpenAIForwardResult{
@@ -350,7 +349,7 @@ func TestOpenAIGatewayServiceRecordUsageEmitsRetryBillingReconciledOnlyAfterComp
 		APIKey: apiKey, User: user, Account: account, UsageCompleteness: UsageCompletenessPartial,
 	}
 	require.NoError(t, svc.RecordUsage(context.Background(), partial))
-	require.Empty(t, openAIResilienceEventsForWindow(start, time.Now().Add(time.Second), PlatformOpenAI, &groupID))
+	require.Equal(t, UsageCompletenessPartial, billingRepo.lastCmd.UsageCompleteness)
 
 	complete := *partial
 	complete.Result = &OpenAIForwardResult{
@@ -365,16 +364,11 @@ func TestOpenAIGatewayServiceRecordUsageEmitsRetryBillingReconciledOnlyAfterComp
 	complete.ReconciliationRequired = false
 	require.NoError(t, svc.RecordUsage(context.Background(), &complete))
 
-	events := openAIResilienceEventsForWindow(start, time.Now().Add(time.Second), PlatformOpenAI, &groupID)
-	require.Len(t, events, 1)
-	require.Equal(t, OpenAIEventRetryBillingReconciled, events[0].Name)
-	require.Equal(t, "logical-retry-billing", events[0].CorrelationID)
-	require.Equal(t, "logical-retry-billing:2", events[0].AttemptID)
-	require.Equal(t, 2, events[0].AttemptNumber)
-	require.Equal(t, account.ID, events[0].AccountID)
-	require.Equal(t, "gpt-5.1", events[0].CanonicalModel)
-	require.True(t, events[0].UsageProduced)
-	require.Equal(t, "success", events[0].Outcome)
+	require.Equal(t, 2, billingRepo.calls)
+	require.Equal(t, UsageCompletenessComplete, billingRepo.lastCmd.UsageCompleteness)
+	require.Equal(t, "logical-retry-billing", usageRepo.lastLog.LogicalRequestID)
+	require.Equal(t, "logical-retry-billing:2", usageRepo.lastLog.AttemptID)
+
 }
 
 func TestUsageBillingReconciliationRetryUsesSameIdempotencyBoundary(t *testing.T) {

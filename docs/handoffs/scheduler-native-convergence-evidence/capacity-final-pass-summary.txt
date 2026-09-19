@@ -1,0 +1,18 @@
+=== RUN   TestNativeConvergenceCapacityErrorsWriteTerminalResponse
+=== RUN   TestNativeConvergenceCapacityErrorsWriteTerminalResponse/queue_full/json
+=== RUN   TestNativeConvergenceCapacityErrorsWriteTerminalResponse/queue_full/started_sse
+=== RUN   TestNativeConvergenceCapacityErrorsWriteTerminalResponse/redis_unavailable/json
+=== RUN   TestNativeConvergenceCapacityErrorsWriteTerminalResponse/redis_unavailable/started_sse
+=== RUN   TestNativeConvergenceCapacityErrorsWriteTerminalResponse/wait_timeout/json
+=== RUN   TestNativeConvergenceCapacityErrorsWriteTerminalResponse/wait_timeout/started_sse
+--- PASS: TestNativeConvergenceCapacityErrorsWriteTerminalResponse (0.00s)
+    --- PASS: TestNativeConvergenceCapacityErrorsWriteTerminalResponse/queue_full/json (0.00s)
+    --- PASS: TestNativeConvergenceCapacityErrorsWriteTerminalResponse/queue_full/started_sse (0.00s)
+    --- PASS: TestNativeConvergenceCapacityErrorsWriteTerminalResponse/redis_unavailable/json (0.00s)
+    --- PASS: TestNativeConvergenceCapacityErrorsWriteTerminalResponse/redis_unavailable/started_sse (0.00s)
+    --- PASS: TestNativeConvergenceCapacityErrorsWriteTerminalResponse/wait_timeout/json (0.00s)
+    --- PASS: TestNativeConvergenceCapacityErrorsWriteTerminalResponse/wait_timeout/started_sse (0.00s)
+=== RUN   TestNativeConvergenceWaitSuccessReleasesSlot
+--- PASS: TestNativeConvergenceWaitSuccessReleasesSlot (0.00s)
+PASS
+ok      github.com/Wei-Shaw/sub2api/internal/handler    1.802s
