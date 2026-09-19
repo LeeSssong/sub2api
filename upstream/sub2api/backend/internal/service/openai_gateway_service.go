@@ -488,6 +488,9 @@ type OpenAIGatewayService struct {
 	channelService        *ChannelService
 	balanceNotifyService  *BalanceNotifyService
 	settingService        *SettingService
+	openAITurnStateStore  OpenAITurnStateStore
+	openAITurnStateMu     sync.RWMutex
+	openAITurnStateCached *openAITurnStateSettingsSnapshot
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 	costEvidenceRegistrar UsageCostEvidenceRegisterer
 	liveAttestation       liveattestation.Provider

@@ -119,6 +119,24 @@ type openAIAccountScheduleDecisionDetails struct {
 }
 
 type openAIForcedAccountContextKey struct{}
+type openAITurnStateSchedulingContextKey struct{}
+
+// WithOpenAITurnStateReuseScheduling marks an ordinary Responses request whose
+// account selection must honor the configured turn-state miss action.
+func WithOpenAITurnStateReuseScheduling(ctx context.Context, enabled bool) context.Context {
+	if ctx == nil || !enabled {
+		return ctx
+	}
+	return context.WithValue(ctx, openAITurnStateSchedulingContextKey{}, true)
+}
+
+func openAITurnStateSchedulingEnabled(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	enabled, _ := ctx.Value(openAITurnStateSchedulingContextKey{}).(bool)
+	return enabled
+}
 
 // WithOpenAIForcedAccount pins one retry attempt to the account that just
 // failed. The scheduler still validates its current availability and capacity.
@@ -2818,6 +2836,11 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleWithoutRuntime
 	if !accountSupportsOpenAICapabilities(account, req.RequiredCapability, req.RequiredImageCapability) {
 		return false, "capability_mismatch"
 	}
+	if s != nil && s.service != nil {
+		if compatible, reason := s.service.openAITurnStateAccountSchedulableForRequest(ctx, account, req.RequestedModel); !compatible {
+			return false, reason
+		}
+	}
 	// 分组利润控制：不合格账号在候选过滤与抢槽后终检阶段即被排除，
 	// 排序/评分/粘性/熔断只在合格账号之间工作；named reason 进入 filter stats。
 	if vetoed, reason := openAIProfitControlVetoReason(ctx, account); vetoed {
@@ -3419,9 +3442,10 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerOnce(
 		guardianParentAccountID = s.resolveOpenAIGuardianParentAccountID(ctx, groupID)
 	}
 	scheduler := s.getOpenAIAccountScheduler(ctx)
-	if scheduler == nil && openAIForcedAccountFromContext(ctx) > 0 {
+	if scheduler == nil && (openAIForcedAccountFromContext(ctx) > 0 || openAITurnStateSchedulingEnabled(ctx)) {
 		// The legacy load-aware path has no sticky layer. Build the same forced
-		// selection request explicitly so a safe retry cannot drift by priority.
+		// selection request explicitly so a safe retry cannot drift by priority,
+		// and so turn-state miss eligibility is identical across scheduler modes.
 		scheduler = newDefaultOpenAIAccountScheduler(s, s.openaiAccountStats)
 	}
 	if scheduler == nil {
