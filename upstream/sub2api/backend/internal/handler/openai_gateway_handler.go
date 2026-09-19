@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"net/http"
 	"runtime/debug"
 	"strconv"
