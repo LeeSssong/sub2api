@@ -1,8 +1,16 @@
 # 项目当前状态
 
-**更新日期：** 2026-08-09
+**更新日期：** 2026-09-19
 **权威计划：** `docs/superpowers/plans/2026-08-05-six-stage-production-closure-deployment-units.md`
 **项目全局进度总账：** [docs/project/project-progress.md](project-progress.md)（以该总账的生产部署、验证和用户验收口径为准）
+
+## 2026-09-19 主站迁移后的当前基线
+
+- 当前主站/生产服务器已迁移到 `64.83.10.67`；无额外限定的“服务器”“主站”“生产服务器”均指该机器，标准 SSH alias 为 `sub2api-prod`。
+- 腾讯云旧主站 `43.133.75.82` 已停止生产容器，保留数据和容器作为备用恢复来源；SSH alias 为 `sub2api-prod-legacy`。只有明确指定旧服务器或备用服务器时才访问。
+- 独立测试站仍为 `49.51.203.200`，本次迁移未改动。
+- 当前生产入口为 `https://api.xingqiaolab.top`（Sub2API）和 `https://codex.xingqiaolab.top`（Codex2API），均指向新主站并使用 Cloudflare 代理。
+- 下方较早日期记录均为历史事实；与本节冲突时，以本节及服务器实时状态为准。
 
 ## 2026-08-09 GPT 分组配置研究基线
 

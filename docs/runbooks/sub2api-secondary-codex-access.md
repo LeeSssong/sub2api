@@ -2,7 +2,9 @@
 
 这份文件只提供接入流程和非秘密连接参数。第二终端必须拥有单独的私钥文件；私钥不会进入 Git、项目目录、聊天记录或本文件。
 
-## 已配置的远程入口
+> 状态更新（2026-09-19）：本文记录的 `43.133.75.82` 已从主站降级为腾讯云备用服务器和恢复来源。本文保留其第二终端接入方式，不代表它仍承载生产流量。当前主站为 `64.83.10.67`，标准 alias 为 `sub2api-prod`；旧机运维 alias 为 `sub2api-prod-legacy`。
+
+## 已配置的旧备用服务器入口
 
 - 主机：43.133.75.82
 - SSH 端口：2222
@@ -68,6 +70,6 @@ SHA-256：7415b8db577f804c50e7e5f515309e3e8c27fb455fa66002fd4226394ff5d635
 
 需要撤销第二终端时，在已授权终端执行：
 
-    ssh sub2api-prod "sed -i.bak '/codex-secondary-sub2api-20260824$/d' ~/.ssh/authorized_keys"
+    ssh sub2api-prod-legacy "sed -i.bak '/codex-secondary-sub2api-20260824$/d' ~/.ssh/authorized_keys"
 
 随后删除第二终端的私钥，并在本机删除对应私钥、本机 manifest 和 bundle。

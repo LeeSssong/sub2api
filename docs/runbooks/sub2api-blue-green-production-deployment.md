@@ -1,5 +1,7 @@
 # Sub2API Blue-Green Production Deployment
 
+> Policy update (2026-09-19): The release SOP in root `AGENTS.md` supersedes older authorization, repeated verification, and maintenance requirements below. Local acceptance is sufficient by default; test-station synchronization is optional. Normal release authorization includes cutover fluctuation and a maximum 300-second connection drain, including termination of remaining connections at the deadline. Database schema/data migrations default to a single-stack maintenance release; a different strategy requires an explicit exception for that release only. The commands below describe the existing executor, not proof that artifact reuse, selective service updates, draining, or the revised maintenance workflow are implemented. Verify/adapt the relevant executor behavior before use; never bypass its checks to simulate compliance.
+
 This runbook is the operator contract for the command-driven Sub2API release path. It does not authorize or start a release. Run the production command only after the user explicitly says `部署生产` (or an unambiguous equivalent) for the tested commit.
 
 ## Authorization Boundary
