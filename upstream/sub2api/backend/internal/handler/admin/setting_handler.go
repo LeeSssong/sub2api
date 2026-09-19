@@ -62,6 +62,11 @@ type SettingHandler struct {
 	notificationEmailService *service.NotificationEmailService
 	totpService              *service.TotpService
 	userService              *service.UserService
+	openAIGatewayService     *service.OpenAIGatewayService
+}
+
+func (h *SettingHandler) SetOpenAIGatewayService(gateway *service.OpenAIGatewayService) {
+	h.openAIGatewayService = gateway
 }
 
 // NewSettingHandler 创建系统设置处理器

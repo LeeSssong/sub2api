@@ -11,6 +11,7 @@ import (
 )
 
 const openAITurnStateSettingsCacheTTL = 3 * time.Second
+const openAITurnStateMissReason = "turn_state_miss"
 
 type openAITurnStateSettingsSnapshot struct {
 	settings *OpenAITurnStateReuseSettings
@@ -87,6 +88,44 @@ func (s *OpenAIGatewayService) openAITurnStateAccountSchedulableForRequest(ctx c
 		return false, "turn_state_missing"
 	}
 	return true, ""
+}
+
+func (s *OpenAIGatewayService) applyOpenAITurnStateMissAction(ctx context.Context, account *Account, settings *OpenAITurnStateReuseSettings, now time.Time) error {
+	if s == nil || s.accountRepo == nil || account == nil || settings == nil {
+		return nil
+	}
+	switch settings.MissAction {
+	case OpenAITurnStateMissRebindGroup:
+		if settings.MissTargetGroupID != nil {
+			return s.accountRepo.BindGroups(ctx, account.ID, []int64{*settings.MissTargetGroupID})
+		}
+	case OpenAITurnStateMissUnbindGroups:
+		return s.accountRepo.BindGroups(ctx, account.ID, nil)
+	case OpenAITurnStateMissUnschedulable:
+		return s.accountRepo.SetTempUnschedulable(ctx, account.ID, now.Add(24*time.Hour), openAITurnStateMissReason)
+	}
+	return nil
+}
+
+func (s *OpenAIGatewayService) applyOpenAITurnStateRecoveredAction(ctx context.Context, account *Account, settings *OpenAITurnStateReuseSettings) error {
+	if s == nil || s.accountRepo == nil || account == nil || settings == nil {
+		return nil
+	}
+	switch settings.RecoveredAction {
+	case OpenAITurnStateRecoveredRebind:
+		if settings.RecoveredTargetGroupID != nil {
+			return s.accountRepo.BindGroups(ctx, account.ID, []int64{*settings.RecoveredTargetGroupID})
+		}
+	case OpenAITurnStateRecoveredRestore:
+		latest, err := s.accountRepo.GetByID(ctx, account.ID)
+		if err != nil || latest == nil {
+			return err
+		}
+		if latest.TempUnschedulableReason == openAITurnStateMissReason {
+			return s.accountRepo.ClearTempUnschedulable(ctx, account.ID)
+		}
+	}
+	return nil
 }
 
 func (s *OpenAIGatewayService) resolveOpenAITurnStateReuse(ctx context.Context, account *Account, body []byte, endpoint string) (OpenAITurnStateTicket, bool) {

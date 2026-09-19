@@ -993,6 +993,7 @@ func ProvideOpenAIGatewayService(
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 	sharedHealthStore OpenAISharedHealthStore,
 	turnStateStore OpenAITurnStateStore,
+	proxyRepo ProxyRepository,
 ) *OpenAIGatewayService {
 	svc := NewOpenAIGatewayService(
 		accountRepo,
@@ -1022,6 +1023,8 @@ func ProvideOpenAIGatewayService(
 		svc.SetOpenAISharedHealthStore(sharedHealthStore)
 	}
 	svc.SetOpenAITurnStateStore(turnStateStore)
+	svc.SetOpenAITurnStateHarvesterProxyRepository(proxyRepo)
+	svc.StartOpenAITurnStateHarvester()
 	return svc
 }
 
