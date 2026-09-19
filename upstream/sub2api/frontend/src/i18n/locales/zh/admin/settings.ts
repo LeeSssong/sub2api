@@ -13,6 +13,23 @@ export default {
         backup: '数据备份',
         payment: '支付设置',
       },
+      turnStateReuse: {
+        title: 'Codex Turn-State 复用',
+        description: '后台采集账号级 Astra 票据，仅为已开启的 OpenAI 分组请求注入。',
+        proxyUrls: '采集专用代理 URL',
+        proxyUrlsPlaceholder: '每行一个 HTTP 或 SOCKS5 URL',
+        proxyUrlsHint: '显式 URL 优先；留空时可轮换代理池中有效节点。',
+        useProxyPool: '未配置 URL 时使用有效代理池',
+        harvestModel: '采集模型',
+        missAction: '没有有效票据时',
+        recoveredAction: '重新采到票据后',
+        selectGroup: '选择 OpenAI 分组',
+        targetRequired: '重新绑定操作必须选择目标分组。',
+        account: '账号', status: '状态', ticket: '票据长度 / 剩余', lastResult: '最近结果',
+        empty: '当前没有进入作用域的 OpenAI OAuth 账号。',
+        actions: { none: '不变更', rebindGroup: '重新绑定分组', unbindGroups: '解绑全部分组', unschedulable: '标记为不可调度', restoreSchedulable: '恢复可调度' },
+        statuses: { missing: '缺票', fresh: '有效', renew_due: '待续采', paused_auth: '鉴权暂停', paused_429: '限流暂停' },
+      },
       features: {
         channelMonitor: {
           title: '渠道监控',

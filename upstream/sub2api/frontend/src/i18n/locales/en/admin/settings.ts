@@ -13,6 +13,23 @@ export default {
         backup: 'Backup',
         payment: 'Payment',
       },
+      turnStateReuse: {
+        title: 'Codex Turn-State reuse',
+        description: 'Harvest account-scoped Astra tickets in the background and inject them only for enabled OpenAI groups.',
+        proxyUrls: 'Dedicated harvest proxy URLs',
+        proxyUrlsPlaceholder: 'One HTTP or SOCKS5 URL per line',
+        proxyUrlsHint: 'Explicit URLs take priority. When empty, the active unexpired proxy pool can be rotated.',
+        useProxyPool: 'Use active proxy pool when no URLs are configured',
+        harvestModel: 'Harvest model',
+        missAction: 'When no valid ticket exists',
+        recoveredAction: 'After a ticket is recovered',
+        selectGroup: 'Select an OpenAI group',
+        targetRequired: 'Select a target group for the rebind action.',
+        account: 'Account', status: 'Status', ticket: 'Ticket / remaining', lastResult: 'Last result',
+        empty: 'No OpenAI OAuth accounts are currently in scope.',
+        actions: { none: 'No change', rebindGroup: 'Rebind to group', unbindGroups: 'Unbind all groups', unschedulable: 'Mark unschedulable', restoreSchedulable: 'Restore schedulable' },
+        statuses: { missing: 'Missing', fresh: 'Fresh', renew_due: 'Renewal due', paused_auth: 'Paused: authentication', paused_429: 'Paused: rate limit' },
+      },
       features: {
         channelMonitor: {
           title: 'Channel Monitor',

@@ -1538,6 +1538,51 @@ export interface OpenAIFastPolicySettings {
   rules: OpenAIFastPolicyRule[];
 }
 
+export type OpenAITurnStateMissAction = "none" | "rebind_group" | "unbind_groups" | "unschedulable"
+export type OpenAITurnStateRecoveredAction = "none" | "rebind_group" | "restore_schedulable"
+
+export interface OpenAITurnStateReuseSettings {
+  enabled: boolean
+  harvest_model: "gpt-6-astra"
+  harvest_proxy_urls: string[]
+  harvest_use_proxy_pool: boolean
+  miss_action: OpenAITurnStateMissAction
+  miss_target_group_id?: number | null
+  recovered_action: OpenAITurnStateRecoveredAction
+  recovered_target_group_id?: number | null
+  inject_compact: false
+}
+
+export interface OpenAITurnStateAccountStatus {
+  account_id: number
+  account_name: string
+  status: "missing" | "fresh" | "renew_due" | "paused_auth" | "paused_429"
+  encoded_length?: number
+  decoded_length?: number
+  issued_at?: string
+  expires_at?: string
+  remaining_seconds?: number
+  last_http_status?: number
+  last_error?: string
+  last_route?: string
+  turn_state_miss_suspended: boolean
+}
+
+export async function getOpenAITurnStateReuseSettings(): Promise<OpenAITurnStateReuseSettings> {
+  const { data } = await apiClient.get<OpenAITurnStateReuseSettings>("/admin/settings/openai-turn-state-reuse")
+  return data
+}
+
+export async function updateOpenAITurnStateReuseSettings(settings: OpenAITurnStateReuseSettings): Promise<OpenAITurnStateReuseSettings> {
+  const { data } = await apiClient.put<OpenAITurnStateReuseSettings>("/admin/settings/openai-turn-state-reuse", settings)
+  return data
+}
+
+export async function getOpenAITurnStateReuseStatus(): Promise<OpenAITurnStateAccountStatus[]> {
+  const { data } = await apiClient.get<OpenAITurnStateAccountStatus[]>("/admin/settings/openai-turn-state-reuse/status")
+  return data
+}
+
 // ==================== Beta Policy Settings ====================
 
 /**
@@ -1671,6 +1716,9 @@ export const settingsAPI = {
   updateRectifierSettings,
   getBetaPolicySettings,
   updateBetaPolicySettings,
+  getOpenAITurnStateReuseSettings,
+  updateOpenAITurnStateReuseSettings,
+  getOpenAITurnStateReuseStatus,
   getWebSearchEmulationConfig,
   updateWebSearchEmulationConfig,
   testWebSearchEmulation,
