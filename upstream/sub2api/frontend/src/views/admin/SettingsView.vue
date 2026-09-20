@@ -4493,6 +4493,77 @@
           </div>
 
           <!-- Codex Settings -->
+          <div class="card" data-testid="turn-state-reuse-settings">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t("admin.settings.turnStateReuse.title") }}</h2>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t("admin.settings.turnStateReuse.description") }}</p>
+                </div>
+                <Toggle v-model="turnStateReuseForm.enabled" data-testid="turn-state-reuse-enabled" />
+              </div>
+            </div>
+            <div class="space-y-5 p-6">
+              <div class="grid gap-4 lg:grid-cols-2">
+                <div>
+                  <label class="input-label">{{ t("admin.settings.turnStateReuse.proxyUrls") }}</label>
+                  <textarea v-model="turnStateProxyUrlsText" rows="4" class="input font-mono text-xs" :placeholder="t('admin.settings.turnStateReuse.proxyUrlsPlaceholder')" />
+                  <p class="input-hint">{{ t("admin.settings.turnStateReuse.proxyUrlsHint") }}</p>
+                </div>
+                <div class="space-y-4">
+                  <div class="flex items-center justify-between rounded border border-gray-200 p-3 dark:border-dark-600">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ t("admin.settings.turnStateReuse.useProxyPool") }}</span>
+                    <Toggle v-model="turnStateReuseForm.harvest_use_proxy_pool" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t("admin.settings.turnStateReuse.harvestModel") }}</label>
+                    <input :value="turnStateReuseForm.harvest_model" disabled class="input font-mono" />
+                  </div>
+                </div>
+              </div>
+              <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label class="input-label">{{ t("admin.settings.turnStateReuse.missAction") }}</label>
+                  <select v-model="turnStateReuseForm.miss_action" class="input">
+                    <option value="none">{{ t("admin.settings.turnStateReuse.actions.none") }}</option>
+                    <option value="rebind_group">{{ t("admin.settings.turnStateReuse.actions.rebindGroup") }}</option>
+                    <option value="unbind_groups">{{ t("admin.settings.turnStateReuse.actions.unbindGroups") }}</option>
+                    <option value="unschedulable">{{ t("admin.settings.turnStateReuse.actions.unschedulable") }}</option>
+                  </select>
+                  <select v-if="turnStateReuseForm.miss_action === 'rebind_group'" v-model.number="turnStateReuseForm.miss_target_group_id" class="input mt-2">
+                    <option :value="null">{{ t("admin.settings.turnStateReuse.selectGroup") }}</option>
+                    <option v-for="group in openAITurnStateGroups" :key="group.id" :value="group.id">{{ group.name }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="input-label">{{ t("admin.settings.turnStateReuse.recoveredAction") }}</label>
+                  <select v-model="turnStateReuseForm.recovered_action" class="input">
+                    <option value="none">{{ t("admin.settings.turnStateReuse.actions.none") }}</option>
+                    <option value="rebind_group">{{ t("admin.settings.turnStateReuse.actions.rebindGroup") }}</option>
+                    <option value="restore_schedulable">{{ t("admin.settings.turnStateReuse.actions.restoreSchedulable") }}</option>
+                  </select>
+                  <select v-if="turnStateReuseForm.recovered_action === 'rebind_group'" v-model.number="turnStateReuseForm.recovered_target_group_id" class="input mt-2">
+                    <option :value="null">{{ t("admin.settings.turnStateReuse.selectGroup") }}</option>
+                    <option v-for="group in openAITurnStateGroups" :key="group.id" :value="group.id">{{ group.name }}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="flex justify-end">
+                <button type="button" class="btn btn-primary" :disabled="turnStateReuseSaving" @click="saveTurnStateReuseSettings">{{ t("common.save") }}</button>
+              </div>
+              <div class="overflow-x-auto border-t border-gray-200 pt-5 dark:border-dark-600">
+                <table class="min-w-full text-left text-sm">
+                  <thead class="text-xs text-gray-500"><tr><th class="px-2 py-2">{{ t("admin.settings.turnStateReuse.account") }}</th><th class="px-2 py-2">{{ t("admin.settings.turnStateReuse.status") }}</th><th class="px-2 py-2">{{ t("admin.settings.turnStateReuse.ticket") }}</th><th class="px-2 py-2">{{ t("admin.settings.turnStateReuse.lastResult") }}</th></tr></thead>
+                  <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+                    <tr v-for="item in turnStateReuseStatus" :key="item.account_id"><td class="px-2 py-2 font-medium">{{ item.account_name }}</td><td class="px-2 py-2">{{ t(`admin.settings.turnStateReuse.statuses.${item.status}`) }}</td><td class="px-2 py-2 font-mono text-xs">{{ item.encoded_length || '-' }} / {{ item.remaining_seconds ?? '-' }}s</td><td class="px-2 py-2 text-xs text-gray-500">HTTP {{ item.last_http_status || '-' }} · {{ item.last_error || item.last_route || '-' }}</td></tr>
+                    <tr v-if="!turnStateReuseStatus.length"><td colspan="4" class="px-2 py-6 text-center text-gray-500">{{ t("admin.settings.turnStateReuse.empty") }}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Codex Settings -->
           <div class="card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
@@ -8911,6 +8982,8 @@ import type {
   WebSearchEmulationConfig,
   WebSearchProviderConfig,
   WebSearchTestResult,
+  OpenAITurnStateReuseSettings,
+  OpenAITurnStateAccountStatus,
 } from "@/api/admin/settings";
 import type {
   AdminGroup,
@@ -9173,6 +9246,53 @@ const openaiFastPolicyForm = reactive({
 // 标记 openai_fast_policy_settings 是否已成功从后端加载，
 // 避免后端 GET 出错或字段缺失时，保存把默认规则覆盖成空数组。
 const openaiFastPolicyLoaded = ref(false);
+const turnStateReuseSaving = ref(false);
+const turnStateProxyUrlsText = ref("");
+const turnStateReuseStatus = ref<OpenAITurnStateAccountStatus[]>([]);
+const turnStateReuseForm = reactive<OpenAITurnStateReuseSettings>({
+  enabled: false,
+  harvest_model: "gpt-6-astra",
+  harvest_proxy_urls: [],
+  harvest_use_proxy_pool: true,
+  miss_action: "none",
+  miss_target_group_id: null,
+  recovered_action: "none",
+  recovered_target_group_id: null,
+  inject_compact: false,
+});
+const openAITurnStateGroups = computed(() => schedulerGroups.value.filter((group) => group.platform === "openai"));
+
+async function loadTurnStateReuseSettings() {
+  try {
+    Object.assign(turnStateReuseForm, await adminAPI.settings.getOpenAITurnStateReuseSettings());
+    turnStateProxyUrlsText.value = turnStateReuseForm.harvest_proxy_urls.join("\n");
+    turnStateReuseStatus.value = await adminAPI.settings.getOpenAITurnStateReuseStatus();
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error));
+  }
+}
+
+async function saveTurnStateReuseSettings() {
+  if (turnStateReuseForm.miss_action === "rebind_group" && !turnStateReuseForm.miss_target_group_id) {
+    appStore.showError(t("admin.settings.turnStateReuse.targetRequired"));
+    return;
+  }
+  if (turnStateReuseForm.recovered_action === "rebind_group" && !turnStateReuseForm.recovered_target_group_id) {
+    appStore.showError(t("admin.settings.turnStateReuse.targetRequired"));
+    return;
+  }
+  turnStateReuseSaving.value = true;
+  try {
+    turnStateReuseForm.harvest_proxy_urls = turnStateProxyUrlsText.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    Object.assign(turnStateReuseForm, await adminAPI.settings.updateOpenAITurnStateReuseSettings({ ...turnStateReuseForm }));
+    appStore.showSuccess(t("common.saved"));
+    await loadTurnStateReuseSettings();
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error));
+  } finally {
+    turnStateReuseSaving.value = false;
+  }
+}
 
 const tablePageSizeMin = 5;
 const tablePageSizeMax = 1000;
@@ -12760,6 +12880,7 @@ onMounted(() => {
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();
+  loadTurnStateReuseSettings();
   loadProviders();
 });
 

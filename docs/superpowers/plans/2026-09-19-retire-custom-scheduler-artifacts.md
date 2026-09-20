@@ -23,13 +23,13 @@
 ### Task 1: Destructive Migration Contract
 
 **Files:**
-- Create: `upstream/sub2api/backend/migrations/239_remove_custom_scheduler_artifacts.sql`
+- Create: `upstream/sub2api/backend/migrations/240_remove_custom_scheduler_artifacts.sql`
 - Create: `upstream/sub2api/backend/migrations/remove_custom_scheduler_artifacts_migration_test.go`
 
 **Interfaces:**
 - Produces an embedded migration that deletes exactly seven settings and drops `openai_scheduler_logs` with `IF EXISTS`.
 
-- [ ] Write a migration test that reads `239_remove_custom_scheduler_artifacts.sql`, asserts all seven retired keys and `DROP TABLE IF EXISTS openai_scheduler_logs`, and asserts native Top-K/weight/sticky keys are absent from the delete statement.
+- [ ] Write a migration test that reads `240_remove_custom_scheduler_artifacts.sql`, asserts all seven retired keys and `DROP TABLE IF EXISTS openai_scheduler_logs`, and asserts native Top-K/weight/sticky keys are absent from the delete statement.
 - [ ] Run `go test ./migrations -run TestRemoveCustomSchedulerArtifactsMigration -count=1` and verify it fails because the migration is missing.
 - [ ] Add the idempotent SQL migration using `DELETE FROM settings WHERE key IN (...)` and `DROP TABLE IF EXISTS`.
 - [ ] Re-run the migration test and verify it passes.

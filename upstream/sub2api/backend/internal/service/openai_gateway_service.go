@@ -463,35 +463,46 @@ var ErrNoAvailableCompactAccounts = errors.New("no available accounts support /r
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	accountRepo           AccountRepository
-	usageLogRepo          UsageLogRepository
-	usageBillingRepo      UsageBillingRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	cache                 GatewayCache
-	cfg                   *config.Config
-	codexDetector         CodexClientRestrictionDetector
-	schedulerSnapshot     *SchedulerSnapshotService
-	concurrencyService    *ConcurrencyService
-	billingService        *BillingService
-	rateLimitService      *RateLimitService
-	billingCacheService   *BillingCacheService
-	userGroupRateResolver *userGroupRateResolver
-	httpUpstream          HTTPUpstream
-	pluginManager         *PluginManager
-	deferredService       *DeferredService
-	openAITokenProvider   *OpenAITokenProvider
-	grokTokenProvider     *GrokTokenProvider
-	toolCorrector         *CodexToolCorrector
-	openaiWSResolver      OpenAIWSProtocolResolver
-	resolver              *ModelPricingResolver
-	channelService        *ChannelService
-	balanceNotifyService  *BalanceNotifyService
-	settingService        *SettingService
-	userPlatformQuotaRepo UserPlatformQuotaRepository
-	costEvidenceRegistrar UsageCostEvidenceRegisterer
-	liveAttestation       liveattestation.Provider
-	liveAttestationCipher SecretEncryptor
+	accountRepo                   AccountRepository
+	usageLogRepo                  UsageLogRepository
+	usageBillingRepo              UsageBillingRepository
+	userRepo                      UserRepository
+	userSubRepo                   UserSubscriptionRepository
+	cache                         GatewayCache
+	cfg                           *config.Config
+	codexDetector                 CodexClientRestrictionDetector
+	schedulerSnapshot             *SchedulerSnapshotService
+	concurrencyService            *ConcurrencyService
+	billingService                *BillingService
+	rateLimitService              *RateLimitService
+	billingCacheService           *BillingCacheService
+	userGroupRateResolver         *userGroupRateResolver
+	httpUpstream                  HTTPUpstream
+	pluginManager                 *PluginManager
+	deferredService               *DeferredService
+	openAITokenProvider           *OpenAITokenProvider
+	grokTokenProvider             *GrokTokenProvider
+	toolCorrector                 *CodexToolCorrector
+	openaiWSResolver              OpenAIWSProtocolResolver
+	resolver                      *ModelPricingResolver
+	channelService                *ChannelService
+	balanceNotifyService          *BalanceNotifyService
+	settingService                *SettingService
+	openAITurnStateStore          OpenAITurnStateStore
+	openAITurnStateProxyRepo      ProxyRepository
+	openAITurnStateMu             sync.RWMutex
+	openAITurnStateCached         *openAITurnStateSettingsSnapshot
+	openAITurnStateWorkerCancel   context.CancelFunc
+	openAITurnStateWorkerWG       sync.WaitGroup
+	openAITurnStateWorkerOnce     sync.Once
+	openAITurnStateWorkerStopOnce sync.Once
+	openAITurnStateWorkerState    map[string]*openAITurnStateWorkerAccountState
+	openAITurnStateWorkerOwner    string
+	openAITurnStateRouteIndex     atomic.Uint64
+	userPlatformQuotaRepo         UserPlatformQuotaRepository
+	costEvidenceRegistrar         UsageCostEvidenceRegisterer
+	liveAttestation               liveattestation.Provider
+	liveAttestationCipher         SecretEncryptor
 
 	openaiWSPoolOnce               sync.Once
 	openaiWSStateStoreOnce         sync.Once

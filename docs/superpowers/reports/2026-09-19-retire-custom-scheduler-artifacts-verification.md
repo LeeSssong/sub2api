@@ -8,7 +8,7 @@ Date: 2026-09-19
 - Base: `origin/main@682f20c88ec9e64b75c1076b2564d85b2387b8a6`
 - Feature commit: `68003cd5947a0f04b715a69c438d474213b49f7d`
 - Feature tree: `889854b99dc1ac6f84c84644fe02e3fe4f66d322`
-- Migration: `239_remove_custom_scheduler_artifacts.sql`
+- Migration: `240_remove_custom_scheduler_artifacts.sql`
 - Migration SHA-256: `55ccbef953da0bb197de9ab1d5bcb823c24678f0974518a45e4381c105b6558b`
 
 ## Delivered Behavior
@@ -38,12 +38,12 @@ An exploratory broad package test run also reached unrelated pre-existing failur
 
 ## Release Mode
 
-This is not eligible for lightweight or direct deployment. Migration 239 permanently deletes settings rows and drops a table, so release must use the database maintenance path:
+This is not eligible for lightweight or direct deployment. Migration 240 permanently deletes settings rows and drops a table, so release must use the database maintenance path:
 
 1. Prepare and verify the exact committed artifact from clean `main` after integration.
 2. Stop business writes and relevant workers.
 3. Verify a restorable database backup.
-4. Apply migration 239 and start one new application version.
+4. Apply migration 240 and start one new application version.
 5. Verify health, settings save behavior, native scheduler controls, retired endpoint 404s, and absence of the retired admin page.
 6. Restore traffic only after verification succeeds.
 

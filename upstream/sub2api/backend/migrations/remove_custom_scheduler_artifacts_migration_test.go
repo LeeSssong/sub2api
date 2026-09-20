@@ -9,7 +9,7 @@ import (
 )
 
 func TestRemoveCustomSchedulerArtifactsMigration(t *testing.T) {
-	content, err := FS.ReadFile("239_remove_custom_scheduler_artifacts.sql")
+	content, err := FS.ReadFile("240_remove_custom_scheduler_artifacts.sql")
 	require.NoError(t, err)
 
 	sql := strings.Join(strings.Fields(string(content)), " ")

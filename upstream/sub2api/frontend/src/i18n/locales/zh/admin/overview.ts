@@ -1083,6 +1083,10 @@ export default {
           '留空使用默认价 $0.01/次（官方定价 $10/1000 次）；填 0 表示免费。实际扣费会叠加分组费率倍数。',
         finalPricePreview: '应用当前倍率后的单次价格：{price}'
       },
+      turnStateReuse: {
+        title: '启用 Turn-State 票据注入',
+        description: '全局功能开启后，本组内的 OpenAI OAuth 账号会参与 Astra 票据采集与出站注入。'
+      },
       peakRate: {
         enable: '启用高峰倍率',
         peakStart: '高峰开始',

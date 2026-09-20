@@ -1086,6 +1086,10 @@ export default {
           'Leave empty to use the default $0.01 per call (official pricing: $10 per 1,000 calls); 0 means free. The group rate multiplier is applied on top.',
         finalPricePreview: 'Per-call price after current multiplier: {price}'
       },
+      turnStateReuse: {
+        title: 'Enable Turn-State ticket injection',
+        description: 'OpenAI OAuth accounts in this group become eligible for Astra ticket harvesting and outbound injection when the global feature is enabled.'
+      },
       peakRate: {
         enable: 'Enable peak rate multiplier',
         peakStart: 'Peak start',

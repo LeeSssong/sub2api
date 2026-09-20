@@ -165,6 +165,14 @@ to   fe924d3c21c3dc4a5f41e26ba444c08c074cfed04de52042e37f57a2e9a811bb
 file 236_remove_legacy_admin_balance_history.sql (SHA-256 1426278b991ac1c6f3a96e36ca259716ed766bc0e41a2866d39aa07779114943) — deletes only legacy `redeem_codes` rows whose type is `admin_balance`; quota accounting facts, wallets, payment orders, and concurrency history remain unchanged.
 ```
 
+Current turn-state and retired scheduler cleanup transition:
+
+```text
+from fca9ca2b278404dc6d2dd08e4486ac1c5ac57440b4e6fa20f2de9dfee2c86330
+to   dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54
+files 239_group_turn_state_reuse.sql and 240_remove_custom_scheduler_artifacts.sql — adds the group-scoped turn-state injection flag, deletes seven retired custom scheduler settings, and drops openai_scheduler_logs. The cleanup is destructive; create and verify a restorable database backup before stopping writes. Recovery requires restoring that backup together with the previous application artifact.
+```
+
 Invoke the same controller with the explicit maintenance flag:
 
 ```bash

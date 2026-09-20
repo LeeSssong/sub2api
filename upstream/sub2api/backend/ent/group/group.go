@@ -42,6 +42,8 @@ const (
 	FieldStatus = "status"
 	// FieldActiveProbeEnabled holds the string denoting the active_probe_enabled field in the database.
 	FieldActiveProbeEnabled = "active_probe_enabled"
+	// FieldTurnStateInjectEnabled holds the string denoting the turn_state_inject_enabled field in the database.
+	FieldTurnStateInjectEnabled = "turn_state_inject_enabled"
 	// FieldDuplicateOperationID holds the string denoting the duplicate_operation_id field in the database.
 	FieldDuplicateOperationID = "duplicate_operation_id"
 	// FieldPlatform holds the string denoting the platform field in the database.
@@ -238,6 +240,7 @@ var Columns = []string{
 	FieldIsExclusive,
 	FieldStatus,
 	FieldActiveProbeEnabled,
+	FieldTurnStateInjectEnabled,
 	FieldDuplicateOperationID,
 	FieldPlatform,
 	FieldSubscriptionType,
@@ -351,6 +354,8 @@ var (
 	StatusValidator func(string) error
 	// DefaultActiveProbeEnabled holds the default value on creation for the "active_probe_enabled" field.
 	DefaultActiveProbeEnabled bool
+	// DefaultTurnStateInjectEnabled holds the default value on creation for the "turn_state_inject_enabled" field.
+	DefaultTurnStateInjectEnabled bool
 	// DuplicateOperationIDValidator is a validator for the "duplicate_operation_id" field. It is called by the builders before save.
 	DuplicateOperationIDValidator func(string) error
 	// DefaultPlatform holds the default value on creation for the "platform" field.
@@ -512,6 +517,11 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByActiveProbeEnabled orders the results by the active_probe_enabled field.
 func ByActiveProbeEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldActiveProbeEnabled, opts...).ToFunc()
+}
+
+// ByTurnStateInjectEnabled orders the results by the turn_state_inject_enabled field.
+func ByTurnStateInjectEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTurnStateInjectEnabled, opts...).ToFunc()
 }
 
 // ByDuplicateOperationID orders the results by the duplicate_operation_id field.

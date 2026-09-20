@@ -1462,6 +1462,16 @@
           </div>
         </div>
 
+        <div v-if="createForm.platform === 'openai'" class="border-t border-gray-200 pt-4 mt-4 dark:border-dark-400">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.turnStateReuse.title") }}</h4>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.turnStateReuse.description") }}</p>
+            </div>
+            <Toggle v-model="createForm.turn_state_inject_enabled" data-testid="create-turn-state-inject-toggle" />
+          </div>
+        </div>
+
         <!-- Codex 网页搜索按次计费（仅 openai 平台） -->
         <div
           v-if="createForm.platform === 'openai'"
@@ -3121,6 +3131,16 @@
             <p class="input-hint">
               {{ t("admin.groups.claudeCode.fallbackHint") }}
             </p>
+          </div>
+        </div>
+
+        <div v-if="editForm.platform === 'openai'" class="border-t border-gray-200 pt-4 mt-4 dark:border-dark-400">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.turnStateReuse.title") }}</h4>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.turnStateReuse.description") }}</p>
+            </div>
+            <Toggle v-model="editForm.turn_state_inject_enabled" data-testid="edit-turn-state-inject-toggle" />
           </div>
         </div>
 
@@ -5034,6 +5054,7 @@ const createForm = reactive({
   // 账号过滤控制（OpenAI/Antigravity 平台）
   require_oauth_only: false,
   require_privacy_set: false,
+  turn_state_inject_enabled: false,
   // 模型路由开关
   model_routing_enabled: false,
   // 支持的模型系列（仅 antigravity 平台）
@@ -5401,6 +5422,7 @@ const editForm = reactive({
   // 账号过滤控制（OpenAI/Antigravity 平台）
   require_oauth_only: false,
   require_privacy_set: false,
+  turn_state_inject_enabled: false,
   // 模型路由开关
   model_routing_enabled: false,
   // 支持的模型系列（仅 antigravity 平台）
@@ -6089,6 +6111,7 @@ const handleEdit = async (group: AdminGroup) => {
     group.long_context_pricing_enabled ?? true;
   editForm.force_openai_fast = group.force_openai_fast ?? false;
   editForm.free_openai_fast = group.free_openai_fast ?? false;
+  editForm.turn_state_inject_enabled = group.turn_state_inject_enabled ?? false;
   editForm.model_pricing = groupPricingFromAPI(group.model_pricing);
   editForm.allow_image_generation = group.allow_image_generation ?? false;
   editForm.allow_batch_image_generation =

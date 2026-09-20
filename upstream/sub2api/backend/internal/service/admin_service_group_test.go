@@ -294,6 +294,39 @@ func TestAdminServiceSimpleModeListUsesRepositoryFilteredTotal(t *testing.T) {
 	require.EqualValues(t, 11, total)
 }
 
+func TestAdminServiceCreateGroupScopesTurnStateReuseToOpenAI(t *testing.T) {
+	for _, tc := range []struct {
+		platform string
+		want     bool
+	}{
+		{platform: PlatformOpenAI, want: true},
+		{platform: PlatformAnthropic, want: false},
+	} {
+		t.Run(tc.platform, func(t *testing.T) {
+			repo := &groupRepoStubForAdmin{}
+			svc := &adminServiceImpl{groupRepo: repo}
+			created, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+				Name:                   "turn-state-" + tc.platform,
+				Platform:               tc.platform,
+				RateMultiplier:         1,
+				TurnStateInjectEnabled: true,
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.want, created.TurnStateInjectEnabled)
+		})
+	}
+}
+
+func TestAdminServiceUpdateGroupRejectsTurnStateReuseOutsideOpenAI(t *testing.T) {
+	enabled := true
+	repo := &groupRepoStubForAdmin{getByID: &Group{ID: 1, Name: "anthropic", Platform: PlatformAnthropic, Status: StatusActive, RateMultiplier: 1}}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	_, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{TurnStateInjectEnabled: &enabled})
+	require.ErrorContains(t, err, "only supported for openai groups")
+	require.Nil(t, repo.updated)
+}
+
 func (s *groupRepoStubForAdmin) ListActive(_ context.Context) ([]Group, error) {
 	panic("unexpected ListActive call")
 }

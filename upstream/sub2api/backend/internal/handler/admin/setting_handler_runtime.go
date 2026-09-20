@@ -10,6 +10,46 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func (h *SettingHandler) GetOpenAITurnStateReuseSettings(c *gin.Context) {
+	settings, err := h.settingService.GetOpenAITurnStateReuseSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, settings)
+}
+
+func (h *SettingHandler) UpdateOpenAITurnStateReuseSettings(c *gin.Context) {
+	var req service.OpenAITurnStateReuseSettings
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SetOpenAITurnStateReuseSettings(c.Request.Context(), &req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	settings, err := h.settingService.GetOpenAITurnStateReuseSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, settings)
+}
+
+func (h *SettingHandler) GetOpenAITurnStateReuseStatus(c *gin.Context) {
+	if h.openAIGatewayService == nil {
+		response.Success(c, []service.OpenAITurnStateAccountStatus{})
+		return
+	}
+	status, err := h.openAIGatewayService.OpenAITurnStateStatus(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, status)
+}
+
 // GetAdminAPIKey 获取管理员 API Key 状态
 // GET /api/v1/admin/settings/admin-api-key
 func (h *SettingHandler) GetAdminAPIKey(c *gin.Context) {

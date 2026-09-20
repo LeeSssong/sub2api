@@ -466,6 +466,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 		}
 		normalized = policyApplied
+		normalized = s.applyOpenAITurnStateReuseWebsocket(ctx, account, normalized)
 		ingressSessionOriginalModel = originalModel
 
 		return openAIWSClientPayload{

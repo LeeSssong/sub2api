@@ -620,6 +620,7 @@ export interface Group {
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
   require_oauth_only: boolean
   require_privacy_set: boolean
+	turn_state_inject_enabled?: boolean
   created_at: string
   updated_at: string
 }
@@ -850,6 +851,7 @@ export interface CreateGroupRequest {
   reasoning_effort_mappings?: ReasoningEffortMapping[]
   require_oauth_only?: boolean
   require_privacy_set?: boolean
+	turn_state_inject_enabled?: boolean
   // 从指定分组复制账号
   copy_accounts_from_group_ids?: number[]
 }
@@ -917,6 +919,7 @@ export interface UpdateGroupRequest {
   reasoning_effort_mappings?: ReasoningEffortMapping[]
   require_oauth_only?: boolean
   require_privacy_set?: boolean
+	turn_state_inject_enabled?: boolean
   copy_accounts_from_group_ids?: number[]
 }
 

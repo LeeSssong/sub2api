@@ -24603,6 +24603,7 @@ type GroupMutation struct {
 	is_exclusive                            *bool
 	status                                  *string
 	active_probe_enabled                    *bool
+	turn_state_inject_enabled               *bool
 	duplicate_operation_id                  *string
 	platform                                *string
 	subscription_type                       *string
@@ -25339,6 +25340,42 @@ func (m *GroupMutation) OldActiveProbeEnabled(ctx context.Context) (v bool, err 
 // ResetActiveProbeEnabled resets all changes to the "active_probe_enabled" field.
 func (m *GroupMutation) ResetActiveProbeEnabled() {
 	m.active_probe_enabled = nil
+}
+
+// SetTurnStateInjectEnabled sets the "turn_state_inject_enabled" field.
+func (m *GroupMutation) SetTurnStateInjectEnabled(b bool) {
+	m.turn_state_inject_enabled = &b
+}
+
+// TurnStateInjectEnabled returns the value of the "turn_state_inject_enabled" field in the mutation.
+func (m *GroupMutation) TurnStateInjectEnabled() (r bool, exists bool) {
+	v := m.turn_state_inject_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTurnStateInjectEnabled returns the old "turn_state_inject_enabled" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldTurnStateInjectEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTurnStateInjectEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTurnStateInjectEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTurnStateInjectEnabled: %w", err)
+	}
+	return oldValue.TurnStateInjectEnabled, nil
+}
+
+// ResetTurnStateInjectEnabled resets all changes to the "turn_state_inject_enabled" field.
+func (m *GroupMutation) ResetTurnStateInjectEnabled() {
+	m.turn_state_inject_enabled = nil
 }
 
 // SetDuplicateOperationID sets the "duplicate_operation_id" field.
@@ -28465,7 +28502,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 67)
+	fields := make([]string, 0, 68)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -28504,6 +28541,9 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.active_probe_enabled != nil {
 		fields = append(fields, group.FieldActiveProbeEnabled)
+	}
+	if m.turn_state_inject_enabled != nil {
+		fields = append(fields, group.FieldTurnStateInjectEnabled)
 	}
 	if m.duplicate_operation_id != nil {
 		fields = append(fields, group.FieldDuplicateOperationID)
@@ -28701,6 +28741,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.Status()
 	case group.FieldActiveProbeEnabled:
 		return m.ActiveProbeEnabled()
+	case group.FieldTurnStateInjectEnabled:
+		return m.TurnStateInjectEnabled()
 	case group.FieldDuplicateOperationID:
 		return m.DuplicateOperationID()
 	case group.FieldPlatform:
@@ -28844,6 +28886,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldStatus(ctx)
 	case group.FieldActiveProbeEnabled:
 		return m.OldActiveProbeEnabled(ctx)
+	case group.FieldTurnStateInjectEnabled:
+		return m.OldTurnStateInjectEnabled(ctx)
 	case group.FieldDuplicateOperationID:
 		return m.OldDuplicateOperationID(ctx)
 	case group.FieldPlatform:
@@ -29051,6 +29095,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetActiveProbeEnabled(v)
+		return nil
+	case group.FieldTurnStateInjectEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTurnStateInjectEnabled(v)
 		return nil
 	case group.FieldDuplicateOperationID:
 		v, ok := value.(string)
@@ -29979,6 +30030,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldActiveProbeEnabled:
 		m.ResetActiveProbeEnabled()
+		return nil
+	case group.FieldTurnStateInjectEnabled:
+		m.ResetTurnStateInjectEnabled()
 		return nil
 	case group.FieldDuplicateOperationID:
 		m.ResetDuplicateOperationID()
