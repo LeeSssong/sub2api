@@ -528,14 +528,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/monitor',
-    name: 'ChannelStatus',
-    component: () => import('@/features/monitor-v2/MonitorV2RouteView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Channel Status',
-      titleKey: 'nav.channelStatus'
-    }
+    redirect: '/custom/performance-monitor',
   },
   {
     path: '/admin/subscriptions',

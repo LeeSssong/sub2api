@@ -9,6 +9,7 @@ describe('performance monitor navigation contract', () => {
     expect(source).toContain("id: 'performance-monitor'")
     expect(source).toContain('PerformanceMonitorIcon')
     expect(source).toContain("item.id === 'performance-monitor' ? PerformanceMonitorIcon : null")
+    expect(source).not.toContain("path: '/monitor', label: t('nav.channelStatus')")
   })
 
   it('does not expose the retired scheduler log page', () => {
