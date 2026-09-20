@@ -1839,8 +1839,40 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
     await openGatewayTab(wrapper);
 
-    expect(wrapper.find('[data-testid="openai-advanced-scheduler-toggle"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="openai-advanced-scheduler-toggle"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="openai-advanced-scheduler-weights"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="scheduler-group-policy-panel"]').exists()).toBe(false);
+  });
+
+  it("shows native Top-K and priority weight fields after enabling the experimental scheduler", async () => {
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openGatewayTab(wrapper);
+
+    await wrapper.get('[data-testid="openai-advanced-scheduler-toggle"]').setValue(true);
+    const weights = wrapper.get('[data-testid="openai-advanced-scheduler-weights"]');
+    expect(weights.text()).toContain("调度权值覆盖");
+    expect(weights.text()).toContain("候选数");
+    expect(weights.text()).toContain("优先级");
+    expect(wrapper.find('[data-testid="scheduler-group-policy-panel"]').exists()).toBe(false);
+
+    await wrapper
+      .get('[data-testid="openai-scheduler-field-openai_advanced_scheduler_lb_top_k"]')
+      .setValue("1");
+    await wrapper
+      .get('[data-testid="openai-scheduler-field-openai_advanced_scheduler_weight_priority"]')
+      .setValue("10");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        openai_advanced_scheduler_enabled: true,
+        openai_advanced_scheduler_lb_top_k: "1",
+        openai_advanced_scheduler_weight_priority: "10",
+      }),
+    );
   });
 
   it("passes translated upload and remove labels to the payment help image uploader", async () => {

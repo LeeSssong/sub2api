@@ -5088,7 +5088,6 @@
                 普通 OpenAI 文本已恢复原生调度，自定义质量评分与调度事件采集已停用。历史记录仍可查询；旧分组策略保留，可能仍用于 WebSocket、图片等专用路径，当前不开放编辑。
               </p>
 
-              <template v-if="false">
               <div
                 v-if="!form.openai_advanced_scheduler_enabled"
                 class="flex items-center justify-between border-t border-gray-100 pt-5 dark:border-dark-700"
@@ -5233,7 +5232,8 @@
               </div>
 
               <div
-                v-if="false"
+                v-if="form.openai_advanced_scheduler_enabled"
+                data-testid="openai-advanced-scheduler-weights"
                 class="border-t border-gray-100 pt-5 dark:border-dark-700"
               >
                 <div>
@@ -5261,6 +5261,7 @@
                     <input
                       v-model="form[field.key]"
                       class="input mt-1"
+                      :data-testid="`openai-scheduler-field-${field.key}`"
                       inputmode="decimal"
                       :placeholder="field.placeholder"
                       type="text"
@@ -5271,8 +5272,6 @@
                   </label>
                 </div>
               </div>
-
-              </template>
             </div>
           </div>
 
