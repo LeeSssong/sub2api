@@ -75,7 +75,7 @@ func TestListUserErrorRequests_ForcesScopeAndRedacts(t *testing.T) {
 	if len(out.Items) != 1 || out.Items[0].Category != "rate_limit" || out.Items[0].Model != "rm" {
 		t.Fatalf("bad item: %+v", out.Items)
 	}
-	if out.Items[0].ErrorClass != "local_limit" || out.Items[0].Message != "请求过于频繁" {
+	if out.Items[0].ErrorClass != "local_limit" || out.Items[0].Message != NativeUserCopyRate {
 		t.Fatalf("unsafe or incorrect user explanation: %+v", out.Items[0])
 	}
 }
@@ -129,7 +129,7 @@ func TestGetUserErrorRequestDetail_OwnershipEnforced(t *testing.T) {
 	if got2.ID != 42 {
 		t.Errorf("want ID=42, got %d", got2.ID)
 	}
-	if got2.ErrorClass != "upstream_failed" || got2.Message != "上游请求失败" {
+	if got2.ErrorClass != "upstream_failed" || got2.Message != NativeUserCopyAbnormal {
 		t.Errorf("want safe upstream failure explanation, got %+v", got2)
 	}
 }

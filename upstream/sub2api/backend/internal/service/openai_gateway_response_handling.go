@@ -340,7 +340,8 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			return
 		}
 		errorEventSent = true
-		payload := `{"type":"error","sequence_number":0,"error":{"type":"upstream_error","message":` + strconv.Quote(reason) + `,"code":` + strconv.Quote(reason) + `}}`
+		projected := ProjectNativeUserErrorFromGin(c, http.StatusBadGateway, "upstream_error", reason, reason, true, "network", "provider")
+		payload := `{"type":"error","sequence_number":0,"error":{"type":"upstream_error","message":` + strconv.Quote(projected.Message) + `,"code":` + strconv.Quote(reason) + `}}`
 		if err := flushBuffered(); err != nil {
 			clientDisconnected = true
 			return
@@ -620,13 +621,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 							// antigravity 先例），否则透传命中的 failed 在监控中不可见。
 							s.recordOpenAIStreamUpstreamError(c, account, false, upstreamRequestID, "http_error", dataBytes, failedMessage)
 							MarkResponseCommitted(c)
-							c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-							c.JSON(status, gin.H{
-								"error": gin.H{
-									"type":    errType,
-									"message": errMsg,
-								},
-							})
+							writeProjectedOpenAIUserError(c, status, errType, errMsg)
 							streamEarlyErr = fmt.Errorf("upstream response failed: passthrough rule matched message=%s", errMsg)
 							return
 						}
@@ -685,6 +680,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 				eventType = effectiveOpenAISSEEventType(dataBytes, eventType)
 			}
 			if sanitizedData, sanitized := sanitizeOpenAIResponseFailedEventForClient(
+				c,
 				dataBytes,
 				eventType,
 				openAIStreamClientOutputStarted(c, clientOutputStarted),
@@ -1744,7 +1740,7 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 		if failoverErr := s.nonStreamingTerminalFailureFailover(c, resp, account, false, terminalType, terminalPayload, msg, mappedModel); failoverErr != nil {
 			return nil, failoverErr
 		}
-		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, msg)
+		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, terminalPayload, msg)
 	}
 	finalResponse, ok := extractCodexFinalResponse(bodyText)
 	actualResponseModel := ""
@@ -1793,7 +1789,7 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 			if msg == "" {
 				msg = "Upstream compact response failed"
 			}
-			return nil, s.writeOpenAINonStreamingProtocolError(resp, c, msg)
+			return nil, s.writeOpenAINonStreamingProtocolError(resp, c, terminalPayload, msg)
 		}
 		usage = s.parseSSEUsageFromBody(bodyText)
 		forEachOpenAISSEDataPayload(bodyText, func(data []byte) {
@@ -1861,6 +1857,19 @@ func extractOpenAISSEErrorMessage(payload []byte) string {
 	return sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(payload)))
 }
 
+func extractOpenAISSEErrorType(payload []byte) string {
+	for _, path := range []string{"response.error.type", "error.type"} {
+		if errType := strings.TrimSpace(gjson.GetBytes(payload, path).String()); errType != "" {
+			return errType
+		}
+	}
+	return ""
+}
+
+func extractOpenAISSEErrorCode(payload []byte) string {
+	return openAIStreamFailedEventErrorCode(payload)
+}
+
 func buildOpenAIResponseFailedSSE(responseID, model string, source []byte, fallbackMessage string) string {
 	responseID = strings.TrimSpace(responseID)
 	if responseID == "" {
@@ -1909,7 +1918,7 @@ func buildOpenAIResponseFailedSSE(responseID, model string, source []byte, fallb
 	return "event: response.failed\ndata: " + string(payload) + "\n\n"
 }
 
-func sanitizeOpenAIResponseFailedEventForClient(payload []byte, eventType string, clientOutputStarted bool, account *Account) ([]byte, bool) {
+func sanitizeOpenAIResponseFailedEventForClient(c *gin.Context, payload []byte, eventType string, clientOutputStarted bool, account *Account) ([]byte, bool) {
 	eventType = strings.TrimSpace(eventType)
 	isFailedEvent := eventType == "response.failed"
 	if (!isFailedEvent && eventType != "error") || len(payload) == 0 || !gjson.ValidBytes(payload) {
@@ -1920,9 +1929,7 @@ func sanitizeOpenAIResponseFailedEventForClient(payload []byte, eventType string
 	if isFailedEvent && gjson.GetBytes(updated, "response.error").Exists() {
 		errorPath = "response.error"
 	}
-	// Client errors use a small stable whitelist.  The upstream message is
-	// retained only in the admin diagnostic context and is never serialized
-	// into the Responses stream.
+	// Keep Sub type/code identity. The upstream English body is never shown to users.
 	clientCode := strings.TrimSpace(gjson.GetBytes(payload, errorPath+".code").String())
 	clientMessage := sanitizeUpstreamErrorMessage(strings.TrimSpace(gjson.GetBytes(payload, errorPath+".message").String()))
 	nativePassthrough := openAINativeErrorPassthroughAllowed(account, payload, errorPath)
@@ -1947,6 +1954,7 @@ func sanitizeOpenAIResponseFailedEventForClient(payload []byte, eventType string
 		}
 	}
 	if !isFailedEvent {
+		updated = projectOpenAIClientErrorMessage(c, updated, errorPath)
 		return updated, !bytes.Equal(updated, payload)
 	}
 	if clientOutputStarted && isOpenAIContextWindowError(extractOpenAISSEErrorMessage(payload), payload) {
@@ -1964,6 +1972,7 @@ func sanitizeOpenAIResponseFailedEventForClient(payload []byte, eventType string
 		}
 	}
 	if !gjson.GetBytes(updated, "response").Exists() {
+		updated = projectOpenAIClientErrorMessage(c, updated, errorPath)
 		return updated, !bytes.Equal(updated, payload)
 	}
 	for _, path := range []string{
@@ -1986,7 +1995,23 @@ func sanitizeOpenAIResponseFailedEventForClient(payload []byte, eventType string
 		}
 		updated = next
 	}
+	updated = projectOpenAIClientErrorMessage(c, updated, errorPath)
 	return updated, !bytes.Equal(updated, payload)
+}
+
+func projectOpenAIClientErrorMessage(c *gin.Context, payload []byte, errorPath string) []byte {
+	if len(payload) == 0 || !gjson.ValidBytes(payload) {
+		return payload
+	}
+	errType := strings.TrimSpace(gjson.GetBytes(payload, errorPath+".type").String())
+	code := strings.TrimSpace(gjson.GetBytes(payload, errorPath+".code").String())
+	message := strings.TrimSpace(gjson.GetBytes(payload, errorPath+".message").String())
+	projected := projectSelectedAccountUserError(c, 0, errType, code, message).Message
+	next, err := sjson.SetBytes(payload, errorPath+".message", projected)
+	if err != nil {
+		return payload
+	}
+	return next
 }
 
 // openAINativeErrorPassthroughAllowed is deliberately code-based and account-scoped.
@@ -2007,24 +2032,33 @@ func openAINativeErrorPassthroughAllowed(account *Account, payload []byte, error
 	}
 }
 
-func (s *OpenAIGatewayService) writeOpenAINonStreamingProtocolError(resp *http.Response, c *gin.Context, message string) error {
+func (s *OpenAIGatewayService) writeOpenAINonStreamingProtocolError(resp *http.Response, c *gin.Context, payload []byte, message string) error {
 	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
 	if message == "" {
 		message = "Upstream returned an invalid non-streaming response"
+	}
+	errType := extractOpenAISSEErrorType(payload)
+	code := extractOpenAISSEErrorCode(payload)
+	if errType == "" {
+		errType = "upstream_error"
 	}
 	setOpsUpstreamError(c, http.StatusBadGateway, message, "")
 	// body-signal compact 心跳可能已把响应头提交为 200，此时只能以
 	// response.failed 终止事件回传错误，不能再写 JSON+状态码。
 	if openAICompactClientWantsStream(c) && StopOpenAICompactSSEKeepaliveCommitted(c) {
-		writeOpenAICompactSSEFailureMessage(c, http.StatusBadGateway, "upstream_error", message)
+		writeOpenAICompactSSEFailureMessageIdentified(c, http.StatusBadGateway, errType, code, message)
 		return fmt.Errorf("non-streaming openai protocol error: %s", message)
+	}
+	projected := projectSelectedAccountUserError(c, 0, errType, code, message)
+	if projected.Type != "" {
+		errType = projected.Type
 	}
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	c.JSON(http.StatusBadGateway, gin.H{
 		"error": gin.H{
-			"type":    "upstream_error",
-			"message": message,
+			"type":    errType,
+			"message": projected.Message,
 		},
 	})
 	return fmt.Errorf("non-streaming openai protocol error: %s", message)

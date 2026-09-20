@@ -516,11 +516,12 @@ func anthropicStreamEventStartsSemanticOutput(event *apicompat.AnthropicStreamEv
 // writeGatewayCCError writes an error in OpenAI Chat Completions format for
 // the Anthropic-upstream CC forwarding path.
 func writeGatewayCCError(c *gin.Context, statusCode int, errType, message string) {
+	projected := projectSelectedAccountUserError(c, statusCode, errType, "", message)
 	MarkResponseCommitted(c)
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{
-			"type":    errType,
-			"message": message,
+			"type":    projected.Type,
+			"message": projected.Message,
 		},
 	})
 }

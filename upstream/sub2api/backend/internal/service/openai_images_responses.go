@@ -1124,9 +1124,10 @@ func writeOpenAIImagesUpstreamErrorResponse(c *gin.Context, err *OpenAIImagesUps
 		return false
 	}
 	StopOpenAIImagesJSONKeepaliveCommitted(c)
+	projected := projectSelectedAccountUserError(c, err.clientStatusCode(), err.clientErrorType(), err.Code, err.clientMessage())
 	errorObj := gin.H{
-		"type":    err.clientErrorType(),
-		"message": err.clientMessage(),
+		"type":    projected.Type,
+		"message": projected.Message,
 	}
 	if code := strings.TrimSpace(err.Code); code != "" {
 		errorObj["code"] = code

@@ -1969,6 +1969,7 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 			msg := service.ExtractUpstreamErrorMessage(responseBody)
 			if !rule.PassthroughBody && rule.CustomMessage != nil {
 				msg = *rule.CustomMessage
+				service.SetNativeTrustedUserCopy(c, msg)
 			}
 
 			if rule.SkipMonitoring {
@@ -2054,10 +2055,11 @@ func (h *GatewayHandler) handleStreamingAwareErrorWithCode(c *gin.Context, statu
 
 	// Normal case: return JSON response with proper status code
 	if inboundIsResponses(c) && errType == localCapacityExhaustedErrorCode {
+		projected := projectNativeUserErrorForContext(c, status, errType, errType, message)
 		c.JSON(status, gin.H{
 			"error": gin.H{
-				"code":    errType,
-				"message": message,
+				"code":    projected.Type,
+				"message": projected.Message,
 			},
 		})
 		return

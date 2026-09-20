@@ -313,8 +313,26 @@ func extractUpstreamErrorMessage(body []byte) string {
 	return gjson.GetBytes(body, "message").String()
 }
 
+func extractUpstreamErrorType(body []byte) string {
+	if errType := strings.TrimSpace(gjson.GetBytes(body, "error.type").String()); errType != "" {
+		return errType
+	}
+	if errType := strings.TrimSpace(gjson.GetBytes(body, "response.error.type").String()); errType != "" {
+		return errType
+	}
+
+	inner := strings.TrimSpace(gjson.GetBytes(body, "error.message").String())
+	if !strings.HasPrefix(inner, "{") {
+		return ""
+	}
+	return strings.TrimSpace(gjson.Get(inner, "error.type").String())
+}
+
 func extractUpstreamErrorCode(body []byte) string {
 	if code := strings.TrimSpace(gjson.GetBytes(body, "error.code").String()); code != "" {
+		return code
+	}
+	if code := strings.TrimSpace(gjson.GetBytes(body, "response.error.code").String()); code != "" {
 		return code
 	}
 
@@ -452,13 +470,7 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 		"upstream_error",
 		"Upstream request failed",
 	); matched {
-		c.JSON(status, gin.H{
-			"type": "error",
-			"error": gin.H{
-				"type":    errType,
-				"message": errMsg,
-			},
-		})
+		writeProjectedAnthropicUserError(c, status, errType, errMsg)
 
 		summary := upstreamMsg
 		if summary == "" {
@@ -476,15 +488,9 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 
 	switch resp.StatusCode {
 	case 400:
-		c.Data(http.StatusBadRequest, "application/json", body)
-		summary := upstreamMsg
-		if summary == "" {
-			summary = truncateForLog(body, 512)
-		}
-		if summary == "" {
-			return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("upstream error: %d message=%s", resp.StatusCode, summary)
+		statusCode = http.StatusBadRequest
+		errType = "invalid_request_error"
+		errMsg = "Invalid request"
 	case 401:
 		statusCode = http.StatusBadGateway
 		errType = "upstream_error"
@@ -511,14 +517,7 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 		errMsg = "Upstream request failed"
 	}
 
-	// 返回自定义错误响应
-	c.JSON(statusCode, gin.H{
-		"type": "error",
-		"error": gin.H{
-			"type":    errType,
-			"message": errMsg,
-		},
-	})
+	writeProjectedAnthropicUserError(c, statusCode, errType, errMsg)
 
 	if upstreamMsg == "" {
 		return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
@@ -617,13 +616,7 @@ func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *ht
 		"upstream_error",
 		"Upstream request failed after retries",
 	); matched {
-		c.JSON(status, gin.H{
-			"type": "error",
-			"error": gin.H{
-				"type":    errType,
-				"message": errMsg,
-			},
-		})
+		writeProjectedAnthropicUserError(c, status, errType, errMsg)
 
 		summary := upstreamMsg
 		if summary == "" {
@@ -635,14 +628,7 @@ func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *ht
 		return nil, fmt.Errorf("upstream error: %d (retries exhausted, passthrough rule matched) message=%s", resp.StatusCode, summary)
 	}
 
-	// 返回统一的重试耗尽错误响应
-	c.JSON(http.StatusBadGateway, gin.H{
-		"type": "error",
-		"error": gin.H{
-			"type":    "upstream_error",
-			"message": "Upstream request failed after retries",
-		},
-	})
+	writeProjectedAnthropicUserError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed after retries")
 
 	if upstreamMsg == "" {
 		return nil, fmt.Errorf("upstream error: %d (retries exhausted)", resp.StatusCode)
@@ -827,6 +813,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		if message == "" {
 			message = reason
 		}
+		message = ProjectNativeUserErrorFromGin(c, http.StatusBadGateway, reason, "", message, true, "network", "provider").Message
 		body, err := json.Marshal(map[string]any{
 			"type": "error",
 			"error": map[string]string{

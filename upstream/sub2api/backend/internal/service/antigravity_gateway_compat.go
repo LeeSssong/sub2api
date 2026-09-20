@@ -510,11 +510,12 @@ func (s *AntigravityGatewayService) writeAntigravityCompatError(
 	errType string,
 	message string,
 ) error {
+	projected := projectSelectedAccountUserError(c, status, errType, "", message)
 	MarkResponseCommitted(c)
 	c.JSON(status, gin.H{
 		"error": gin.H{
-			"message": message,
-			"type":    errType,
+			"message": projected.Message,
+			"type":    projected.Type,
 			"param":   nil,
 			"code":    nil,
 		},
@@ -543,10 +544,12 @@ func (s *AntigravityGatewayService) writeMappedAntigravityCompatError(
 		Kind:               "http_error",
 		Message:            message,
 	})
-	c.JSON(mapUpstreamStatusCode(upstreamStatus), gin.H{
+	status := mapUpstreamStatusCode(upstreamStatus)
+	projected := projectSelectedAccountUserError(c, status, "upstream_error", "", getPassthroughOrDefault(message, "Upstream request failed"))
+	c.JSON(status, gin.H{
 		"error": gin.H{
-			"message": getPassthroughOrDefault(message, "Upstream request failed"),
-			"type":    "upstream_error",
+			"message": projected.Message,
+			"type":    projected.Type,
 			"param":   nil,
 			"code":    nil,
 		},

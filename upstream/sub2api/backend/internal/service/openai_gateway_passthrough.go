@@ -830,7 +830,7 @@ func validOpenAIPassthroughRetryAfter(raw string, now time.Time) bool {
 	return err == nil && parsed.After(now)
 }
 
-func writeSanitizedOpenAIPassthroughError(c *gin.Context, upstreamStatus int, upstreamHeaders http.Header) {
+func writeSanitizedOpenAIPassthroughError(c *gin.Context, upstreamStatus int, upstreamHeaders http.Header, body []byte) {
 	downstreamStatus := upstreamStatus
 	switch upstreamStatus {
 	case http.StatusUnauthorized:
@@ -838,13 +838,11 @@ func writeSanitizedOpenAIPassthroughError(c *gin.Context, upstreamStatus int, up
 	case http.StatusForbidden:
 		downstreamStatus = http.StatusBadGateway
 	}
-	projected := ProjectNativeUserError(NativeUserErrorInput{
-		Status:          upstreamStatus,
-		Type:            "upstream_error",
-		Stage:           "upstream",
-		Ownership:       "provider",
-		AccountSelected: true,
-	})
+	errType := extractUpstreamErrorType(body)
+	if errType == "" {
+		errType = "upstream_error"
+	}
+	projected := ProjectNativeUserErrorFromGin(c, upstreamStatus, errType, extractUpstreamErrorCode(body), "", true, "upstream", "provider")
 	writeOpenAIPassthroughErrorEnvelope(c, downstreamStatus, upstreamHeaders, projected.Message)
 }
 
@@ -974,14 +972,7 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 		Detail:               upstreamDetail,
 		UpstreamResponseBody: upstreamDetail,
 	})
-	// context-window 超限是确定性请求失败（shouldFailoverOpenAIPassthroughResponse
-	// 已保证不切号），其文案对客户端可操作（如触发自动压缩）；在净化信封内保留
-	// 脱敏后的上游消息，而不是抹成通用文案。
-	if isOpenAIContextWindowError(upstreamMsg, body) && upstreamMsg != "" {
-		writeOpenAIPassthroughErrorEnvelope(c, resp.StatusCode, resp.Header, upstreamMsg)
-	} else {
-		writeSanitizedOpenAIPassthroughError(c, resp.StatusCode, resp.Header)
-	}
+	writeSanitizedOpenAIPassthroughError(c, resp.StatusCode, resp.Header, body)
 
 	return fmt.Errorf("upstream error: %d (client response sanitized)", resp.StatusCode)
 }
@@ -1904,6 +1895,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 		}
 		clientPayload := bareErrorPayload
 		if sanitized, changed := sanitizeOpenAIResponseFailedEventForClient(
+			c,
 			clientPayload,
 			"error",
 			openAIStreamClientOutputStarted(c, clientOutputStarted),
@@ -2084,13 +2076,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 							// antigravity 先例），否则透传命中的 failed 在监控中不可见。
 							s.recordOpenAIStreamUpstreamError(c, account, true, upstreamRequestID, "http_error", dataBytes, failedMessage)
 							MarkResponseCommitted(c)
-							c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-							c.JSON(status, gin.H{
-								"error": gin.H{
-									"type":    errType,
-									"message": errMsg,
-								},
-							})
+							writeProjectedOpenAIUserError(c, status, errType, errMsg)
 							return resultWithUsage(), fmt.Errorf("upstream response failed: passthrough rule matched message=%s", errMsg)
 						}
 					}
@@ -2115,6 +2101,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			}
 			imageCounter.AddSSEData(dataBytes)
 			if sanitizedData, sanitized := sanitizeOpenAIResponseFailedEventForClient(
+				c,
 				dataBytes,
 				eventType,
 				openAIStreamClientOutputStarted(c, clientOutputStarted),
@@ -2347,7 +2334,7 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		if failoverErr := s.nonStreamingTerminalFailureFailover(c, resp, account, true, terminalType, terminalPayload, msg, mappedModel); failoverErr != nil {
 			return nil, failoverErr
 		}
-		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, msg)
+		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, terminalPayload, msg)
 	}
 	finalResponse, ok := extractCodexFinalResponse(bodyText)
 

@@ -2067,7 +2067,8 @@ func TestOpenAIStreamingResponseFailedAfterOutputSanitizesVerboseResponseForClie
 	require.Contains(t, body, "event: response.failed")
 	require.Contains(t, body, "context_length_exceeded")
 	require.Contains(t, body, `"type":"invalid_request_error"`)
-	require.Contains(t, body, "Your input exceeds the context window")
+	require.Contains(t, body, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, "rid-failed-after-output"))
+	require.NotContains(t, body, "Your input exceeds the context window")
 	require.NotContains(t, body, "You are GPT-5.1 running in the Codex CLI")
 	require.NotContains(t, body, `"instructions"`)
 	require.NotContains(t, body, `"output"`)
@@ -2109,7 +2110,8 @@ func TestOpenAIStreamingContextWindowResponseFailedBeforeOutputPassesThrough(t *
 	require.True(t, c.Writer.Written())
 	require.Contains(t, rec.Body.String(), "response.failed")
 	require.Contains(t, rec.Body.String(), `"type":"upstream_error"`)
-	require.Contains(t, rec.Body.String(), "Your input exceeds the context window")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.NotContains(t, rec.Body.String(), "Your input exceeds the context window")
 }
 
 func TestOpenAIStreamingContextWindowResponseFailedBeforeOutputAppliesPassthroughRule(t *testing.T) {
@@ -2156,7 +2158,8 @@ func TestOpenAIStreamingContextWindowResponseFailedBeforeOutputAppliesPassthroug
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	body := rec.Body.String()
 	require.Equal(t, "upstream_error", gjson.Get(body, "error.type").String())
-	require.Equal(t, upstreamMessage, gjson.Get(body, "error.message").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), gjson.Get(body, "error.message").String())
+	require.NotContains(t, body, upstreamMessage)
 	require.NotContains(t, body, "response.failed")
 	require.NotContains(t, body, "Upstream request failed")
 	// 命中透传规则也应记录 ops 上游错误事件（对齐 CC/Messages 与 antigravity 先例）。
@@ -2360,7 +2363,8 @@ func TestOpenAIStreamingPolicyResponseFailedBeforeOutputPassesThrough(t *testing
 	require.False(t, errors.As(err, &failoverErr))
 	require.True(t, c.Writer.Written())
 	require.Contains(t, rec.Body.String(), "response.failed")
-	require.Contains(t, rec.Body.String(), "high-risk cyber activity")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.NotContains(t, rec.Body.String(), "high-risk cyber activity")
 }
 
 func TestOpenAIStreamingClientDisconnectDrainsUpstreamUsage(t *testing.T) {
@@ -2589,7 +2593,8 @@ func TestOpenAIStreamingPassthroughContextWindowResponseFailedBeforeOutputApplie
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	body := rec.Body.String()
 	require.Equal(t, "upstream_error", gjson.Get(body, "error.type").String())
-	require.Equal(t, upstreamMessage, gjson.Get(body, "error.message").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, "rid-pass-context-window-passthrough-rule"), gjson.Get(body, "error.message").String())
+	require.NotContains(t, body, upstreamMessage)
 	require.NotContains(t, body, "response.failed")
 	require.NotContains(t, body, "Upstream request failed")
 	// 命中透传规则也应记录 ops 上游错误事件（对齐 CC/Messages 与 antigravity 先例）。
@@ -2632,7 +2637,8 @@ func TestOpenAIStreamingPassthroughContextWindowResponseFailedBeforeOutputWithou
 	body := rec.Body.String()
 	require.Contains(t, body, "event: response.failed")
 	require.Contains(t, body, "context_length_exceeded")
-	require.Contains(t, body, "Your input exceeds the context window")
+	require.Contains(t, body, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, "rid-pass-context-window-no-rule"))
+	require.NotContains(t, body, "Your input exceeds the context window")
 }
 
 func TestOpenAIStreamingPassthroughResponseFailedAfterOutputSanitizesVerboseResponseForClient(t *testing.T) {
@@ -2676,7 +2682,8 @@ func TestOpenAIStreamingPassthroughResponseFailedAfterOutputSanitizesVerboseResp
 	require.Contains(t, body, "event: response.failed")
 	require.Contains(t, body, "context_length_exceeded")
 	require.Contains(t, body, `"type":"invalid_request_error"`)
-	require.Contains(t, body, "Your input exceeds the context window")
+	require.Contains(t, body, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, "rid-pass-failed-after-output"))
+	require.NotContains(t, body, "Your input exceeds the context window")
 	require.NotContains(t, body, "You are GPT-5.1 running in the Codex CLI")
 	require.NotContains(t, body, `"instructions"`)
 	require.NotContains(t, body, `"output"`)
@@ -3877,7 +3884,8 @@ func TestHandleSSEToJSON_ResponseFailedWithoutAccountReturnsProtocolError(t *tes
 	require.Nil(t, usage)
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadGateway, rec.Code)
-	require.Contains(t, rec.Body.String(), "upstream rejected request")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.NotContains(t, rec.Body.String(), "upstream rejected request")
 	require.Contains(t, rec.Header().Get("Content-Type"), "application/json")
 }
 

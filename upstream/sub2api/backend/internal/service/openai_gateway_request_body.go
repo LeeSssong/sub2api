@@ -1889,10 +1889,11 @@ func writeOpenAIFastPolicyBlockedResponse(c *gin.Context, err *OpenAIFastBlocked
 		writeOpenAICompactSSEFailureMessage(c, http.StatusForbidden, "permission_error", err.Message)
 		return
 	}
+	projected := projectSelectedAccountUserError(c, http.StatusForbidden, "permission_error", "", err.Message)
 	c.JSON(http.StatusForbidden, gin.H{
 		"error": gin.H{
 			"type":    "permission_error",
-			"message": err.Message,
+			"message": projected.Message,
 		},
 	})
 }

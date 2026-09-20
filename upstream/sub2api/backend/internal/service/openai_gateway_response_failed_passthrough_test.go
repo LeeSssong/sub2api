@@ -83,8 +83,8 @@ func TestForwardAsChatCompletions_ResponseFailed_PassthroughRule(t *testing.T) {
 	errType := gjson.Get(respBody, "error.type").String()
 	require.Equal(t, "upstream_error", errType)
 	errMsg := gjson.Get(respBody, "error.message").String()
-	require.NotEmpty(t, errMsg, "passthrough should preserve error message")
-	require.Contains(t, errMsg, "context window")
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), errMsg)
+	require.NotContains(t, errMsg, "context window")
 }
 
 func TestResponsesStreamAccessStateFailoverPrecedesPassthroughRule(t *testing.T) {
@@ -288,7 +288,8 @@ func TestForwardAsChatCompletions_ResponseFailed_ErrorCodeRuleMatchesViaSemantic
 	require.Equal(t, http.StatusBadRequest, rec.Code, "error-code-conditioned rule should match via semantic status inference")
 	respBody := rec.Body.String()
 	require.Equal(t, "upstream_error", gjson.Get(respBody, "error.type").String())
-	require.Contains(t, gjson.Get(respBody, "error.message").String(), "context window")
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), gjson.Get(respBody, "error.message").String())
+	require.NotContains(t, gjson.Get(respBody, "error.message").String(), "context window")
 }
 
 func TestForwardAsAnthropic_ResponseFailed_ErrorCodeRuleMatchesViaSemanticStatus(t *testing.T) {

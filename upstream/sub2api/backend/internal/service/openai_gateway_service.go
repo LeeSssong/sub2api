@@ -1019,10 +1019,14 @@ func (s *OpenAIGatewayService) writeOpenAIWSFallbackErrorResponse(c *gin.Context
 			Message:            upstreamMessage,
 		})
 	}
+	projected := projectSelectedAccountUserError(c, statusCode, errType, "", clientMessage)
+	if projected.Type != "" {
+		errType = projected.Type
+	}
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{
 			"type":    errType,
-			"message": clientMessage,
+			"message": projected.Message,
 		},
 	})
 	return true

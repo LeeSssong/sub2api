@@ -33,7 +33,7 @@ func TestProjectNativeErrorDiagnosisFourClasses(t *testing.T) {
 				IsBusinessLimited: true,
 			}},
 			wantClass: "local_limit", wantCode: "LOCAL_LIMIT", wantStage: "request", wantOwner: "client",
-			wantMeaning: "请求过于频繁", wantSuggestion: "请稍后重试或降低并发",
+			wantMeaning: NativeUserCopyRate, wantSuggestion: NativeUserErrorContactAdminSuggestion,
 		},
 		{
 			name: "upstream overloaded after selection",
@@ -42,7 +42,7 @@ func TestProjectNativeErrorDiagnosisFourClasses(t *testing.T) {
 				AccountID: &accountID, AccountName: "provider-a", GroupID: &groupID, GroupName: "paid",
 			}, UpstreamStatusCode: &status429, UpstreamErrorMessage: "upstream overloaded"},
 			wantClass: "upstream_overloaded", wantCode: "UPSTREAM_OVERLOADED", wantSelected: true,
-			wantStage: "upstream", wantOwner: "provider", wantMeaning: "上游服务繁忙", wantSuggestion: "请稍后重试",
+			wantStage: "upstream", wantOwner: "provider", wantMeaning: NativeUserCopyBusy, wantSuggestion: NativeUserErrorContactAdminSuggestion,
 			wantEvidenceCode: &status429,
 		},
 		{
@@ -51,8 +51,8 @@ func TestProjectNativeErrorDiagnosisFourClasses(t *testing.T) {
 				Phase: "network", Type: "upstream_error", Owner: "provider", AccountID: &accountID,
 			}, UpstreamStatusCode: &status503, UpstreamErrorMessage: "connection reset"},
 			wantClass: "upstream_failed", wantCode: "UPSTREAM_FAILED", wantSelected: true,
-			wantStage: "network", wantOwner: "provider", wantMeaning: "上游请求失败",
-			wantSuggestion: "请稍后重试；持续失败请联系管理员并提供请求 ID", wantEvidenceCode: &status503,
+			wantStage: "network", wantOwner: "provider", wantMeaning: NativeUserCopyAbnormal,
+			wantSuggestion: NativeUserErrorContactAdminSuggestion, wantEvidenceCode: &status503,
 		},
 		{
 			name: "upload interrupted before selection",
@@ -61,7 +61,7 @@ func TestProjectNativeErrorDiagnosisFourClasses(t *testing.T) {
 				Message: "Failed to read request body",
 			}},
 			wantClass: "upload_interrupted", wantCode: "UPLOAD_INTERRUPTED", wantStage: "request", wantOwner: "client",
-			wantMeaning: "请求上传中断", wantSuggestion: "请检查网络后重试；大上下文请保持连接稳定",
+			wantMeaning: NativeUserCopyUpload, wantSuggestion: NativeUserErrorContactAdminSuggestion,
 		},
 	}
 
@@ -92,10 +92,10 @@ func TestProjectNativeErrorDiagnosisStatusAndClientDisconnectBoundaries(t *testi
 		selected                    bool
 		wantClass, wantMeaning      string
 	}{
-		{"client disconnect", "request", "client", "client closed connection", 499, false, NativeErrorClassUploadInterrupted, "请求上传中断"},
-		{"payment before selection", "request", "client", "payment required", 402, false, NativeErrorClassLocalLimit, "额度或订阅不可用"},
-		{"storage upstream", "upstream", "provider", "insufficient storage", 507, true, NativeErrorClassUpstreamFailed, "上游请求失败"},
-		{"cloudflare timeout", "upstream", "provider", "connection timed out", 522, true, NativeErrorClassUpstreamFailed, "上游请求失败"},
+		{"client disconnect", "request", "client", "client closed connection", 499, false, NativeErrorClassUploadInterrupted, NativeUserCopyUpload},
+		{"payment before selection", "request", "client", "payment required", 402, false, NativeErrorClassLocalLimit, NativeUserCopyBalance},
+		{"storage upstream", "upstream", "provider", "insufficient storage", 507, true, NativeErrorClassUpstreamFailed, NativeUserCopyAbnormal},
+		{"cloudflare timeout", "upstream", "provider", "connection timed out", 522, true, NativeErrorClassUpstreamFailed, NativeUserCopyAbnormal},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			id := (*int64)(nil)
@@ -133,8 +133,9 @@ func TestProjectNativeErrorDiagnosisLocalCapacityExhausted(t *testing.T) {
 	require.Nil(t, got.OriginalUpstreamStatus)
 	require.Empty(t, got.OriginalUpstreamMessage)
 	require.Empty(t, got.OriginalUpstreamDetail)
-	require.Equal(t, "当前分组暂无可用服务资源", got.UserMeaning)
-	require.Equal(t, "请稍后重试；持续失败请联系管理员并提供请求 ID", got.UserSuggestion)
+	require.Equal(t, "当前服务资源暂时不可用，请稍后重试", got.UserMeaning)
+	require.Equal(t, NativeUserErrorContactAdminSuggestion, got.UserSuggestion)
+	require.NotContains(t, got.UserMeaning, "上游")
 }
 
 func TestProjectNativeErrorDiagnosisRealUpstream503RemainsUpstream(t *testing.T) {
@@ -302,7 +303,7 @@ func TestProjectNativeErrorDiagnosisSelectedAccountLocalQueueLimitWinsOver429(t 
 	got := ProjectNativeErrorDiagnosis(detail)
 	require.NotNil(t, got)
 	require.Equal(t, NativeErrorClassLocalLimit, got.Class)
-	require.Equal(t, "请求过于频繁", got.UserMeaning)
+	require.Equal(t, NativeUserCopyRate, got.UserMeaning)
 	require.True(t, got.UpstreamAccountSelected)
 }
 
@@ -319,7 +320,7 @@ func TestProjectNativeErrorDiagnosisLocalLimitUsesAccurateSubreasonCopy(t *testi
 				Phase: "request", Type: "rate_limit_error", Owner: "client",
 				Message: "concurrency limit exceeded", IsBusinessLimited: true,
 			}},
-			meaning: "请求过于频繁", suggestion: "请稍后重试或降低并发",
+			meaning: NativeUserCopyRate, suggestion: NativeUserErrorContactAdminSuggestion,
 		},
 		{
 			name: "quota and subscription",
@@ -327,7 +328,7 @@ func TestProjectNativeErrorDiagnosisLocalLimitUsesAccurateSubreasonCopy(t *testi
 				Phase: "request", Type: "billing_error", Owner: "client",
 				Message: "insufficient balance", IsBusinessLimited: true,
 			}},
-			meaning: "额度或订阅不可用", suggestion: "请检查余额、额度或订阅状态",
+			meaning: NativeUserCopyBalance, suggestion: NativeUserErrorContactAdminSuggestion,
 		},
 		{
 			name: "policy and model whitelist",
@@ -335,7 +336,7 @@ func TestProjectNativeErrorDiagnosisLocalLimitUsesAccurateSubreasonCopy(t *testi
 				Phase: "request", Type: "cyber_policy", Owner: "client",
 				Message: "model gpt-private not in whitelist", IsBusinessLimited: true,
 			}},
-			meaning: "请求不符合当前使用规则", suggestion: "请更换可用模型或按当前分组规则调整请求",
+			meaning: NativeUserCopyPermission, suggestion: NativeUserErrorContactAdminSuggestion,
 		},
 		{
 			name: "deprecated api key transport rule",
@@ -343,7 +344,7 @@ func TestProjectNativeErrorDiagnosisLocalLimitUsesAccurateSubreasonCopy(t *testi
 				Phase: "request", Type: "invalid_request_error", Owner: "client",
 				Message: "API key in query parameter is deprecated", IsBusinessLimited: true,
 			}},
-			meaning: "请求不符合当前使用规则", suggestion: "请更换可用模型或按当前分组规则调整请求",
+			meaning: NativeUserCopyBadRequest, suggestion: NativeUserErrorContactAdminSuggestion,
 		},
 	}
 

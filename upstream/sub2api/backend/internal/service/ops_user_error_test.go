@@ -97,8 +97,8 @@ func TestToUserErrorRequest_RedactsSensitiveFields(t *testing.T) {
 		t.Errorf("basic fields wrong: %+v", out)
 	}
 	require.Equal(t, "local_limit", out.ErrorClass)
-	require.Equal(t, "请求过于频繁", out.Meaning)
-	require.Equal(t, "请稍后重试或降低并发", out.Suggestion)
+	require.Equal(t, NativeUserCopyRate, out.Meaning)
+	require.Equal(t, NativeUserErrorContactAdminSuggestion, out.Suggestion)
 	require.Equal(t, out.Meaning, out.Message)
 	require.NotContains(t, out.Message, "internal limiter")
 	if out.KeyName != "my-key" {
@@ -115,10 +115,10 @@ func TestToUserErrorRequestPreservesSanitizedNativeMessageWithoutInventingDiagno
 		Message: `model is required; api_key="sk-private-model-key"`,
 	})
 	require.Empty(t, out.ErrorClass)
-	require.Contains(t, out.Message, "model is required")
+	require.Equal(t, NativeUserCopyBadRequest, out.Message)
 	require.NotContains(t, out.Message, "sk-private-model-key")
 	require.Equal(t, out.Message, out.Meaning)
-	require.Empty(t, out.Suggestion)
+	require.Equal(t, NativeUserErrorContactAdminSuggestion, out.Suggestion)
 }
 
 func TestToUserErrorRequestDetail_WhitelistAndRedacts(t *testing.T) {
@@ -163,8 +163,9 @@ func TestToUserErrorRequestDetail_WhitelistAndRedacts(t *testing.T) {
 		t.Errorf("want ID=999, got %d", out.ID)
 	}
 	require.Equal(t, "upstream_failed", out.ErrorClass)
-	require.Equal(t, "上游请求失败", out.Meaning)
-	require.Equal(t, "请稍后重试；持续失败请联系管理员并提供请求 ID", out.Suggestion)
+	require.Equal(t, NativeUserCopyAbnormal, out.Meaning)
+	require.Equal(t, NativeUserErrorContactAdminSuggestion, out.Suggestion)
+	require.NotContains(t, out.Meaning, "上游")
 	require.Equal(t, out.Meaning, out.Message)
 
 	// client_ip / user_agent / stream 是该用户自己的请求属性。

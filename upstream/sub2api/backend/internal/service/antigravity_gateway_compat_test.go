@@ -221,7 +221,8 @@ func TestAntigravityCompatRejectsUnsupportedAccountType(t *testing.T) {
 			require.Error(t, err)
 			require.Nil(t, result)
 			require.Equal(t, http.StatusBadRequest, recorder.Code)
-			require.Contains(t, recorder.Body.String(), "native OAuth account required for antigravity compatibility mode")
+			require.Contains(t, recorder.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""))
+			require.NotContains(t, recorder.Body.String(), "native OAuth account required")
 		})
 	}
 }

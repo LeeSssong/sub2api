@@ -687,10 +687,11 @@ func mergeTextPartsToResponse(response map[string]any, textParts []string) map[s
 }
 
 func (s *AntigravityGatewayService) writeClaudeError(c *gin.Context, status int, errType, message string) error {
+	projected := projectSelectedAccountUserError(c, status, errType, "", message)
 	MarkResponseCommitted(c)
 	c.JSON(status, gin.H{
 		"type":  "error",
-		"error": gin.H{"type": errType, "message": message},
+		"error": gin.H{"type": projected.Type, "message": projected.Message},
 	})
 	return fmt.Errorf("%s", message)
 }
@@ -730,10 +731,7 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 		c, account.Platform, upstreamStatus, body,
 		0, "", "",
 	); matched {
-		c.JSON(ptStatus, gin.H{
-			"type":  "error",
-			"error": gin.H{"type": ptErrType, "message": ptErrMsg},
-		})
+		writeProjectedAnthropicUserError(c, ptStatus, ptErrType, ptErrMsg)
 		if upstreamMsg == "" {
 			return fmt.Errorf("upstream error: %d", upstreamStatus)
 		}
@@ -770,10 +768,7 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 		errMsg = "Upstream request failed"
 	}
 
-	c.JSON(statusCode, gin.H{
-		"type":  "error",
-		"error": gin.H{"type": errType, "message": errMsg},
-	})
+	writeProjectedAnthropicUserError(c, statusCode, errType, errMsg)
 	if upstreamMsg == "" {
 		return fmt.Errorf("upstream error: %d", upstreamStatus)
 	}
@@ -781,6 +776,7 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 }
 
 func (s *AntigravityGatewayService) writeGoogleError(c *gin.Context, status int, message string) error {
+	projected := ProjectNativeUserErrorFromGin(c, status, "", "", message, false, "", "")
 	MarkResponseCommitted(c)
 	statusStr := "UNKNOWN"
 	switch status {
@@ -799,7 +795,7 @@ func (s *AntigravityGatewayService) writeGoogleError(c *gin.Context, status int,
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"code":    status,
-			"message": message,
+			"message": projected.Message,
 			"status":  statusStr,
 		},
 	})

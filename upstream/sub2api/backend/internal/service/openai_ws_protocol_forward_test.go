@@ -472,7 +472,8 @@ func TestOpenAIGatewayService_Forward_WSv2Dial426FallbackHTTP(t *testing.T) {
 	require.Contains(t, err.Error(), "upgrade_required")
 	require.Nil(t, upstream.lastReq, "WS 模式下不应再回退 HTTP")
 	require.Equal(t, http.StatusUpgradeRequired, rec.Code)
-	require.Contains(t, rec.Body.String(), "426")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.NotContains(t, rec.Body.String(), "426")
 }
 
 func TestOpenAIGatewayService_Forward_WSv2FallbackCoolingSkipWS(t *testing.T) {
@@ -1234,7 +1235,8 @@ func TestOpenAIGatewayService_Forward_WSv2PreviousResponseNotFoundSkipsRecoveryF
 	require.Nil(t, upstream.lastReq, "previous_response_not_found 不应回退 HTTP")
 	require.Equal(t, int32(1), wsAttempts.Load(), "function_call_output 场景应跳过 previous_response_not_found 自动恢复")
 	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.Contains(t, strings.ToLower(rec.Body.String()), "previous response not found")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""))
+	require.NotContains(t, strings.ToLower(rec.Body.String()), "previous response not found")
 
 	wsRequestMu.Lock()
 	requests := append([][]byte(nil), wsRequestPayloads...)
@@ -1648,7 +1650,8 @@ func TestOpenAIGatewayService_Forward_WSv2InvalidEncryptedContentSkipsRecoveryWi
 	require.Nil(t, upstream.lastReq, "invalid_encrypted_content 不应回退 HTTP")
 	require.Equal(t, int32(1), wsAttempts.Load(), "缺少 reasoning encrypted item 时应跳过自动恢复重试")
 	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.Contains(t, strings.ToLower(rec.Body.String()), "encrypted content")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""))
+	require.NotContains(t, strings.ToLower(rec.Body.String()), "encrypted content")
 
 	wsRequestMu.Lock()
 	requests := append([][]byte(nil), wsRequestPayloads...)

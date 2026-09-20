@@ -128,7 +128,7 @@ func TestHandleErrorResponse_Deterministic400IsNotRewrappedAs502(t *testing.T) {
 	require.Equal(t, "invalid_function_parameters", gjson.Get(body, "error.code").String())
 	require.Equal(t, "input[8].tools[1].tools[2].parameters", gjson.Get(body, "error.param").String(),
 		"param 是客户端定位哪个字段非法的唯一线索")
-	require.Contains(t, gjson.Get(body, "error.message").String(), "Invalid schema for function 'automation_update'")
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""), gjson.Get(body, "error.message").String())
 	require.NotContains(t, body, "Upstream request failed")
 
 	// 确定性请求错误不该换号重试——换任何账号都是同样的结果。
@@ -165,8 +165,9 @@ func TestHandleErrorResponse_MatchesCompatSiblingForDeterministic400(t *testing.
 	require.Equal(t, compatStatus, nativeRec.Code, "两条路径的状态码必须一致")
 	require.Equal(t, compatType, gjson.Get(nativeRec.Body.String(), "error.type").String(),
 		"两条路径的 error.type 必须一致")
-	require.Equal(t, compatMsg, gjson.Get(nativeRec.Body.String(), "error.message").String(),
-		"两条路径的 message 必须一致")
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""), gjson.Get(nativeRec.Body.String(), "error.message").String(),
+		"原生 Responses 写出用户文案")
+	require.NotEmpty(t, compatMsg, "兼容路径仍把内部 message 交给 handler 再投影")
 }
 
 // 上游只给 message、没有 type/code/param 时，仍要回 400 + 真实 message，
@@ -185,7 +186,7 @@ func TestHandleErrorResponse_Deterministic400WithoutUpstreamMetadata(t *testing.
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	body := rec.Body.String()
 	require.Equal(t, "invalid_request_error", gjson.Get(body, "error.type").String())
-	require.Equal(t, "Invalid 'input': expected an array.", gjson.Get(body, "error.message").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""), gjson.Get(body, "error.message").String())
 	require.False(t, gjson.Get(body, "error.code").Exists(), "上游没给 code 就不要编一个")
 	require.False(t, gjson.Get(body, "error.param").Exists(), "上游没给 param 就不要编一个")
 }
@@ -221,18 +222,18 @@ func TestHandleErrorResponse_NonDeterministicStatusesKeepGeneric502(t *testing.T
 	}{
 		// 404/405 可能是上游 base_url 配错（运营方问题），不当成客户端错误暴露。
 		{"not_found", http.StatusNotFound, `{"error":{"message":"Unknown request URL"}}`,
-			http.StatusBadGateway, "upstream_error", "Upstream request failed"},
+			http.StatusBadGateway, "upstream_error", AppendNativeUserErrorHelp(NativeUserCopyAbnormal, "")},
 		{"unprocessable", http.StatusUnprocessableEntity, `{"error":{"message":"Invalid schema for field messages"}}`,
-			http.StatusBadGateway, "upstream_error", "Upstream request failed"},
+			http.StatusBadGateway, "upstream_error", AppendNativeUserErrorHelp(NativeUserCopyAbnormal, "")},
 		// 401/402/403 是网关运营方的凭据/账单问题，必须继续对客户端屏蔽上游账号状态。
 		// 403 的自由文本不能升级成 durable access-state typed failover；只有明确结构化 code 才可以。
 		{"unauthorized", http.StatusUnauthorized, `{"error":{"message":"Incorrect API key provided: sk-abc"}}`,
-			http.StatusBadGateway, "upstream_error", "Upstream authentication failed, please contact administrator"},
+			http.StatusBadGateway, "upstream_error", AppendNativeUserErrorHelp(NativeUserCopyAbnormal, "")},
 		{"forbidden", http.StatusForbidden, `{"error":{"message":"Your account is deactivated"}}`,
-			http.StatusBadGateway, "upstream_error", "Upstream access forbidden, please contact administrator"},
+			http.StatusBadGateway, "upstream_error", AppendNativeUserErrorHelp(NativeUserCopyAbnormal, "")},
 		// 429 保持独立映射。
 		{"rate_limited", http.StatusTooManyRequests, `{"error":{"message":"Rate limit reached"}}`,
-			http.StatusTooManyRequests, "rate_limit_error", "Upstream rate limit exceeded, please retry later"},
+			http.StatusTooManyRequests, "rate_limit_error", AppendNativeUserErrorHelp(NativeUserCopyBusy, "")},
 	}
 
 	for _, tc := range cases {
@@ -258,6 +259,7 @@ func TestHandleErrorResponse_NonDeterministicStatusesKeepGeneric502(t *testing.T
 			require.Equal(t, tc.wantStatus, rec.Code)
 			require.Equal(t, tc.wantType, gjson.Get(rec.Body.String(), "error.type").String())
 			require.Equal(t, tc.wantMsg, gjson.Get(rec.Body.String(), "error.message").String())
+			require.NotContains(t, rec.Body.String(), "Upstream")
 		})
 	}
 }
@@ -280,7 +282,7 @@ func TestHandleErrorResponse_PassthroughRuleStillWinsOver400Branch(t *testing.T)
 
 	require.Error(t, err)
 	require.Equal(t, http.StatusTeapot, rec.Code, "命中透传规则时必须按规则的状态码回写")
-	require.Equal(t, "自定义文案", gjson.Get(rec.Body.String(), "error.message").String())
+	require.Equal(t, AppendNativeUserErrorHelp("自定义文案", ""), gjson.Get(rec.Body.String(), "error.message").String())
 }
 
 func TestIsOpenAIDeterministicClientError(t *testing.T) {
@@ -312,21 +314,21 @@ func TestWriteOpenAIUpstreamClientError_PayloadShape(t *testing.T) {
 			wantType:    "invalid_request_error",
 			wantCode:    "invalid_function_parameters",
 			wantParam:   "input[8].tools[1].tools[2].parameters",
-			wantMessage: "Invalid schema for function 'automation_update'",
+			wantMessage: AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""),
 		},
 		{
 			name:        "upstream_type_preserved",
 			body:        `{"error":{"type":"invalid_prompt","message":"blocked"}}`,
 			upstreamMsg: "blocked",
 			wantType:    "invalid_prompt",
-			wantMessage: "blocked",
+			wantMessage: AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""),
 		},
 		{
 			name:        "empty_body_falls_back",
 			body:        ``,
 			upstreamMsg: "",
 			wantType:    "invalid_request_error",
-			wantMessage: openAIUpstreamClientErrorFallbackMessage,
+			wantMessage: AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""),
 		},
 		{
 			// 调用方传入的 message 已脱敏，必须原样使用，不得回落读取原始 body。
@@ -334,7 +336,7 @@ func TestWriteOpenAIUpstreamClientError_PayloadShape(t *testing.T) {
 			body:        `{"error":{"message":"failed for key=secret123"}}`,
 			upstreamMsg: "failed for key=***",
 			wantType:    "invalid_request_error",
-			wantMessage: "failed for key=***",
+			wantMessage: AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""),
 		},
 	}
 

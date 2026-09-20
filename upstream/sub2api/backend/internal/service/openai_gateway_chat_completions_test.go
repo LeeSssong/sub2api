@@ -545,7 +545,8 @@ func TestForwardAsChatCompletions_BufferedContextWindowResponseFailedReturnsErro
 	require.False(t, errors.As(err, &failoverErr))
 	require.True(t, c.Writer.Written())
 	require.Equal(t, http.StatusBadGateway, rec.Code)
-	require.Contains(t, rec.Body.String(), "input exceeds the context window")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.NotContains(t, rec.Body.String(), "input exceeds the context window")
 }
 
 func TestForwardAsChatCompletions_StreamContextWindowResponseFailedReturnsErrorWithoutFailover(t *testing.T) {
@@ -591,7 +592,8 @@ func TestForwardAsChatCompletions_StreamContextWindowResponseFailedReturnsErrorW
 	require.True(t, c.Writer.Written())
 	require.Equal(t, http.StatusBadGateway, rec.Code)
 	require.Contains(t, rec.Header().Get("Content-Type"), "application/json")
-	require.Contains(t, rec.Body.String(), "input exceeds the context window")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.NotContains(t, rec.Body.String(), "input exceeds the context window")
 	require.NotContains(t, rec.Body.String(), "[DONE]")
 }
 
@@ -631,7 +633,8 @@ func TestForwardAsChatCompletions_StreamBareErrorAfterOutputDoesNotFailOver(t *t
 	var failoverErr *UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 	require.Contains(t, rec.Body.String(), "partial")
-	require.Contains(t, rec.Body.String(), "temporary upstream failure")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.NotContains(t, rec.Body.String(), "temporary upstream failure")
 	require.NotContains(t, rec.Body.String(), "[DONE]")
 }
 

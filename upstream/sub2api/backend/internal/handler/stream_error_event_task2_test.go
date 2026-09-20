@@ -35,7 +35,7 @@ func TestWriteOpenAIStreamRecoverySSE_EmitsOneStructuredRetryableEvent(t *testin
 	errorObject, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "upstream_temporarily_unavailable", errorObject["type"])
-	require.Equal(t, "当前上游暂时不可用，请稍后继续", errorObject["message"])
+	require.Equal(t, "服务暂时繁忙，请稍后继续", errorObject["message"])
 	require.Equal(t, true, errorObject["retryable"])
 	require.Equal(t, false, errorObject["resume_supported"])
 	require.NotContains(t, errorObject, "response_id")
@@ -73,7 +73,7 @@ func TestWriteOpenAIStreamRecoverySSE_ExactContractWithoutResponseID(t *testing.
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 
 	require.True(t, writeOpenAIStreamRecoverySSE(c, &service.UpstreamFailoverError{OutputStarted: true}))
-	require.Equal(t, "event: error\ndata: {\"error\":{\"type\":\"upstream_temporarily_unavailable\",\"message\":\"当前上游暂时不可用，请稍后继续\",\"retryable\":true,\"resume_supported\":false,\"retry_after_seconds\":10}}\n\n", w.Body.String())
+	require.Equal(t, "event: error\ndata: {\"error\":{\"type\":\"upstream_temporarily_unavailable\",\"message\":\"服务暂时繁忙，请稍后继续\",\"retryable\":true,\"resume_supported\":false,\"retry_after_seconds\":10}}\n\n", w.Body.String())
 }
 
 func TestWriteAnthropicStreamRecoverySSE_UsesMessagesEnvelope(t *testing.T) {
@@ -93,7 +93,7 @@ func TestWriteAnthropicStreamRecoverySSE_UsesMessagesEnvelope(t *testing.T) {
 	errorObject, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "api_error", errorObject["type"])
-	require.Equal(t, "当前上游暂时不可用，请稍后继续", errorObject["message"])
+	require.Equal(t, "服务暂时繁忙，请稍后继续", errorObject["message"])
 	require.NotContains(t, errorObject, "response_id")
 }
 
@@ -106,5 +106,5 @@ func TestHandleAnthropicFailoverExhausted_UsesMessagesRecoveryEnvelope(t *testin
 
 	h.handleAnthropicFailoverExhausted(c, &service.UpstreamFailoverError{OutputStarted: true}, true)
 
-	require.Equal(t, "event: error\ndata: {\"error\":{\"message\":\"当前上游暂时不可用，请稍后继续\",\"resume_supported\":false,\"retry_after_seconds\":10,\"retryable\":true,\"type\":\"api_error\"},\"type\":\"error\"}\n\n", w.Body.String())
+	require.Equal(t, "event: error\ndata: {\"error\":{\"message\":\"服务暂时繁忙，请稍后继续\",\"resume_supported\":false,\"retry_after_seconds\":10,\"retryable\":true,\"type\":\"api_error\"},\"type\":\"error\"}\n\n", w.Body.String())
 }

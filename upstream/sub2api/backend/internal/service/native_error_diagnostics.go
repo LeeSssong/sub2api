@@ -202,37 +202,61 @@ func hasNativeUpstreamFailureEvidence(detail *OpsErrorLogDetail, accountSelected
 }
 
 func nativeErrorExplanation(detail *OpsErrorLogDetail, class string) (code, meaning, suggestion string) {
+	meaning = ProjectNativeUserErrorCore(nativeUserErrorInputFromDiagnosis(detail, class)).Message
+	suggestion = NativeUserErrorContactAdminSuggestion
 	switch class {
 	case NativeErrorClassLocalLimit:
-		return nativeLocalLimitExplanation(detail)
+		return "LOCAL_LIMIT", meaning, suggestion
 	case NativeErrorClassLocalCapacity:
-		return "LOCAL_CAPACITY_EXHAUSTED", "当前分组暂无可用服务资源", "请稍后重试；持续失败请联系管理员并提供请求 ID"
+		return "LOCAL_CAPACITY_EXHAUSTED", meaning, suggestion
 	case NativeErrorClassUpstreamOverloaded:
-		return "UPSTREAM_OVERLOADED", "上游服务繁忙", "请稍后重试"
+		return "UPSTREAM_OVERLOADED", meaning, suggestion
 	case NativeErrorClassUploadInterrupted:
-		return "UPLOAD_INTERRUPTED", "请求上传中断", "请检查网络后重试；大上下文请保持连接稳定"
+		return "UPLOAD_INTERRUPTED", meaning, suggestion
 	default:
-		return "UPSTREAM_FAILED", "上游请求失败", "请稍后重试；持续失败请联系管理员并提供请求 ID"
+		return "UPSTREAM_FAILED", meaning, suggestion
 	}
 }
 
-func nativeLocalLimitExplanation(detail *OpsErrorLogDetail) (code, meaning, suggestion string) {
-	text := ""
-	errType := ""
+func nativeUserErrorInputFromDiagnosis(detail *OpsErrorLogDetail, class string) NativeUserErrorInput {
+	input := NativeUserErrorInput{}
 	if detail != nil {
-		errType = strings.ToLower(strings.TrimSpace(detail.Type))
-		text = strings.ToLower(strings.Join([]string{detail.Message, detail.Source}, " "))
+		input.Status = detail.StatusCode
+		if detail.UpstreamStatusCode != nil && *detail.UpstreamStatusCode > 0 {
+			input.Status = *detail.UpstreamStatusCode
+		}
+		input.Type = detail.Type
+		input.Stage = detail.Phase
+		input.Ownership = detail.Owner
+		input.Message = detail.Message
+		input.AccountSelected = hasSelectedNativeUpstreamAccount(detail)
 	}
-	if errType == "billing_error" || errType == "subscription_error" || containsAnyNativeErrorMarker(text,
-		"balance", "quota", "usage limit", "subscription", "payment required", "payment_required", "额度", "限额") {
-		return "LOCAL_LIMIT", "额度或订阅不可用", "请检查余额、额度或订阅状态"
+	switch class {
+	case NativeErrorClassLocalLimit:
+		input.AccountSelected = false
+	case NativeErrorClassLocalCapacity:
+		input.Type = NativeErrorClassLocalCapacity
+		input.Status = 503
+		input.AccountSelected = false
+		input.Stage = "routing"
+	case NativeErrorClassUpstreamOverloaded:
+		input.Type = "upstream_error"
+		input.AccountSelected = true
+		if input.Status == 0 {
+			input.Status = 429
+		}
+	case NativeErrorClassUploadInterrupted:
+		input.Type = "client_closed"
+		input.Status = 499
+		input.AccountSelected = false
+	case NativeErrorClassUpstreamFailed:
+		input.Type = "upstream_error"
+		input.AccountSelected = true
+		if input.Status == 0 {
+			input.Status = 502
+		}
 	}
-	if errType == "cyber_policy" || containsAnyNativeErrorMarker(text,
-		"whitelist", "not allowed", "restricted", "does not allow", "not supported", "requires a non-empty instructions",
-		"query parameter is deprecated", "query parameter api_key is deprecated") {
-		return "LOCAL_LIMIT", "请求不符合当前使用规则", "请更换可用模型或按当前分组规则调整请求"
-	}
-	return "LOCAL_LIMIT", "请求过于频繁", "请稍后重试或降低并发"
+	return input
 }
 
 func containsAnyNativeErrorMarker(text string, markers ...string) bool {

@@ -1900,10 +1900,7 @@ func (s *GeminiMessagesCompatService) writeGeminiMappedError(c *gin.Context, acc
 		"upstream_error",
 		"Upstream request failed",
 	); matched {
-		c.JSON(status, gin.H{
-			"type":  "error",
-			"error": gin.H{"type": errType, "message": errMsg},
-		})
+		writeProjectedAnthropicUserError(c, status, errType, errMsg)
 		if upstreamMsg == "" {
 			upstreamMsg = errMsg
 		}
@@ -2020,10 +2017,7 @@ func (s *GeminiMessagesCompatService) writeGeminiMappedError(c *gin.Context, acc
 		}
 	}
 
-	c.JSON(statusCode, gin.H{
-		"type":  "error",
-		"error": gin.H{"type": errType, "message": errMsg},
-	})
+	writeProjectedAnthropicUserError(c, statusCode, errType, errMsg)
 	if upstreamMsg == "" {
 		return fmt.Errorf("upstream error: %d", upstreamStatus)
 	}
@@ -2439,20 +2433,22 @@ func generateAnthropicMsgID() string {
 }
 
 func (s *GeminiMessagesCompatService) writeClaudeError(c *gin.Context, status int, errType, message string) error {
+	projected := projectSelectedAccountUserError(c, status, errType, "", message)
 	MarkResponseCommitted(c)
 	c.JSON(status, gin.H{
 		"type":  "error",
-		"error": gin.H{"type": errType, "message": message},
+		"error": gin.H{"type": projected.Type, "message": projected.Message},
 	})
 	return fmt.Errorf("%s", message)
 }
 
 func (s *GeminiMessagesCompatService) writeGoogleError(c *gin.Context, status int, message string) error {
+	projected := ProjectNativeUserErrorFromGin(c, status, "", "", message, false, "", "")
 	MarkResponseCommitted(c)
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"code":    status,
-			"message": message,
+			"message": projected.Message,
 			"status":  googleapi.HTTPStatusToGoogleStatus(status),
 		},
 	})

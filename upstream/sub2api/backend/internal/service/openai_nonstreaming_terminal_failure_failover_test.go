@@ -115,17 +115,17 @@ func TestNonStreamingSSEToJSON_NonRetryableFailedEventStillWritesProtocolError(t
 		{
 			name:    "invalid_request",
 			data:    `{"type":"response.failed","error":{"type":"invalid_request_error","code":"invalid_request","message":"unknown parameter foo"}}`,
-			wantMsg: "unknown parameter foo",
+			wantMsg: AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""),
 		},
 		{
 			name:    "context_window",
 			data:    `{"type":"response.failed","response":{"id":"resp_failed","status":"failed","output":[],"error":{"code":"upstream_error","message":"input exceeds the context window"}}}`,
-			wantMsg: "input exceeds the context window",
+			wantMsg: AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""),
 		},
 		{
 			name:    "content_policy",
 			data:    `{"type":"response.failed","error":{"type":"content_policy_violation","message":"blocked by our content policy"}}`,
-			wantMsg: "blocked by our content policy",
+			wantMsg: AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""),
 		},
 	}
 

@@ -101,7 +101,11 @@ func writeOpenAICompactSSEFailure(c *gin.Context, statusCode int, errorBody []by
 	if message == "" {
 		message = "Upstream compact request failed with HTTP " + strconv.Itoa(statusCode)
 	}
-	writeOpenAICompactSSEFailureMessage(c, statusCode, "upstream_error", message)
+	errType := extractUpstreamErrorType(errorBody)
+	if errType == "" {
+		errType = "upstream_error"
+	}
+	writeOpenAICompactSSEFailureMessageIdentified(c, statusCode, errType, extractUpstreamErrorCode(errorBody), message)
 }
 
 // writeOpenAICompactSSEFailureMessage 写出 response.failed 终止事件。Codex 对
@@ -109,10 +113,19 @@ func writeOpenAICompactSSEFailure(c *gin.Context, statusCode int, errorBody []by
 // 不被识别，会退化为 "stream closed before response.completed" 盲重连）。
 // 同时标记流内错误，保证挂在 200 流上的失败仍进入 ops 错误看板。
 func writeOpenAICompactSSEFailureMessage(c *gin.Context, statusCode int, errType, message string) {
+	writeOpenAICompactSSEFailureMessageIdentified(c, statusCode, errType, "", message)
+}
+
+func writeOpenAICompactSSEFailureMessageIdentified(c *gin.Context, statusCode int, errType, code, message string) {
 	if c == nil {
 		return
 	}
 	MarkOpsStreamError(c, errType, message, statusCode)
+	projected := projectSelectedAccountUserError(c, statusCode, errType, code, message)
+	if projected.Type != "" {
+		errType = projected.Type
+	}
+	message = projected.Message
 	payload, err := json.Marshal(map[string]any{
 		"type":            "response.failed",
 		"sequence_number": 0,

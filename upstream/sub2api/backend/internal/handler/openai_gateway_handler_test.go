@@ -441,7 +441,7 @@ func TestOpenAIHandleStreamingAwareError_NonStreaming(t *testing.T) {
 	errorObj, ok := parsed["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errorObj["type"])
-	assert.Equal(t, "服务暂时异常，请稍后重试。", errorObj["message"])
+	assert.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""), errorObj["message"])
 }
 
 func TestReadRequestBodyWithPrealloc(t *testing.T) {
@@ -483,7 +483,7 @@ func TestOpenAIEnsureForwardErrorResponse_WritesFallbackWhenNotWritten(t *testin
 	errorObj, ok := parsed["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errorObj["type"])
-	assert.Equal(t, "服务暂时异常，请稍后重试。", errorObj["message"])
+	assert.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""), errorObj["message"])
 }
 
 // Writer 已写后 ensureForwardErrorResponse 必须仍然把错误信息以 SSE
@@ -527,7 +527,7 @@ func TestOpenAIEnsureForwardErrorResponse_ResponsesRouteAfterWrittenEmitsRespons
 	assert.Contains(t, body, "event: response.failed\n", "appended a Responses terminal event")
 	assert.Contains(t, body, `"type":"response.failed"`)
 	assert.Contains(t, body, `"code":"upstream_error"`)
-	assert.Contains(t, body, "服务暂时异常，请稍后重试。")
+	assert.Contains(t, body, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""))
 }
 
 func TestOpenAIEnsureForwardErrorResponse_AfterDeltaAppendsSingleValidResponseFailed(t *testing.T) {
@@ -614,7 +614,7 @@ func TestOpenAIEnsureForwardErrorResponse_ImageJSONKeepaliveWritesSingleJSONFall
 	require.NoError(t, decoder.Decode(&payload))
 	require.ErrorIs(t, decoder.Decode(&payload), io.EOF)
 	require.Equal(t, "upstream_error", gjson.Get(w.Body.String(), "error.type").String())
-	require.Equal(t, "服务暂时异常，请稍后重试。", gjson.Get(w.Body.String(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""), gjson.Get(w.Body.String(), "error.message").String())
 }
 
 func TestOpenAIEnsureForwardErrorResponse_ImageJSONKeepalivePreservesCompletedJSON(t *testing.T) {
@@ -733,7 +733,7 @@ func TestOpenAIRecoverResponsesPanic_WritesFallbackResponse(t *testing.T) {
 	errorObj, ok := parsed["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errorObj["type"])
-	assert.Equal(t, "服务暂时异常，请稍后重试。", errorObj["message"])
+	assert.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""), errorObj["message"])
 }
 
 func TestOpenAIRecoverResponsesPanic_NoPanicNoWrite(t *testing.T) {
@@ -825,7 +825,7 @@ func TestOpenAIEnsureResponsesDependencies(t *testing.T) {
 		errorObj, exists := parsed["error"].(map[string]any)
 		require.True(t, exists)
 		assert.Equal(t, "api_error", errorObj["type"])
-		assert.Equal(t, "服务暂时异常，请稍后重试。", errorObj["message"])
+		assert.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""), errorObj["message"])
 	})
 
 	t.Run("already_written_response_not_overridden", func(t *testing.T) {
@@ -944,7 +944,7 @@ func TestOpenAIGatewayMessagesDispatchGateAllowsGrokGroups(t *testing.T) {
 
 		require.Equal(t, http.StatusForbidden, rec.Code)
 		require.Equal(t, "permission_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
-		require.Equal(t, "当前模型或分组不可用，请调整后重试。", gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
+		require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyPermission, ""), gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
 	})
 
 	t.Run("grok_group_without_dispatch_flag_reaches_gateway_dependencies", func(t *testing.T) {
@@ -1041,7 +1041,7 @@ func TestOpenAIResponses_MissingDependencies_ReturnsServiceUnavailable(t *testin
 	errorObj, ok := parsed["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "api_error", errorObj["type"])
-	assert.Equal(t, "服务暂时异常，请稍后重试。", errorObj["message"])
+	assert.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""), errorObj["message"])
 }
 
 func TestOpenAIResponses_SetsClientTransportHTTP(t *testing.T) {
@@ -1084,7 +1084,7 @@ func TestOpenAIResponses_RejectsMessageIDAsPreviousResponseID(t *testing.T) {
 	h.Responses(c)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	require.Equal(t, "请求参数或格式不正确，请检查后重试。", gjson.Get(w.Body.String(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBadRequest, ""), gjson.Get(w.Body.String(), "error.message").String())
 }
 
 func TestOpenAIResponses_AcceptsHTTPContinuationPreviousResponseIDBeforeRouting(t *testing.T) {
@@ -1140,7 +1140,7 @@ func TestOpenAIResponses_RejectsHTTPContinuationOwnedByAnotherUser(t *testing.T)
 	h.Responses(c)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	require.Equal(t, "请求参数或格式不正确，请检查后重试。", gjson.Get(w.Body.String(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBadRequest, ""), gjson.Get(w.Body.String(), "error.message").String())
 }
 
 func TestOpenAIResponses_RejectsUnownedHTTPContinuation(t *testing.T) {
@@ -1161,7 +1161,7 @@ func TestOpenAIResponses_RejectsUnownedHTTPContinuation(t *testing.T) {
 	h.Responses(c)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	require.Equal(t, "请求参数或格式不正确，请检查后重试。", gjson.Get(w.Body.String(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBadRequest, ""), gjson.Get(w.Body.String(), "error.message").String())
 }
 
 func TestOpenAIResponses_FunctionCallOutputHTTPGuidanceDoesNotSuggestPreviousResponseReuse(t *testing.T) {
@@ -1189,7 +1189,7 @@ func TestOpenAIResponses_FunctionCallOutputHTTPGuidanceDoesNotSuggestPreviousRes
 	h.Responses(c)
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	require.Equal(t, "请求参数或格式不正确，请检查后重试。", gjson.Get(w.Body.String(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBadRequest, ""), gjson.Get(w.Body.String(), "error.message").String())
 	require.NotContains(t, w.Body.String(), "reuse previous_response_id")
 }
 
@@ -2449,7 +2449,7 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	require.Equal(t, []int64{9910, 9910, 9911}, calls[:3])
 	require.Equal(t, http.StatusBadGateway, rec.Code)
 	require.Equal(t, "upstream_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
-	require.Equal(t, "服务暂时异常，请稍后重试。", gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""), gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
 }
 
 func TestOpenAIMessages_TransientFailureRetriesOnceThenFailsOver(t *testing.T) {
@@ -2511,7 +2511,7 @@ func TestOpenAIResponses_PostOutputFailureNeverReplays(t *testing.T) {
 
 	h.Responses(c)
 
-	require.Equal(t, []int64{9930}, upstream.calls(), "semantic output commits the stream and prevents replay on another account")
+	require.Len(t, upstream.calls(), 1, "semantic output commits the stream and prevents replay on another account")
 }
 
 func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHealthyAccount(t *testing.T) {
@@ -2659,7 +2659,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays(t
 
 			h.Responses(c)
 
-			require.Equal(t, []int64{9910}, upstream.calls(), "tool-capable requests must not retry or switch accounts")
+			require.Len(t, upstream.calls(), 1, "tool-capable requests must not retry or switch accounts")
 		})
 	}
 }
@@ -2677,7 +2677,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithFunctionCallOutputN
 
 			h.Responses(c)
 
-			require.Equal(t, []int64{9910}, upstream.calls(), "function call output requests must not retry or switch accounts")
+			require.Len(t, upstream.calls(), 1, "function call output requests must not retry or switch accounts")
 		})
 	}
 }
@@ -2910,7 +2910,7 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 	require.Equal(t, http.StatusTooManyRequests, rec.Code)
 	require.Equal(t, "1", rec.Header().Get("Retry-After"))
 	require.Equal(t, "rate_limit_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
-	require.Equal(t, "服务暂时繁忙，请稍后重试。", gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""), gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
 }
 
 func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T) {

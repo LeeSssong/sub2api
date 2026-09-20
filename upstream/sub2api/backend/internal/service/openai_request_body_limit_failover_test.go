@@ -128,7 +128,8 @@ func TestOpenAIRequestBodyLimitFailover_ContextWindow413DoesNotSwitchAccounts(t 
 			var failoverErr *UpstreamFailoverError
 			require.False(t, errors.As(err, &failoverErr), "context-window failures are deterministic request errors")
 			require.True(t, c.Writer.Written())
-			require.Contains(t, rec.Body.String(), "exceeds the context window")
+			require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""))
+			require.NotContains(t, rec.Body.String(), "exceeds the context window")
 			require.True(t, body.closed)
 		})
 	}

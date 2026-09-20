@@ -785,6 +785,7 @@ func (h *GatewayHandler) handleGeminiFailoverExhausted(c *gin.Context, failoverE
 			msg := service.ExtractUpstreamErrorMessage(responseBody)
 			if !rule.PassthroughBody && rule.CustomMessage != nil {
 				msg = *rule.CustomMessage
+				service.SetNativeTrustedUserCopy(c, msg)
 			}
 
 			if rule.SkipMonitoring {
@@ -827,10 +828,11 @@ type pathParseError struct{ msg string }
 func (e *pathParseError) Error() string { return e.msg }
 
 func googleError(c *gin.Context, status int, message string) {
+	projected := projectNativeUserErrorForContext(c, status, "", "", message)
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"code":    status,
-			"message": message,
+			"message": projected.Message,
 			"status":  googleapi.HTTPStatusToGoogleStatus(status),
 		},
 	})

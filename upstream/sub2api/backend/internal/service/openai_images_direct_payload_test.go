@@ -97,7 +97,8 @@ func TestCodexImagesLunaErrorDoesNotCoolImageAccount(t *testing.T) {
 			require.Nil(t, result)
 			var upstreamErr *OpenAIImagesUpstreamError
 			require.ErrorAs(t, err, &upstreamErr)
-			require.Contains(t, rec.Body.String(), "gpt-5.6-luna")
+			require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""))
+			require.NotContains(t, rec.Body.String(), "gpt-5.6-luna")
 			var failover *UpstreamFailoverError
 			require.NotErrorAs(t, err, &failover)
 		})

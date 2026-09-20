@@ -242,7 +242,7 @@ func (h *OpenAIGatewayHandler) decideOpenAIRetry(
 }
 
 func writeOpenAIExplicitContinueError(c *gin.Context, anthropic bool) {
-	recovery := gin.H{"type": "upstream_temporarily_unavailable", "message": "当前上游暂时不可用，请稍后继续", "retryable": true, "resume_supported": false, "retry_after_seconds": 10}
+	recovery := gin.H{"type": "upstream_temporarily_unavailable", "message": streamRecoveryMessage, "retryable": true, "resume_supported": false, "retry_after_seconds": 10}
 	c.Header("Retry-After", "10")
 	if anthropic {
 		c.JSON(http.StatusBadGateway, gin.H{"type": "error", "error": recovery})
@@ -4187,6 +4187,7 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 			msg := service.ExtractUpstreamErrorMessage(responseBody)
 			if !rule.PassthroughBody && rule.CustomMessage != nil {
 				msg = *rule.CustomMessage
+				service.SetNativeTrustedUserCopy(c, msg)
 			}
 
 			if rule.SkipMonitoring {
@@ -4279,8 +4280,9 @@ func (h *OpenAIGatewayHandler) mapUpstreamError(statusCode int) (int, string, st
 func (h *OpenAIGatewayHandler) handleStreamingAwareError(c *gin.Context, status int, errType, message string, streamStarted bool) {
 	if errType == localCapacityExhaustedErrorCode {
 		if !streamStarted && inboundIsResponses(c) {
+			projected := projectNativeUserErrorForContext(c, status, errType, errType, message)
 			c.JSON(status, gin.H{"error": gin.H{
-				"code": errType, "message": message,
+				"code": projected.Type, "message": projected.Message,
 			}})
 			return
 		}
@@ -4330,7 +4332,7 @@ func (h *OpenAIGatewayHandler) handleStreamingAwareErrorWithCode(
 			}
 			payload, err := json.Marshal(gin.H{"error": errorObject})
 			if err != nil {
-				payload = []byte(`{"error":{"type":"upstream_error","message":"Upstream request failed"}}`)
+				payload = []byte(`{"error":{"type":"upstream_error","message":"服务暂时异常，请稍后重试。如需协助请联系管理员。"}}`)
 			}
 			errorEvent := "event: error\ndata: " + string(payload) + "\n\n"
 			if _, err := fmt.Fprint(c.Writer, errorEvent); err != nil {
@@ -4342,12 +4344,13 @@ func (h *OpenAIGatewayHandler) handleStreamingAwareErrorWithCode(
 	}
 
 	// Normal case: return JSON response with proper status code
+	projected := projectNativeUserErrorForContext(c, status, errType, code, message)
 	if code == "" {
 		h.errorResponse(c, status, errType, message)
 		return
 	}
 	c.JSON(status, gin.H{"error": gin.H{
-		"type": errType, "code": code, "message": message,
+		"type": projected.Type, "code": projected.Code, "message": projected.Message,
 	}})
 }
 
@@ -4638,6 +4641,7 @@ func closeOpenAIWSFailoverExhausted(c *gin.Context, conn *coderws.Conn, failover
 	projected := service.ProjectNativeUserError(service.NativeUserErrorInput{
 		Status: intendedStatus, Type: errorType, Code: errorCode, Message: message,
 		Stage: "upstream", Ownership: "provider", AccountSelected: failoverErr != nil,
+		RequestID: service.NativeUserErrorRequestID(c),
 	})
 	service.MarkOpsStreamFailure(c, errorType, errorCode, message, intendedStatus)
 	closeOpenAIClientWS(conn, closeStatus, projected.Message)

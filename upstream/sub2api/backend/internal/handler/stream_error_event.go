@@ -15,7 +15,7 @@ import (
 
 const (
 	streamRecoveryType    = "upstream_temporarily_unavailable"
-	streamRecoveryMessage = "当前上游暂时不可用，请稍后继续"
+	streamRecoveryMessage = "服务暂时繁忙，请稍后继续"
 )
 
 // resolveStreamRecoveryPayload extracts and normalizes recovery metadata from

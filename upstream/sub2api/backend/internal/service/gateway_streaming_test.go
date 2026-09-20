@@ -296,7 +296,8 @@ func TestHandleStreamingResponse_StreamReadErrorAfterOutput_PassesThrough(t *tes
 	require.Contains(t, body, "event: error\n", "必须按 Anthropic SSE 标准发送 error 事件帧")
 	require.Contains(t, body, `"type":"error"`, "data 必须含 type:error 顶层字段（Anthropic 标准）")
 	require.Contains(t, body, `"stream_read_error"`, "error.type 必须为 stream_read_error")
-	require.Contains(t, body, "upstream stream disconnected", "error.message 必须包含具体根因，Claude Code 等客户端才能显示有效错误文案")
+	require.Contains(t, body, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), "面向客户端的 stream_read_error 必须是封闭中文文案")
+	require.NotContains(t, body, "upstream stream disconnected")
 }
 
 // 默认 (*net.OpError).Error() 会拼接 Source/Addr 字段，泄露内部 IP/端口与上游

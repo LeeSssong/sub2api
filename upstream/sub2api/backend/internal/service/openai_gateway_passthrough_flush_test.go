@@ -168,7 +168,8 @@ func TestOpenAIStreamingPassthroughSanitizesSynthesizedFailure(t *testing.T) {
 	require.Contains(t, body, "event: response.failed")
 	require.NotContains(t, body, "req_secret")
 	require.NotContains(t, body, "internal.invalid")
-	require.Contains(t, body, "Upstream response failed")
+	require.Contains(t, body, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.NotContains(t, body, "Upstream response failed")
 }
 
 func TestOpenAIStreamingPassthroughKeepsPreamblePendingUntilFirstOutputBoundary(t *testing.T) {
@@ -229,8 +230,10 @@ func TestOpenAIStreamingPassthroughNonRetryableFailedBeforeOutputFlushesAtBounda
 	var failoverErr *UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 	require.NotNil(t, result)
-	require.Equal(t, upstream, recorder.Body.String())
-	require.Equal(t, []int{len(upstream)}, writer.flushBodyLengths)
+	wantBody := "event: response.failed\n" +
+		`data: {"type":"response.failed","error":{"code":"content_policy","message":"` + AppendNativeUserErrorHelp(NativeUserCopyAbnormal, "") + `"},"usage":{"input_tokens":6,"output_tokens":0,"total_tokens":6}}` + "\n\n"
+	require.Equal(t, wantBody, recorder.Body.String())
+	require.Equal(t, []int{len(wantBody)}, writer.flushBodyLengths)
 	require.Equal(t, 6, result.usage.InputTokens)
 	require.Zero(t, result.usage.OutputTokens)
 }
@@ -280,8 +283,11 @@ func TestOpenAIStreamingPassthroughFailedAfterOutputFlushesAtBoundaryAndKeepsUsa
 	var failoverErr *UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 	require.NotNil(t, result)
-	require.Equal(t, upstream, recorder.Body.String())
-	require.Equal(t, []int{len(firstOutput), len(upstream)}, writer.flushBodyLengths)
+	wantFailed := "event: response.failed\n" +
+		`data: {"type":"response.failed","error":{"code":"server_error","message":"` + AppendNativeUserErrorHelp(NativeUserCopyAbnormal, "") + `"},"usage":{"input_tokens":7,"output_tokens":2,"total_tokens":9}}` + "\n\n"
+	wantBody := firstOutput + wantFailed
+	require.Equal(t, wantBody, recorder.Body.String())
+	require.Equal(t, []int{len(firstOutput), len(wantBody)}, writer.flushBodyLengths)
 	require.Equal(t, 7, result.usage.InputTokens)
 	require.Equal(t, 2, result.usage.OutputTokens)
 }

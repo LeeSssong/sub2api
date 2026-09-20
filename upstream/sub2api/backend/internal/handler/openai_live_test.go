@@ -103,7 +103,7 @@ func TestLiveAttestationErrorIsExplicit(t *testing.T) {
 	})
 
 	require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
-	require.Equal(t, "服务暂时异常，请稍后重试。", gjson.GetBytes(recorder.Body.Bytes(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""), gjson.GetBytes(recorder.Body.Bytes(), "error.message").String())
 }
 
 func jsonPathString(t *testing.T, raw json.RawMessage, keys ...string) string {

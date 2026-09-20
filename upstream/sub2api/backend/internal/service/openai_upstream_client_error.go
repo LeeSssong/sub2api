@@ -37,11 +37,13 @@ func isOpenAIDeterministicClientError(statusCode int) bool {
 // redactAgentIdentitySensitiveBody；这里不重复清洗，也不回落读取原始 body 的
 // message，避免绕开那两道脱敏。
 func writeOpenAIUpstreamClientError(c *gin.Context, statusCode int, body []byte, upstreamMsg string) {
-	errorPayload := gin.H{"type": openAIUpstreamClientErrorFallbackType}
-	if errType := strings.TrimSpace(gjson.GetBytes(body, "error.type").String()); errType != "" {
-		errorPayload["type"] = errType
+	errType := openAIUpstreamClientErrorFallbackType
+	if extractedType := strings.TrimSpace(gjson.GetBytes(body, "error.type").String()); extractedType != "" {
+		errType = extractedType
 	}
-	if code := strings.TrimSpace(extractUpstreamErrorCode(body)); code != "" {
+	errorPayload := gin.H{"type": errType}
+	code := strings.TrimSpace(extractUpstreamErrorCode(body))
+	if code != "" {
 		errorPayload["code"] = code
 	}
 	if param := strings.TrimSpace(gjson.GetBytes(body, "error.param").String()); param != "" {
@@ -51,7 +53,17 @@ func writeOpenAIUpstreamClientError(c *gin.Context, statusCode int, body []byte,
 	if message == "" {
 		message = openAIUpstreamClientErrorFallbackMessage
 	}
-	errorPayload["message"] = message
+	projected := ProjectNativeUserErrorFromGin(
+		c,
+		statusCode,
+		errType,
+		code,
+		message,
+		true,
+		"upstream",
+		"provider",
+	)
+	errorPayload["message"] = projected.Message
 
 	c.JSON(statusCode, gin.H{"error": errorPayload})
 }

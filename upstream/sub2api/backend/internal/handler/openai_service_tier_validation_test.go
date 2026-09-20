@@ -74,7 +74,7 @@ func TestOpenAIGatewayHandlerResponses_InvalidServiceTierRejected400(t *testing.
 		})
 		require.Equal(t, http.StatusBadRequest, rec.Code, "body=%s", body)
 		require.Contains(t, rec.Body.String(), "invalid_request_error", "body=%s", body)
-		require.Equal(t, "请求参数或格式不正确，请检查后重试。", gjson.GetBytes(rec.Body.Bytes(), "error.message").String(), "body=%s", body)
+		require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBadRequest, ""), gjson.GetBytes(rec.Body.Bytes(), "error.message").String(), "body=%s", body)
 	}
 }
 
@@ -90,6 +90,6 @@ func TestOpenAIGatewayHandlerChatCompletions_InvalidServiceTierRejected400(t *te
 		})
 		require.Equal(t, http.StatusBadRequest, rec.Code, "body=%s", body)
 		require.Contains(t, rec.Body.String(), "invalid_request_error", "body=%s", body)
-		require.Equal(t, "请求参数或格式不正确，请检查后重试。", gjson.GetBytes(rec.Body.Bytes(), "error.message").String(), "body=%s", body)
+		require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBadRequest, ""), gjson.GetBytes(rec.Body.Bytes(), "error.message").String(), "body=%s", body)
 	}
 }

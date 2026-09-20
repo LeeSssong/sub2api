@@ -28,7 +28,7 @@ func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedJSON413(t *testing.T) {
 	errBody, ok := envelope["error"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "invalid_request_error", errBody["type"])
-	require.Equal(t, "请求内容过大，请缩短内容后重试。", errBody["message"])
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyTooLarge, ""), errBody["message"])
 	require.NotContains(t, rec.Body.String(), "must-not-leak")
 }
 
@@ -45,7 +45,7 @@ func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedResponsesSSE(t *testing
 	require.True(t, strings.HasPrefix(body, "event: response.failed\n"))
 	require.Equal(t, 1, strings.Count(body, "event: response.failed\n"))
 	require.Contains(t, body, `"code":"invalid_request"`)
-	require.Contains(t, body, `"message":"请求内容过大，请缩短内容后重试。"`)
+	require.Contains(t, body, `"message":"`+service.AppendNativeUserErrorHelp(service.NativeUserCopyTooLarge, "")+`"`)
 	require.NotContains(t, body, "must-not-leak")
 }
 

@@ -305,7 +305,7 @@ func TestApiKeyAuthWithSubscriptionGoogle_MissingKey(t *testing.T) {
 	var resp googleErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Equal(t, http.StatusUnauthorized, resp.Error.Code)
-	require.Equal(t, "API key is required", resp.Error.Message)
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAuth, ""), resp.Error.Message)
 	require.Equal(t, "UNAUTHENTICATED", resp.Error.Status)
 }
 
@@ -329,7 +329,7 @@ func TestApiKeyAuthWithSubscriptionGoogle_QueryApiKeyRejected(t *testing.T) {
 	var resp googleErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Equal(t, http.StatusBadRequest, resp.Error.Code)
-	require.Equal(t, "Query parameter api_key is deprecated. Use Authorization header or key instead.", resp.Error.Message)
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBadRequest, ""), resp.Error.Message)
 	require.Equal(t, "INVALID_ARGUMENT", resp.Error.Status)
 }
 
@@ -453,7 +453,7 @@ func TestApiKeyAuthWithSubscriptionGoogle_InvalidKey(t *testing.T) {
 	var resp googleErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Equal(t, http.StatusUnauthorized, resp.Error.Code)
-	require.Equal(t, "Invalid API key", resp.Error.Message)
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAuth, ""), resp.Error.Message)
 	require.Equal(t, "UNAUTHENTICATED", resp.Error.Status)
 	require.True(t, rejected)
 	require.Equal(t, IngressRejectInvalidAPIKey, rejectReason)
@@ -519,7 +519,7 @@ func TestApiKeyAuthWithSubscriptionGoogle_MarksUnavailableGroupBusinessLimited(t
 	require.Equal(t, http.StatusForbidden, rec.Code)
 	var resp googleErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	require.Equal(t, "API Key 所属分组已删除", resp.Error.Message)
+	require.Equal(t, service.AppendNativeUserErrorHelp("API Key 所属分组已删除", ""), resp.Error.Message)
 	require.True(t, markedBusinessLimited)
 	require.Equal(t, service.OpsClientBusinessLimitedReasonAPIKeyGroupUnavailable, businessLimitedReason)
 	require.True(t, rejected)
@@ -547,7 +547,7 @@ func TestApiKeyAuthWithSubscriptionGoogle_RepoError(t *testing.T) {
 	var resp googleErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Equal(t, http.StatusInternalServerError, resp.Error.Code)
-	require.Equal(t, "Failed to validate API key", resp.Error.Message)
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""), resp.Error.Message)
 	require.Equal(t, "INTERNAL", resp.Error.Status)
 }
 
@@ -580,7 +580,7 @@ func TestApiKeyAuthWithSubscriptionGoogle_DisabledKey(t *testing.T) {
 	var resp googleErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Equal(t, http.StatusUnauthorized, resp.Error.Code)
-	require.Equal(t, "API key is disabled", resp.Error.Message)
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAuth, ""), resp.Error.Message)
 	require.Equal(t, "UNAUTHENTICATED", resp.Error.Status)
 }
 
@@ -614,7 +614,7 @@ func TestApiKeyAuthWithSubscriptionGoogle_InsufficientBalance(t *testing.T) {
 	var resp googleErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Equal(t, http.StatusForbidden, resp.Error.Code)
-	require.Equal(t, "Insufficient account balance", resp.Error.Message)
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBalance, ""), resp.Error.Message)
 	require.Equal(t, "PERMISSION_DENIED", resp.Error.Status)
 }
 
@@ -682,7 +682,7 @@ func TestApiKeyAuthWithSubscriptionGoogle_RejectsExhaustedBalance(t *testing.T) 
 	var resp googleErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Equal(t, http.StatusForbidden, resp.Error.Code)
-	require.Equal(t, "Insufficient account balance", resp.Error.Message)
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBalance, ""), resp.Error.Message)
 	require.Equal(t, "PERMISSION_DENIED", resp.Error.Status)
 }
 
@@ -906,5 +906,5 @@ func TestApiKeyAuthWithSubscriptionGoogle_SubscriptionLimitExceededReturns429(t 
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Equal(t, http.StatusTooManyRequests, resp.Error.Code)
 	require.Equal(t, "RESOURCE_EXHAUSTED", resp.Error.Status)
-	require.Contains(t, resp.Error.Message, "daily usage limit exceeded")
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyQuota, ""), resp.Error.Message)
 }

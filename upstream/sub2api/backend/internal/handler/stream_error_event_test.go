@@ -79,7 +79,7 @@ func TestOpenAIHandleStreamingAwareError_ResponsesStreamingEmitsResponseFailed(t
 	id, _ := resp["id"].(string)
 	assert.True(t, strings.HasPrefix(id, "resp_"), "id should start with resp_, got %q", id)
 	assert.Equal(t, "rate_limit_exceeded", errObj["code"])
-	assert.Equal(t, "请求过于频繁，请稍后重试或降低并发。", errObj["message"])
+	assert.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyRate, ""), errObj["message"])
 }
 
 func TestOpenAIAdmissionError_SynchronousNonResponsesIncludesGatewayCode(t *testing.T) {

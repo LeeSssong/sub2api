@@ -26,8 +26,5 @@ func projectNativeUserErrorForContext(c *gin.Context, status int, errType, code,
 			stage, owner = "routing", "platform"
 		}
 	}
-	return service.ProjectNativeUserError(service.NativeUserErrorInput{
-		Status: status, Type: errType, Code: code, Message: message,
-		Stage: stage, Ownership: owner, AccountSelected: selected,
-	})
+	return service.ProjectNativeUserErrorFromGin(c, status, errType, code, message, selected, stage, owner)
 }

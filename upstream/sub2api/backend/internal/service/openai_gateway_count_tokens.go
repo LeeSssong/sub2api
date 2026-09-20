@@ -203,10 +203,11 @@ func writeOpenAIResponsesInputTokensFallback(c *gin.Context, account *Account, p
 }
 
 func writeOpenAIResponsesInputTokensError(c *gin.Context, status int, errType, message string) {
+	projected := ProjectNativeUserErrorFromGin(c, status, errType, "", message, false, "", "")
 	c.JSON(status, gin.H{
 		"error": gin.H{
-			"type":    errType,
-			"message": message,
+			"type":    projected.Type,
+			"message": projected.Message,
 		},
 	})
 }
