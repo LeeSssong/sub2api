@@ -1,6 +1,7 @@
 package service
 
 import (
+	"net/http"
 	"strings"
 	"unicode/utf8"
 
@@ -101,6 +102,35 @@ func captureOpsOriginalHTTPError(c *gin.Context, account *Account, status int, r
 		}
 		appendOpsUpstreamError(c, event)
 	}
+}
+
+func recordOpsOriginalStreamTransportError(c *gin.Context, account *Account, passthrough bool, requestID, kind string, err error) {
+	if c == nil || err == nil {
+		return
+	}
+	originalMessage := strings.TrimSpace(err.Error())
+	if originalMessage == "" {
+		return
+	}
+	safeMessage := "OpenAI upstream stream transport failed"
+	setOpsUpstreamError(c, http.StatusBadGateway, safeMessage, "")
+	event := OpsUpstreamErrorEvent{
+		ProxyID:            opsUpstreamProxyID(account),
+		ProxyName:          opsUpstreamProxyName(account),
+		Platform:           PlatformOpenAI,
+		UpstreamStatusCode: http.StatusBadGateway,
+		UpstreamRequestID:  strings.TrimSpace(requestID),
+		Passthrough:        passthrough,
+		Kind:               kind,
+		Message:            safeMessage,
+		OriginalError:      boundOpsOriginalUpstreamError(&OpsOriginalUpstreamError{Message: originalMessage}),
+	}
+	if account != nil {
+		event.Platform = account.Platform
+		event.AccountID = account.ID
+		event.AccountName = account.Name
+	}
+	appendOpsUpstreamError(c, event)
 }
 
 func originalErrorPrefix(value string, limit int) string {

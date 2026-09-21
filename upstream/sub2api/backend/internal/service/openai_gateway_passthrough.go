@@ -2210,6 +2210,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 		}
 		s.recordOpenAIProxyStreamDisconnect(account, err, upstreamRequestID)
 		s.recordOpenAIIncompleteStreamFailure(ctx, account.ID, mappedModel, true, false, false, usageHasAnyTokens(usage))
+		recordOpsOriginalStreamTransportError(c, account, true, upstreamRequestID, "stream_read_error", err)
 		logger.LegacyPrintf("service.openai_gateway",
 			"[OpenAI passthrough] 流读取异常中断: account=%d request_id=%s err=%v",
 			account.ID,
