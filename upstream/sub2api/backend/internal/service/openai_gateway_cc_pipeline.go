@@ -122,6 +122,7 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 		Kind:               "failover",
 		Message:            upstreamMsg,
 		Detail:             upstreamDetail,
+		OriginalError:      newOpsOriginalUpstreamError(respBody),
 	})
 	shouldDisable := tempUnscheduled
 	if account.Platform != PlatformGrok && !tempUnscheduled {

@@ -980,6 +980,7 @@ export interface OpsErrorDetail extends OpsErrorLog {
     original_upstream_status?: number | null
     original_upstream_message?: string
     original_upstream_detail?: string
+    original_upstream_truncated?: boolean
   }
 
   // Upstream context (optional; enriched by gateway services)

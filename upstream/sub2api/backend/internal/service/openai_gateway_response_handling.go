@@ -627,6 +627,9 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 						}
 					}
 				}
+				if !outputStarted || eventType == "error" {
+					s.recordOpenAIStreamUpstreamError(c, account, false, upstreamRequestID, "stream_failed", dataBytes, failedMessage)
+				}
 				forceFlushFailedEvent = true
 				sawFailedEvent = true
 				terminalFailurePending = !codexFailureTerminal || eventType == "response.failed"

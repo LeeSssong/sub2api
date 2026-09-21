@@ -1657,6 +1657,7 @@ func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 	payload []byte,
 	message string,
 ) string {
+	original := newOpsOriginalUpstreamError(payload)
 	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
 	if message == "" {
 		message = "OpenAI upstream response failed"
@@ -1682,6 +1683,7 @@ func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 			Kind:               kind,
 			Message:            message,
 			Detail:             detail,
+			OriginalError:      original,
 		}
 		if account != nil {
 			event.Platform = account.Platform
@@ -2080,6 +2082,9 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 							return resultWithUsage(), fmt.Errorf("upstream response failed: passthrough rule matched message=%s", errMsg)
 						}
 					}
+				}
+				if !outputStarted || eventType == "error" {
+					s.recordOpenAIStreamUpstreamError(c, account, true, upstreamRequestID, "stream_failed", dataBytes, failedMessage)
 				}
 				forceFlushFailedEvent = true
 				sawFailedEvent = true

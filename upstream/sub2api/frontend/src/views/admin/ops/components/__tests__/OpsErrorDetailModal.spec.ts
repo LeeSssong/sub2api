@@ -111,9 +111,9 @@ describe('OpsErrorDetailModal diagnosis', () => {
     expect(diagnosis.text()).toContain('未选择上游')
   })
 
-  it('reuses diagnosis for upstream context with selected account and sanitized evidence', async () => {
+  it('shows administrator evidence separately from the projected client response', async () => {
     const rawDetail = makeDetail(true)
-    rawDetail.error_body = 'Authorization: Bearer raw-body-secret'
+    rawDetail.error_body = '{"error":{"message":"服务暂时异常，请稍后重试。"}}'
     rawDetail.upstream_error_detail = 'X-Goog-Api-Key: raw-upstream-secret'
     getUpstreamErrorDetail.mockResolvedValue(rawDetail)
     const wrapper = mountModal('upstream')
@@ -125,7 +125,15 @@ describe('OpsErrorDetailModal diagnosis', () => {
     expect(diagnosis.text()).toContain('paid')
     expect(diagnosis.text()).toContain('provider unavailable')
     expect(diagnosis.text()).toContain('maintenance')
-    expect(wrapper.text()).not.toContain('raw-body-secret')
-    expect(wrapper.text()).not.toContain('raw-upstream-secret')
+    expect(wrapper.text()).toContain('服务暂时异常，请稍后重试。')
+    expect(wrapper.text()).toContain('raw-upstream-secret')
   })
+  it('shows the upstream payload verbatim without JSON reformatting', async () => {
+    const payload = ' {\n  "error":{"message":"Encrypted output cannot be decoded","code":"thinking_signature_invalid"}\n}\n'
+    getUpstreamErrorDetail.mockResolvedValue({ ...makeDetail(true), upstream_error_detail: payload })
+    const wrapper = mountModal('upstream')
+    await flushPromises()
+    expect(wrapper.findAll('pre code').some(node => node.element.textContent === payload)).toBe(true)
+  })
+
 })

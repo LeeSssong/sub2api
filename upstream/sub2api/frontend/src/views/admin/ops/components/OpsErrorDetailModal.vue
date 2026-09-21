@@ -154,6 +154,8 @@
         </div>
       </div>
 
+      <p v-if="detail.diagnosis?.original_upstream_truncated" class="text-sm text-amber-600 dark:text-amber-400">{{ t('admin.ops.errorDetail.originalUpstreamTruncated') }}</p>
+
       <!-- Response content (client request -> error_body; upstream -> upstream_error_detail/message) -->
       <div class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
         <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.diagnosticPayloads') }}</h3>
@@ -161,7 +163,7 @@
         <div v-else class="mt-4 space-y-4">
           <div v-for="section in diagnosticPayloadSections" :key="section.key">
             <div class="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ diagnosticPayloadLabel(section.key) }}</div>
-            <pre class="max-h-[520px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ prettyJSON(section.value) }}</code></pre>
+            <pre class="max-h-[520px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ section.key === 'upstream_message' || section.key === 'upstream_detail' ? section.value : prettyJSON(section.value) }}</code></pre>
           </div>
         </div>
       </div>
@@ -311,8 +313,9 @@ const diagnosticPayloadSections = computed(() => {
 })
 
 function meaningfulPayload(candidate: unknown): string {
-  const value = String(candidate || '').trim()
-  if (!value || value === '[]' || value === '{}' || value.toLowerCase() === 'null') return ''
+  const value = String(candidate || '')
+  const trimmed = value.trim()
+  if (!trimmed || trimmed === '[]' || trimmed === '{}' || trimmed.toLowerCase() === 'null') return ''
   return value
 }
 

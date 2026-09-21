@@ -318,6 +318,7 @@ export default {
         originalUpstreamStatus: '原始上游状态',
         originalUpstreamMessage: '原始上游消息',
         originalUpstreamDetail: '原始上游详情',
+        originalUpstreamTruncated: '上游原文超过存储上限，以下仅展示已保留的原始内容。',
         noErrorSelected: '未选择错误。',
         backToList: '返回列表',
         resolution: '已解决：',

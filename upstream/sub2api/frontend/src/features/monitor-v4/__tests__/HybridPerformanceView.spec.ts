@@ -83,7 +83,7 @@ describe('HybridPerformanceView', () => {
       const card = wrapper.get('[data-test="hybrid-group-card"]')
       expect(card.text()).toContain('主力分组')
       expect(card.get('[data-test="success-rate"]').text()).toBe('95%')
-      expect(card.get('[data-test="cache-hit-rate"]').text()).toBe('96.84%')
+      expect(card.find('[data-test="cache-hit-rate"]').exists()).toBe(false)
       const section = wrapper.get('[data-test="hybrid-performance-view"]')
       expect(section.element.firstElementChild?.getAttribute('data-test')).toBe('hybrid-performance-panel')
     } finally {

@@ -14,20 +14,21 @@ const (
 )
 
 type NativeErrorDiagnosis struct {
-	Class                   string `json:"class"`
-	Code                    string `json:"code"`
-	Stage                   string `json:"stage"`
-	Ownership               string `json:"ownership"`
-	UpstreamAccountSelected bool   `json:"upstream_account_selected"`
-	SelectedAccountID       *int64 `json:"selected_account_id,omitempty"`
-	SelectedAccountName     string `json:"selected_account_name,omitempty"`
-	GroupID                 *int64 `json:"group_id,omitempty"`
-	GroupName               string `json:"group_name,omitempty"`
-	OriginalUpstreamStatus  *int   `json:"original_upstream_status,omitempty"`
-	OriginalUpstreamMessage string `json:"original_upstream_message,omitempty"`
-	OriginalUpstreamDetail  string `json:"original_upstream_detail,omitempty"`
-	UserMeaning             string `json:"-"`
-	UserSuggestion          string `json:"-"`
+	Class                     string `json:"class"`
+	Code                      string `json:"code"`
+	Stage                     string `json:"stage"`
+	Ownership                 string `json:"ownership"`
+	UpstreamAccountSelected   bool   `json:"upstream_account_selected"`
+	SelectedAccountID         *int64 `json:"selected_account_id,omitempty"`
+	SelectedAccountName       string `json:"selected_account_name,omitempty"`
+	GroupID                   *int64 `json:"group_id,omitempty"`
+	GroupName                 string `json:"group_name,omitempty"`
+	OriginalUpstreamStatus    *int   `json:"original_upstream_status,omitempty"`
+	OriginalUpstreamMessage   string `json:"original_upstream_message,omitempty"`
+	OriginalUpstreamDetail    string `json:"original_upstream_detail,omitempty"`
+	OriginalUpstreamTruncated bool   `json:"original_upstream_truncated,omitempty"`
+	UserMeaning               string `json:"-"`
+	UserSuggestion            string `json:"-"`
 }
 
 var (
@@ -54,6 +55,11 @@ func ProjectNativeErrorDiagnosis(detail *OpsErrorLogDetail) *NativeErrorDiagnosi
 		OriginalUpstreamMessage: sanitizeNativeDiagnosticEvidence(detail.UpstreamErrorMessage, 2048),
 		OriginalUpstreamDetail:  sanitizeNativeDiagnosticEvidence(detail.UpstreamErrorDetail, opsMaxStoredErrorBodyBytes),
 	}
+	if original := originalOpsUpstreamError(detail); original != nil {
+		diagnosis.OriginalUpstreamMessage = original.Message
+		diagnosis.OriginalUpstreamDetail = original.Body
+		diagnosis.OriginalUpstreamTruncated = original.Truncated
+	}
 	diagnosis.Code, diagnosis.UserMeaning, diagnosis.UserSuggestion = nativeErrorExplanation(detail, class)
 
 	if detail.AccountID != nil && *detail.AccountID > 0 {
@@ -68,15 +74,23 @@ func ProjectNativeErrorDiagnosis(detail *OpsErrorLogDetail) *NativeErrorDiagnosi
 
 func AttachNativeErrorDiagnosis(detail *OpsErrorLogDetail) *OpsErrorLogDetail {
 	if detail != nil {
+		original := originalOpsUpstreamError(detail)
+		originalEvents := detail.UpstreamErrors
 		detail.Diagnosis = ProjectNativeErrorDiagnosis(detail)
-		// Administrator details historically expose several raw response fields.
-		// Re-sanitize every one of those fields at the read boundary so the legacy
-		// response panel cannot bypass diagnosis evidence redaction.
+		// Keep the legacy/client fields on their existing sanitization path.
+		// Explicitly captured administrator-only evidence is restored separately.
 		detail.Message = sanitizeNativeDiagnosticEvidence(detail.Message, 2048)
 		detail.ErrorBody = sanitizeNativeDiagnosticEvidence(detail.ErrorBody, opsMaxStoredErrorBodyBytes)
 		detail.UpstreamErrorMessage = sanitizeNativeDiagnosticEvidence(detail.UpstreamErrorMessage, 2048)
 		detail.UpstreamErrorDetail = sanitizeNativeDiagnosticEvidence(detail.UpstreamErrorDetail, opsMaxStoredErrorBodyBytes)
 		detail.UpstreamErrors = sanitizeNativeDiagnosticEvidence(detail.UpstreamErrors, opsMaxStoredErrorBodyBytes)
+		if original != nil {
+			// These fields are served only by the administrator detail endpoint.
+			// Client responses and user error views still use their own projections.
+			detail.UpstreamErrorMessage = original.Message
+			detail.UpstreamErrorDetail = original.Body
+			detail.UpstreamErrors = originalEvents
+		}
 	}
 	return detail
 }

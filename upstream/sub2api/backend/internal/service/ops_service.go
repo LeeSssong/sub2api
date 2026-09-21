@@ -582,6 +582,11 @@ func sanitizeOpsUpstreamErrors(entry *OpsInsertErrorLogInput) error {
 		normalizeOpsUpstreamProxyAttribution(&out)
 		out.DroppedEarlierAttempts = 0
 		keepBody := i >= firstEventWithBody
+		if keepBody {
+			out.OriginalError = boundOpsOriginalUpstreamError(out.OriginalError)
+		} else {
+			out.OriginalError = nil
+		}
 		urlMaxLen, messageMaxLen := 2048, 2048
 		if !keepBody {
 			urlMaxLen, messageMaxLen = opsUpstreamErrorsOlderURLMaxLen, opsUpstreamErrorsOlderMessageMaxLen

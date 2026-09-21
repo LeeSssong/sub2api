@@ -318,6 +318,7 @@ export default {
         originalUpstreamStatus: 'Original upstream status',
         originalUpstreamMessage: 'Original upstream message',
         originalUpstreamDetail: 'Original upstream detail',
+        originalUpstreamTruncated: 'The upstream payload exceeded the storage limit. Only the retained original content is shown.',
         noErrorSelected: 'No error selected.',
         backToList: 'Back to List',
         resolution: 'Resolved:',

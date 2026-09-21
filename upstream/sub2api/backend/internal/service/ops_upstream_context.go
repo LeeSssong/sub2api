@@ -422,6 +422,10 @@ type OpsUpstreamErrorEvent struct {
 	Message string `json:"message,omitempty"`
 	Detail  string `json:"detail,omitempty"`
 
+	// OriginalError is captured before client projection, and is only returned
+	// by administrator diagnostics. Legacy fields remain sanitized.
+	OriginalError *OpsOriginalUpstreamError `json:"original_error,omitempty"`
+
 	// StreamObservation is a sanitized lifecycle snapshot for streaming failures.
 	// It is embedded in the existing upstream_errors JSON column to avoid a new
 	// persistence table or migration.
