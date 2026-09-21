@@ -1,0 +1,126 @@
+{
+  "version": "docs-v15-new-images-lightbox",
+  "file_count": 24,
+  "files": [
+    {
+      "path": "assets/3-1.png",
+      "bytes": 464175,
+      "sha256": "cd085fbdd587fcd74ee22e920fe96fd617e9b5d548f93d4166574091e91b04c7"
+    },
+    {
+      "path": "assets/3-2.png",
+      "bytes": 281012,
+      "sha256": "9b57dee6e6ea9137ed15a0f1ad60015ef8586aac9a42aed8627d4a8299bdd151"
+    },
+    {
+      "path": "assets/3-3-ccs.png",
+      "bytes": 578887,
+      "sha256": "e6b7db89b647986622f0626c0c3033bc0ab4bf1432bbdd497149ed6ff1674109"
+    },
+    {
+      "path": "assets/3-4-ccs.png",
+      "bytes": 571311,
+      "sha256": "b4334ab9a3d9aa2a3776827ea5883ba1621e48a4db38c2e04ea9e826c68d728d"
+    },
+    {
+      "path": "assets/3-5-ccs.png",
+      "bytes": 409390,
+      "sha256": "d2fd15fe46e9f71789d316e8b0de4baa8ffd242aa07babfef53f3af53b56c569"
+    },
+    {
+      "path": "assets/3-6-ai.png",
+      "bytes": 282837,
+      "sha256": "b74fc95994fcaf041799b9c705fec9027e0ed8e1a35f55a30a86004253453bb6"
+    },
+    {
+      "path": "assets/4-1-codex.png",
+      "bytes": 582943,
+      "sha256": "4d76c4a0567288d6e0819dd75d62ab9e321c5f26d1cd81ce6eeb81af05f47c12"
+    },
+    {
+      "path": "assets/4-1.png",
+      "bytes": 672327,
+      "sha256": "7766c66330454d6c9af95320516dc89d3ebecfe7afe3af5cdcf6e840c0784757"
+    },
+    {
+      "path": "assets/4-10.png",
+      "bytes": 305926,
+      "sha256": "b4b06b5ea041006a3e893dbd834b7e9ab3a578359e62a42744a5d0ef568507a4"
+    },
+    {
+      "path": "assets/4-2-codex.png",
+      "bytes": 281844,
+      "sha256": "1da37e49c65f071ff5bcb365d9d77a8d5adba4c71202a697af62db5eebd19bae"
+    },
+    {
+      "path": "assets/4-3-gpt.png",
+      "bytes": 177557,
+      "sha256": "7da4a11a0d16436ac1dca894b8ace10f93b91639d415f681a5c7ffe814577328"
+    },
+    {
+      "path": "assets/4-4-gpt.png",
+      "bytes": 127497,
+      "sha256": "bc150811703f33135acc53aedea10a5d646e15facc00ed2681fa90d4cfe18aa0"
+    },
+    {
+      "path": "assets/4-5.png",
+      "bytes": 563732,
+      "sha256": "783b0115d4625f573297bcaa0941ce1605e99b019487b1c2f64b2c884cf8967c"
+    },
+    {
+      "path": "assets/4-6.png",
+      "bytes": 158283,
+      "sha256": "cd22c18ded22336d7b3a2912c5aebb6e1e16347bd95fc397fe2bda5d2a392a98"
+    },
+    {
+      "path": "assets/4-7-codex.png",
+      "bytes": 205059,
+      "sha256": "71f70159809fc24ac811368f43dce3b078f518b947b3cda1b649d52bfe45e952"
+    },
+    {
+      "path": "assets/4-8.png",
+      "bytes": 589349,
+      "sha256": "1bac820f865647b8dc35d1579e5cf254b2eb02c209da73665bb13d1f8b1edad8"
+    },
+    {
+      "path": "assets/4-9.png",
+      "bytes": 524889,
+      "sha256": "a55ec5314b68242bdee8ad93e6ed8d0a90422fb0983487e0e2d7b384facc2660"
+    },
+    {
+      "path": "assets/qq-group-qr.jpg",
+      "bytes": 129812,
+      "sha256": "c5f142380061a1a09f168ae87286c1a8867fd950b042afa64d1796d4ed10c15d"
+    },
+    {
+      "path": "assets/starlink-logo.png",
+      "bytes": 156052,
+      "sha256": "4152c0edf87a96e0d54ecee85f2237022fe9c131bd3a502ef14f5735afb2d9e7"
+    },
+    {
+      "path": "assets/wechat-qr.jpg",
+      "bytes": 57424,
+      "sha256": "6b619afb3ec7aeef50c0ebc56e344cf4b15dbe063599e19462cf6cdec1277ef9"
+    },
+    {
+      "path": "downloads/CC-Switch-v3.20.1-Windows.msi",
+      "bytes": 13553664,
+      "sha256": "b2a958ccd2bbfd1c44c614d9bebb0dd9f4a55066deed2962511032a487f7ab90"
+    },
+    {
+      "path": "downloads/CC-Switch-v3.20.1-macOS.dmg",
+      "bytes": 28055059,
+      "sha256": "b317ba783f1fa6ea0f97c297c363a8f9193b3a1577a649a1dc1d535774c52dab"
+    },
+    {
+      "path": "index.html",
+      "bytes": 23707,
+      "sha256": "e8020c2ee2af5b717e9b7737a386234a1a4acf54e0fb09efdbe197d2d397c491"
+    },
+    {
+      "path": "manifest.json",
+      "bytes": 7079,
+      "sha256": "7ccb3a6a4097701571a8147c528a4c177616d303b919b6e677e790aef35950c9"
+    }
+  ]
+}
