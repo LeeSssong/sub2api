@@ -11,20 +11,20 @@ import (
 )
 
 const (
-	NativeUserCopyTooLarge     = "请求内容过大，请缩短内容后重试。"
-	NativeUserCopyUpload       = "请求上传中断，请检查网络后重试。"
-	NativeUserCopyBalance      = "余额不足，请充值后重试。"
-	NativeUserCopyQuota        = "额度或订阅不可用，请检查当前套餐后重试。"
-	NativeUserCopyAuth         = "认证失败，请检查 API Key 后重试。"
-	NativeUserCopyRate         = "请求过于频繁，请稍后重试或降低并发。"
-	NativeUserCopyPermission   = "当前模型或分组不可用，请调整后重试。"
-	NativeUserCopyBadRequest   = "请求参数或格式不正确，请检查后重试。"
-	NativeUserCopyBusy         = "服务暂时繁忙，请稍后重试。"
-	NativeUserCopyAbnormal     = "服务暂时异常，请稍后重试。"
-	NativeUserCopyFailed       = "请求处理失败，请检查后重试。"
-	nativeUserErrorAdminHelp   = "如需协助请联系管理员"
-	nativeTrustedUserCopyKey   = "native_trusted_user_copy"
-	nativeRequestIDHeader      = "X-Request-ID"
+	NativeUserCopyTooLarge   = "请求内容过大，请缩短内容后重试。"
+	NativeUserCopyUpload     = "请求上传中断，请检查网络后重试。"
+	NativeUserCopyBalance    = "余额不足，请充值后重试。"
+	NativeUserCopyQuota      = "额度或订阅不可用，请检查当前套餐后重试。"
+	NativeUserCopyAuth       = "认证失败，请检查 API Key 后重试。"
+	NativeUserCopyRate       = "请求过于频繁，请稍后重试或降低并发。"
+	NativeUserCopyPermission = "当前模型或分组不可用，请调整后重试。"
+	NativeUserCopyBadRequest = "请求参数或格式不正确，请检查后重试。"
+	NativeUserCopyBusy       = "服务暂时繁忙，请稍后重试。"
+	NativeUserCopyAbnormal   = "服务暂时异常，请稍后重试。"
+	NativeUserCopyFailed     = "请求处理失败，请检查后重试。"
+	nativeUserErrorAdminHelp = "如需协助请联系管理员"
+	nativeTrustedUserCopyKey = "native_trusted_user_copy"
+	nativeRequestIDHeader    = "X-Request-ID"
 )
 
 // NativeUserErrorContactAdminSuggestion 是站内错误页的统一建议，Request ID 由详情字段单独给出。
@@ -114,7 +114,7 @@ func classifyNativeUserErrorCopy(input NativeUserErrorInput, errType string, ups
 	case typeLower == "permission_error" || typeLower == "cyber_policy" || typeLower == "unsupported_model" ||
 		(!upstreamFacing && input.Status == http.StatusForbidden):
 		return NativeUserCopyPermission
-	case typeLower == "invalid_request_error" || (!upstreamFacing && input.Status == http.StatusBadRequest):
+	case input.Status == http.StatusBadRequest || typeLower == "invalid_request_error":
 		return NativeUserCopyBadRequest
 	case upstreamFacing && (input.Status == http.StatusTooManyRequests || input.Status == 529 ||
 		typeLower == "overloaded_error" || typeLower == "rate_limit_error" || code == "server_is_overloaded"):

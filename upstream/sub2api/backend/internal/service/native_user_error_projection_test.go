@@ -23,6 +23,7 @@ func TestProjectNativeUserErrorCategories(t *testing.T) {
 		{"rate", NativeUserErrorInput{Status: 429, Type: "rate_limit_error", Message: "Concurrency limit exceeded"}, NativeUserCopyRate},
 		{"permission", NativeUserErrorInput{Status: 403, Type: "permission_error", Message: "model gpt-x not in whitelist"}, NativeUserCopyPermission},
 		{"bad request", NativeUserErrorInput{Status: 400, Type: "invalid_request_error", Message: "Failed to parse request body"}, NativeUserCopyBadRequest},
+		{"selected account bad request", NativeUserErrorInput{Status: 400, Type: "upstream_error", Message: "Invalid request parameters", Stage: "upstream", Ownership: "provider", AccountSelected: true}, NativeUserCopyBadRequest},
 		{"too large", NativeUserErrorInput{Status: 413, Type: "invalid_request_error", Message: "request body too large"}, NativeUserCopyTooLarge},
 		{"context window code", NativeUserErrorInput{Status: 400, Type: "invalid_request_error", Code: "context_length_exceeded", Message: "Your input exceeds the context window", AccountSelected: true}, NativeUserCopyTooLarge},
 		{"selected rate limit type", NativeUserErrorInput{Type: "rate_limit_error", Code: "rate_limit_exceeded", Message: "Rate limit reached", AccountSelected: true}, NativeUserCopyBusy},
