@@ -171,6 +171,8 @@ export default {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
+    myRoutes: 'My Routes',
+    myKeys: 'My Keys',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     batchImage: 'Batch Images',

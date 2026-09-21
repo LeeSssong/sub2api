@@ -16,4 +16,10 @@ describe('AppLayout regular user shell', () => {
     expect(source).toContain('@click="appStore.toggleMobileSidebar()"')
     expect(source).toContain('lg:hidden')
   })
+
+  it('restores the native locale switcher on the user mobile header', () => {
+    expect(source).toContain("import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'")
+    expect(source).toContain('data-testid="user-mobile-locale"')
+    expect(source).toContain('<LocaleSwitcher />')
+  })
 })

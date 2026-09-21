@@ -171,6 +171,8 @@ export default {
   // Navigation
   nav: {
     dashboard: '仪表盘',
+    myRoutes: '我的线路',
+    myKeys: '我的密钥',
     announcements: '公告',
     apiKeys: 'API 密钥',
     batchImage: '批量生图',

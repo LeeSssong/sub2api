@@ -80,3 +80,12 @@ describe('AppSidebar subscription feature flag', () => {
     expect(componentSource).toMatch(/path: '\/purchase'[^\n]*label: purchaseNavLabel\.value/)
   })
 })
+
+describe('AppSidebar user locale switcher', () => {
+  it('mounts the native locale switcher in the regular user sidebar', () => {
+    expect(componentSource).toContain("import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'")
+    expect(componentSource).toContain('data-testid="user-sidebar-locale"')
+    expect(componentSource).toContain('<LocaleSwitcher :compact="sidebarCollapsed" />')
+    expect(componentSource).toContain('v-if="!isAdmin"')
+  })
+})

@@ -29,6 +29,15 @@
       </div>
     </div>
 
+    <div
+      v-if="!isAdmin"
+      class="user-locale-row"
+      :class="{ 'user-locale-row-collapsed': sidebarCollapsed }"
+      data-testid="user-sidebar-locale"
+    >
+      <LocaleSwitcher :compact="sidebarCollapsed" />
+    </div>
+
     <!-- Navigation -->
     <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
       <!-- Admin View: Admin menu first, then personal menu -->
@@ -256,6 +265,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
+import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
@@ -1275,6 +1285,27 @@ onBeforeUnmount(() => {
 
 .user-sidebar :deep(.sidebar-header) {
   border-color: #10223a;
+}
+
+.user-locale-row {
+  display: flex;
+  align-items: center;
+  padding: 0.15rem 0.75rem 0.75rem;
+}
+
+.user-locale-row-collapsed {
+  justify-content: center;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.user-locale-row :deep(button) {
+  color: #94bbd9;
+}
+
+.user-locale-row :deep(button:hover) {
+  background: #0a162c;
+  color: #e6f6ff;
 }
 
 .user-sidebar .sidebar-brand-title {

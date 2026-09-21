@@ -14,7 +14,7 @@
       <!-- Header -->
       <AppHeader v-if="isAdmin" />
 
-      <div v-else class="sticky top-0 z-30 flex h-14 items-center border-b border-gray-200 bg-white/95 px-4 backdrop-blur dark:border-dark-700 dark:bg-dark-900/95 lg:hidden">
+      <div v-else class="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-[#14304f] bg-[#040b17]/95 px-4 backdrop-blur lg:hidden">
         <button
           type="button"
           class="btn-ghost btn-icon"
@@ -23,6 +23,9 @@
         >
           <Icon name="menu" size="md" />
         </button>
+        <div data-testid="user-mobile-locale">
+          <LocaleSwitcher />
+        </div>
       </div>
 
       <!-- Main Content -->
@@ -42,6 +45,7 @@ import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useOnboardingStore } from '@/stores/onboarding'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
+import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 
 const appStore = useAppStore()
