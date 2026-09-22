@@ -8,19 +8,9 @@ import (
 	coderws "github.com/coder/websocket"
 )
 
-func advanceOpenAIWSCyberBlockState(blocked, pending, marked bool, turnErr error) (bool, bool) {
-	var failoverErr *service.UpstreamFailoverError
-	isFailover := errors.As(turnErr, &failoverErr)
-	if marked {
-		if isFailover {
-			return false, true
-		}
-		return true, false
-	}
-	if pending && !isFailover {
-		return true, false
-	}
-	return blocked, pending
+func advanceOpenAIWSCyberBlockState(_, _, _ bool, _ error) (bool, bool) {
+	// 本地不再对 cyber 做连接级后续封禁。调用点仍保留，后续 turn 不会被关掉。
+	return false, false
 }
 
 func openAIWSIngressEndedByClient(err error) bool {

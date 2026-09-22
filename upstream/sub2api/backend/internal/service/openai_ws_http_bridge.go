@@ -604,7 +604,14 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if account.Platform != PlatformGrok && (shouldFailover || shouldCooldownOpenAITransientUpstreamError(resp.StatusCode, respBody)) {
 			s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, actualModel)
 		}
-		clientError := buildOpenAIWSHTTPBridgeErrorEvent(resp.StatusCode, upstreamMsg)
+		clientErrorMessage := upstreamMsg
+		if hit, _, _ := detectOpenAICyberPolicy(respBody); hit {
+			clientErrorMessage = openAICyberPolicyClientMessage
+		}
+		clientError := buildOpenAIWSHTTPBridgeErrorEvent(resp.StatusCode, clientErrorMessage)
+		if rewritten, changed := rewriteOpenAICyberPolicyClientPayload(clientError); changed {
+			clientError = rewritten
+		}
 		if writeErr := writeClientMessage(clientError); writeErr == nil {
 			markOpenAIWSClientVisibleFailure(c, "error", clientError)
 		}
@@ -711,6 +718,9 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		}
 		clientMessage := buildOpenAIWSHTTPBridgeFailedEvent(responseID, originalModel, bareErrorPayload, bareErrorMessage)
 		if rewritten, changed := sanitizeOpenAICapacityShedErrorCodeForClient(clientMessage); changed {
+			clientMessage = rewritten
+		}
+		if rewritten, changed := rewriteOpenAICyberPolicyClientPayload(clientMessage); changed {
 			clientMessage = rewritten
 		}
 		messages := append(pendingClientMessages, clientMessage)
@@ -869,6 +879,9 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		clientMessage := upstreamMessage
 		if eventType == "error" || eventType == "response.failed" {
 			if rewritten, changed := sanitizeOpenAICapacityShedErrorCodeForClient(clientMessage); changed {
+				clientMessage = rewritten
+			}
+			if rewritten, changed := rewriteOpenAICyberPolicyClientPayload(clientMessage); changed {
 				clientMessage = rewritten
 			}
 		}

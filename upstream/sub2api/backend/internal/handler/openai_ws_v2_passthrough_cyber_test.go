@@ -174,6 +174,10 @@ func TestOpenAIResponsesWebSocketV2PassthroughCyberMarkIsConsumedAfterTurn(t *te
 	cancelRead()
 	require.NoError(t, err)
 	require.Equal(t, "response.failed", gjson.GetBytes(event, "type").String())
+	require.Equal(t, "safety_policy", gjson.GetBytes(event, "response.error.code").String())
+	require.Contains(t, string(event), "该请求已被安全策略拒绝")
+	require.NotContains(t, string(event), "blocked by upstream policy")
+	require.NotContains(t, string(event), "cyber_policy")
 
 	require.Eventually(t, func() bool {
 		logs := harness.moderationRepo.logSnapshot()
@@ -187,25 +191,24 @@ func TestOpenAIResponsesWebSocketV2PassthroughCyberMarkIsConsumedAfterTurn(t *te
 	require.NotEmpty(t, blockKey)
 	store, ok := harness.gatewayCache.(service.CyberSessionBlockStore)
 	require.True(t, ok)
-	require.Eventually(t, func() bool {
-		matched, findErr := store.FindCyberSessionBlocked(context.Background(), []string{blockKey})
-		return findErr == nil && matched == blockKey
-	}, 3*time.Second, 10*time.Millisecond, "handler AfterTurn must write the cyber session block table")
+	matched, findErr := store.FindCyberSessionBlocked(context.Background(), []string{blockKey})
+	require.NoError(t, findErr)
+	require.Empty(t, matched, "cyber must not write a local session block")
 
+	followUp := `{"type":"response.create","model":"gpt-5.1","prompt_cache_key":"cyber-session-1","input":"follow-up"}`
 	writeCtx, cancelWrite = context.WithTimeout(context.Background(), 3*time.Second)
-	err = harness.clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1","prompt_cache_key":"cyber-session-1","input":"follow-up"}`))
+	err = harness.clientConn.Write(writeCtx, coderws.MessageText, []byte(followUp))
 	cancelWrite()
 	require.NoError(t, err)
 
 	readCtx, cancelRead = context.WithTimeout(context.Background(), 3*time.Second)
-	_, _, err = harness.clientConn.Read(readCtx)
+	_, secondEvent, err := harness.clientConn.Read(readCtx)
 	cancelRead()
-	var closeErr coderws.CloseError
-	require.ErrorAs(t, err, &closeErr)
-	require.Equal(t, coderws.StatusPolicyViolation, closeErr.Code)
-	// closeOpenAIClientWS caps close reasons at 120 bytes; passthrough must expose
-	// the same client-visible prefix rather than dropping the close frame.
-	require.Equal(t, "该会话已被网络安全策略屏蔽，请开启新会话 / This session is blocked by cyber-security policy, please ", closeErr.Reason)
+	require.NoError(t, err)
+	require.Equal(t, "response.completed", gjson.GetBytes(secondEvent, "type").String())
+	require.Equal(t, "resp_cyber_handler_turn_2", gjson.GetBytes(secondEvent, "response.id").String())
+
+	require.NoError(t, harness.clientConn.Close(coderws.StatusNormalClosure, "done"))
 	select {
 	case <-harness.handlerDone:
 	case <-time.After(3 * time.Second):
@@ -218,8 +221,9 @@ func TestOpenAIResponsesWebSocketV2PassthroughCyberMarkIsConsumedAfterTurn(t *te
 	}
 	select {
 	case second := <-secondUpstreamFrame:
-		t.Fatalf("blocked follow-up reached upstream: %s", second)
+		require.Contains(t, string(second), "follow-up")
 	default:
+		t.Fatal("follow-up did not reach upstream")
 	}
 }
 

@@ -3169,14 +3169,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		return
 	}
 
-	// The first response.create frame is available here, so explicit IDs are
-	// checked directly and body-derived sessions use the coarse scope gate.
-	if cyberBlockKey := findBlockedCyberSessionKey(c.Request.Context(), h.gatewayService, apiKey.ID, c, firstMessage); cyberBlockKey != "" {
-		writeCyberSessionBlockedWSError(c.Request.Context(), wsConn)
-		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "session blocked by cyber-security policy")
-		h.enqueueCyberSessionBlockedOpsEntry(c, apiKey, reqModel, cyberBlockKey)
-		return
-	}
+	// 本地不再因为 cyber 拒绝后续 turn。上游拒绝只影响当次请求。
 	cyberBlockedThisConn := false
 	cyberBlockPendingAfterFailover := false
 	var cyberTurnBodiesMu sync.Mutex
@@ -4827,47 +4820,10 @@ const (
 	cyberBlockFormatAnthropic
 )
 
-// rejectIfCyberSessionBlocked checks the session-block table BEFORE account
-// selection. Returns true when the request was rejected (response already
-// written + ops entry enqueued). Fail-open: disabled switch / empty key /
-// store error → false.
+// rejectIfCyberSessionBlocked 不再拦截请求。上游 cyber 拒绝只影响当次请求，
+// 即使历史屏蔽记录或后台开关仍在，也不再返回会话级 403。
 func (h *OpenAIGatewayHandler) rejectIfCyberSessionBlocked(c *gin.Context, apiKey *service.APIKey, body []byte, model string, format cyberSessionBlockFormat) bool {
-	if h == nil || h.gatewayService == nil || apiKey == nil {
-		return false
-	}
-	// 开关默认关：先走 ~ns 级缓存开关检查，再付出 key 派生(gjson+sha256)成本。
-	if enabled, _ := h.gatewayService.CyberSessionBlockRuntime(c.Request.Context()); !enabled {
-		return false
-	}
-	key := findBlockedCyberSessionKey(c.Request.Context(), h.gatewayService, apiKey.ID, c, body)
-	if key == "" {
-		return false
-	}
-	// body-signal compact 心跳可能已把响应头提交为 200（cyber 检查在用户槽位
-	// 长等待之后执行）：以 response.failed 终止事件回传；未提交时停拍后照常
-	// 写 JSON（#3887）。
-	if service.StopOpenAICompactSSEKeepaliveCommitted(c) {
-		service.MarkOpsStreamError(c, "permission_error", cyberSessionBlockedClientMsg, http.StatusForbidden)
-		if writeResponsesFailedSSE(c, http.StatusForbidden, "permission_error", "", cyberSessionBlockedClientMsg) {
-			h.enqueueCyberSessionBlockedOpsEntry(c, apiKey, model, key)
-			return true
-		}
-	}
-	switch format {
-	case cyberBlockFormatAnthropic:
-		c.JSON(http.StatusForbidden, gin.H{"type": "error", "error": gin.H{
-			"type":    "permission_error",
-			"message": cyberSessionBlockedClientMsg,
-		}})
-	default: // cyberBlockFormatResponses 与 cyberBlockFormatChat：同构的 OpenAI error envelope
-		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{
-			"type":    "permission_error",
-			"code":    "session_blocked_by_cyber_policy",
-			"message": cyberSessionBlockedClientMsg,
-		}})
-	}
-	h.enqueueCyberSessionBlockedOpsEntry(c, apiKey, model, key)
-	return true
+	return false
 }
 
 type cyberSessionBlockWritePlan struct {
@@ -5034,14 +4990,6 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 		GroupID:         groupID,
 		ClientIP:        clientIPStr,
 		CreatedAt:       time.Now(),
-	}
-	if gwSvc != nil && apiKey != nil {
-		plan := buildCyberSessionBlockWritePlan(apiKey.ID, c, cyberBlockBody)
-		if len(plan.keys) > 0 {
-			blockCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-			gwSvc.MarkCyberSessionBlocked(blockCtx, plan.scopeKey, plan.keys)
-			cancel()
-		}
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

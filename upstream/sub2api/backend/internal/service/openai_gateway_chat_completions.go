@@ -569,11 +569,7 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 				UpstreamInTok:  usage.InputTokens,
 				UpstreamOutTok: usage.OutputTokens,
 			})
-			clientMsg := msg
-			if clientMsg == "" {
-				clientMsg = "Request blocked by upstream cyber-security policy"
-			}
-			writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", clientMsg)
+			writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", openAICyberPolicyClientMessage)
 			return nil, fmt.Errorf("openai cyber_policy: %s", msg)
 		}
 		message := openAICompatFailedResponseMessage(finalResponse)
@@ -842,12 +838,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				if !clientDisconnected {
 					// 被 refusal 检测扣留的 pendingSSE 有意丢弃——cyber 拦截优先于部分内容下发。
 					writeStreamHeaders()
-					clientMsg := msg
-					if clientMsg == "" {
-						clientMsg = "Request blocked by upstream cyber-security policy"
-					}
-					projected := projectSelectedAccountUserError(c, http.StatusBadRequest, "invalid_request_error", code, clientMsg)
-					if _, err := fmt.Fprint(c.Writer, buildChatStreamErrorSSE(code, projected.Message)); err == nil {
+					if _, err := fmt.Fprint(c.Writer, buildChatStreamErrorSSE(openAICyberPolicyClientCode, openAICyberPolicyClientMessage)); err == nil {
 						_, _ = fmt.Fprint(c.Writer, "data: [DONE]\n\n")
 						if fl, ok := c.Writer.(http.Flusher); ok {
 							fl.Flush()
@@ -1231,6 +1222,17 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 
 // writeChatCompletionsError writes an error response in OpenAI Chat Completions format.
 func writeChatCompletionsError(c *gin.Context, statusCode int, errType, message string) {
+	if message == openAICyberPolicyClientMessage {
+		MarkResponseCommitted(c)
+		c.JSON(statusCode, gin.H{
+			"error": gin.H{
+				"type":    "invalid_request_error",
+				"code":    openAICyberPolicyClientCode,
+				"message": openAICyberPolicyClientMessage,
+			},
+		})
+		return
+	}
 	projected := projectSelectedAccountUserError(c, statusCode, errType, "", message)
 	MarkResponseCommitted(c)
 	c.JSON(statusCode, gin.H{

@@ -679,7 +679,10 @@ func TestForwardAsChatCompletions_StreamCyberPolicyNoFailover(t *testing.T) {
 	require.NotNil(t, GetOpsCyberPolicy(c), "cyber mark must be set")
 	respBody := rec.Body.String()
 	require.Contains(t, respBody, `"error"`)
-	require.Contains(t, respBody, `"cyber_policy"`)
+	require.Contains(t, respBody, openAICyberPolicyClientCode)
+	require.Contains(t, respBody, openAICyberPolicyClientMessage)
+	require.NotContains(t, respBody, "cyber_policy")
+	require.NotContains(t, respBody, "flagged for cyber policy")
 	require.Contains(t, respBody, "data: [DONE]")
 }
 

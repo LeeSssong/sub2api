@@ -103,19 +103,15 @@ func TestClearCyberPolicyTurnState(t *testing.T) {
 	require.Equal(t, "turn2", service.GetOpsCyberPolicy(c).Message)
 }
 
-func TestAdvanceOpenAIWSCyberBlockStateDefersBlockAcrossFailover(t *testing.T) {
+func TestAdvanceOpenAIWSCyberBlockStateDoesNotLockLaterTurns(t *testing.T) {
 	failoverErr := &service.UpstreamFailoverError{StatusCode: http.StatusTooManyRequests}
 
 	blocked, pending := advanceOpenAIWSCyberBlockState(false, false, true, failoverErr)
-	require.False(t, blocked, "the replacement account must receive the current turn")
-	require.True(t, pending, "the cyber hit must still block later turns")
+	require.False(t, blocked)
+	require.False(t, pending)
 
-	blocked, pending = advanceOpenAIWSCyberBlockState(blocked, pending, false, failoverErr)
-	require.False(t, blocked, "additional failover attempts must remain eligible")
-	require.True(t, pending)
-
-	blocked, pending = advanceOpenAIWSCyberBlockState(blocked, pending, false, nil)
-	require.True(t, blocked, "the next client turn must be blocked after failover finishes")
+	blocked, pending = advanceOpenAIWSCyberBlockState(true, true, true, nil)
+	require.False(t, blocked)
 	require.False(t, pending)
 }
 

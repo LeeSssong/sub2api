@@ -831,6 +831,10 @@ func validOpenAIPassthroughRetryAfter(raw string, now time.Time) bool {
 }
 
 func writeSanitizedOpenAIPassthroughError(c *gin.Context, upstreamStatus int, upstreamHeaders http.Header, body []byte) {
+	if hit, _, _ := detectOpenAICyberPolicy(body); hit {
+		writeOpenAICyberPolicyClientHTTPError(c, upstreamStatus, upstreamHeaders)
+		return
+	}
 	downstreamStatus := upstreamStatus
 	switch upstreamStatus {
 	case http.StatusUnauthorized:
@@ -863,6 +867,21 @@ func writeOpenAIPassthroughErrorEnvelope(c *gin.Context, downstreamStatus int, u
 	}
 	writeOpenAIPassthroughErrorHeaders(c.Writer.Header(), upstreamHeaders)
 	c.Data(downstreamStatus, "application/json; charset=utf-8", body)
+}
+
+func writeOpenAICyberPolicyClientHTTPError(c *gin.Context, upstreamStatus int, upstreamHeaders http.Header) {
+	if c == nil {
+		return
+	}
+	downstreamStatus := upstreamStatus
+	if downstreamStatus == 0 {
+		downstreamStatus = http.StatusBadRequest
+	}
+	if writeOpenAICompactSSEBridge(c, downstreamStatus, openAICyberPolicyClientBody()) {
+		return
+	}
+	writeOpenAIPassthroughErrorHeaders(c.Writer.Header(), upstreamHeaders)
+	c.Data(downstreamStatus, "application/json; charset=utf-8", openAICyberPolicyClientBody())
 }
 
 func (s *OpenAIGatewayService) handleFailoverErrorResponsePassthrough(

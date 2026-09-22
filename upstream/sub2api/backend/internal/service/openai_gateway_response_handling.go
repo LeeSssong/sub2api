@@ -1897,6 +1897,10 @@ func buildOpenAIResponseFailedSSE(responseID, model string, source []byte, fallb
 	if message == "" {
 		message = "Upstream response failed"
 	}
+	if cyberHit, _, _ := detectOpenAICyberPolicy(source); cyberHit || strings.EqualFold(code, "cyber_policy") {
+		code = openAICyberPolicyClientCode
+		message = openAICyberPolicyClientMessage
+	}
 	errorBody := gin.H{"code": code, "message": message}
 	if errorType != "" {
 		errorBody["type"] = errorType
@@ -1933,13 +1937,19 @@ func sanitizeOpenAIResponseFailedEventForClient(c *gin.Context, payload []byte, 
 	if isFailedEvent && gjson.GetBytes(updated, "response.error").Exists() {
 		errorPath = "response.error"
 	}
+	cyberHit, _, _ := detectOpenAICyberPolicy(payload)
 	// Keep Sub type/code identity. The upstream English body is never shown to users.
 	clientCode := strings.TrimSpace(gjson.GetBytes(payload, errorPath+".code").String())
 	clientMessage := sanitizeUpstreamErrorMessage(strings.TrimSpace(gjson.GetBytes(payload, errorPath+".message").String()))
 	nativePassthrough := openAINativeErrorPassthroughAllowed(account, payload, errorPath)
+	if cyberHit {
+		clientCode = openAICyberPolicyClientCode
+		clientMessage = openAICyberPolicyClientMessage
+		nativePassthrough = false
+	}
 	lowerMessage := strings.ToLower(clientMessage)
 	sensitiveMessage := clientMessage == "" || strings.Contains(lowerMessage, "request id") || strings.Contains(lowerMessage, "ray id") || strings.Contains(lowerMessage, "http://") || strings.Contains(lowerMessage, "https://")
-	if sensitiveMessage || (account != nil && account.IsOpenAIPassthroughEnabled() && !nativePassthrough) {
+	if !cyberHit && (sensitiveMessage || (account != nil && account.IsOpenAIPassthroughEnabled() && !nativePassthrough)) {
 		clientCode = "upstream_unavailable"
 		clientMessage = "Upstream response failed"
 	}
@@ -1958,7 +1968,9 @@ func sanitizeOpenAIResponseFailedEventForClient(c *gin.Context, payload []byte, 
 		}
 	}
 	if !isFailedEvent {
-		updated = projectOpenAIClientErrorMessage(c, updated, errorPath)
+		if !cyberHit {
+			updated = projectOpenAIClientErrorMessage(c, updated, errorPath)
+		}
 		return updated, !bytes.Equal(updated, payload)
 	}
 	if clientOutputStarted && isOpenAIContextWindowError(extractOpenAISSEErrorMessage(payload), payload) {
@@ -1976,7 +1988,9 @@ func sanitizeOpenAIResponseFailedEventForClient(c *gin.Context, payload []byte, 
 		}
 	}
 	if !gjson.GetBytes(updated, "response").Exists() {
-		updated = projectOpenAIClientErrorMessage(c, updated, errorPath)
+		if !cyberHit {
+			updated = projectOpenAIClientErrorMessage(c, updated, errorPath)
+		}
 		return updated, !bytes.Equal(updated, payload)
 	}
 	for _, path := range []string{
@@ -1999,7 +2013,9 @@ func sanitizeOpenAIResponseFailedEventForClient(c *gin.Context, payload []byte, 
 		}
 		updated = next
 	}
-	updated = projectOpenAIClientErrorMessage(c, updated, errorPath)
+	if !cyberHit {
+		updated = projectOpenAIClientErrorMessage(c, updated, errorPath)
+	}
 	return updated, !bytes.Equal(updated, payload)
 }
 

@@ -785,9 +785,8 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	defer captureOpsOriginalHTTPError(c, account, resp.StatusCode, resp.Header.Get("x-request-id"), body)()
 	body = s.redactAgentIdentitySensitiveBody(ctx, account, body)
 
-	// cyber_policy 硬阻断：透传上游原始错误体给客户端（不重包成通用 502），不冷却账号。
-	// 当前请求恒透传（需求1）；标记供 handler 事后写风控/邮件。400 cyber 不可 failover
-	// （shouldFailoverUpstreamError(400)=false），故走到此处即可安全早返回。
+	// cyber_policy 硬阻断：内部保留上游原文供运维记录，客户端只收到固定安全文案。
+	// 不冷却账号，也不在本地封禁会话或 Key。400 cyber 不可 failover。
 	if hit, code, cyberMsg := detectOpenAICyberPolicy(body); hit {
 		MarkOpsCyberPolicy(c, CyberPolicyMark{
 			Code:           code,
@@ -797,11 +796,11 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		})
 		setOpsUpstreamError(c, resp.StatusCode, cyberMsg, truncateString(string(body), 2048))
 		writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
-		contentType := resp.Header.Get("Content-Type")
-		if contentType == "" {
-			contentType = "application/json"
+		clientBody, rewritten := rewriteOpenAICyberPolicyClientPayload(body)
+		if !rewritten {
+			clientBody = openAICyberPolicyClientBody()
 		}
-		c.Data(resp.StatusCode, contentType, body)
+		c.Data(resp.StatusCode, "application/json", clientBody)
 		if cyberMsg == "" {
 			return nil, fmt.Errorf("openai cyber_policy: %d", resp.StatusCode)
 		}
@@ -1025,11 +1024,7 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 			UpstreamStatus: resp.StatusCode,
 		})
 		setOpsUpstreamError(c, resp.StatusCode, cyberMsg, truncateString(string(body), 2048))
-		clientMsg := cyberMsg
-		if clientMsg == "" {
-			clientMsg = "Request blocked by upstream cyber-security policy"
-		}
-		writeError(c, resp.StatusCode, "invalid_request_error", clientMsg)
+		writeError(c, resp.StatusCode, "invalid_request_error", openAICyberPolicyClientMessage)
 		if cyberMsg == "" {
 			return nil, fmt.Errorf("openai cyber_policy: %d", resp.StatusCode)
 		}

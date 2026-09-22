@@ -177,7 +177,10 @@ func TestResponsesStreamCyberPolicyPrecedesPassthroughRule(t *testing.T) {
 			require.False(t, errors.As(err, &failoverErr))
 			require.NotNil(t, GetOpsCyberPolicy(c))
 			require.NotEqual(t, http.StatusTeapot, rec.Code)
-			require.Contains(t, rec.Body.String(), "cyber_policy")
+			require.Contains(t, rec.Body.String(), openAICyberPolicyClientCode)
+			require.Contains(t, rec.Body.String(), openAICyberPolicyClientMessage)
+			require.NotContains(t, rec.Body.String(), "cyber_policy")
+			require.NotContains(t, rec.Body.String(), "blocked by cyber policy")
 		})
 	}
 }

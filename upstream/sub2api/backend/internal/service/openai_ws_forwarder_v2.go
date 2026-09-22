@@ -478,6 +478,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		if clientDisconnected {
 			return
 		}
+		if rewritten, changed := rewriteOpenAICyberPolicyClientPayload(message); changed {
+			message = rewritten
+		}
 		frame := make([]byte, 0, len(message)+8)
 		frame = append(frame, "data: "...)
 		frame = append(frame, message...)
@@ -737,12 +740,16 @@ readLoop:
 				emitStreamMessage(message, true)
 			}
 			if !reqStream {
-				c.JSON(statusCode, gin.H{
-					"error": gin.H{
-						"type":    "upstream_error",
-						"message": errMsg,
-					},
-				})
+				if hit, _, _ := detectOpenAICyberPolicy(message); hit {
+					c.Data(http.StatusBadRequest, "application/json", openAICyberPolicyClientBody())
+				} else {
+					c.JSON(statusCode, gin.H{
+						"error": gin.H{
+							"type":    "upstream_error",
+							"message": errMsg,
+						},
+					})
+				}
 			}
 			return nil, fmt.Errorf("openai ws error event: %s", errMsg)
 		}
@@ -820,6 +827,9 @@ readLoop:
 			finalResponse = s.replaceModelInResponseBody(finalResponse, mappedModel, originalModel)
 		}
 		finalResponse = s.correctToolCallsInResponseBody(finalResponse)
+		if rewritten, changed := rewriteOpenAICyberPolicyClientPayload(finalResponse); changed {
+			finalResponse = rewritten
+		}
 		populateOpenAIUsageFromResponseJSON(finalResponse, usage)
 		if responseID == "" {
 			responseID = strings.TrimSpace(gjson.GetBytes(finalResponse, "id").String())

@@ -1,12 +1,19 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
+
+// 面向客户端的固定文案。不得回传上游 cyber_policy 原文、链接或 Trusted Access 引导。
+// 这次拒绝只针对当次请求，不表示会话或 Key 被本地封禁。
+const openAICyberPolicyClientCode = "safety_policy"
+const openAICyberPolicyClientMessage = "该请求已被安全策略拒绝，请调整内容后重试 / This request was rejected by safety policy. Please revise and retry."
 
 // opsCyberPolicyKey 在 gin context 中携带 cyber_policy 命中标记。
 // 由 gateway 服务层在检测到上游 error.code=="cyber_policy" 时设置，
@@ -85,6 +92,47 @@ func detectOpenAICyberPolicy(payload []byte) (bool, string, string) {
 		msg = gjson.GetBytes(payload, "response.error.message").String()
 	}
 	return true, "cyber_policy", strings.TrimSpace(msg)
+}
+
+// rewriteOpenAICyberPolicyClientPayload 把客户端可见 JSON 里的 cyber_policy
+// code/message 换成固定文案。内部风控标记必须仍使用改写前的原始 payload。
+func rewriteOpenAICyberPolicyClientPayload(payload []byte) ([]byte, bool) {
+	if len(payload) == 0 || !gjson.ValidBytes(payload) {
+		return payload, false
+	}
+	updated := payload
+	changed := false
+	for _, path := range []string{"error", "response.error"} {
+		code := strings.TrimSpace(gjson.GetBytes(payload, path+".code").String())
+		if !strings.EqualFold(code, "cyber_policy") {
+			continue
+		}
+		changed = true
+		if next, err := sjson.SetBytes(updated, path+".code", openAICyberPolicyClientCode); err == nil {
+			updated = next
+		}
+		if next, err := sjson.SetBytes(updated, path+".message", openAICyberPolicyClientMessage); err == nil {
+			updated = next
+		}
+	}
+	if !changed {
+		return payload, false
+	}
+	return updated, true
+}
+
+func openAICyberPolicyClientBody() []byte {
+	body, err := json.Marshal(map[string]any{
+		"error": map[string]any{
+			"type":    "invalid_request_error",
+			"code":    openAICyberPolicyClientCode,
+			"message": openAICyberPolicyClientMessage,
+		},
+	})
+	if err != nil {
+		return []byte(`{"error":{"type":"invalid_request_error","code":"safety_policy","message":"This request was rejected by safety policy. Please revise and retry."}}`)
+	}
+	return body
 }
 
 func markOpenAICyberPolicyEvent(c *gin.Context, payload []byte, upstreamStatus int, usage *OpenAIUsage) bool {

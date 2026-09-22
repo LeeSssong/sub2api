@@ -3099,12 +3099,9 @@ func (s *ContentModerationService) RecordCyberPolicyEvent(ctx context.Context, i
 		Error:           trimRunes(redactContentModerationSecrets(errBody), maxModerationExcerptRunes*4),
 		CreatedAt:       time.Now(),
 	}
-	// 开关开时 cyber_policy 不参与封号计数：当次不判定（此处跳过），
-	// 历史行由 CountFlaggedByUserSince 的 excludeCyberPolicy 排除。
+	// cyber 只记日志和通知，不参与封号。重复命中也不能禁用下游用户。
+	// 历史行仍由 CountFlaggedByUserSince 的 excludeCyberPolicy 排除。
 	autoBanned := false
-	if !cfg.CyberPolicyExcludeFromBanCount {
-		autoBanned = s.applyFlaggedAccountSideEffects(ctx, cfg, log)
-	}
 	log.EmailSent = false
 	logPersisted := true
 	if err := s.repo.CreateLog(ctx, log); err != nil {
