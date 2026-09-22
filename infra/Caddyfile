@@ -96,7 +96,9 @@
 	}
 
 	@storefront_purchase path /purchase /purchase/
-	redir @storefront_purchase /custom/xingqiao-storefront 302
+	handle @storefront_purchase {
+		redir /custom/xingqiao-storefront 302
+	}
 
 	@sub2api_update_js path /xingqiao-update-ui.js
 	handle @sub2api_update_js {
