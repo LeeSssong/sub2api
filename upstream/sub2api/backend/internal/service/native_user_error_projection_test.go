@@ -37,6 +37,16 @@ func TestProjectNativeUserErrorCategories(t *testing.T) {
 		{"selected account balance", NativeUserErrorInput{Status: 429, Type: "upstream_error", Message: "insufficient account balance", AccountSelected: true}, NativeUserCopyBusy},
 		{"provider overload", NativeUserErrorInput{Status: 529, Type: "upstream_error", Message: "Upstream overloaded", AccountSelected: true}, NativeUserCopyBusy},
 		{"provider failure", NativeUserErrorInput{Status: http.StatusBadGateway, Type: "upstream_error", Message: "provider failed", AccountSelected: true}, NativeUserCopyAbnormal},
+		{"stream payload too large", NativeUserErrorInput{Status: http.StatusBadGateway, Type: "upstream_error", Message: "Request payload is too large", AccountSelected: true}, NativeUserCopyTooLarge},
+		{"context window text", NativeUserErrorInput{Status: http.StatusBadGateway, Type: "upstream_error", Message: "Your input exceeds the context window of this model", AccountSelected: true}, NativeUserCopyTooLarge},
+		{"model not allowed", NativeUserErrorInput{Status: http.StatusBadGateway, Type: "upstream_error", Code: "upstream_error", Message: `Model "gpt-5.6-luna" is not allowed for this API key`, Model: "gpt-5.6-luna", AccountSelected: true}, nativeUserModelUnavailableCopy("gpt-5.6-luna")},
+		{"model not available for group", NativeUserErrorInput{Status: http.StatusNotFound, Type: "upstream_error", Message: `Model "gpt-5.6-terra" is not available for this group`, Model: "gpt-5.6-terra", AccountSelected: true}, nativeUserModelUnavailableCopy("gpt-5.6-terra")},
+		{"no channel hides distributor detail", NativeUserErrorInput{Status: http.StatusServiceUnavailable, Type: "upstream_error", Message: "No available channel for model gpt-5.6-luna under group secret-pool (request id: req_secret)", AccountSelected: true}, NativeUserCopyNoChannel},
+		{"json object format", NativeUserErrorInput{Status: http.StatusBadRequest, Type: "invalid_request_error", Message: "messages must contain the word 'json' to use response_format of type 'json_object'", AccountSelected: true}, NativeUserCopyJSONFormat},
+		{"unread body", NativeUserErrorInput{Status: http.StatusBadRequest, Type: "invalid_request_error", Message: "Failed to read request body"}, NativeUserCopyUpload},
+		{"generic upstream fallback is busy", NativeUserErrorInput{Status: http.StatusBadGateway, Type: "upstream_error", Message: "Upstream request failed", AccountSelected: true}, NativeUserCopyBusy},
+		{"stream read is busy", NativeUserErrorInput{Status: http.StatusBadGateway, Type: "upstream_error", Message: "stream_read_error", AccountSelected: true}, NativeUserCopyBusy},
+		{"connection reset is busy", NativeUserErrorInput{Status: http.StatusBadGateway, Type: "upstream_error", Message: "read tcp 10.0.0.1:1->10.0.0.2:443: read: connection reset by peer", AccountSelected: true}, NativeUserCopyBusy},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -49,6 +59,31 @@ func TestProjectNativeUserErrorCategories(t *testing.T) {
 			require.NotContains(t, got.Message, "Upstream")
 		})
 	}
+}
+
+func TestProjectNativeUserErrorContextLimitUsesStableCode(t *testing.T) {
+	got := ProjectNativeUserError(NativeUserErrorInput{
+		Status:          http.StatusBadGateway,
+		Type:            "upstream_error",
+		Code:            "upstream_error",
+		Message:         "Request payload is too large",
+		AccountSelected: true,
+	})
+	require.Equal(t, "invalid_request_error", got.Type)
+	require.Equal(t, "context_length_exceeded", got.Code)
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""), got.Message)
+	require.NotContains(t, got.Message, "payload")
+}
+
+func TestProjectNativeUserErrorModelCopyOmitsUnsafeModel(t *testing.T) {
+	got := ProjectNativeUserError(NativeUserErrorInput{
+		Type:            "upstream_error",
+		Message:         "Model is not allowed for this API key",
+		Model:           "https://secret.example/gpt",
+		AccountSelected: true,
+	})
+	require.Equal(t, AppendNativeUserErrorHelp("当前分组不支持这个模型，请切换模型后再试。", ""), got.Message)
+	require.NotContains(t, got.Message, "secret.example")
 }
 
 func TestProjectNativeUserErrorIgnoresUpstreamEnglishMarkers(t *testing.T) {

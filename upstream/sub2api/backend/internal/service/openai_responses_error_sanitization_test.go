@@ -1,10 +1,14 @@
 package service
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestSanitizeOpenAIResponseFailedEventRemovesUpstreamIdentifiers(t *testing.T) {
@@ -26,6 +30,43 @@ func TestSanitizeOpenAIBareErrorRemovesUpstreamIdentifiers(t *testing.T) {
 	require.Contains(t, string(got), `"code":"upstream_unavailable"`)
 	require.Contains(t, string(got), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
 	require.NotContains(t, strings.ToLower(string(got)), "abc-secret")
+}
+
+func TestSanitizeOpenAIPayloadTooLargeTellsUserToOpenNewWindow(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/responses", nil)
+	c.Set("ops_model", "gpt-5.6-sol")
+	payload := []byte(`{"type":"response.failed","response":{"status":"failed","error":{"code":"upstream_error","message":"Request payload is too large request id req_secret https://internal.example/v1"}}}`)
+	account := &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_passthrough": true}}
+
+	got, changed := sanitizeOpenAIResponseFailedEventForClient(c, payload, "response.failed", true, account)
+
+	require.True(t, changed)
+	require.Contains(t, string(got), `"code":"context_length_exceeded"`)
+	require.Contains(t, string(got), `"type":"invalid_request_error"`)
+	require.Contains(t, string(got), AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""))
+	require.NotContains(t, strings.ToLower(string(got)), "req_secret")
+	require.NotContains(t, strings.ToLower(string(got)), "internal.example")
+	require.NotContains(t, string(got), "payload")
+}
+
+func TestSanitizeOpenAIModelUnavailableUsesRequestedModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/responses", nil)
+	c.Set("ops_model", "gpt-5.6-luna")
+	payload := []byte(`{"type":"response.failed","response":{"status":"failed","error":{"code":"upstream_error","message":"Model \"gpt-5.6-luna\" is not allowed for this API key"}}}`)
+	account := &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_passthrough": true}}
+
+	got, changed := sanitizeOpenAIResponseFailedEventForClient(c, payload, "response.failed", false, account)
+
+	require.True(t, changed)
+	require.Equal(t, "group_model_unavailable", gjson.GetBytes(got, "response.error.code").String())
+	require.Equal(t, AppendNativeUserErrorHelp(nativeUserModelUnavailableCopy("gpt-5.6-luna"), ""), gjson.GetBytes(got, "response.error.message").String())
+	require.NotContains(t, string(got), "API key")
 }
 
 func TestSanitizeOpenAINativePassthroughPreservesCapacityError(t *testing.T) {

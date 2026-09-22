@@ -120,7 +120,7 @@ func TestNonStreamingSSEToJSON_NonRetryableFailedEventStillWritesProtocolError(t
 		{
 			name:    "context_window",
 			data:    `{"type":"response.failed","response":{"id":"resp_failed","status":"failed","output":[],"error":{"code":"upstream_error","message":"input exceeds the context window"}}}`,
-			wantMsg: AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""),
+			wantMsg: AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""),
 		},
 		{
 			name:    "content_policy",

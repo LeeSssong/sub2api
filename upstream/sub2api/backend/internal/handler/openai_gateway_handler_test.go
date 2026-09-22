@@ -483,7 +483,7 @@ func TestOpenAIEnsureForwardErrorResponse_WritesFallbackWhenNotWritten(t *testin
 	errorObj, ok := parsed["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errorObj["type"])
-	assert.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""), errorObj["message"])
+	assert.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""), errorObj["message"])
 }
 
 // Writer 已写后 ensureForwardErrorResponse 必须仍然把错误信息以 SSE
@@ -527,7 +527,7 @@ func TestOpenAIEnsureForwardErrorResponse_ResponsesRouteAfterWrittenEmitsRespons
 	assert.Contains(t, body, "event: response.failed\n", "appended a Responses terminal event")
 	assert.Contains(t, body, `"type":"response.failed"`)
 	assert.Contains(t, body, `"code":"upstream_error"`)
-	assert.Contains(t, body, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""))
+	assert.Contains(t, body, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""))
 }
 
 func TestOpenAIEnsureForwardErrorResponse_AfterDeltaAppendsSingleValidResponseFailed(t *testing.T) {
@@ -614,7 +614,7 @@ func TestOpenAIEnsureForwardErrorResponse_ImageJSONKeepaliveWritesSingleJSONFall
 	require.NoError(t, decoder.Decode(&payload))
 	require.ErrorIs(t, decoder.Decode(&payload), io.EOF)
 	require.Equal(t, "upstream_error", gjson.Get(w.Body.String(), "error.type").String())
-	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""), gjson.Get(w.Body.String(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""), gjson.Get(w.Body.String(), "error.message").String())
 }
 
 func TestOpenAIEnsureForwardErrorResponse_ImageJSONKeepalivePreservesCompletedJSON(t *testing.T) {
@@ -733,7 +733,7 @@ func TestOpenAIRecoverResponsesPanic_WritesFallbackResponse(t *testing.T) {
 	errorObj, ok := parsed["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errorObj["type"])
-	assert.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""), errorObj["message"])
+	assert.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""), errorObj["message"])
 }
 
 func TestOpenAIRecoverResponsesPanic_NoPanicNoWrite(t *testing.T) {
@@ -2449,7 +2449,7 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	require.Equal(t, []int64{9910, 9910, 9911}, calls[:3])
 	require.Equal(t, http.StatusBadGateway, rec.Code)
 	require.Equal(t, "upstream_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
-	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""), gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""), gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
 }
 
 func TestOpenAIMessages_TransientFailureRetriesOnceThenFailsOver(t *testing.T) {

@@ -81,9 +81,9 @@ func TestForwardAsChatCompletions_ResponseFailed_PassthroughRule(t *testing.T) {
 
 	respBody := rec.Body.String()
 	errType := gjson.Get(respBody, "error.type").String()
-	require.Equal(t, "upstream_error", errType)
+	require.Equal(t, "invalid_request_error", errType)
 	errMsg := gjson.Get(respBody, "error.message").String()
-	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), errMsg)
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""), errMsg)
 	require.NotContains(t, errMsg, "context window")
 }
 
@@ -290,8 +290,8 @@ func TestForwardAsChatCompletions_ResponseFailed_ErrorCodeRuleMatchesViaSemantic
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, rec.Code, "error-code-conditioned rule should match via semantic status inference")
 	respBody := rec.Body.String()
-	require.Equal(t, "upstream_error", gjson.Get(respBody, "error.type").String())
-	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), gjson.Get(respBody, "error.message").String())
+	require.Equal(t, "invalid_request_error", gjson.Get(respBody, "error.type").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""), gjson.Get(respBody, "error.message").String())
 	require.NotContains(t, gjson.Get(respBody, "error.message").String(), "context window")
 }
 

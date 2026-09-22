@@ -1820,7 +1820,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_ContextWindow502DoesNotFailover(
 	require.False(t, errors.As(err, &failoverErr), "context-window errors are deterministic request failures")
 	require.True(t, c.Writer.Written())
 	require.Equal(t, http.StatusBadGateway, rec.Code)
-	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""))
 	require.NotContains(t, rec.Body.String(), "exceeds the context window")
 	require.True(t, body.closed)
 }
