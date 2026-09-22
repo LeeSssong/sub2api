@@ -95,6 +95,9 @@
 		file_server
 	}
 
+	@storefront_purchase path /purchase /purchase/
+	redir @storefront_purchase /custom/xingqiao-storefront 302
+
 	@sub2api_update_js path /xingqiao-update-ui.js
 	handle @sub2api_update_js {
 		root * /srv/sub2api-update-ui
