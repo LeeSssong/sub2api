@@ -60,7 +60,7 @@ func TestGatewayHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), errField["message"])
+	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBusy, ""), errField["message"])
 }
 
 func TestOpenAIHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
@@ -86,7 +86,7 @@ func TestOpenAIHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), errField["message"])
+	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBusy, ""), errField["message"])
 }
 
 func TestOpenAIHandleErrorResponse_ContextWindow502KeepsMessageWithoutFailover(t *testing.T) {
@@ -114,8 +114,8 @@ func TestOpenAIHandleErrorResponse_ContextWindow502KeepsMessageWithoutFailover(t
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), errField["message"])
+	assert.Equal(t, "invalid_request_error", errField["type"])
+	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""), errField["message"])
 	assert.NotContains(t, errField["message"], "context window")
 }
 

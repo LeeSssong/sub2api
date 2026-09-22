@@ -44,7 +44,7 @@ func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedResponsesSSE(t *testing
 	body := rec.Body.String()
 	require.True(t, strings.HasPrefix(body, "event: response.failed\n"))
 	require.Equal(t, 1, strings.Count(body, "event: response.failed\n"))
-	require.Contains(t, body, `"code":"invalid_request"`)
+	require.Contains(t, body, `"code":"context_length_exceeded"`)
 	require.Contains(t, body, `"message":"`+service.AppendNativeUserErrorHelp(service.NativeUserCopyTooLarge, "")+`"`)
 	require.NotContains(t, body, "must-not-leak")
 }

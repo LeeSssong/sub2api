@@ -224,7 +224,7 @@ func TestHandleErrorResponse_NonDeterministicStatusesKeepGeneric502(t *testing.T
 		{"not_found", http.StatusNotFound, `{"error":{"message":"Unknown request URL"}}`,
 			http.StatusBadGateway, "upstream_error", AppendNativeUserErrorHelp(NativeUserCopyAbnormal, "")},
 		{"unprocessable", http.StatusUnprocessableEntity, `{"error":{"message":"Invalid schema for field messages"}}`,
-			http.StatusBadGateway, "upstream_error", AppendNativeUserErrorHelp(NativeUserCopyAbnormal, "")},
+			http.StatusBadGateway, "upstream_error", AppendNativeUserErrorHelp(NativeUserCopyBusy, "")},
 		// 401/402/403 是网关运营方的凭据/账单问题，必须继续对客户端屏蔽上游账号状态。
 		// 403 的自由文本不能升级成 durable access-state typed failover；只有明确结构化 code 才可以。
 		{"unauthorized", http.StatusUnauthorized, `{"error":{"message":"Incorrect API key provided: sk-abc"}}`,

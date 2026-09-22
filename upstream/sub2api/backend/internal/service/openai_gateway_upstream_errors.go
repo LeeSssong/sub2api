@@ -984,7 +984,12 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		errType = "upstream_error"
 		errMsg = "Upstream request failed"
 	}
-	writeProjectedOpenAIUserErrorClassified(c, statusCode, resp.StatusCode, errType, extractUpstreamErrorCode(body), errMsg)
+	clientCode := extractUpstreamErrorCode(body)
+	clientMsg := errMsg
+	if nativeUserActionableUpstreamMessage(clientCode, upstreamMsg, resp.StatusCode) {
+		clientMsg = upstreamMsg
+	}
+	writeProjectedOpenAIUserErrorClassified(c, statusCode, resp.StatusCode, errType, clientCode, clientMsg)
 
 	if upstreamMsg == "" {
 		return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)

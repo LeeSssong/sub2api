@@ -1949,9 +1949,24 @@ func sanitizeOpenAIResponseFailedEventForClient(c *gin.Context, payload []byte, 
 	}
 	lowerMessage := strings.ToLower(clientMessage)
 	sensitiveMessage := clientMessage == "" || strings.Contains(lowerMessage, "request id") || strings.Contains(lowerMessage, "ray id") || strings.Contains(lowerMessage, "http://") || strings.Contains(lowerMessage, "https://")
-	if !cyberHit && (sensitiveMessage || (account != nil && account.IsOpenAIPassthroughEnabled() && !nativePassthrough)) {
+	contextLimited := isNativeUserContextTooLarge(clientCode, clientMessage, 0) || isOpenAIContextWindowError(clientMessage, payload)
+	modelUnavailable := !contextLimited && isNativeUserModelUnavailable(clientCode, clientMessage)
+	noChannel := !contextLimited && !modelUnavailable && isNativeUserNoChannel(clientMessage)
+	jsonFormat := !contextLimited && !modelUnavailable && !noChannel && isNativeUserJSONFormat(clientMessage)
+	pinnedClientAction := contextLimited || modelUnavailable || noChannel || jsonFormat
+	if !cyberHit && !pinnedClientAction && (sensitiveMessage || (account != nil && account.IsOpenAIPassthroughEnabled() && !nativePassthrough)) {
 		clientCode = "upstream_unavailable"
 		clientMessage = "Upstream response failed"
+	}
+	switch {
+	case contextLimited:
+		clientCode = "context_length_exceeded"
+	case modelUnavailable:
+		clientCode = "group_model_unavailable"
+	case noChannel:
+		clientCode = "no_available_channel"
+	case jsonFormat:
+		clientCode = "json_format_required"
 	}
 	if next, err := sjson.SetBytes(updated, errorPath+".code", clientCode); err == nil {
 		updated = next
@@ -1962,30 +1977,28 @@ func sanitizeOpenAIResponseFailedEventForClient(c *gin.Context, payload []byte, 
 	// 容量降载码对 Codex CLI 是致命错误；事件既然要写给客户端（failover 已不可用），
 	// 就改写为客户端可重试的错误码。error 帧与 response.failed 都要改：上游降载
 	// 总是先推 error 帧再收 failed，两帧携带同一个错误。
-	if !nativePassthrough {
+	if !nativePassthrough && !pinnedClientAction {
 		if rewritten, changed := sanitizeOpenAICapacityShedErrorCodeForClient(updated); changed {
 			updated = rewritten
 		}
+	}
+	if contextLimited && errorPath != "" {
+		next, err := sjson.SetBytes(updated, errorPath+".type", "invalid_request_error")
+		if err != nil {
+			return payload, false
+		}
+		updated = next
+		next, err = sjson.SetBytes(updated, errorPath+".code", "context_length_exceeded")
+		if err != nil {
+			return payload, false
+		}
+		updated = next
 	}
 	if !isFailedEvent {
 		if !cyberHit {
 			updated = projectOpenAIClientErrorMessage(c, updated, errorPath)
 		}
 		return updated, !bytes.Equal(updated, payload)
-	}
-	if clientOutputStarted && isOpenAIContextWindowError(extractOpenAISSEErrorMessage(payload), payload) {
-		if errorPath != "" {
-			next, err := sjson.SetBytes(updated, errorPath+".type", "invalid_request_error")
-			if err != nil {
-				return payload, false
-			}
-			updated = next
-			next, err = sjson.SetBytes(updated, errorPath+".code", "context_length_exceeded")
-			if err != nil {
-				return payload, false
-			}
-			updated = next
-		}
 	}
 	if !gjson.GetBytes(updated, "response").Exists() {
 		if !cyberHit {

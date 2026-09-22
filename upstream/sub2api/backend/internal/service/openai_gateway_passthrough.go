@@ -846,12 +846,42 @@ func writeSanitizedOpenAIPassthroughError(c *gin.Context, upstreamStatus int, up
 	if errType == "" {
 		errType = "upstream_error"
 	}
-	projected := ProjectNativeUserErrorFromGin(c, upstreamStatus, errType, extractUpstreamErrorCode(body), "", true, "upstream", "provider")
+	code := extractUpstreamErrorCode(body)
+	rawMessage := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(body)))
+	projectMessage := ""
+	if nativeUserActionableUpstreamMessage(code, rawMessage, upstreamStatus) {
+		projectMessage = rawMessage
+	}
+	projected := ProjectNativeUserErrorFromGin(c, upstreamStatus, errType, code, projectMessage, true, "upstream", "provider")
+	if projectMessage != "" {
+		writeOpenAIPassthroughClassifiedError(c, downstreamStatus, upstreamHeaders, projected)
+		return
+	}
 	writeOpenAIPassthroughErrorEnvelope(c, downstreamStatus, upstreamHeaders, projected.Message)
 }
 
 // writeOpenAIPassthroughErrorEnvelope 以本地 JSON 信封 + 净化后的头策略写出
 // 错误响应；message 由调用方决定（净化通用文案或脱敏后的上游消息）。
+func writeOpenAIPassthroughClassifiedError(c *gin.Context, downstreamStatus int, upstreamHeaders http.Header, projected NativeUserErrorProjection) {
+	if c == nil {
+		return
+	}
+	errType := strings.TrimSpace(projected.Type)
+	if errType == "" {
+		errType = "upstream_error"
+	}
+	errBody := gin.H{"type": errType, "message": projected.Message}
+	if code := strings.TrimSpace(projected.Code); code != "" {
+		errBody["code"] = code
+	}
+	body, _ := json.Marshal(gin.H{"error": errBody})
+	if writeOpenAICompactSSEBridge(c, downstreamStatus, body) {
+		return
+	}
+	writeOpenAIPassthroughErrorHeaders(c.Writer.Header(), upstreamHeaders)
+	c.Data(downstreamStatus, "application/json; charset=utf-8", body)
+}
+
 func writeOpenAIPassthroughErrorEnvelope(c *gin.Context, downstreamStatus int, upstreamHeaders http.Header, message string) {
 	if c == nil {
 		return
