@@ -118,6 +118,7 @@ EOF
 #!/usr/bin/env bash
 case "$*" in
   *+%s*)
+    if [[ -f "${FAKE_EVENT_LOG}.drain-expired" ]]; then printf "1785513901\n"; exit 0; fi
     sequence=${FAKE_EPOCH_SEQUENCE:-${FAKE_EPOCH:-1785513600}}
     count_file="${FAKE_EVENT_LOG:?}.date-count"
     count=0
@@ -212,7 +213,7 @@ for arg in "$@"; do
 done
 case "${FAKE_SCENARIO:-success}:$*" in
 	public_failure:*example.invalid*) exit 22 ;;
-	rollback_shared_id_drift:*example.invalid*) [[ -e "${FAKE_EVENT_LOG}.live-route-green" ]] && exit 22 ;;
+	caddy_identity_rollback:*example.invalid*|rollback_shared_id_drift:*example.invalid*) [[ -e "${FAKE_EVENT_LOG}.live-route-green" ]] && exit 22 ;;
 	caddy_rollback_failure:*example.invalid*) exit 22 ;;
 esac
 case "$*" in
@@ -228,6 +229,28 @@ set -euo pipefail
 printf 'docker %s\n' "$*" >>"${FAKE_EVENT_LOG:?}"
 scenario=${FAKE_SCENARIO:-success}
 case "$*" in
+  exec\ blue-id\ sh\ -c\ *|exec\ green-id\ sh\ -c\ *)
+    if [[ "$scenario" == drain_halfclose ]]; then
+      tcp_file="${FAKE_EVENT_LOG}.tcp"
+      printf 'header\n' >"$tcp_file"
+      if [[ ! -f "${FAKE_EVENT_LOG}.drain-seen" ]]; then
+        printf '0: 00000000:1F90 00000000:ABCD 08\n' >>"$tcp_file"
+        touch "${FAKE_EVENT_LOG}.drain-seen"
+      fi
+      drain_command=${5//\/proc\/net\/tcp6/\/dev\/null}
+      drain_command=${drain_command//\/proc\/net\/tcp/$tcp_file}
+      sh -c "$drain_command"
+      exit
+    fi
+    if [[ "$scenario" == drain_inspection_failure ]]; then exit 1; fi
+    if [[ "$scenario" == drain_timeout ]]; then
+      touch "${FAKE_EVENT_LOG}.drain-expired"
+      printf '1\n'
+    elif [[ "$scenario" == drain_active && ! -f "${FAKE_EVENT_LOG}.drain-seen" ]]; then
+      touch "${FAKE_EVENT_LOG}.drain-seen"
+      printf '1\n'
+    else printf '0\n'; fi
+    ;;
   'context show') printf '%s\n' "${FAKE_DOCKER_CONTEXT:-default}" ;;
   load\ --input\ *)
     [[ "$scenario" != preload_load_failure ]] || exit 1
@@ -259,11 +282,11 @@ JSON
     [[ "$scenario" == candidate_role ]] && role=worker
 		if [[ "${FAKE_CANDIDATE_SLOT:-green}" == blue ]]; then
 		  worker_image=${EXPECTED_WORKER_IMAGE:-${PREVIOUS_IMAGE_FOR_FAKE:?}}
-		  printf '{"services":{"sub2api-green":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"api"}},"sub2api-blue":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"%s"}},"sub2api-worker":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"worker"}}}}\n' \
+		  printf '{"services":{"caddy":{"image":"fixture-caddy:current"},"sub2api-green":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"api"}},"sub2api-blue":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"%s"}},"sub2api-worker":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"worker"}}}}\n' \
 		    "${PREVIOUS_IMAGE_FOR_FAKE:?}" "${EXPECTED_IMAGE:?}" "$role" "$worker_image"
 		else
 		  worker_image=${EXPECTED_WORKER_IMAGE:-${PREVIOUS_IMAGE_FOR_FAKE:?}}
-		  printf '{"services":{"sub2api-green":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"%s"}},"sub2api-blue":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"api"}},"sub2api-worker":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"worker"}}}}\n' \
+		  printf '{"services":{"caddy":{"image":"fixture-caddy:current"},"sub2api-green":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"%s"}},"sub2api-blue":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"api"}},"sub2api-worker":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"worker"}}}}\n' \
 		    "${EXPECTED_IMAGE:?}" "$role" "${PREVIOUS_IMAGE_FOR_FAKE:?}" "$worker_image"
     fi
     ;;
@@ -284,7 +307,11 @@ JSON
   *' ps -q caddy')
     [[ "$scenario" != rollback_shared_id_drift || ! -e "${FAKE_EVENT_LOG}.cutover-seen" ]] \
       || { printf 'changed-caddy-id\n'; exit 0; }
-    printf 'caddy-id\n'
+    if [[ "$scenario" == caddy_identity_refresh || "$scenario" == caddy_identity_wrong_image || "$scenario" == caddy_identity_rollback ]]; then
+      printf 'new-caddy-id\n'
+    else
+      printf 'caddy-id\n'
+    fi
     ;;
   *' ps -q sub2api-blue')
     [[ ! -e "${FAKE_EVENT_LOG}.partial-blue-stopped" ]] || exit 0
@@ -331,6 +358,9 @@ JSON
 				fi
 				;;
 	'inspect worker-id --format {{.Config.Image}}') printf '%s\n' "${PREVIOUS_IMAGE_FOR_FAKE:?}" ;;
+	'inspect new-caddy-id --format {{.Config.Image}}')
+		if [[ "$scenario" == caddy_identity_wrong_image ]]; then printf 'fixture-caddy:unexpected\n'; else printf 'fixture-caddy:current\n'; fi
+		;;
 	'inspect blue-id --format {{range .Config.Env}}{{println .}}{{end}}')
 		if [[ "$scenario" == active_role_all ]]; then printf 'SERVER_PROCESS_ROLE=all\n'; else printf 'SERVER_PROCESS_ROLE=api\n'; fi
 		;;
@@ -2322,6 +2352,56 @@ test_success_order_and_atomic_records() {
   [[ -z "$(find "$CASE_DIR/records" -maxdepth 1 -name '*.partial' -print -quit)" ]] || fail 'partial record remained after success'
 }
 
+test_caddy_identity_refresh_without_maintenance() {
+  setup_case caddy_identity_refresh
+  write_meminfo
+  run_executor FAKE_SCENARIO=caddy_identity_refresh >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "verified Caddy-only identity refresh should stay on the blue-green path: $(cat "$CASE_DIR/stderr")"
+  ! grep -q 'maintenance stop api-worker' "$EVENT_LOG" \
+    || fail 'Caddy-only identity refresh stopped API or worker'
+  "$REAL_JQ" -e '.caddy_id == "new-caddy-id" and .active_slot == "green"' "$CASE_DIR/state.json" >/dev/null \
+    || fail 'Caddy-only identity refresh was not persisted with the promoted release state'
+
+  setup_case caddy_identity_rollback
+  write_meminfo
+  expect_failure caddy_identity_rollback run_executor FAKE_SCENARIO=caddy_identity_rollback
+  record=$(find "$CASE_DIR/records" -name "*.json" -print -quit)
+  "$REAL_JQ" -e ' .state == "rolled_back" and .rolled_back == true' "$record" >/dev/null || fail "verified Caddy identity was not used for rollback"
+
+  setup_case caddy_identity_wrong_image
+  write_meminfo
+  expect_failure caddy_identity_wrong_image run_executor FAKE_SCENARIO=caddy_identity_wrong_image
+  grep -q 'shared_container_identity_changed' "$CASE_DIR/stdout" \
+    || fail 'unexpected Caddy image did not fail closed'
+  assert_no_mutation caddy_identity_wrong_image
+}
+
+test_preserve_worker_and_drain() {
+  setup_case drain_inspection_failure
+  write_meminfo
+  expect_failure drain_inspection_failure run_executor PRESERVE_WORKER=true FAKE_SCENARIO=drain_inspection_failure
+  record=$(find "$CASE_DIR/records" -name '*.json' -print -quit)
+  "$REAL_JQ" -e '.result == "succeeded" and .drain.status == "failed"' "$record" >/dev/null || fail 'post-promotion drain failure not recorded'
+  "$REAL_JQ" -e '.active_slot == "green"' "$CASE_DIR/state.json" >/dev/null || fail 'drain failure reverted promotion'
+  ! grep -q 'docker stop' "$EVENT_LOG" || fail 'unknown connection state stopped old API'
+  for drain_scenario in drain_empty drain_active drain_halfclose drain_timeout; do
+    setup_case "$drain_scenario"
+    write_meminfo
+    run_executor PRESERVE_WORKER=true FAKE_SCENARIO="$drain_scenario" >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" || fail "drain release failed: $(cat "$CASE_DIR/stderr")"
+    ! grep -q 'force-recreate sub2api-worker' "$EVENT_LOG" || fail 'unrelated worker was recreated'
+    ! grep -q 'force-recreate model-detector' "$EVENT_LOG" || fail 'unrelated detector was recreated'
+    "$REAL_JQ" -e --arg image "$PREVIOUS_IMAGE" '.worker_image == $image' "$CASE_DIR/state.json" >/dev/null || fail 'worker image was not preserved'
+    grep -q 'docker stop --time 0 blue-id' "$EVENT_LOG" || fail 'old slot not retired after draining'
+    if [[ "$drain_scenario" == drain_active || "$drain_scenario" == drain_halfclose ]]; then
+      grep -q 'sleep 2' "$EVENT_LOG" || fail 'active connections were not allowed to drain'
+    fi
+    record=$(find "$CASE_DIR/records" -name '*.json' -print -quit)
+    if [[ "$drain_scenario" == drain_timeout ]]; then
+      "$REAL_JQ" -e '.drain.forced == true' "$record" >/dev/null || fail 'forced drain not recorded'
+    fi
+  done
+}
+
 test_worker_request_failure_log_does_not_trigger_startup_failure() {
   setup_case worker_request_failure_log
   write_meminfo
@@ -2682,6 +2762,8 @@ case "${ONLY_TEST:-all}" in
     test_maintenance_rollback_proof_gates
     test_caddy_reconciliation_route
     printf 'PASS: authorized maintenance transition and Caddy reconciliation route\n'
+    test_caddy_identity_refresh_without_maintenance
+    test_preserve_worker_and_drain
     test_success_order_and_atomic_records
     test_worker_request_failure_log_does_not_trigger_startup_failure
     printf 'PASS: successful blue-green command order\n'
@@ -2802,6 +2884,8 @@ case "${ONLY_TEST:-all}" in
 	maintenance-legacy-admin-balance-history-transition) test_legacy_admin_balance_history_maintenance_transition_allowlist ;;
 	maintenance-official-027-transition) test_official_027_maintenance_transition_allowlist ;;
 	maintenance-turn-state-scheduler-retirement-transition) test_turn_state_and_scheduler_retirement_maintenance_transition_allowlist ;;
+	caddy-identity) test_caddy_identity_refresh_without_maintenance ;;
+	drain) test_preserve_worker_and_drain ;;
 	gates) test_downtime_gates ;;
 	preloaded) test_preloaded_transport_loads_archive_without_pull ;;
   *) fail "unknown ONLY_TEST: ${ONLY_TEST}" ;;

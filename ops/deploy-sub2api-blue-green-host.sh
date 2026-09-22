@@ -503,6 +503,9 @@ worker_update_started=false
 maintenance_transition=false
 maintenance_stopped=false
 maintenance_identity_refresh=false
+preserve_worker=${PRESERVE_WORKER:-false}
+[[ "$preserve_worker" == true || "$preserve_worker" == false ]] || fail 'PRESERVE_WORKER must be true or false'
+[[ "$preserve_worker" == false || "$maintenance_authorized" == false ]] || fail 'worker must participate in maintenance'
 maintenance_deadline_epoch=''
 maintenance_window_seconds=''
 maintenance_started_millis=''
@@ -562,6 +565,8 @@ restore_detector_topology() {
 
 configure_detector_topology() {
   [[ "$mode" == production ]] || return 0
+  # API-only promotion keeps the existing worker and detector topology intact.
+  [[ "$preserve_worker" == false ]] || return 0
   if ! jq -e 'type == "object" and (.services | type == "object")' "$base_compose" >/dev/null 2>&1; then
     grep -Eq '^[[:space:]]+model-detector:' "$base_compose" && detector_enabled=true
     return 0
@@ -1056,7 +1061,7 @@ on_exit() {
   local status=$?
   trap - EXIT HUP INT TERM
   set +e
-  if [[ "$status" -ne 0 ]]; then
+  if [[ "$status" -ne 0 && "$record_finalized" == false ]]; then
     restore_detector_topology || true
   fi
   if [[ "$status" -ne 0 && "$record_finalized" == false && -n "$partial_path" && -e "$partial_path" ]]; then
@@ -1090,6 +1095,10 @@ on_exit() {
     rm -f -- "$detector_compose_backup" "$detector_secret_backup"
   elif [[ "$status" -ne 0 && "$record_finalized" == true && "$rollback_completed" == true ]]; then
     rm -f -- "$detector_compose_backup" "$detector_secret_backup"
+  fi
+  if [[ "$status" -ne 0 && "$record_finalized" == true && "${drain_status:-}" == pending ]]; then
+    jq '.drain = ((.drain // {}) + {status:"failed"})' "$record_path" >"$record_path.drain.tmp" &&
+      chmod 0600 "$record_path.drain.tmp" && mv "$record_path.drain.tmp" "$record_path"
   fi
   cleanup_lock
   exit "$status"
@@ -1437,15 +1446,18 @@ postgres_id=$(resolve_container_id postgres) || gate legacy_topology_bootstrap '
 redis_id=$(resolve_container_id redis) || gate legacy_topology_bootstrap 'Redis container identity is not uniquely resolvable' 600
 caddy_id=$(resolve_container_id caddy) || gate legacy_topology_bootstrap 'Caddy container identity is not uniquely resolvable' 600
 if [[ "$postgres_id" != "$state_postgres_id" || "$redis_id" != "$state_redis_id" || "$caddy_id" != "$state_caddy_id" ]]; then
-  if [[ "$maintenance_transition" == true && "$postgres_id" == "$state_postgres_id" && "$redis_id" == "$state_redis_id" ]]; then
-    expected_caddy_image=$("${compose_current[@]}" config --format json | jq -er '.services.caddy.image') \
-      || gate shared_container_identity_changed 'current Caddy image could not be proved during authorized maintenance' 600
-    [[ "$(docker inspect "$caddy_id" --format '{{.Config.Image}}')" == "$expected_caddy_image" ]] \
-      || gate shared_container_identity_changed 'Caddy identity changed to an unexpected image' 600
-    maintenance_identity_refresh=true
-  else
-    gate shared_container_identity_changed 'PostgreSQL, Redis, or Caddy identity differs from the active release state' 600
+  if [[ "$postgres_id" != "$state_postgres_id" || "$redis_id" != "$state_redis_id" ]]; then
+    gate shared_container_identity_changed 'PostgreSQL or Redis identity differs from the active release state' 600
   fi
+  expected_caddy_image=$("${compose_current[@]}" config --format json | jq -er '.services.caddy.image') \
+    || gate shared_container_identity_changed 'current Caddy image could not be proved' 600
+  [[ "$(docker inspect "$caddy_id" --format '{{.Config.Image}}')" == "$expected_caddy_image" ]] \
+    || gate shared_container_identity_changed 'Caddy identity changed to an unexpected image' 600
+  # Caddy is a shared, independently reloadable edge component. If only its
+  # container identity drifted while its image remains the exact Compose image,
+  # refresh the checkpoint in-place and continue with the API blue-green cutover.
+  maintenance_identity_refresh=true
+  rollback_caddy_id=$caddy_id
 fi
 
 active_service="sub2api-$state_active_slot"
@@ -1523,6 +1535,11 @@ candidate_worker=$state_worker_image
 candidate_blue_image_id=$state_blue_image_id
 candidate_green_image_id=$state_green_image_id
 candidate_worker_image_id=$requested_image_id
+promoted_worker=$requested_image
+if [[ "$preserve_worker" == true ]]; then
+  candidate_worker_image_id=$state_worker_image_id
+  promoted_worker=$state_worker_image
+fi
 if [[ "$candidate_slot" == blue ]]; then candidate_blue=$requested_image; else candidate_green=$requested_image; fi
 if [[ "$candidate_slot" == blue ]]; then candidate_blue_image_id=$requested_image_id; else candidate_green_image_id=$requested_image_id; fi
 if [[ "$maintenance_transition" == true ]]; then candidate_worker=$requested_image; candidate_worker_image_id=$requested_image_id; fi
@@ -1709,6 +1726,7 @@ cutover_attempted=true
 write_partial cutover_attempted
 run_caddy_config_command "$candidate_upstream" reload >/dev/null
 cutover_applied=true
+cutover_epoch=$(date -u +%s)
 write_partial cutover_applied
 
 failure_reason=public_acceptance_failed
@@ -1719,11 +1737,11 @@ check_maintenance_deadline
 failure_reason=state_persist_failed
 persistence_started=true
 write_partial state_persisting
-write_release_env_values "$candidate_blue" "$candidate_green" "$requested_image" \
+write_release_env_values "$candidate_blue" "$candidate_green" "$promoted_worker" \
   "$candidate_upstream" "$candidate_slot" "$previous_slot"
 trace_event 'persist release-env'
 write_state_values "$candidate_slot" "$candidate_upstream" "$candidate_blue" "$candidate_green" \
-  "$requested_image" "$source_commit" "$source_tree" "$migrations_hash" \
+  "$promoted_worker" "$source_commit" "$source_tree" "$migrations_hash" \
   "$postgres_id" "$redis_id" "$caddy_id" \
   "$candidate_blue_image_id" "$candidate_green_image_id" "$candidate_worker_image_id"
 trace_event 'persist release-state'
@@ -1732,14 +1750,16 @@ write_partial state_persisted
 [[ "$(live_caddy_upstream)" == "$candidate_upstream" ]] || fail 'persisted route does not match live Caddy upstream'
 
 failure_reason=worker_update_failed
-worker_update_started=true
-write_partial worker_updating
-run_post_stop_command "${compose_current[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" --force-recreate sub2api-worker >/dev/null
-wait_for_worker_healthy || fail 'worker did not become healthy before timeout'
-worker_logs_are_acceptable || fail 'worker logs contain a startup failure'
-worker_runtime_image_id=$(run_post_stop_command docker inspect "$(resolve_container_id sub2api-worker)" --format '{{.Image}}') || fail 'updated worker image ID could not be inspected'
-[[ "$worker_runtime_image_id" == "$candidate_worker_image_id" ]] || fail 'updated worker image ID differs from candidate'
-write_partial worker_accepted
+if [[ "$preserve_worker" == false ]]; then
+  worker_update_started=true
+  write_partial worker_updating
+  run_post_stop_command "${compose_current[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" --force-recreate sub2api-worker >/dev/null
+  wait_for_worker_healthy || fail 'worker did not become healthy before timeout'
+  worker_logs_are_acceptable || fail 'worker logs contain a startup failure'
+  worker_runtime_image_id=$(run_post_stop_command docker inspect "$(resolve_container_id sub2api-worker)" --format '{{.Image}}') || fail 'updated worker image ID could not be inspected'
+  [[ "$worker_runtime_image_id" == "$candidate_worker_image_id" ]] || fail 'updated worker image ID differs from candidate'
+  write_partial worker_accepted
+fi
 
 failure_reason=final_identity_check_failed
 [[ "$(resolve_container_id postgres)" == "$postgres_id" ]] || fail 'PostgreSQL identity changed during release'
@@ -1749,6 +1769,29 @@ failure_reason=final_identity_check_failed
 write_final_record succeeded promoted ''
 trace_event 'persist success-record'
 record_finalized=true
+run_post_stop_command rm -f -- "$partial_path"
+partial_path=''
+# Promotion is committed; drain failure must not cut traffic back to a stopped slot.
+if [[ "$mode" == production && "$maintenance_transition" == false ]]; then
+  drain_status=pending
+  drain_started=$(date -u +%s)
+  drain_forced=false
+  while true; do
+    connections=$(docker exec "$active_container_id" sh -c 'awk '\''FNR > 1 && $2 ~ /:1F90$/ && ($4 == "01" || $4 == "08") {n++} END {print n+0}'\'' /proc/net/tcp /proc/net/tcp6') || fail 'promoted, but old-slot connection inspection failed'
+    [[ "$connections" =~ ^[0-9]+$ ]] || fail 'invalid old-slot connection count'
+    [[ "$connections" -gt 0 ]] || break
+    drain_now=$(date -u +%s)
+    if (( drain_now - cutover_epoch >= 300 )); then drain_forced=true; break; fi
+    sleep 2
+  done
+  docker stop --time 0 "$active_container_id" >/dev/null || fail 'promoted, but old-slot stop failed'
+  drain_finished=$(date -u +%s)
+  jq --argjson seconds "$((drain_finished - drain_started))" --argjson forced "$drain_forced" \
+    '. + {drain:{status:"completed",seconds:$seconds,forced:$forced}}' "$record_path" >"$record_path.drain.tmp"
+  chmod 0600 "$record_path.drain.tmp"
+  mv "$record_path.drain.tmp" "$record_path"
+  drain_status=completed
+fi
 run_post_stop_command rm -f -- "$partial_path" "$candidate_env" "$admin_header" "$gateway_header"
 partial_path=''
 candidate_env=''
