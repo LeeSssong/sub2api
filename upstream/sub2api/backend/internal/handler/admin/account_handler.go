@@ -77,6 +77,7 @@ type AccountHandler struct {
 	ollamaCloudUsage         *service.OllamaCloudUsageService
 	procurementProfitability *service.AccountProfitabilityService
 	cfg                      *config.Config
+	opencodeGoUsage          *service.OpenCodeGoUsageService
 }
 
 // SetUpstreamBillingProbeService attaches the optional remote billing probe service.
@@ -90,6 +91,10 @@ func (h *AccountHandler) SetOllamaCloudUsageService(usage *service.OllamaCloudUs
 
 func (h *AccountHandler) SetProcurementProfitabilityService(svc *service.AccountProfitabilityService) {
 	h.procurementProfitability = svc
+}
+
+func (h *AccountHandler) SetOpenCodeGoUsageService(usage *service.OpenCodeGoUsageService) {
+	h.opencodeGoUsage = usage
 }
 
 // NewAccountHandler creates a new admin account handler

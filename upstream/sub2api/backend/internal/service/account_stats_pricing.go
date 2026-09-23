@@ -195,7 +195,7 @@ func tryCustomRulesResolution(
 		if cost == nil {
 			return AccountStatsCostResolution{ApplyAccountRate: true}
 		}
-		*cost *= maxReasoningEffortBillingMultiplier(model, reasoningEffort, nil)
+		*cost *= reasoningEffortBillingMultiplier(reasoningEffort, pricing.ReasoningEffortMultipliers)
 		return AccountStatsCostResolution{StatsCost: cost, ApplyAccountRate: true, Matched: true}
 	}
 	return AccountStatsCostResolution{ApplyAccountRate: true}

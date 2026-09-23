@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/shopspring/decimal"
 	"log/slog"
 	"strings"
 	"time"
@@ -12,6 +12,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/shopspring/decimal"
 )
 
 func (s *GatewayService) getUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
@@ -87,28 +88,35 @@ type UsageCostEvidenceRegisterer interface {
 
 // postUsageBillingParams 统一扣费所需的参数
 type postUsageBillingParams struct {
-	Cost                   *CostBreakdown
-	User                   *User
-	APIKey                 *APIKey
-	Account                *Account
-	Subscription           *UserSubscription
-	RequestPayloadHash     string
-	IsSubscriptionBill     bool
-	AccountRateMultiplier  float64
-	APIKeyService          APIKeyQuotaUpdater
-	Platform               string // 来自 APIKey 关联 Group 的平台标识
-	LogicalRequestID       string
-	AttemptID              string
-	AttemptNumber          int
-	CanonicalModel         string
-	CacheMode              string
-	OutputStarted          bool
-	UsageProduced          bool
-	UsageCompleteness      UsageCompleteness
-	ReconciliationRequired bool
-	UnsafeToReplay         bool
-	AccountCost            float64
-	AccountCostSet         bool
+	Cost                       *CostBreakdown
+	User                       *User
+	APIKey                     *APIKey
+	Account                    *Account
+	Subscription               *UserSubscription
+	RequestPayloadHash         string
+	IsSubscriptionBill         bool
+	AccountRateMultiplier      float64
+	APIKeyService              APIKeyQuotaUpdater
+	Platform                   string // 来自 APIKey 关联 Group 的平台标识
+	LogicalRequestID           string
+	AttemptID                  string
+	AttemptNumber              int
+	CanonicalModel             string
+	CacheMode                  string
+	OutputStarted              bool
+	UsageProduced              bool
+	UsageCompleteness          UsageCompleteness
+	ReconciliationRequired     bool
+	UnsafeToReplay             bool
+	AccountCost                float64
+	AccountCostSet             bool
+	SimpleModeKeyRateLimitOnly bool
+}
+
+var ErrSimpleModeKeyRateLimitBillingUnavailable = errors.New("simple mode api key rate-limit billing unavailable")
+
+func simpleModeKeyRateLimitBillingEnabled(cfg *config.Config, apiKey *APIKey) bool {
+	return cfg != nil && cfg.RunMode == config.RunModeSimple && cfg.SimpleModeKeyRateLimitEnabled && apiKey != nil && apiKey.HasRateLimits()
 }
 
 func accountCostForBilling(p *postUsageBillingParams) float64 {
@@ -353,6 +361,13 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 			cmd.SubscriptionID = usageLog.SubscriptionID
 		}
 	}
+	if p.SimpleModeKeyRateLimitOnly {
+		if p.Cost.ActualCost > 0 && p.APIKey.HasRateLimits() {
+			cmd.APIKeyRateLimitCost = p.Cost.ActualCost
+		}
+		cmd.Normalize()
+		return cmd
+	}
 
 	// Record subscription / balance cost using ActualCost so the group (and any
 	// user-specific) rate multiplier consumes subscription quota at the expected
@@ -400,6 +415,9 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 			}
 			return true, nil
 		}
+		if p.SimpleModeKeyRateLimitOnly {
+			return false, ErrSimpleModeKeyRateLimitBillingUnavailable
+		}
 		postUsageBilling(ctx, p, deps)
 		return true, nil
 	}
@@ -440,6 +458,17 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 
 func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
 	if p == nil || p.Cost == nil || deps == nil {
+		return
+	}
+	if p.SimpleModeKeyRateLimitOnly {
+		if p.APIKey != nil && deps.billingCacheService != nil {
+			if err := deps.billingCacheService.InvalidateAPIKeyRateLimit(ctx, p.APIKey.ID); err != nil {
+				logger.LegacyPrintf("service.gateway", "Warning: invalidate simple-mode api key rate-limit cache failed for key %d: %v", p.APIKey.ID, err)
+			}
+		}
+		if deps.deferredService != nil && p.Account != nil {
+			deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
+		}
 		return
 	}
 
@@ -1046,7 +1075,8 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		)
 	}
 
-	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
+	simpleModeKeyRateLimitOnly := simpleModeKeyRateLimitBillingEnabled(s.cfg, apiKey)
+	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple && !simpleModeKeyRateLimitOnly {
 		writeUsageLogBestEffortWithRegistrar(ctx, s.usageLogRepo, usageLog, s.usageCostEvidenceRegistrarFor(account), "service.gateway")
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
@@ -1071,23 +1101,24 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		accountCostSet = true
 	}
 	_, billingErr := applyUsageBilling(ctx, requestID, usageLog, &postUsageBillingParams{
-		Cost:                   cost,
-		User:                   user,
-		APIKey:                 apiKey,
-		Account:                account,
-		Subscription:           subscription,
-		RequestPayloadHash:     resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
-		IsSubscriptionBill:     isSubscriptionBilling,
-		AccountRateMultiplier:  accountRateMultiplier,
-		AccountCost:            accountCost,
-		AccountCostSet:         accountCostSet,
-		APIKeyService:          input.APIKeyService,
-		Platform:               quotaPlatform,
-		LogicalRequestID:       input.LogicalRequestID,
-		AttemptID:              input.AttemptID,
-		UsageCompleteness:      input.UsageCompleteness,
-		ReconciliationRequired: input.ReconciliationRequired,
-		UnsafeToReplay:         input.UnsafeToReplay,
+		Cost:                       cost,
+		User:                       user,
+		APIKey:                     apiKey,
+		Account:                    account,
+		Subscription:               subscription,
+		RequestPayloadHash:         resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
+		IsSubscriptionBill:         isSubscriptionBilling && !simpleModeKeyRateLimitOnly,
+		AccountRateMultiplier:      accountRateMultiplier,
+		AccountCost:                accountCost,
+		AccountCostSet:             accountCostSet,
+		APIKeyService:              input.APIKeyService,
+		Platform:                   quotaPlatform,
+		LogicalRequestID:           input.LogicalRequestID,
+		AttemptID:                  input.AttemptID,
+		UsageCompleteness:          input.UsageCompleteness,
+		ReconciliationRequired:     input.ReconciliationRequired,
+		UnsafeToReplay:             input.UnsafeToReplay,
+		SimpleModeKeyRateLimitOnly: simpleModeKeyRateLimitOnly,
 	}, s.billingDeps(), s.usageBillingRepo)
 
 	if billingErr != nil {

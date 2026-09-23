@@ -226,7 +226,8 @@ func invalidateProxyProbeSnapshots(ctx context.Context, exec sqlExecutor, proxyI
 		UPDATE accounts
 		SET extra = COALESCE(extra, '{}'::jsonb)
 				- 'upstream_billing_probe'
-				- 'ollama_cloud_usage_snapshot',
+				- 'ollama_cloud_usage_snapshot'
+				- 'opencode_go_usage_snapshot',
 			updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
 		WHERE proxy_id = $1
 			AND type = 'apikey'

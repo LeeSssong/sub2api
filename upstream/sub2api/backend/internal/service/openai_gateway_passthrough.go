@@ -1297,7 +1297,7 @@ func openAIStreamDataStartsTTFT(data, eventType, mode string) bool {
 	case "response.completed", "response.done":
 		return openAIStreamDataStartsVisibleOutput(trimmed, eventType)
 	default:
-		return true
+		return !openAIStreamEventIsMetadata(eventType)
 	}
 }
 

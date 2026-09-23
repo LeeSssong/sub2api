@@ -237,6 +237,10 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 	if state := service.OllamaCloudUsageStateFromAccount(a); state.Eligible {
 		ollamaCloudUsage = state
 	}
+	var openCodeGoUsage *service.OpenCodeGoUsageState
+	if state := service.OpenCodeGoUsageStateFromAccount(a); state.Eligible {
+		openCodeGoUsage = state
+	}
 	effectiveCost := service.EffectiveCostForAccount(a)
 	out := &Account{
 		ID:                         a.ID,
@@ -249,6 +253,7 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		Extra:                      extra,
 		ActiveProbeEnabled:         a.ActiveProbeEnabled(),
 		OllamaCloudUsage:           ollamaCloudUsage,
+		OpenCodeGoUsage:            openCodeGoUsage,
 		ProxyID:                    a.ProxyID,
 		ProxyFallbackOriginID:      a.ProxyFallbackOriginID,
 		ProxyFallbackOriginName:    a.ProxyFallbackOriginName,

@@ -205,5 +205,17 @@ func InitEnt(cfg *config.Config) (*ent.Client, *sql.DB, error) {
 		return nil, nil, err
 	}
 
+	if err := cfg.Validate(); err != nil {
+		_ = client.Close()
+		return nil, nil, fmt.Errorf("validate config after secret bootstrap: %w", err)
+	}
+
+	seedCtx, seedCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer seedCancel()
+	if err := ensureSimpleModeStartup(seedCtx, client, cfg); err != nil {
+		_ = client.Close()
+		return nil, nil, err
+	}
+
 	return client, drv.DB(), nil
 }

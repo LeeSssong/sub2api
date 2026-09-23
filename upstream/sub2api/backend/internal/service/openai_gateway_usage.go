@@ -558,7 +558,8 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.LongContextBillingApplied = false
 	}
 
-	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
+	simpleModeKeyRateLimitOnly := simpleModeKeyRateLimitBillingEnabled(s.cfg, apiKey)
+	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple && !simpleModeKeyRateLimitOnly {
 		if writeUsageLogBestEffortWithRegistrar(ctx, s.usageLogRepo, usageLog, s.usageCostEvidenceRegistrarFor(account), "service.openai_gateway") {
 			// Historical quality aggregation is not part of usage persistence.
 		}
@@ -583,28 +584,29 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			accountCostSet = true
 		}
 		_, err := applyUsageBilling(ctx, requestID, usageLog, &postUsageBillingParams{
-			Cost:                   cost,
-			User:                   user,
-			APIKey:                 apiKey,
-			Account:                account,
-			Subscription:           subscription,
-			RequestPayloadHash:     resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
-			IsSubscriptionBill:     isSubscriptionBilling,
-			AccountRateMultiplier:  accountRateMultiplier,
-			AccountCost:            accountCost,
-			AccountCostSet:         accountCostSet,
-			APIKeyService:          input.APIKeyService,
-			Platform:               quotaPlatform,
-			LogicalRequestID:       logicalRequestID,
-			AttemptID:              strings.TrimSpace(attemptMetadata.AttemptID),
-			AttemptNumber:          attemptMetadata.AttemptNumber,
-			CanonicalModel:         attemptMetadata.CanonicalModel,
-			CacheMode:              attemptMetadata.CachePreservationMode,
-			OutputStarted:          attemptMetadata.OutputStarted || result.OutputStarted,
-			UsageProduced:          attemptMetadata.UsageProduced || result.UsageKnown,
-			UsageCompleteness:      usageCompleteness,
-			ReconciliationRequired: reconciliationRequired,
-			UnsafeToReplay:         unsafeToReplay,
+			Cost:                       cost,
+			User:                       user,
+			APIKey:                     apiKey,
+			Account:                    account,
+			Subscription:               subscription,
+			RequestPayloadHash:         resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
+			IsSubscriptionBill:         isSubscriptionBilling && !simpleModeKeyRateLimitOnly,
+			AccountRateMultiplier:      accountRateMultiplier,
+			AccountCost:                accountCost,
+			AccountCostSet:             accountCostSet,
+			APIKeyService:              input.APIKeyService,
+			Platform:                   quotaPlatform,
+			LogicalRequestID:           logicalRequestID,
+			AttemptID:                  strings.TrimSpace(attemptMetadata.AttemptID),
+			AttemptNumber:              attemptMetadata.AttemptNumber,
+			CanonicalModel:             attemptMetadata.CanonicalModel,
+			CacheMode:                  attemptMetadata.CachePreservationMode,
+			OutputStarted:              attemptMetadata.OutputStarted || result.OutputStarted,
+			UsageProduced:              attemptMetadata.UsageProduced || result.UsageKnown,
+			UsageCompleteness:          usageCompleteness,
+			ReconciliationRequired:     reconciliationRequired,
+			UnsafeToReplay:             unsafeToReplay,
+			SimpleModeKeyRateLimitOnly: simpleModeKeyRateLimitOnly,
 		}, s.billingDeps(), s.usageBillingRepo)
 		return err
 	}()

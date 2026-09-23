@@ -218,6 +218,7 @@ type Account struct {
 	Extra                      map[string]any                 `json:"extra"`
 	ActiveProbeEnabled         bool                           `json:"active_probe_enabled"`
 	OllamaCloudUsage           *service.OllamaCloudUsageState `json:"ollama_cloud_usage,omitempty"`
+	OpenCodeGoUsage            *service.OpenCodeGoUsageState  `json:"opencode_go_usage,omitempty"`
 	ProxyID                    *int64                         `json:"proxy_id"`
 	ProxyFallbackOriginID      *int64                         `json:"proxy_fallback_origin_id"`
 	ProxyFallbackOriginName    *string                        `json:"proxy_fallback_origin_name,omitempty"`
