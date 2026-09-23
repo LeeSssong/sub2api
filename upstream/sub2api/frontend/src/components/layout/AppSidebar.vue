@@ -873,6 +873,15 @@ function buildUserNavItems(): NavItem[] {
     { path: '/dashboard', label: userNavLabel('myRoutes', '我的线路'), icon: DashboardIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/keys', label: userNavLabel('myKeys', '我的密钥'), icon: KeyIcon },
+    // Reuse the existing storefront configuration and embedded custom-page route.
+    ...customMenuItemsForUser.value
+      .filter(item => item.id === 'xingqiao-storefront')
+      .map((item): NavItem => ({
+        path: `/custom/${item.id}`,
+        label: item.label,
+        icon: CreditCardIcon,
+        iconSvg: item.icon_svg,
+      })),
   ]
 }
 

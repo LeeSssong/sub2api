@@ -12,8 +12,9 @@ const { appStore } = vi.hoisted(() => ({
 
 vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<div><slot /></div>' } }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ params: { id: 'docs' } }) }))
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }) }))
+vi.mock('vue-i18n', async (original) => ({ ...await original<typeof import('vue-i18n')>(), useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }) }))
 vi.mock('@/stores', () => ({ useAppStore: () => appStore }))
+vi.mock('@/stores/app', () => ({ useAppStore: () => appStore }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isAdmin: false, user: { id: 7 }, token: 'test-token' }) }))
 vi.mock('@/stores/adminSettings', () => ({ useAdminSettingsStore: () => ({ customMenuItems: [] }) }))
 vi.mock('@/api/client', () => ({ buildApiUrl: (path: string) => `/api/v1${path}` }))
@@ -77,6 +78,13 @@ describe('custom page open button', () => {
   afterEach(() => {
     wrappers.splice(0).forEach(wrapper => wrapper.unmount())
     vi.unstubAllGlobals()
+  })
+
+  it('embeds the existing storefront URL for a regular user', () => {
+    appStore.cachedPublicSettings.custom_menu_items = [{ id: 'docs', url: 'https://catfk.com/shop/DLK8SNUJ' }]
+    const wrapper = mountPage()
+    const embedded = new URL(wrapper.get('iframe').attributes('src'))
+    expect(embedded.origin + embedded.pathname).toBe('https://catfk.com/shop/DLK8SNUJ')
   })
 
   it.each([undefined, false, true])('honors the per-menu hide button setting %s while keeping the iframe', (hidden) => {
