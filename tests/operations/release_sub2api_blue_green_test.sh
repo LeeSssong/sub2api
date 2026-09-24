@@ -206,7 +206,8 @@ run_controller() {
     RELEASE_NETWORK_CURL_IMAGE_ALLOWLIST='example.invalid/curl@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
     RELEASE_MONOTONIC_BIN="$CASE_DIR/bin/monotonic" \
     "$@" bash "$CONTROLLER" --mode "$controller_mode" --evidence "$EVIDENCE" \
-    ${CONTROLLER_MAINTENANCE_AUTHORIZED:+--maintenance-authorized}
+    ${CONTROLLER_MAINTENANCE_AUTHORIZED:+--maintenance-authorized} \
+    ${CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH:+--online-migrations-from-hash "$CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH"}
 }
 
 expect_failure_before_transport() {
@@ -368,6 +369,16 @@ test_maintenance_controller_forwards_exact_current_migration_hash() {
     fail 'maintenance controller accepted a missing source migration hash'
   fi
   [[ ! -s "$CASE_DIR/docker.log" ]] || fail 'missing maintenance source hash reached image build'
+}
+
+test_online_migration_controller_requires_explicit_hash() {
+  local old_hash=dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54
+  setup_case online-migration-hash
+  write_evidence
+  CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH=$old_hash run_controller >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "online migration controller failed: $(cat "$CASE_DIR/stderr")"
+  grep -F -- "--online-migrations-from-hash $old_hash" "$CASE_DIR/ssh.log" >/dev/null \
+    || fail 'online migration source hash was not forwarded'
 }
 
 test_downtime_gate_is_propagated_without_retry() {
@@ -563,6 +574,7 @@ test_migration_hash_matches_go_trim_space_for_unicode_whitespace
 test_evidence_rejected_before_transport
 test_build_publish_and_host_invocation
 test_maintenance_controller_forwards_exact_current_migration_hash
+test_online_migration_controller_requires_explicit_hash
 test_downtime_gate_is_propagated_without_retry
 test_executor_install_failures_stop_before_build
 test_executor_parent_chain_rejects_before_build

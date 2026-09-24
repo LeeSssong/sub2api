@@ -1342,7 +1342,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_RebuildsUpstreamErrors(t *testin
 			contentType:  "text/plain",
 			responseBody: `proxy secret-upstream.example rejected the request`,
 			wantStatus:   http.StatusBadRequest,
-			wantMessage:  AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""),
+			wantMessage:  AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""),
 		},
 		{
 			name:         "malicious valid json 4xx",
@@ -1531,7 +1531,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_CompactErrorAfterKeepaliveIsFail
 	require.Equal(t, "response.failed", events[0][0])
 	require.Equal(t, "failed", gjson.Get(events[0][1], "response.status").String())
 	require.Equal(t, "upstream_error", gjson.Get(events[0][1], "response.error.code").String())
-	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), gjson.Get(events[0][1], "response.error.message").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""), gjson.Get(events[0][1], "response.error.message").String())
 	require.NotContains(t, rec.Body.String(), "secret-upstream.example")
 }
 

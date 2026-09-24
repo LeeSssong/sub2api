@@ -23,33 +23,6 @@ func resetViperWithJWTSecret(t *testing.T) {
 	t.Setenv("JWT_SECRET", strings.Repeat("x", 32))
 }
 
-func TestGatewayOpenAISharedHealthDefaultsAndHardLimits(t *testing.T) {
-	cfg := DefaultGatewayOpenAISharedHealthConfig()
-	require.True(t, cfg.Enabled)
-	require.Equal(t, 75, cfg.RedisTimeoutMS)
-	require.Equal(t, 30, cfg.StaleAfterSeconds)
-	require.Equal(t, 4, cfg.MaxAttempts)
-	require.Equal(t, 3, cfg.MaxAccountSwitches)
-	require.Equal(t, 2, cfg.MaxFailureDomains)
-	require.Equal(t, 5000, cfg.TotalRetryBudgetMS)
-	require.Equal(t, 120, cfg.BackoffInitialMS)
-	require.Equal(t, 2000, cfg.BackoffMaxMS)
-	require.Equal(t, 15, cfg.HalfOpenLeaseSeconds)
-	require.NoError(t, cfg.Validate())
-
-	cfg.MaxAttempts = 5
-	require.Error(t, cfg.Validate())
-	cfg = DefaultGatewayOpenAISharedHealthConfig()
-	cfg.MaxAccountSwitches = 4
-	require.Error(t, cfg.Validate())
-	cfg = DefaultGatewayOpenAISharedHealthConfig()
-	cfg.MaxFailureDomains = 3
-	require.Error(t, cfg.Validate())
-	cfg = DefaultGatewayOpenAISharedHealthConfig()
-	cfg.TotalRetryBudgetMS = 5001
-	require.Error(t, cfg.Validate())
-}
-
 func TestLoadProcessRole(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -504,32 +477,6 @@ func TestLoadDefaultOpenAIFirstOutputTimeoutsDisabled(t *testing.T) {
 	require.Zero(t, cfg.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds)
 }
 
-func TestLoadDefaultOpenAISharedHealthAdmissionConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.True(t, cfg.Gateway.OpenAISharedHealth.AdmissionEnabled)
-	require.Equal(t, 65536, cfg.Gateway.OpenAISharedHealth.LongRequestBodyThresholdBytes)
-	require.Equal(t, 2, cfg.Gateway.OpenAISharedHealth.MaxPreFirstOutputNormal)
-	require.Equal(t, 1, cfg.Gateway.OpenAISharedHealth.MaxPreFirstOutputLong)
-	require.Equal(t, 30, cfg.Gateway.OpenAISharedHealth.StalledBeforeFirstOutputSeconds)
-	require.Equal(t, 90, cfg.Gateway.OpenAISharedHealth.AdmissionLeaseTTLSeconds)
-	require.Equal(t, 25, cfg.Gateway.OpenAISharedHealth.AdmissionRenewSeconds)
-	require.Equal(t, 30000, cfg.Gateway.OpenAISharedHealth.SlowTTFTMS)
-	require.Equal(t, 600, cfg.Gateway.OpenAISharedHealth.SlowSessionGuardSeconds)
-}
-
-func TestValidateOpenAISharedHealthAdmissionConfig(t *testing.T) {
-	cfg := DefaultGatewayOpenAISharedHealthConfig()
-	cfg.AdmissionRenewSeconds = cfg.AdmissionLeaseTTLSeconds
-	require.ErrorContains(t, cfg.Validate(), "admission_renew_seconds")
-
-	cfg = DefaultGatewayOpenAISharedHealthConfig()
-	cfg.LongRequestBodyThresholdBytes = 4095
-	require.ErrorContains(t, cfg.Validate(), "long_request_body_threshold_bytes")
-}
-
 func TestLoadOpenAIFirstOutputTimeoutsFromEnv(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("GATEWAY_OPENAI_FIRST_OUTPUT_TIMEOUT_SECONDS", "90")
@@ -586,18 +533,6 @@ func TestLoadDefaultOpenAIWSConfig(t *testing.T) {
 	}
 	if cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate != 0.5 {
 		t.Fatalf("Gateway.OpenAIScheduler.StickyEscapeErrorRate = %v, want 0.5", cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate)
-	}
-	if !cfg.Gateway.OpenAIScheduler.AdaptiveTopKEnabled {
-		t.Fatalf("Gateway.OpenAIScheduler.AdaptiveTopKEnabled = false, want true")
-	}
-	if cfg.Gateway.OpenAIScheduler.AdaptiveTopKMax != 7 {
-		t.Fatalf("Gateway.OpenAIScheduler.AdaptiveTopKMax = %d, want 7", cfg.Gateway.OpenAIScheduler.AdaptiveTopKMax)
-	}
-	if cfg.Gateway.OpenAIScheduler.AdaptiveTopKScoreGap != 0.15 {
-		t.Fatalf("Gateway.OpenAIScheduler.AdaptiveTopKScoreGap = %v, want 0.15", cfg.Gateway.OpenAIScheduler.AdaptiveTopKScoreGap)
-	}
-	if !cfg.Gateway.OpenAIScheduler.TTFTReportOnlyEnabled {
-		t.Fatalf("Gateway.OpenAIScheduler.TTFTReportOnlyEnabled = false, want true")
 	}
 	if !cfg.Gateway.OpenAIWS.SessionHashReadOldFallback {
 		t.Fatalf("Gateway.OpenAIWS.SessionHashReadOldFallback = false, want true")
@@ -2525,26 +2460,6 @@ func TestValidateConfig_OpenAIWSRules(t *testing.T) {
 			mutate:  func(c *Config) { c.Gateway.OpenAIScheduler.StickyEscapeErrorRate = 1.1 },
 			wantErr: "gateway.openai_scheduler.sticky_escape_error_rate",
 		},
-		{
-			name:    "adaptive_top_k_max 必须为正数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIScheduler.AdaptiveTopKMax = 0 },
-			wantErr: "gateway.openai_scheduler.adaptive_top_k_max",
-		},
-		{
-			name:    "adaptive_top_k_max 不能超过 32",
-			mutate:  func(c *Config) { c.Gateway.OpenAIScheduler.AdaptiveTopKMax = 33 },
-			wantErr: "gateway.openai_scheduler.adaptive_top_k_max",
-		},
-		{
-			name:    "adaptive_top_k_score_gap 不能为负数",
-			mutate:  func(c *Config) { c.Gateway.OpenAIScheduler.AdaptiveTopKScoreGap = -0.01 },
-			wantErr: "gateway.openai_scheduler.adaptive_top_k_score_gap",
-		},
-		{
-			name:    "adaptive_top_k_score_gap 不能超过 10",
-			mutate:  func(c *Config) { c.Gateway.OpenAIScheduler.AdaptiveTopKScoreGap = 10.01 },
-			wantErr: "gateway.openai_scheduler.adaptive_top_k_score_gap",
-		},
 	}
 
 	for _, tc := range cases {
@@ -2777,65 +2692,5 @@ func TestLoad_DefaultGatewayImageStreamConfig(t *testing.T) {
 	}
 	if cfg.Gateway.ImageStreamDataIntervalTimeout <= cfg.Gateway.StreamDataIntervalTimeout {
 		t.Fatalf("image stream timeout = %d, want greater than ordinary stream timeout %d", cfg.Gateway.ImageStreamDataIntervalTimeout, cfg.Gateway.StreamDataIntervalTimeout)
-	}
-}
-
-func TestLoad_DefaultUnifiedQualityPriorityCaps(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, 50.0, cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax)
-	require.Equal(t, 50.0, cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax)
-}
-
-func TestLoad_ConfiguredUnifiedQualityPriorityCapsUseOpenAISchedulerPath(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	viper.Set("gateway.openai_scheduler.unified_quality_priority_cold_start_max", 37.5)
-	viper.Set("gateway.openai_scheduler.unified_quality_priority_daily_max", 14.25)
-
-	cfg, err := Load()
-	require.NoError(t, err)
-	require.Equal(t, 37.5, cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax)
-	require.Equal(t, 14.25, cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax)
-}
-
-func TestValidateConfig_UnifiedQualityPriorityCapsRejectInvalidValues(t *testing.T) {
-	cases := []struct {
-		name  string
-		value func(*Config)
-		want  string
-	}{
-		{
-			name:  "cold start negative",
-			value: func(cfg *Config) { cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax = -1 },
-			want:  "gateway.openai_scheduler.unified_quality_priority_cold_start_max",
-		},
-		{
-			name:  "daily negative",
-			value: func(cfg *Config) { cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax = -1 },
-			want:  "gateway.openai_scheduler.unified_quality_priority_daily_max",
-		},
-		{
-			name:  "cold start NaN",
-			value: func(cfg *Config) { cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax = math.NaN() },
-			want:  "gateway.openai_scheduler.unified_quality_priority_cold_start_max",
-		},
-		{
-			name:  "daily Inf",
-			value: func(cfg *Config) { cfg.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax = math.Inf(1) },
-			want:  "gateway.openai_scheduler.unified_quality_priority_daily_max",
-		},
-	}
-
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			resetViperWithJWTSecret(t)
-			cfg, err := Load()
-			require.NoError(t, err)
-			tt.value(cfg)
-			err = cfg.Validate()
-			require.Error(t, err)
-			require.Contains(t, err.Error(), tt.want)
-		})
 	}
 }

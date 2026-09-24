@@ -1052,7 +1052,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamModerationBlockedReturn
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Equal(t, "image_generation_user_error", gjson.Get(rec.Body.String(), "error.type").String())
 	require.Equal(t, "moderation_blocked", gjson.Get(rec.Body.String(), "error.code").String())
-	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), gjson.Get(rec.Body.String(), "error.message").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""), gjson.Get(rec.Body.String(), "error.message").String())
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamServerErrorReturnsFailoverBeforeFlush(t *testing.T) {

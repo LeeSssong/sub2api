@@ -725,6 +725,9 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 	s.applyOpenAITurnStateReuse(ctx, req.Header, account, body, "/responses"+openAIResponsesRequestPathSuffix(c))
 	logOpenAIRoutingDiagnosticsFromBody(ctx, account, "http_passthrough", req.Header, body, "not_applicable")
 
+	if err := applyMappedGPT55LiteCompatibility(req, account, body); err != nil {
+		return nil, err
+	}
 	return req, nil
 }
 
@@ -1113,7 +1116,7 @@ func openAIStreamClientOutputStarted(c *gin.Context, localStarted bool) bool {
 
 func openAIStreamEventIsPreamble(eventType string) bool {
 	switch strings.TrimSpace(eventType) {
-	case "response.created", "response.in_progress":
+	case "response.created", "response.in_progress", "keepalive":
 		return true
 	default:
 		return false
@@ -1278,6 +1281,16 @@ func openAIStreamDataStartsVisibleOutput(data, eventType string) bool {
 	return false
 }
 
+// Lifecycle metadata and transport heartbeats are not model output.
+func openAIStreamEventIsMetadata(eventType string) bool {
+	switch strings.TrimSpace(eventType) {
+	case "response.created", "response.in_progress", "keepalive":
+		return true
+	default:
+		return false
+	}
+}
+
 func openAIStreamDataStartsTTFT(data, eventType, mode string) bool {
 	if normalizeOpenAITTFTMode(mode) == OpenAITTFTModeVisible {
 		return openAIStreamDataStartsVisibleOutput(data, eventType)
@@ -1407,7 +1420,7 @@ func openAIStreamFailedEventSemanticStatus(payload []byte, message string) int {
 		errType = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.type").String()))
 	}
 	combined := strings.TrimSpace(errType + " " + code + " " + strings.ToLower(strings.TrimSpace(message)))
-	for _, path := range []string{"response.error.status_code", "error.status_code", "status_code"} {
+	for _, path := range []string{"response.error.status_code", "response.error.status", "error.status_code", "error.status", "status_code"} {
 		if status := int(gjson.GetBytes(payload, path).Int()); status == http.StatusUnauthorized ||
 			status == http.StatusForbidden || status == http.StatusTooManyRequests || status == 529 {
 			return status
@@ -1455,7 +1468,7 @@ func openAIStreamCredentialAuthFailure(payload []byte) bool {
 	if len(bytes.TrimSpace(payload)) == 0 || !gjson.ValidBytes(payload) {
 		return false
 	}
-	for _, path := range []string{"response.error.status_code", "error.status_code", "status_code"} {
+	for _, path := range []string{"response.error.status_code", "response.error.status", "error.status_code", "error.status", "status_code"} {
 		if int(gjson.GetBytes(payload, path).Int()) == http.StatusUnauthorized {
 			return true
 		}
@@ -2004,7 +2017,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			trimmedData := strings.TrimSpace(data)
 			rawEventType := effectiveOpenAISSEEventType(dataBytes, pendingSSEEventType)
 			observer.ObserveOpenAI(dataBytes, rawEventType)
-			if needModelReplace && strings.Contains(data, mappedModel) {
+			if needModelReplace && strings.Contains(data, `"model"`) {
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 				if replacedData, replaced := extractOpenAISSEDataLine(line); replaced {
 					dataBytes = []byte(replacedData)
@@ -2246,7 +2259,6 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			return resultWithUsage(), err
 		}
 		if !openAIStreamClientOutputStarted(c, clientOutputStarted) {
-			s.recordOpenAIIncompleteStreamFailure(ctx, account.ID, mappedModel, false, true, false, usageHasAnyTokens(usage))
 			msg := "OpenAI stream disconnected before completion"
 			if errText := strings.TrimSpace(err.Error()); errText != "" {
 				msg += ": " + errText
@@ -2258,7 +2270,6 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete after disconnect: %w", err)
 		}
 		s.recordOpenAIProxyStreamDisconnect(account, err, upstreamRequestID)
-		s.recordOpenAIIncompleteStreamFailure(ctx, account.ID, mappedModel, true, false, false, usageHasAnyTokens(usage))
 		recordOpsOriginalStreamTransportError(c, account, true, upstreamRequestID, "stream_read_error", err)
 		logger.LegacyPrintf("service.openai_gateway",
 			"[OpenAI passthrough] 流读取异常中断: account=%d request_id=%s err=%v",
@@ -2280,12 +2291,10 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			zap.String("upstream_request_id", upstreamRequestID),
 		).Info("OpenAI passthrough 上游流在未收到 [DONE] 时结束，疑似断流")
 		if !openAIStreamClientOutputStarted(c, clientOutputStarted) {
-			s.recordOpenAIIncompleteStreamFailure(ctx, account.ID, mappedModel, false, true, false, usageHasAnyTokens(usage))
 			return resultWithUsage(),
 				s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, nil, "OpenAI stream ended before a terminal event")
 		}
 		s.recordOpenAIProxyStreamDisconnect(account, errors.New("stream ended before terminal event"), upstreamRequestID)
-		s.recordOpenAIIncompleteStreamFailure(ctx, account.ID, mappedModel, true, false, false, usageHasAnyTokens(usage))
 		result := resultWithUsage()
 		return result, newOpenAIStreamReadRecoveryFailoverError(nil, responseID, result.UsageKnown)
 	}

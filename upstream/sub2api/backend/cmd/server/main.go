@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	_ "embed"
 	"errors"
 	"flag"
@@ -20,12 +21,14 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/repository"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/setup"
 	"github.com/Wei-Shaw/sub2api/internal/web"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq"
 )
 
 //go:embed VERSION
@@ -61,10 +64,17 @@ func main() {
 	// Parse command line flags
 	setupMode := flag.Bool("setup", false, "Run setup wizard in CLI mode")
 	showVersion := flag.Bool("version", false, "Show version information")
+	migrateOnly := flag.Bool("migrate-only", false, "Apply database migrations without starting API or background jobs")
 	flag.Parse()
 
 	if *showVersion {
 		log.Printf("Sub2API %s (commit: %s, built: %s)\n", Version, Commit, Date)
+		return
+	}
+	if *migrateOnly {
+		if err := migrateOnlyFromConfig(); err != nil {
+			log.Fatalf("Migration failed: %v", err)
+		}
 		return
 	}
 
@@ -88,6 +98,29 @@ func main() {
 	if err != nil {
 		log.Fatalf("Startup failed: %v", err)
 	}
+}
+
+func onlineMigrationDSN(cfg *config.Config) string {
+	return cfg.Database.DSNWithTimezone(cfg.Timezone) + " lock_timeout=100ms statement_timeout=2s"
+}
+
+func runMigrationsOnly(ctx context.Context, db *sql.DB, apply func(context.Context, *sql.DB) error) error {
+	return apply(ctx, db)
+}
+
+func migrateOnlyFromConfig() error {
+	cfg, err := config.LoadForBootstrap()
+	if err != nil {
+		return err
+	}
+	db, err := sql.Open("postgres", onlineMigrationDSN(cfg))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	return runMigrationsOnly(ctx, db, repository.ApplyMigrations)
 }
 
 type startupActions struct {

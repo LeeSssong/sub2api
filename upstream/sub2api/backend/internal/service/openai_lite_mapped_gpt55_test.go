@@ -79,7 +79,7 @@ func TestMappedGPT55LiteBuildersPreserveIngressForFailover(t *testing.T) {
 			r, err = s.buildUpstreamRequest(context.Background(), c, a, body, "test-token", true, "", true)
 		}
 		require.NoError(t, err)
-		require.Empty(t, r.Header.Get(responsesLiteHeader))
+		require.Empty(t, r.Header.Get(responsesLiteHeader), "passthrough=%t", passthrough)
 		require.Equal(t, "true", c.GetHeader(responsesLiteHeader))
 		a.ID = 14
 		body = []byte(`{"model":"gpt-6-astra","stream":true,"input":[]}`)

@@ -1009,7 +1009,6 @@ func ProvideOpenAIGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
-	sharedHealthStore OpenAISharedHealthStore,
 	turnStateStore OpenAITurnStateStore,
 	proxyRepo ProxyRepository,
 ) *OpenAIGatewayService {
@@ -1037,9 +1036,6 @@ func ProvideOpenAIGatewayService(
 		settingService,
 		userPlatformQuotaRepo,
 	)
-	if cfg != nil && cfg.Gateway.OpenAISharedHealth.Enabled {
-		svc.SetOpenAISharedHealthStore(sharedHealthStore)
-	}
 	svc.SetOpenAITurnStateStore(turnStateStore)
 	svc.SetOpenAITurnStateHarvesterProxyRepository(proxyRepo)
 	svc.StartOpenAITurnStateHarvester()
@@ -1327,7 +1323,6 @@ func ProvideAccountMonitorService(
 	service.SetAccountRuntimeBlocker(openAIGatewayService)
 	service.costPricing = billingService
 	service.SetModelDetectionService(detectionService)
-	service.SetOpenAIAccountSchedulerProjectionProvider(openAIGatewayService)
 	service.SetAccountMonitorConcurrencyService(concurrencyService)
 	return service
 }

@@ -70,6 +70,7 @@ type CyberPolicyUsageInput struct {
 	SessionID          string
 	RequestPayloadHash string
 	APIKeyService      APIKeyQuotaUpdater
+	NativeCompactionV2 bool
 	ChannelUsageFields
 }
 

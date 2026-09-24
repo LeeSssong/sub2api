@@ -92,6 +92,8 @@ func TestAccountReadableSnapshot_DenylistTripwire(t *testing.T) {
 	// = relational graphs with back-references that would cycle under encoding/json.
 	stripped := map[string]struct{}{
 		"Credentials": {}, "Groups": {}, "AccountGroups": {},
+		"EffectiveCostModel": {}, "UpstreamActualCost": {}, "UpstreamObtainedQuota": {},
+		"ProcurementCostCNY": {}, "EstimatedUsableQuotaUSD": {}, "ProcurementCostEffectiveAt": {},
 	}
 	// Fields intentionally exposed as readable metadata (incl. Extra and Proxy —
 	// the proxy password is already handed out via ResolveOutboundIdentity's URL).
@@ -133,6 +135,9 @@ func TestAccountReadableSnapshot_DenylistTripwire(t *testing.T) {
 	var m map[string]any
 	require.NoError(t, json.Unmarshal(snap, &m))
 	assert.NotContains(t, string(snap), "LEAK-REFRESH", "raw Credentials must never appear in metadata")
+	assert.NotContains(t, m, "EffectiveCostModel")
+	assert.NotContains(t, m, "UpstreamActualCost")
+	assert.NotContains(t, m, "ProcurementCostCNY")
 	assert.Contains(t, string(snap), "extra-released", "Extra is intentionally released")
 	assert.Contains(t, string(snap), "pw-released", "proxy is intentionally released (already exposed via 打票)")
 

@@ -1883,9 +1883,6 @@ func (s *OpenAIGatewayService) fetchCodexModelsManifestForAccounts(ctx context.C
 		account := accounts[i]
 		go func() {
 			manifest, err := s.FetchCodexModelsManifest(ctx, &account, clientVersion, "")
-			if err != nil {
-				s.PersistOpenAIOAuth429CooldownFromError(ctx, &account, err)
-			}
 			results <- result{accountID: account.ID, manifest: manifest, err: err}
 		}()
 	}

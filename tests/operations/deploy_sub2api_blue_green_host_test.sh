@@ -179,6 +179,9 @@ if [[ "${FAKE_DISABLE_HANG:-false}" != true && -e "${FAKE_EVENT_LOG}.maintenance
     /bin/sleep "${FAKE_HANG_SECONDS:-5}"
   fi
 fi
+if [[ "$scenario" == post_rollback_state_persist_failure && "$target" == */state.json && "$1" == *'.rollback-state.'* ]]; then
+  exit 1
+fi
 exec /bin/mv "$@"
 EOF
   cat >"$CASE_DIR/kill-hook.bash" <<'EOF'
@@ -213,6 +216,7 @@ for arg in "$@"; do
 done
 case "${FAKE_SCENARIO:-success}:$*" in
 	public_failure:*example.invalid*) exit 22 ;;
+	post_rollback_restore_failure:*'/health'*) [[ -e "${FAKE_EVENT_LOG}.live-route-green" ]] || exit 22 ;;
 	caddy_identity_rollback:*example.invalid*|rollback_shared_id_drift:*example.invalid*) [[ -e "${FAKE_EVENT_LOG}.live-route-green" ]] && exit 22 ;;
 	caddy_rollback_failure:*example.invalid*) exit 22 ;;
 esac
@@ -230,6 +234,14 @@ printf 'docker %s\n' "$*" >>"${FAKE_EVENT_LOG:?}"
 scenario=${FAKE_SCENARIO:-success}
 case "$*" in
   exec\ blue-id\ sh\ -c\ *|exec\ green-id\ sh\ -c\ *)
+    if [[ "$scenario" == drain_reverted && ! -f "${FAKE_EVENT_LOG}.drain-seen" ]]; then
+      [[ ! -d "$(dirname "$RELEASE_STATE")/records/.blue-green.lock" ]] || exit 1
+      touch "${FAKE_EVENT_LOG}.drain-seen"
+      jq '.active_slot="blue" | .active_upstream="sub2api-blue:8080"' "$RELEASE_STATE" >"$RELEASE_STATE.tmp"
+      mv "$RELEASE_STATE.tmp" "$RELEASE_STATE"
+      printf '1\n'
+      exit
+    fi
     if [[ "$scenario" == drain_halfclose ]]; then
       tcp_file="${FAKE_EVENT_LOG}.tcp"
       printf 'header\n' >"$tcp_file"
@@ -338,6 +350,8 @@ JSON
 	'inspect blue-id --format {{.Image}}')
 			if [[ "$scenario" == maintenance_rollback_api_image_mismatch && -e "${FAKE_EVENT_LOG}.rollback-phase" ]]; then
 				printf 'sha256:%064d\n' 9
+			elif [[ "$scenario" == post_success_rollback || "$scenario" == post_rollback_restore_failure || "$scenario" == post_rollback_state_persist_failure ]]; then
+				printf '%s\n' "${PREVIOUS_IMAGE_ID_FOR_FAKE:?}"
 			elif [[ -e "${FAKE_EVENT_LOG}.live-route-green" ]]; then
 				printf '%s\n' "${EXPECTED_IMAGE_ID:?}"
 			else
@@ -345,7 +359,7 @@ JSON
 			fi
 			;;
 	'inspect green-id --format {{.Image}}')
-		if [[ -e "${FAKE_EVENT_LOG}.live-route-green" ]]; then printf '%s\n' "${PREVIOUS_IMAGE_ID_FOR_FAKE:?}"; else printf '%s\n' "${EXPECTED_IMAGE_ID:?}"; fi
+		if [[ "$scenario" != post_success_rollback && "$scenario" != post_rollback_restore_failure && "$scenario" != post_rollback_state_persist_failure && -e "${FAKE_EVENT_LOG}.live-route-green" ]]; then printf '%s\n' "${PREVIOUS_IMAGE_ID_FOR_FAKE:?}"; else printf '%s\n' "${EXPECTED_IMAGE_ID:?}"; fi
 		;;
 	'inspect worker-id --format {{.Image}}')
 				worker_image_id_file="${FAKE_EVENT_LOG}.worker-image-id"
@@ -369,6 +383,8 @@ JSON
 		if [[ "$scenario" == worker_role_all ]]; then printf 'SERVER_PROCESS_ROLE=all\n'; else printf 'SERVER_PROCESS_ROLE=worker\n'; fi
 		;;
 	'inspect legacy-id --format {{range .Config.Env}}{{println .}}{{end}}') printf 'SERVER_PROCESS_ROLE=all\n' ;;
+  *'exec -T postgres '*'schema_migrations'*) printf '%s\n' "${FAKE_ROLLBACK_SCHEMA_COMPAT:-t}" ;;
+  *'exec -T postgres '*'openai_scheduler_logs'*) printf '%s\n' "${FAKE_RETIRED_SCHEDULER_ARTIFACTS:-0}" ;;
   *'exec -T postgres '*'psql'*) printf '%s\n' "${FAKE_DB_HEADROOM:-30}" ;;
   *'stop sub2api-blue sub2api-green sub2api-worker')
     : >"${FAKE_EVENT_LOG}.maintenance-stopped"
@@ -418,6 +434,7 @@ JSON
     ;;
 	*'exec -T -e SUB2API_ACTIVE_UPSTREAM='*' caddy caddy reload'*)
     if [[ "$scenario" == reload_failure && "$*" == *sub2api-green:8080* ]]; then exit 1; fi
+    if [[ "$scenario" == post_rollback_restore_failure && "$*" == *sub2api-green:8080* ]]; then exit 1; fi
     if [[ "$scenario" == caddy_rollback_failure && "$*" == *sub2api-blue:8080* ]]; then exit 1; fi
 		if [[ "$*" == *sub2api-green:8080* ]]; then
 			: >"${FAKE_EVENT_LOG}.cutover-seen"
@@ -433,7 +450,7 @@ JSON
 			[[ -f "$count_file" ]] && count=$(cat "$count_file")
 			count=$((count + 1))
 			printf '%s\n' "$count" >"$count_file"
-			if [[ "$*" == *'.rollback.env'* ]]; then
+			if [[ "$*" == *'.rollback.env'* || ( "$scenario" == online_migrations && "$*" == *"/release.env"* && "$*" != *'.candidate.env'* ) ]]; then
 				printf '%s\n' "${PREVIOUS_IMAGE_ID_FOR_FAKE:?}" >"${FAKE_EVENT_LOG}.worker-image-id"
 			else
 				printf '%s\n' "${EXPECTED_IMAGE_ID:?}" >"${FAKE_EVENT_LOG}.worker-image-id"
@@ -534,6 +551,13 @@ run_executor() {
   if [[ "${MAINTENANCE_MODE:-false}" == true ]]; then
     expected_worker_image=$IMAGE
     executor_args+=(--maintenance-authorized --maintenance-from-hash "${MAINTENANCE_FROM_HASH:?}")
+  fi
+  if [[ "${ONLINE_MIGRATIONS_MODE:-false}" == true ]]; then
+    expected_worker_image=$IMAGE
+    executor_args+=(--online-migrations-from-hash "${ONLINE_MIGRATIONS_FROM_HASH:?}")
+  fi
+  if [[ -n "${ROLLBACK_RECORD:-}" ]]; then
+    executor_args=(--rollback --record "$ROLLBACK_RECORD")
   fi
   env \
     PATH="$CASE_DIR/bin:$PATH" \
@@ -1220,6 +1244,124 @@ test_authorized_maintenance_transition() {
   grep -Eq 'up --no-deps .*--force-recreate sub2api-worker' "$EVENT_LOG" || fail 'maintenance rollback did not restore worker'
   ! grep -Eq 'compose .* (stop|up|pull|rm|restart|recreate).*postgres|compose .* (stop|up|pull|rm|restart|recreate).*redis|compose .* (stop|up|pull|rm|restart|recreate).*caddy' "$EVENT_LOG" \
     || fail 'maintenance rollback touched a shared service'
+}
+
+test_online_official_028_migrations_keep_old_api_running() {
+  local old_hash=dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54
+  local new_hash=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b
+  setup_case online_migrations
+  write_meminfo
+  MIGRATIONS_HASH=$new_hash
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"
+  chmod 0600 "$CASE_DIR/state.json"
+  ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash FAKE_SCENARIO=online_migrations run_executor >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "online migration transition failed: $(cat "$CASE_DIR/stderr")"
+  grep -q 'run --rm --no-deps --user 1000:1000 --entrypoint /app/sub2api sub2api-worker -migrate-only' "$EVENT_LOG" \
+    || fail 'online migration did not run a standalone migrator'
+  grep -q 'worker runtime image ID differs from candidate' "$CASE_DIR/stderr" && fail 'online migration promoted an old worker'
+  [[ "$(grep -c 'up --no-deps -d --force-recreate sub2api-worker' "$EVENT_LOG")" -ge 1 ]] \
+    || fail 'online migration did not replace the singleton worker'
+  ! grep -q 'maintenance stop api-worker' "$EVENT_LOG" || fail 'online migration stopped the API'
+  ! grep -q ' stop sub2api-blue sub2api-green sub2api-worker' "$EVENT_LOG" || fail 'online migration stopped the worker'
+  "$REAL_JQ" -e --arg hash "$new_hash" '.migrations_hash == $hash and .active_slot == "green"' "$CASE_DIR/state.json" >/dev/null \
+    || fail 'online migration did not promote the candidate'
+
+  setup_case online_migrations_wrong_hash
+  write_meminfo
+  MIGRATIONS_HASH=$new_hash
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"
+  chmod 0600 "$CASE_DIR/state.json"
+  ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$(printf '0%.0s' {1..64}) \
+    expect_failure online_migrations_wrong_hash run_executor
+  assert_no_mutation online_migrations_wrong_hash
+
+  setup_case online_migrations_retired_data
+  write_meminfo
+  MIGRATIONS_HASH=$new_hash
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"
+  chmod 0600 "$CASE_DIR/state.json"
+  ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash FAKE_RETIRED_SCHEDULER_ARTIFACTS=1 \
+    expect_failure online_migrations_retired_data run_executor
+  grep -q 'retired_scheduler_artifacts' "$CASE_DIR/stdout" || fail 'retired scheduler data was not gated'
+  assert_no_mutation online_migrations_retired_data
+}
+
+test_successful_release_can_rollback_without_stopping_current_api() {
+  setup_case successful_release_rollback
+  write_meminfo
+  run_executor >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "fixture promotion failed: $(cat "$CASE_DIR/stderr")"
+  local record old_api_up route_old
+  record=$(find "$CASE_DIR/records" -maxdepth 1 -type f -name '*.json' -print -quit)
+  [[ -n "$record" ]] || fail 'promotion did not produce a success record'
+  ROLLBACK_RECORD=$record FAKE_SCENARIO=post_success_rollback run_executor >"$CASE_DIR/rollback.stdout" 2>"$CASE_DIR/rollback.stderr" \
+    || fail "successful release rollback failed: $(cat "$CASE_DIR/rollback.stderr")"
+  old_api_up=$(awk '/up --no-deps -d sub2api-blue/ {print NR; exit}' "$EVENT_LOG")
+  route_old=$(awk '/SUB2API_ACTIVE_UPSTREAM=sub2api-blue:8080 caddy caddy reload/ {print NR; exit}' "$EVENT_LOG")
+  [[ -n "$old_api_up" && -n "$route_old" && "$old_api_up" -lt "$route_old" ]] \
+    || fail 'rollback did not ready the stopped old API before route change'
+  "$REAL_JQ" -e '.active_slot == "blue" and .active_upstream == "sub2api-blue:8080"' "$CASE_DIR/state.json" >/dev/null \
+    || fail 'rollback did not persist the old release identity'
+  ! grep -Eq 'compose .* (stop|up|rm) .*postgres|compose .* (stop|up|rm) .*redis|compose .* (stop|up|rm) .*caddy' "$EVENT_LOG" \
+    || fail 'rollback touched shared services'
+}
+
+test_online_migration_release_can_rollback_to_previous_schema_reader() {
+  local old_hash=dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54
+  local new_hash=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b
+  setup_case online_migration_rollback
+  write_meminfo
+  MIGRATIONS_HASH=$new_hash
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"
+  chmod 0600 "$CASE_DIR/state.json"
+  ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash FAKE_SCENARIO=online_migrations \
+    run_executor >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "fixture migration promotion failed: $(cat "$CASE_DIR/stderr")"
+  local record
+  record=$(find "$CASE_DIR/records" -maxdepth 1 -type f -name '*.json' -print -quit)
+  ROLLBACK_RECORD=$record FAKE_SCENARIO=post_success_rollback run_executor \
+    >"$CASE_DIR/rollback.stdout" 2>"$CASE_DIR/rollback.stderr" \
+    || fail "online migration rollback failed: $(cat "$CASE_DIR/rollback.stderr")"
+  "$REAL_JQ" -e --arg hash "$new_hash" '.active_slot == "blue" and .migrations_hash == $hash' "$CASE_DIR/state.json" >/dev/null \
+    || fail 'online migration rollback did not restore previous release state'
+}
+
+test_failed_rollback_restoration_keeps_exclusive_lock() {
+  setup_case failed_rollback_restoration
+  write_meminfo
+  run_executor >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "fixture promotion failed: $(cat "$CASE_DIR/stderr")"
+  local record
+  record=$(find "$CASE_DIR/records" -maxdepth 1 -type f -name '*.json' -print -quit)
+  ROLLBACK_RECORD=$record FAKE_SCENARIO=post_rollback_restore_failure \
+    expect_failure post_rollback_restore_failure run_executor
+  [[ -d "$CASE_DIR/records/.blue-green.lock" ]] \
+    || fail "failed route restoration released the deployment lock: $(cat "$CASE_DIR/stderr")"
+  grep -q 'rollback recovery failed' "$CASE_DIR/stderr" \
+    || fail 'failed route restoration did not report manual intervention'
+}
+
+test_failed_rollback_state_write_restores_release_env() {
+  setup_case failed_rollback_state_write
+  write_meminfo
+  run_executor >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "fixture promotion failed: $(cat "$CASE_DIR/stderr")"
+  local record
+  record=$(find "$CASE_DIR/records" -maxdepth 1 -type f -name '*.json' -print -quit)
+  ROLLBACK_RECORD=$record FAKE_SCENARIO=post_rollback_state_persist_failure \
+    expect_failure post_rollback_state_persist_failure run_executor
+  grep -q 'mv .*rollback-state.*state.json' "$EVENT_LOG" \
+    || fail "rollback did not reach state persistence: $(cat "$CASE_DIR/stderr")"
+  "$REAL_JQ" -e '.active_slot == "green"' "$CASE_DIR/state.json" >/dev/null \
+    || fail 'failed rollback changed release state'
+  grep -q '^SUB2API_ACTIVE_SLOT=green$' "$CASE_DIR/release.env" \
+    || fail 'failed rollback left release env inconsistent with state'
+  [[ ! -d "$CASE_DIR/records/.blue-green.lock" ]] \
+    || fail 'verified restoration left an unnecessary lock'
 }
 
 test_verified_production_maintenance_transition() {
@@ -2376,6 +2518,9 @@ test_success_order_and_atomic_records() {
   [[ -n "$record" ]] || fail 'success record missing'
   [[ "$(stat -f '%Lp' "$record" 2>/dev/null || stat -c '%a' "$record")" == 600 ]] || fail 'record mode is not 0600'
   "$REAL_JQ" -e '.result == "succeeded" and .state == "promoted"' "$record" >/dev/null || fail 'success record invalid'
+  "$REAL_JQ" -e --arg old "$PREVIOUS_IMAGE" \
+    '.previous.active_slot == "blue" and .previous.active_upstream == "sub2api-blue:8080" and .previous.blue_image == $old and .previous.worker_image == $old and .previous.source_commit != .requested.source_commit' \
+    "$record" >/dev/null || fail 'success record omitted the verified rollback identity'
   [[ -z "$(find "$CASE_DIR/records" -maxdepth 1 -name '*.partial' -print -quit)" ]] || fail 'partial record remained after success'
 }
 
@@ -2404,6 +2549,15 @@ test_caddy_identity_refresh_without_maintenance() {
 }
 
 test_preserve_worker_and_drain() {
+  setup_case drain_pending_blocks_next_release
+  write_meminfo
+  printf 'pending\n' >"$CASE_DIR/records/.drain-other.pending"
+  chmod 0600 "$CASE_DIR/records/.drain-other.pending"
+  expect_failure drain_pending_blocks_next_release run_executor PRESERVE_WORKER=true
+  grep -q 'previous release is still draining' "$CASE_DIR/stderr" || fail 'next release was not blocked during drain'
+  assert_no_mutation drain_pending_blocks_next_release
+  [[ ! -d "$CASE_DIR/records/.blue-green.lock" ]] || fail 'blocked release retained the exclusive lock'
+
   setup_case drain_inspection_failure
   write_meminfo
   expect_failure drain_inspection_failure run_executor PRESERVE_WORKER=true FAKE_SCENARIO=drain_inspection_failure
@@ -2427,6 +2581,13 @@ test_preserve_worker_and_drain() {
       "$REAL_JQ" -e '.drain.forced == true' "$record" >/dev/null || fail 'forced drain not recorded'
     fi
   done
+  setup_case drain_reverted
+  write_meminfo
+  run_executor PRESERVE_WORKER=true FAKE_SCENARIO=drain_reverted >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "reverted drain release failed: $(cat "$CASE_DIR/stderr")"
+  ! grep -q 'docker stop --time 0 blue-id' "$EVENT_LOG" || fail 'drain stopped the restored API'
+  record=$(find "$CASE_DIR/records" -name '*.json' -print -quit)
+  "$REAL_JQ" -e '.drain.status == "skipped"' "$record" >/dev/null || fail 'reverted drain was not skipped'
 }
 
 test_worker_request_failure_log_does_not_trigger_startup_failure() {
@@ -2913,6 +3074,8 @@ case "${ONLY_TEST:-all}" in
 	maintenance-official-027-transition) test_official_027_maintenance_transition_allowlist ;;
 	maintenance-turn-state-scheduler-retirement-transition) test_turn_state_and_scheduler_retirement_maintenance_transition_allowlist ;;
 	maintenance-official-028-transition) test_official_028_maintenance_transition_allowlist ;;
+	online-migrations) test_online_official_028_migrations_keep_old_api_running ;;
+  post-success-rollback) test_successful_release_can_rollback_without_stopping_current_api; test_online_migration_release_can_rollback_to_previous_schema_reader; test_failed_rollback_restoration_keeps_exclusive_lock; test_failed_rollback_state_write_restores_release_env ;;
 	caddy-identity) test_caddy_identity_refresh_without_maintenance ;;
 	drain) test_preserve_worker_and_drain ;;
 	gates) test_downtime_gates ;;

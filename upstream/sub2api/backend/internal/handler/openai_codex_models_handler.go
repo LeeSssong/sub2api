@@ -52,7 +52,7 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 					h.errorResponse(c, http.StatusServiceUnavailable, "upstream_error", "No available pinned OpenAI accounts")
 					return
 				}
-				h.errorResponse(c, infraerrors.Code(pinnedErr), "upstream_error", infraerrors.Message(pinnedErr))
+				h.errorResponse(c, infraerrors.Code(pinnedErr), "upstream_error", "Failed to load Codex models manifest")
 				return
 			}
 		} else {
@@ -103,7 +103,7 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 				return
 			}
 			if lastUpstreamErr != nil {
-				h.errorResponse(c, infraerrors.Code(lastUpstreamErr), "upstream_error", infraerrors.Message(lastUpstreamErr))
+				h.errorResponse(c, infraerrors.Code(lastUpstreamErr), "upstream_error", "Failed to load Codex models manifest")
 				return
 			}
 			h.errorResponse(c, http.StatusServiceUnavailable, "upstream_error", "No available OpenAI accounts")
@@ -125,7 +125,7 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 				lastUpstreamErr = err
 				continue
 			}
-			h.errorResponse(c, infraerrors.Code(err), "upstream_error", infraerrors.Message(err))
+			h.errorResponse(c, infraerrors.Code(err), "upstream_error", "Failed to load Codex models manifest")
 			return
 		}
 		if err := h.gatewayService.CompleteAPIKeyCodexModelsManifestForClient(manifest, account); err != nil {

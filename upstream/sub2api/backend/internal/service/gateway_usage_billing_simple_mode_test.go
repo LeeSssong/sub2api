@@ -15,6 +15,7 @@ func TestBuildUsageBillingCommandSimpleModeOnlyChargesAPIKeyWindows(t *testing.T
 	account := &Account{ID: 9, Type: AccountTypeAPIKey}
 	p := &postUsageBillingParams{
 		Cost:                       &CostBreakdown{ActualCost: 3.25, TotalCost: 2.5},
+		UsageCompleteness:          UsageCompletenessComplete,
 		User:                       user,
 		APIKey:                     apiKey,
 		Account:                    account,
@@ -61,6 +62,7 @@ func TestApplyUsageBillingSimpleModeDeduplicatesWithoutBalanceEffects(t *testing
 	repo := &simpleModeUsageBillingRepoStub{}
 	p := &postUsageBillingParams{
 		Cost:                       &CostBreakdown{ActualCost: 3.25, TotalCost: 3.25},
+		UsageCompleteness:          UsageCompletenessComplete,
 		User:                       &User{ID: 7, Balance: 0},
 		APIKey:                     &APIKey{ID: 13, Quota: 100, RateLimit5h: 10},
 		Account:                    &Account{ID: 9, Type: AccountTypeAPIKey},
@@ -89,6 +91,7 @@ func TestApplyUsageBillingSimpleModeRejectsLegacyFallback(t *testing.T) {
 		t.Run(missing, func(t *testing.T) {
 			p := &postUsageBillingParams{
 				Cost: &CostBreakdown{ActualCost: 1}, User: &User{ID: 7},
+				UsageCompleteness: UsageCompletenessComplete,
 				APIKey: &APIKey{ID: 13, RateLimit5h: 10}, Account: &Account{ID: 9},
 				SimpleModeKeyRateLimitOnly: true,
 			}

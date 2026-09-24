@@ -67,7 +67,7 @@ func openAITurnStateAccountInScope(account *Account) bool {
 }
 
 func (s *OpenAIGatewayService) openAITurnStateAccountSchedulableForRequest(ctx context.Context, account *Account, model string) (bool, string) {
-	if !openAITurnStateSchedulingEnabled(ctx) || strings.TrimSpace(model) != OpenAITurnStateHarvestModel || !openAITurnStateAccountInScope(account) {
+	if strings.TrimSpace(model) != OpenAITurnStateHarvestModel || !openAITurnStateAccountInScope(account) {
 		return true, ""
 	}
 	now := time.Now()

@@ -127,7 +127,6 @@ type AccountMonitorReasonCode string
 
 const (
 	AccountMonitorReasonStrategy      AccountMonitorReasonCode = "strategy"
-	AccountMonitorReasonQualityGate   AccountMonitorReasonCode = "quality_gate"
 	AccountMonitorReasonRuntimeLoad   AccountMonitorReasonCode = "runtime_load"
 	AccountMonitorReasonCooldown      AccountMonitorReasonCode = "cooldown"
 	AccountMonitorReasonTieBreak      AccountMonitorReasonCode = "tie_break"

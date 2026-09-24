@@ -222,7 +222,7 @@ func TestHandleErrorResponse_NonDeterministicStatusesKeepGeneric502(t *testing.T
 	}{
 		// 404/405 可能是上游 base_url 配错（运营方问题），不当成客户端错误暴露。
 		{"not_found", http.StatusNotFound, `{"error":{"message":"Unknown request URL"}}`,
-			http.StatusBadGateway, "upstream_error", AppendNativeUserErrorHelp(NativeUserCopyAbnormal, "")},
+			http.StatusBadGateway, "upstream_error", AppendNativeUserErrorHelp(NativeUserCopyBusy, "")},
 		{"unprocessable", http.StatusUnprocessableEntity, `{"error":{"message":"Invalid schema for field messages"}}`,
 			http.StatusBadGateway, "upstream_error", AppendNativeUserErrorHelp(NativeUserCopyBusy, "")},
 		// 401/402/403 是网关运营方的凭据/账单问题，必须继续对客户端屏蔽上游账号状态。
@@ -249,8 +249,7 @@ func TestHandleErrorResponse_NonDeterministicStatusesKeepGeneric502(t *testing.T
 			require.Error(t, err)
 			if tc.name == "not_found" {
 				var failoverErr *UpstreamFailoverError
-				require.True(t, errors.As(err, &failoverErr))
-				return
+				require.False(t, errors.As(err, &failoverErr), "uncertain 404 must not replay on another account")
 			}
 			if tc.name == "forbidden" {
 				var failoverErr *UpstreamFailoverError
@@ -321,7 +320,7 @@ func TestWriteOpenAIUpstreamClientError_PayloadShape(t *testing.T) {
 			body:        `{"error":{"type":"invalid_prompt","message":"blocked"}}`,
 			upstreamMsg: "blocked",
 			wantType:    "invalid_prompt",
-			wantMessage: AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""),
+			wantMessage: AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""),
 		},
 		{
 			name:        "empty_body_falls_back",

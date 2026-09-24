@@ -412,7 +412,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			s.clearOpenAIProxyStreamDisconnect(account)
 		}
 		if !sawTerminalEvent && !openAIStreamClientOutputStarted(c, clientOutputStarted) && !eventShouldFlush {
-			s.recordOpenAIIncompleteStreamFailure(ctx, account.ID, mappedModel, false, true, false, usageHasAnyTokens(usage))
 			return resultWithUsage(), s.newOpenAIStreamFailoverError(
 				c,
 				account,
@@ -424,8 +423,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		}
 		flushPending("Client disconnected during final flush, returning collected usage")
 		if !sawTerminalEvent {
-			outputStarted := openAIStreamClientOutputStarted(c, clientOutputStarted)
-			s.recordOpenAIIncompleteStreamFailure(ctx, account.ID, mappedModel, outputStarted, !outputStarted, false, usageHasAnyTokens(usage))
 			if openAIStreamClientOutputStarted(c, clientOutputStarted) && !clientDisconnected {
 				s.recordOpenAIProxyStreamDisconnect(account, errors.New("stream ended before terminal event"), upstreamRequestID)
 			}
@@ -436,6 +433,9 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 		}
 		logOpenAISuccessMissingUsage(ctx, c, account, resp, usage, terminalEventType, clientDisconnected)
 		return resultWithUsage(), nil
+	}
+	terminalEventReady := func() bool {
+		return sawTerminalEvent && !(codexFailureTerminal && sawBareError && !sawResponseFailed)
 	}
 	handleScanErr := func(scanErr error) (*openaiStreamingResult, error, bool) {
 		if scanErr == nil {
@@ -481,7 +481,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			return resultWithUsage(), scanErr, true
 		}
 		if !openAIStreamClientOutputStarted(c, clientOutputStarted) && !eventShouldFlush {
-			s.recordOpenAIIncompleteStreamFailure(ctx, account.ID, mappedModel, false, true, false, usageHasAnyTokens(usage))
 			msg := "OpenAI stream disconnected before completion"
 			if errText := strings.TrimSpace(scanErr.Error()); errText != "" {
 				msg += ": " + errText
@@ -493,7 +492,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			return resultWithUsage(), fmt.Errorf("stream usage incomplete after disconnect: %w", scanErr), true
 		}
 		s.recordOpenAIProxyStreamDisconnect(account, scanErr, upstreamRequestID)
-		s.recordOpenAIIncompleteStreamFailure(ctx, account.ID, mappedModel, true, false, false, usageHasAnyTokens(usage))
 		recordOpsOriginalStreamTransportError(c, account, false, upstreamRequestID, "stream_read_error", scanErr)
 		code, message := classifyOpenAIUpstreamStreamReadError(scanErr)
 		sendErrorEvent(code, message)
@@ -698,7 +696,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			}
 			// Replace model in response if needed.
 			// Fast path: most events do not contain model field values.
-			if needModelReplace && mappedModel != "" && strings.Contains(line, mappedModel) {
+			if needModelReplace && strings.Contains(line, `"model"`) {
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 			}
 			startsClientOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
@@ -836,9 +834,14 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 	if streamInterval <= 0 && keepaliveInterval <= 0 && firstOutputTimeout <= 0 {
 		defer putSSEScannerBuf64K(scanBuf)
 		for documentScanner.Scan() {
-			processSSELine(documentScanner.Text(), true)
+			line := documentScanner.Text()
+			processSSELine(line, true)
 			if streamEarlyErr != nil {
 				return resultWithUsage(), streamEarlyErr
+			}
+			if line == "" && terminalEventReady() {
+				_ = resp.Body.Close()
+				return finalizeStream()
 			}
 		}
 		if result, err, done := handleScanErr(documentScanner.Err()); done {
@@ -918,6 +921,10 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			markEventProcessed(ev)
 			if streamEarlyErr != nil {
 				return resultWithUsage(), streamEarlyErr
+			}
+			if ev.line == "" && terminalEventReady() {
+				_ = resp.Body.Close()
+				return finalizeStream()
 			}
 
 		case <-intervalCh:
@@ -1106,31 +1113,27 @@ func effectiveOpenAISSEEventType(payload []byte, eventType string) string {
 
 func (s *OpenAIGatewayService) replaceModelInSSELine(line, fromModel, toModel string) string {
 	data, ok := extractOpenAISSEDataLine(line)
-	if !ok {
+	if !ok || fromModel == "" || toModel == "" || fromModel == toModel {
 		return line
 	}
-	if data == "" || data == "[DONE]" {
+	if data == "" || data == "[DONE]" || !gjson.Valid(data) {
 		return line
 	}
-
-	// 使用 gjson 精确检查 model 字段，避免全量 JSON 反序列化
-	if m := gjson.Get(data, "model"); m.Exists() && m.Str == fromModel {
-		newData, err := sjson.Set(data, "model", toModel)
+	changed := false
+	for _, path := range []string{"model", "response.model"} {
+		if gjson.Get(data, path).Type != gjson.String {
+			continue
+		}
+		updated, err := sjson.Set(data, path, toModel)
 		if err != nil {
 			return line
 		}
-		return "data: " + newData
+		data = updated
+		changed = true
 	}
-
-	// 检查嵌套的 response.model 字段
-	if m := gjson.Get(data, "response.model"); m.Exists() && m.Str == fromModel {
-		newData, err := sjson.Set(data, "response.model", toModel)
-		if err != nil {
-			return line
-		}
-		return "data: " + newData
+	if changed {
+		return "data: " + data
 	}
-
 	return line
 }
 

@@ -115,6 +115,21 @@ func accountReadableSnapshotJSON(account *Account) []byte {
 	if err != nil {
 		return nil
 	}
+	var readable map[string]json.RawMessage
+	if err := json.Unmarshal(data, &readable); err != nil {
+		return nil
+	}
+	for _, field := range []string{
+		"Credentials", "Groups", "AccountGroups",
+		"EffectiveCostModel", "UpstreamActualCost", "UpstreamObtainedQuota",
+		"ProcurementCostCNY", "EstimatedUsableQuotaUSD", "ProcurementCostEffectiveAt",
+	} {
+		delete(readable, field)
+	}
+	data, err = json.Marshal(readable)
+	if err != nil {
+		return nil
+	}
 	return data
 }
 

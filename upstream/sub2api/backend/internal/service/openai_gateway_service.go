@@ -510,7 +510,6 @@ type OpenAIGatewayService struct {
 	openaiProxyStreamCircuitOnce   sync.Once
 	openaiWSPassthroughDialerOnce  sync.Once
 	openaiModelTransientOnce       sync.Once
-	openaiRecoveryExclusionOnce    sync.Once
 	agentIdentityTaskMu            sync.Mutex
 	openaiWSPool                   *openAIWSConnPool
 	openaiWSStateStore             OpenAIWSStateStore
@@ -520,14 +519,8 @@ type OpenAIGatewayService struct {
 	openaiAccountStats             *openAIAccountRuntimeStats
 	openaiFirstOutputSlow          *OpenAIFirstOutputSlowTracker
 	openaiModelTransient           *openAIAccountModelTransientState
-	openaiRecoveryExclusions       *openAIRecoveryExclusionState
 	openaiProxyStreamCircuit       *openAIProxyStreamCircuit
 	openaiProxyStreamFailOpenLogAt atomic.Int64
-	sharedHealthStore              OpenAISharedHealthStore
-	sharedHealthSnapshotMu         sync.Mutex
-	sharedHealthSnapshots          map[string]OpenAISharedHealthSnapshot
-	sharedHealthLeases             map[string]OpenAISharedHalfOpenLease
-	sharedHealthOwner              string
 
 	openaiWSFallbackUntil               sync.Map // key: int64(accountID), value: time.Time
 	openaiAccountRuntimeBlockUntil      sync.Map // key: int64(accountID), value: time.Time
@@ -535,7 +528,6 @@ type OpenAIGatewayService struct {
 	openaiAccountRuntimeBlockGeneration sync.Map // key: int64(accountID), value: uint64
 	openaiAccountRuntimeBlockSequence   atomic.Uint64
 	openaiOAuth429RetryStartedAt        sync.Map // key: int64(accountID), value: time.Time
-	openaiOAuth429FallbackObservations  sync.Map // key: int64(accountID), value: openAIOAuth429FallbackObservation
 	grokCredentialMutationLocks         sync.Map // key: int64(accountID), value: *sync.Mutex
 	openaiOAuth429WindowStartUnixNano   atomic.Int64
 	openaiOAuth429WindowCount           atomic.Int64
@@ -632,9 +624,6 @@ func NewOpenAIGatewayService(
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
 		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
 		openaiModelTransient:  newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax),
-		sharedHealthSnapshots: make(map[string]OpenAISharedHealthSnapshot),
-		sharedHealthLeases:    make(map[string]OpenAISharedHalfOpenLease),
-		sharedHealthOwner:     newOpenAISharedHealthOwner(),
 		openaiFirstOutputSlow: newOpenAIFirstOutputSlowTracker(nil, nil),
 	}
 	svc.openaiFirstOutputSlow.onSlow = func(key openAIFirstOutputSlowKey, ttftMS float64) {

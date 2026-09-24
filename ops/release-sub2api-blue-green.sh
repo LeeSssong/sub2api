@@ -11,6 +11,7 @@ fail() {
 mode=''
 evidence=''
 maintenance_authorized=false
+online_migrations_from_hash=''
 while (($#)); do
   case "$1" in
     --mode)
@@ -30,12 +31,22 @@ while (($#)); do
 			maintenance_authorized=true
 			shift
 			;;
+		--online-migrations-from-hash)
+			(($# >= 2)) || fail '--online-migrations-from-hash requires a value'
+			[[ -z "$online_migrations_from_hash" ]] || fail '--online-migrations-from-hash may be supplied once'
+			online_migrations_from_hash=$2
+			shift 2
+			;;
     *) fail "unknown argument: $1" ;;
   esac
 done
 
 [[ "$mode" == rehearsal || "$mode" == production ]] || fail '--mode must be rehearsal or production'
 [[ "$maintenance_authorized" == false || "$mode" == production ]] || fail '--maintenance-authorized is only valid in production mode'
+[[ -z "$online_migrations_from_hash" || ( "$mode" == production && "$maintenance_authorized" == false ) ]] \
+  || fail 'online migrations require production mode without maintenance'
+[[ -z "$online_migrations_from_hash" || "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 ]] \
+  || fail 'online migration source hash is not the reviewed v0.2.8 predecessor'
 maintenance_from_hash=${RELEASE_MAINTENANCE_FROM_HASH:-}
 if [[ "$maintenance_authorized" == true ]]; then
   [[ "$maintenance_from_hash" =~ ^[a-f0-9]{64}$ ]] \
@@ -470,6 +481,9 @@ fi
 if [[ "$maintenance_authorized" == true ]]; then
   host_args+=(--maintenance-authorized --maintenance-from-hash \
     "$maintenance_from_hash")
+fi
+if [[ -n "$online_migrations_from_hash" ]]; then
+  host_args+=(--online-migrations-from-hash "$online_migrations_from_hash")
 fi
 host_output=$(perl -e 'alarm shift @ARGV; exec @ARGV' "$host_timeout" "$ssh_bin" \
   -T -i "$ssh_key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \

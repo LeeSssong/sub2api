@@ -45,7 +45,7 @@ func (s *ProxyExpirySuite) TestSweep_SkipsChangedSnapshot() {
 			s.Require().NoError(s.repo.Update(s.ctx, &updated))
 			var eventsBefore int64
 			s.Require().NoError(scanSingleRow(s.ctx, s.tx, `SELECT COUNT(*) FROM scheduler_outbox`, nil, &eventsBefore))
-			changed, err := s.repo.sweepOneExpiredProxy(s.ctx, *snapshot, now, target, change)
+			changed, err := s.repo.sweepOneExpiredProxy(s.ctx, snapshot.ID, target, change)
 			s.Require().NoError(err)
 			s.Empty(changed)
 			got, err := s.repo.GetByID(s.ctx, source)
@@ -72,7 +72,7 @@ func (s *ProxyExpirySuite) TestSweep_ChangedModeIsUsedOnNextScan() {
 	updated := *snapshot
 	updated.FallbackMode = service.FallbackModeNone
 	s.Require().NoError(s.repo.Update(s.ctx, &updated))
-	changed, err := s.repo.sweepOneExpiredProxy(s.ctx, *snapshot, now, nil, true)
+	changed, err := s.repo.sweepOneExpiredProxy(s.ctx, snapshot.ID, nil, true)
 	s.Require().NoError(err)
 	s.Empty(changed)
 	_, err = s.repo.SweepExpiredProxies(s.ctx, now)

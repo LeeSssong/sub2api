@@ -97,7 +97,7 @@ func TestOpenAIImagesJSONKeepalive_LateErrorRemainsJSON(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "heartbeat already committed the status")
 	require.True(t, json.Valid(rec.Body.Bytes()), rec.Body.String())
 	require.Equal(t, "moderation_blocked", gjson.Get(rec.Body.String(), "error.code").String())
-	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), gjson.Get(rec.Body.String(), "error.message").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""), gjson.Get(rec.Body.String(), "error.message").String())
 }
 
 func TestOpenAIImagesJSONKeepalive_DoesNotBlockFailoverDetection(t *testing.T) {

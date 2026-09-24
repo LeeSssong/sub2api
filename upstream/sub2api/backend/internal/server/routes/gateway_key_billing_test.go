@@ -165,7 +165,7 @@ func TestGatewayRoutesKeyBillingInfoEndToEnd(t *testing.T) {
 			"type": "error",
 			"error": {
 				"type": "not_found_error",
-				"message": "Billing information is not supported in simple mode"
+				"message": "请求处理失败，请检查后重试。如需协助请联系管理员。"
 			}
 		}`, w.Body.String())
 		require.Zero(t, rateRepo.lookupCalls)

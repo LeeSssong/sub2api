@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -85,11 +84,6 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by this OpenAI-compatible endpoint for composite groups")
 		return
 	}
-	if !isGroupModelAllowed(apiKey.Group, clientRequestModel) {
-		setOpsRequestContext(c, clientRequestModel, parsed.Stream)
-		h.errorResponse(c, http.StatusBadRequest, "unsupported_model", fmt.Sprintf("当前分组不支持模型 %q，请切换模型后重试", clientRequestModel))
-		return
-	}
 
 	reqLog = reqLog.With(
 		zap.String("model", clientRequestModel),
@@ -158,7 +152,6 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	failedAccountIDs := make(map[int64]struct{})
 	sameAccountRetryCount := make(map[int64]int)
 	var lastFailoverErr *service.UpstreamFailoverError
-	recoveryPassUsed := false
 	stopJSONKeepalive := func() {}
 	jsonKeepaliveStarted := false
 	defer func() { stopJSONKeepalive() }()
@@ -195,9 +188,6 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				h.handleStreamingAwareError(c, cls.Status, cls.ErrType, message, streamStarted)
 				return
 			}
-			if recoverOpenAIOAuth429GroupOnce(requestCtx, h.gatewayService, apiKey.GroupID, failedAccountIDs, lastFailoverErr, streamStarted, &recoveryPassUsed, nil) {
-				continue
-			}
 			if lastFailoverErr != nil {
 				h.handleFailoverExhausted(c, lastFailoverErr, streamStarted)
 			} else {
@@ -206,9 +196,6 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			return
 		}
 		if selection == nil || selection.Account == nil {
-			if recoverOpenAIOAuth429GroupOnce(requestCtx, h.gatewayService, apiKey.GroupID, failedAccountIDs, lastFailoverErr, streamStarted, &recoveryPassUsed, nil) {
-				continue
-			}
 			cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, clientRequestModel, routingModel, service.PlatformOpenAI)
 			if !cls.ModelNotFound {
 				markOpsRoutingCapacityLimited(c)
@@ -284,7 +271,11 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				var imageUpstreamErr *service.OpenAIImagesUpstreamError
 				if errors.As(err, &imageUpstreamErr) {
 					retryableServerError := service.IsOpenAIImagesRetryableUpstreamError(imageUpstreamErr)
-					h.gatewayService.ReportOpenAIAccountScheduleResultForGroup(derefGroupID(apiKey.GroupID), account.ID, account.GetMappedModel(requestModel), !retryableServerError, nil)
+					if retryableServerError {
+						h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestModel, false, result), false, nil, err)
+					} else {
+						h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestModel, false, result), true, nil)
+					}
 					logEvent := "openai.images.upstream_user_error"
 					if retryableServerError {
 						logEvent = "openai.images.upstream_server_error_after_flush"
@@ -300,7 +291,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				}
 				var failoverErr *service.UpstreamFailoverError
 				if errors.As(err, &failoverErr) {
-					h.gatewayService.ReportOpenAIAccountScheduleResultForGroup(derefGroupID(apiKey.GroupID), account.ID, account.GetMappedModel(requestModel), false, nil)
+					h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestModel, false, result), false, nil, err)
 					if service.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c) != writerSizeBeforeForward {
 						reqLog.Warn("openai.images.upstream_failover_skipped_after_flush",
 							zap.Int64("account_id", account.ID),
@@ -336,7 +327,6 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 							continue
 						}
 					}
-					h.gatewayService.PersistOpenAIOAuth429Cooldown(requestCtx, account, failoverErr.StatusCode, failoverErr.ResponseHeaders, failoverErr.ResponseBody)
 					h.gatewayService.RecordOpenAIAccountSwitch()
 					failedAccountIDs[account.ID] = struct{}{}
 					lastFailoverErr = failoverErr
@@ -357,7 +347,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 					)
 					continue
 				}
-				h.gatewayService.ReportOpenAIAccountScheduleResultForGroup(derefGroupID(apiKey.GroupID), account.ID, account.GetMappedModel(requestModel), false, nil)
+				h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestModel, false, result), false, nil, err)
 				upstreamErrorAlreadyCommunicated := openAIForwardErrorAlreadyCommunicated(c, writerSizeBeforeForward, err)
 				wroteFallback := false
 				if !upstreamErrorAlreadyCommunicated {
@@ -382,9 +372,9 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			if account.Type == service.AccountTypeOAuth && !account.IsShadow() {
 				h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(c.Request.Context(), account.ID, result.ResponseHeaders)
 			}
-			h.gatewayService.ReportOpenAIAccountScheduleResultForGroup(derefGroupID(apiKey.GroupID), account.ID, account.GetMappedModel(requestModel), true, result.FirstTokenMs)
+			h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestModel, false, result), true, result.FirstTokenMs)
 		} else {
-			h.gatewayService.ReportOpenAIAccountScheduleResultForGroup(derefGroupID(apiKey.GroupID), account.ID, account.GetMappedModel(requestModel), true, nil)
+			h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestModel, false, result), true, nil)
 		}
 
 		userAgent := c.GetHeader("User-Agent")

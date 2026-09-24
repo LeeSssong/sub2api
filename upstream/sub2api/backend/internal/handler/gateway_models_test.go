@@ -1317,10 +1317,8 @@ func modelIDsForTest(models []gatewayModelItemForTest) []string {
 	return ids
 }
 
-// gemini 分组混合调度：组内 antigravity 账号的 gemini-* 映射也应出现在 /v1/models，
-// 与路由层（listSchedulableAccountsOnce 的 useMixedScheduling）同源；claude-* 不带入，
-// 非混合调度的异平台账号（anthropic）仍被过滤。
-func TestGatewayModels_GeminiGroupIncludesAntigravityGeminiMappings(t *testing.T) {
+// 官方按平台过滤模型；旧 mixed_scheduling 标记不能把 Antigravity 映射带入 Gemini 分组。
+func TestGatewayModels_GeminiGroupExcludesAntigravityGeminiMappings(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	groupID := int64(22)
@@ -1376,11 +1374,9 @@ func TestGatewayModels_GeminiGroupIncludesAntigravityGeminiMappings(t *testing.T
 	var got gatewayModelsResponseForTest
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	ids := modelIDsForTest(got.Data)
-	// 账号显式配置的 gemini-* 映射必须出现（resolveModelMapping 还会补一组 antigravity
-	// 默认透传别名，这里只断言显式条目与排除项，不锁定补齐后的完整集合）。
-	require.Contains(t, ids, "gemini-3.8-flash-high")
-	require.Contains(t, ids, "gemini-synced-custom")
-	require.Contains(t, ids, "gemini-3.8-flash-low")
+	require.NotContains(t, ids, "gemini-3.8-flash-high")
+	require.NotContains(t, ids, "gemini-synced-custom")
+	require.NotContains(t, ids, "gemini-3.8-flash-low")
 	require.Contains(t, ids, "gemini-native-only")
 	require.NotContains(t, ids, "gemini-disabled-only")
 	require.NotContains(t, ids, "gemini-unset-only")
@@ -1394,9 +1390,8 @@ func TestGatewayModels_GeminiGroupIncludesAntigravityGeminiMappings(t *testing.T
 	require.NotContains(t, ids, "gemini-2.0-flash")
 }
 
-// antigravity 账号未配置 model_mapping 时使用 DefaultAntigravityModelMapping：
-// gemini 分组应列出其中的 gemini-* 条目，而不是回落到 geminicli 静态表；claude-* 仍不出现。
-func TestGatewayModels_GeminiGroupUsesAntigravityDefaultMappingWhenUnset(t *testing.T) {
+// 没有 Gemini 账号时不从 Antigravity 的默认映射借用可用模型。
+func TestGatewayModels_GeminiGroupDoesNotUseAntigravityDefaultMapping(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	groupID := int64(23)
@@ -1424,16 +1419,15 @@ func TestGatewayModels_GeminiGroupUsesAntigravityDefaultMappingWhenUnset(t *test
 	var got gatewayModelsResponseForTest
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	ids := modelIDsForTest(got.Data)
-	require.Contains(t, ids, "gemini-3.8-flash-high")
+	require.NotContains(t, ids, "gemini-3.8-flash-high")
 	for _, id := range ids {
 		require.True(t, strings.HasPrefix(id, "gemini-"), "unexpected non-gemini model on gemini group: %s", id)
 	}
-	// geminicli 静态表独有条目不应出现（说明没有回落到默认列表）。
-	require.NotContains(t, ids, "gemini-2.0-flash")
+	require.Contains(t, ids, "gemini-2.0-flash")
 }
 
-// Codex 通过 /models?client_version= 走 CodexModels，同样应看到混合调度账号的 gemini-* 映射。
-func TestGatewayModels_CodexGeminiGroupListsAntigravityGeminiMappings(t *testing.T) {
+// Codex 模型列表也不能因旧标记暴露异平台账号模型。
+func TestGatewayModels_CodexGeminiGroupExcludesAntigravityGeminiMappings(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	groupID := int64(24)
@@ -1471,10 +1465,10 @@ func TestGatewayModels_CodexGeminiGroupListsAntigravityGeminiMappings(t *testing
 	var got codexModelsResponseForTest
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	slugs := codexModelSlugsForTest(got.Models)
-	require.Contains(t, slugs, "gemini-3.8-flash-high")
-	require.Contains(t, slugs, "gemini-synced-custom")
+	require.NotContains(t, slugs, "gemini-3.8-flash-high")
+	require.NotContains(t, slugs, "gemini-synced-custom")
 	require.NotContains(t, slugs, "claude-sonnet-4-6")
-	require.NotContains(t, slugs, "gemini-2.0-flash")
+	require.Contains(t, slugs, "gemini-2.0-flash")
 	for _, slug := range slugs {
 		require.True(t, strings.HasPrefix(slug, "gemini-"), "unexpected non-gemini model on gemini group: %s", slug)
 	}

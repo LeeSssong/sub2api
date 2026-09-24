@@ -81,48 +81,8 @@ type forceCacheBillingKeyType struct{}
 
 // accountWithLoad 账号与负载信息的组合，用于负载感知调度
 type accountWithLoad struct {
-	account     *Account
-	loadInfo    *AccountLoadInfo
-	priority    int
-	prioritySet bool
-}
-
-func newAccountWithLoad(account *Account, loadInfo *AccountLoadInfo, groupID *int64) accountWithLoad {
-	return accountWithLoad{
-		account:     account,
-		loadInfo:    loadInfo,
-		priority:    accountSchedulingPriorityForGroup(account, groupID),
-		prioritySet: true,
-	}
-}
-
-func accountWithLoadPriority(candidate accountWithLoad) int {
-	if candidate.prioritySet {
-		return candidate.priority
-	}
-	return accountSchedulingPriorityForGroup(candidate.account, nil)
-}
-
-// accountSchedulingPriorityForGroup returns the priority captured for one
-// group-scoped scheduling snapshot, falling back to Account.Priority when the
-// account has no matching group row.
-func accountSchedulingPriorityForGroup(account *Account, groupID *int64) int {
-	priority, _ := accountSchedulingPriorityForGroupWithPresence(account, groupID)
-	return priority
-}
-
-func accountSchedulingPriorityForGroupWithPresence(account *Account, groupID *int64) (int, bool) {
-	if account == nil {
-		return 0, false
-	}
-	if groupID != nil && *groupID > 0 {
-		for _, accountGroup := range account.AccountGroups {
-			if accountGroup.GroupID == *groupID {
-				return accountGroup.Priority, true
-			}
-		}
-	}
-	return account.Priority, false
+	account  *Account
+	loadInfo *AccountLoadInfo
 }
 
 var ForceCacheBillingContextKey = forceCacheBillingKeyType{}
@@ -616,7 +576,6 @@ type AccountSelectionResult struct {
 	ReleaseFunc      func()
 	HalfOpenProbe    bool
 	WaitPlan         *AccountWaitPlan // nil means no wait allowed
-	halfOpenLease    *openAIAccountModelHalfOpenLease
 	stickySessionHit bool
 	// profitGate 携带本次选号真实生效的利润门（无门为 nil）。门安装在调度栈的
 	// 局部 ctx 上，handler 必须经 ContextWithSelectionProfitGate 重放后才能在
@@ -629,15 +588,6 @@ type AccountSelectionResult struct {
 	// unifiedQuality lets the handler distinguish retry-next slot outcomes from
 	// legacy terminal slot errors without exposing scheduler internals publicly.
 	unifiedQuality bool
-}
-
-// CompleteHalfOpenProbe records the outcome of the one upstream call admitted
-// by this selection. ReleaseFunc remains the safety net for every path that
-// abandons the selection before Forward.
-func (r *AccountSelectionResult) CompleteHalfOpenProbe(success bool) {
-	if r != nil && r.halfOpenLease != nil {
-		r.halfOpenLease.complete(success)
-	}
 }
 
 // ProfitGateActive 报告本次选号是否处于利润门之下。

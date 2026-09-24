@@ -920,7 +920,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.PaymentVisibleMethodAlipayEnabled = settings[SettingPaymentVisibleMethodAlipayEnabled] == "true"
 	result.PaymentVisibleMethodWxpayEnabled = settings[SettingPaymentVisibleMethodWxpayEnabled] == "true"
 	result.OpenAILowUpstreamRatePriorityEnabled = settings[SettingKeyOpenAILowUpstreamRatePriorityEnabled] == "true"
-	result.OpenAIOAuthSchedulingRateMultiplier = parseOpenAIOAuthSchedulingRateMultiplier(settings[SettingKeyOpenAIOAuthSchedulingRateMultiplier])
+	result.OpenAIOAuthSchedulingRateMultiplier = parseOpenAIOAuthSchedulingRateMultiplier(settings)
 	result.OpenAIAdvancedSchedulerEnabled = settings[openAIAdvancedSchedulerSettingKey] == "true"
 	result.OpenAIAdvancedSchedulerStickyWeightedEnabled = settings[SettingKeyOpenAIAdvancedSchedulerStickyWeightedEnabled] == "true"
 	result.OpenAIAdvancedSchedulerSubscriptionPriorityEnabled = settings[SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled] == "true"
@@ -1089,7 +1089,7 @@ func formatOpenAIAdvancedSchedulerFloat(value float64) string {
 }
 
 func (s *SettingService) normalizeOpenAIAdvancedSchedulerOverrides(settings *SystemSettings) error {
-	if rate := settings.OpenAIOAuthSchedulingRateMultiplier; rate < 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+	if rate := settings.OpenAIOAuthSchedulingRateMultiplier; rate != nil && (*rate < 0 || math.IsNaN(*rate) || math.IsInf(*rate, 0)) {
 		return infraerrors.BadRequest("INVALID_OPENAI_OAUTH_SCHEDULING_RATE_MULTIPLIER", "OpenAI OAuth scheduling rate multiplier must be a finite non-negative number")
 	}
 
@@ -1361,10 +1361,6 @@ func normalizeOpenAISchedulerGroupPoliciesForRead(policies map[int64]OpenAISched
 			override := normalizeOpenAISchedulerFairnessOverridesForRead(map[int64]OpenAISchedulerFairnessOverride{id: *policy.Fairness})[id]
 			policy.Fairness = &override
 		}
-		policy.QualityGate = normalizeOpenAISchedulerQualityGateForRead(policy.QualityGate)
-		policy.SessionEscape = normalizeOpenAISchedulerSessionEscapeForRead(policy.SessionEscape)
-		policy.UnifiedQualityPriorityColdStartMax = normalizeOpenAIUnifiedQualityPriorityCapForRead(policy.UnifiedQualityPriorityColdStartMax)
-		policy.UnifiedQualityPriorityDailyMax = normalizeOpenAIUnifiedQualityPriorityCapForRead(policy.UnifiedQualityPriorityDailyMax)
 		legacy := normalizeOpenAISchedulerFairnessOverridesForRead(map[int64]OpenAISchedulerFairnessOverride{id: policy.LegacyFairness})[id]
 		policy.LegacyFairness = legacy
 		if policy.Values.TopK != 0 || policy.Values.Priority != 0 || policy.Values.CandidatePoolMode != "" {
@@ -1408,8 +1404,6 @@ func parseOpenAISchedulerGroupPolicies(raw string) (map[int64]OpenAISchedulerGro
 		if isLegacy {
 			policy.Mode = OpenAISchedulerGroupPolicyModeWeightedOverride
 			policy.LegacyFairness = legacy
-			policy.UnifiedQualityPriorityColdStartMax = parseOpenAIUnifiedQualityPriorityCapForRead(rawFields["unified_quality_priority_cold_start_max"])
-			policy.UnifiedQualityPriorityDailyMax = parseOpenAIUnifiedQualityPriorityCapForRead(rawFields["unified_quality_priority_daily_max"])
 			value, err := parseOpenAIExtraRetryCount(rawFields["extra_retry_count"])
 			if err != nil {
 				return nil, err
@@ -1430,44 +1424,6 @@ func parseOpenAISchedulerGroupPolicies(raw string) (map[int64]OpenAISchedulerGro
 		result[id] = policy
 	}
 	return result, nil
-}
-
-func sanitizeOpenAISchedulerRuntimeGroupPolicyCapTypes(raw string) string {
-	var objects map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(raw), &objects); err != nil {
-		return raw
-	}
-	for id, blob := range objects {
-		var fields map[string]json.RawMessage
-		if err := json.Unmarshal(blob, &fields); err != nil {
-			continue
-		}
-		changed := false
-		for _, key := range []string{
-			"unified_quality_priority_cold_start_max",
-			"unified_quality_priority_daily_max",
-		} {
-			value, ok := fields[key]
-			if !ok || string(value) == "null" {
-				continue
-			}
-			var numeric float64
-			if err := json.Unmarshal(value, &numeric); err != nil {
-				delete(fields, key)
-				changed = true
-			}
-		}
-		if changed {
-			if sanitized, err := json.Marshal(fields); err == nil {
-				objects[id] = sanitized
-			}
-		}
-	}
-	sanitized, err := json.Marshal(objects)
-	if err != nil {
-		return raw
-	}
-	return string(sanitized)
 }
 
 func parseOpenAIExtraRetryCount(raw json.RawMessage) (*int, error) {
@@ -1723,15 +1679,6 @@ func normalizeOpenAISchedulerGroupPoliciesWithPresets(policies map[int64]OpenAIS
 				return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy references unknown group")
 			}
 		}
-		if policy.QualityGate != nil && !validateOpenAISchedulerQualityGatePolicy(*policy.QualityGate) {
-			return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy quality gate is invalid")
-		}
-		if policy.SessionEscape != nil && !validateOpenAISchedulerSessionEscapePolicy(*policy.SessionEscape) {
-			return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy session escape is invalid")
-		}
-		if err := validateOpenAIUnifiedQualityPriorityCapOverrides(policy); err != nil {
-			return nil, err
-		}
 		markOpenAISchedulerLegacyWeightOverridesIgnored(&policy)
 		if policy.Priority != (OpenAISchedulerBusinessPriority{}) {
 			business, err := parseOpenAISchedulerBusinessPolicy(policy)
@@ -1859,15 +1806,6 @@ func normalizeOpenAISchedulerGroupPolicies(policies map[int64]OpenAISchedulerGro
 				return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy references unknown group")
 			}
 		}
-		if policy.QualityGate != nil && !validateOpenAISchedulerQualityGatePolicy(*policy.QualityGate) {
-			return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy quality gate is invalid")
-		}
-		if policy.SessionEscape != nil && !validateOpenAISchedulerSessionEscapePolicy(*policy.SessionEscape) {
-			return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy session escape is invalid")
-		}
-		if err := validateOpenAIUnifiedQualityPriorityCapOverrides(policy); err != nil {
-			return nil, err
-		}
 		markOpenAISchedulerLegacyWeightOverridesIgnored(&policy)
 		if policy.Mode == "" {
 			policy.Mode = OpenAISchedulerGroupPolicyModeWeightedOverride
@@ -1927,34 +1865,6 @@ func normalizeOpenAISchedulerGroupPolicies(policies map[int64]OpenAISchedulerGro
 }
 
 var openAISchedulerPolicyWeightKeys = map[string]bool{"priority": true, "load": true, "queue": true, "error_rate": true, "ttft": true, "reset": true, "quota_headroom": true, "upstream_cost": true, "previous_response": true, "session_sticky": true}
-
-func normalizeOpenAIUnifiedQualityPriorityCapForRead(value *float64) *float64 {
-	if value == nil || math.IsNaN(*value) || math.IsInf(*value, 0) || *value < 0 {
-		return nil
-	}
-	normalized := *value
-	return &normalized
-}
-
-func parseOpenAIUnifiedQualityPriorityCapForRead(raw json.RawMessage) *float64 {
-	if len(raw) == 0 || string(raw) == "null" {
-		return nil
-	}
-	var value float64
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return nil
-	}
-	return &value
-}
-
-func validateOpenAIUnifiedQualityPriorityCapOverrides(policy OpenAISchedulerGroupPolicy) error {
-	for _, value := range []*float64{policy.UnifiedQualityPriorityColdStartMax, policy.UnifiedQualityPriorityDailyMax} {
-		if value != nil && (math.IsNaN(*value) || math.IsInf(*value, 0) || *value < 0) {
-			return infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy unified quality priority cap is invalid")
-		}
-	}
-	return nil
-}
 
 func openAISchedulerPresetValues(p OpenAISchedulerPreset) OpenAISchedulerPolicyValues {
 	v := OpenAISchedulerPolicyValues{TopK: 7, Priority: 1, Load: 1, Queue: .7, ErrorRate: .8, TTFT: .5, PreviousResponse: 5, SessionSticky: 3, CandidatePoolMode: OpenAISchedulerCandidatePoolModeHybrid, ExplorationRatio: 25, StarvationThresholdSeconds: 21600, FairnessWeight: 3}
