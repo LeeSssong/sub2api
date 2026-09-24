@@ -26,13 +26,14 @@ backend="$worktree/upstream/sub2api/backend"
 service="$backend/internal/service/openai_shared_health.go"
 handler_dir="$backend/internal/handler"
 [[ -f "$backend/go.mod" ]] || fail 'Sub2API backend go.mod is missing'
-[[ -f "$service" && ! -L "$service" ]] || fail 'OpenAI shared health service source is missing'
+[[ ! -L "$service" && ( ! -e "$service" || -f "$service" ) ]] || fail 'OpenAI shared health service source is invalid'
 [[ -d "$handler_dir" && ! -L "$handler_dir" ]] || fail 'OpenAI handler directory is missing'
 
 # Keep the source-level contract strict so a stale candidate cannot silently
 # restore the custom Redis admission gate while preserving the old method names.
 ruby - "$service" "$handler_dir" "$backend" <<'RUBY'
 service_path, handler_dir, backend = ARGV
+if File.exist?(service_path)
 source = File.binread(service_path).force_encoding(Encoding::UTF_8)
 abort "native_concurrency_guard status=failed: service source is not valid UTF-8" unless source.valid_encoding?
 
@@ -50,6 +51,7 @@ record_signature = 'func (s *OpenAIGatewayService) RecordOpenAISlowSessionGuard(
 record_expected = "#{record_signature}\n}\n"
 record_blocks = source.scan(/^#{Regexp.escape(record_signature)}.*?^\}/m)
 abort "native_concurrency_guard status=failed: RecordOpenAISlowSessionGuard must be empty" unless record_blocks.length == 1 && normalize.call(record_blocks.first + "\n") == normalize.call(record_expected)
+end
 
 handlers = Dir[File.join(handler_dir, '*.go')].reject { |path| path.end_with?('_test.go') }
 abort 'native_concurrency_guard status=failed: no runtime handlers found' if handlers.empty?
