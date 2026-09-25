@@ -28,8 +28,8 @@ function streamResponse(events: Array<Record<string, unknown>>) {
   } as Response
 }
 
-function mountModal() {
-  return mount(IQTestModal, {
+function mountModal(component = IQTestModal) {
+  return mount(component, {
     props: {
       show: true,
       account: {
@@ -173,6 +173,54 @@ describe('Intelligence question selection', () => {
     expect((wrapper.vm as any).runs[0].status).toBe('success')
     expect(wrapper.find('iframe').exists()).toBe(false)
     expect(wrapper.text()).toContain('29')
+    wrapper.unmount()
+  })
+})
+
+
+describe('IQTestModal native auth namespace', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    localStorage.clear()
+    localStorage.setItem('auth_token', 'wrong-unprefixed-token')
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(streamResponse([
+      { type: 'content', text: '21' },
+      { type: 'test_complete', success: true }
+    ]))))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  it.each(['test_station_', 'admin_lab_'])('uses only the %s token for parallel SSE requests', async (prefix) => {
+    vi.stubEnv('VITE_AUTH_STORAGE_PREFIX', prefix)
+    localStorage.setItem(`${prefix}auth_token`, 'namespaced-token')
+    const { default: NamespacedIQTestModal } = await import('../IQTestModal.vue')
+    const wrapper = mountModal(NamespacedIQTestModal)
+    ;(wrapper.vm as any).parallelCount = 2
+    await (wrapper.vm as any).startTest()
+
+    expect(fetch).toHaveBeenCalledTimes(2)
+    for (const [, request] of vi.mocked(fetch).mock.calls) {
+      const headers = new Headers(request?.headers)
+      expect(headers.get('Authorization')).toBe('Bearer namespaced-token')
+      expect(headers.get('Authorization')).not.toContain('wrong-unprefixed-token')
+    }
+    wrapper.unmount()
+  })
+
+  it('does not fall back to an unprefixed token when the configured namespace is empty', async () => {
+    vi.stubEnv('VITE_AUTH_STORAGE_PREFIX', 'test_station_')
+    const { default: NamespacedIQTestModal } = await import('../IQTestModal.vue')
+    const wrapper = mountModal(NamespacedIQTestModal)
+    await (wrapper.vm as any).startTest()
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    const headers = new Headers(vi.mocked(fetch).mock.calls[0][1]?.headers)
+    expect(headers.get('Authorization')).not.toContain('wrong-unprefixed-token')
     wrapper.unmount()
   })
 })

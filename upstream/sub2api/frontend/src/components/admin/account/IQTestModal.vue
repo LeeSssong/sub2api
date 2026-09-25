@@ -179,6 +179,7 @@ import TextArea from '@/components/common/TextArea.vue'
 import Select from '@/components/common/Select.vue'
 import { Icon } from '@/components/icons'
 import { buildApiUrl } from '@/api/client'
+import { authStorageGet } from '@/utils/authStorage'
 import { ADMIN_UI_REQUEST_HEADER } from '@/api/adminUIRequest'
 import type { Account, AccountListItem, PelicanTestConfig, ScheduledTestResult } from '@/types'
 import ScheduledTestsPanel from './ScheduledTestsPanel.vue'
@@ -326,7 +327,7 @@ async function consumeRun(run: TestRun, signal: AbortSignal) {
   const response = await fetch(buildApiUrl(`/admin/accounts/${props.account!.id}/pelican-test`), {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+      Authorization: `Bearer ${authStorageGet('auth_token')}`,
       'Content-Type': 'application/json',
       [ADMIN_UI_REQUEST_HEADER]: '1'
     },
