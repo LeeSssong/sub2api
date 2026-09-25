@@ -26,13 +26,18 @@
 - [x] Reuse current native components; verify source-target API parity, focused UI tests and typecheck/build.
 
 ## Task 3 — Codex2API account quality and operations
-- [ ] Delegate independently in codex/account-ops-source-port; own all changes in that checkout.
-- [ ] Reuse native account-bound quality jobs and discovery; add source-compatible persisted scheduled policies, judgments, actions/recovery/history.
-- [ ] Add source-compatible balance/weekly alert classification, asynchronous events, SMTP configuration/delivery and admin pages.
-- [ ] Register optional built-in settings/module using existing native auth/runtime/database/routes; no external plugin platform.
-- [ ] Preserve PostgreSQL/SQLite portability and test real persistence, actions, retry/suppression and UI configuration.
+- [x] Delegate independently in codex/account-ops-source-port; own all changes in that checkout.
+- [x] Reuse native account-bound quality jobs and discovery; add source-compatible persisted scheduled policies, judgments, actions/recovery/history.
+- [x] Add source-compatible balance/weekly alert classification, asynchronous events, SMTP configuration/delivery and admin pages.
+- [x] Register optional built-in settings/module using existing native auth/runtime/database/routes; no external plugin platform.
+- [x] Preserve PostgreSQL/SQLite portability and test real persistence, actions, retry/suppression and UI configuration.
 
 ## Task 4 — Review and delivery
-- [ ] Review each implementation against archive scope; resolve integration defects.
-- [ ] Run direct tests and builds, record any unverifiable items.
-- [ ] Commit reviewed changes on isolated branches; report commits, checks and deployment status.
+- [x] Review each implementation against archive scope; resolve integration defects.
+- [x] Run direct tests and builds, record any unverifiable items.
+- [x] Commit reviewed changes on isolated branches; report commits, checks and deployment status.
+
+## Delivery
+Sub implementation: `codex/pelican-source-port` (backend, UI, native auth adaptation and independent review).
+Codex2API implementation: `codex/account-ops-source-port`, commit `084db3d8`.
+Both isolated working trees clean at handoff. Local commits only; not merged, pushed or deployed. Specific verification and limitations are in the two project reports.

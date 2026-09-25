@@ -30,3 +30,6 @@ User final scope supersedes every earlier custom proposal: preserve source Pelic
 - Frontend dependencies and backend test evidence are reused across clean cherry-picks; no code conflicts arose.
 
 No real model requests, SMTP sends, deployments, pushes or main-branch changes were performed.
+
+## Cross-project delivery
+Codex2API source account-quality operations and account alerts completed in independent branch `codex/account-ops-source-port`, commit `084db3d8`. Its report is `/Users/gongtengxinwen/Documents/codex2api/.worktrees/account-ops-source-port/docs/superpowers/reports/2026-09-25-account-ops-source-port.md`. Source behavior retained; direct SQLite/PostgreSQL, mock upstream, browser, build and scoped review evidence recorded there. No production operation performed.
