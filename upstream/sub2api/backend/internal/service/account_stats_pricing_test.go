@@ -1034,7 +1034,7 @@ func TestResolveAccountStatsCostResolution_FixedImageTiersIgnoreAccountMultiplie
 		{tier: "4K", count: 2, want: 0.20},
 	} {
 		resolution := resolveAccountStatsCostResolution(context.Background(), cs, nil, 1, 10,
-			"gpt-image-2", BillingModeImage, tc.tier, tc.count, UsageTokens{}, tc.count, 9, "priority")
+			"gpt-image-2", BillingModeImage, tc.tier, tc.count, UsageTokens{}, tc.count, 9, "priority", time.Time{})
 		require.True(t, resolution.Matched)
 		require.False(t, resolution.ApplyAccountRate)
 		require.InDelta(t, tc.want, *resolution.StatsCost, 1e-12)
@@ -1055,7 +1055,7 @@ func TestResolveAccountStatsCostResolution_UnknownImageTierFallsBack(t *testing.
 	}}}
 	cs := newTestChannelServiceForStats(t, channel, 10, "openai")
 	resolution := resolveAccountStatsCostResolution(context.Background(), cs, nil, 1, 10,
-		"gpt-image-2", BillingModeImage, "auto", 1, UsageTokens{}, 1, 0.5, "")
+		"gpt-image-2", BillingModeImage, "auto", 1, UsageTokens{}, 1, 0.5, "", time.Time{})
 	require.False(t, resolution.Matched)
 	log := &UsageLog{BillingMode: func() *string { v := string(BillingModeImage); return &v }(), ImageSize: func() *string { v := "auto"; return &v }(), ImageCount: 1}
 	applyAccountStatsCost(context.Background(), log, cs, nil, 1, 10, "gpt-image-2", "gpt-image-2", UsageTokens{}, 0.5, time.Time{}, 0.5)

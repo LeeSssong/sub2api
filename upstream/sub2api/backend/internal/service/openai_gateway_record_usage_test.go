@@ -60,7 +60,7 @@ func (s *evidenceUsageLogRepoStub) Create(_ context.Context, log *UsageLog) (boo
 	return s.inserted, nil
 }
 
-func TestOpenAIGatewayServiceRecordUsage_RegistersEvidenceAfterInsert(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_DoesNotQueryUpstreamAfterInsert(t *testing.T) {
 	usageRepo := &evidenceUsageLogRepoStub{inserted: true, usageLogID: 815}
 	registrar := &openAIUsageCostEvidenceRegistrarStub{}
 	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo, &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
@@ -74,8 +74,9 @@ func TestOpenAIGatewayServiceRecordUsage_RegistersEvidenceAfterInsert(t *testing
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, 1, registrar.calls)
-	require.Equal(t, int64(815), registrar.usageLogID)
+	require.Equal(t, 1, usageRepo.calls)
+	require.Zero(t, registrar.calls)
+	require.Zero(t, registrar.usageLogID)
 }
 
 type openAIRecordUsageBillingRepoStub struct {

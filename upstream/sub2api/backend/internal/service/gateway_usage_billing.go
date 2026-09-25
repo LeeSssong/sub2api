@@ -123,9 +123,6 @@ func accountCostForBilling(p *postUsageBillingParams) float64 {
 	if p == nil || p.Cost == nil {
 		return 0
 	}
-	if p.AccountCostSet || p.AccountCost != 0 {
-		return p.AccountCost
-	}
 	return p.Cost.TotalCost * p.AccountRateMultiplier
 }
 
@@ -1086,7 +1083,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	simpleModeKeyRateLimitOnly := simpleModeKeyRateLimitBillingEnabled(s.cfg, apiKey)
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple && !simpleModeKeyRateLimitOnly {
-		writeUsageLogBestEffortWithRegistrar(ctx, s.usageLogRepo, usageLog, s.usageCostEvidenceRegistrarFor(account), "service.gateway")
+		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
 		logger.LegacyPrintf("service.gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -1132,10 +1129,10 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	if billingErr != nil {
 		usageLog.ActualCost = 0
-		writeUsageLogBestEffortWithRegistrar(ctx, s.usageLogRepo, usageLog, s.usageCostEvidenceRegistrarFor(account), "service.gateway")
+		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
 		return billingErr
 	}
-	writeUsageLogBestEffortWithRegistrar(ctx, s.usageLogRepo, usageLog, s.usageCostEvidenceRegistrarFor(account), "service.gateway")
+	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
 
 	return nil
 }

@@ -597,8 +597,12 @@ describe('UsageDetailDialog', () => {
     const zh = (zhAdmin as { usageCostDetail: Record<string, string> }).usageCostDetail
 
     expect(en.siteActualCost).toBe('Site Actual Charge')
-    expect(en.profit).toBe('Profit')
+    expect(en.upstreamActualCost).toBe('Account Cost (Calculated)')
+    expect(en.profit).toBe('Gross Profit (Calculated)')
+    expect(en.costSource).toBe('Upstream Ledger Type')
     expect(zh.siteActualCost).toBe('本站实际扣费')
-    expect(zh.profit).toBe('利润')
+    expect(zh.upstreamActualCost).toBe('账号成本（计算值）')
+    expect(zh.profit).toBe('毛利（计算值）')
+    expect(zh.costSource).toBe('上游账单类型')
   })
 })
