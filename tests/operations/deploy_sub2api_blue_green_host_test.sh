@@ -516,7 +516,24 @@ JSON
 			[[ "$scenario" == live_route_green || -e "${FAKE_EVENT_LOG}.live-route-green" ]] && upstream=sub2api-green:8080
 			[[ "$scenario" == maintenance_rollback_caddy_mismatch && -e "${FAKE_EVENT_LOG}.rollback-phase" ]] && upstream=sub2api-green:8080
 			[[ "$scenario" != fusion_missing_stream_delay ]] || { printf '{"upstreams":[{"dial":"sub2api-blue:8080"}]}\n'; exit 0; }
-			printf '{"apps":{"http":{"servers":{"srv0":{"routes":[{"handle":[{"stream_close_delay":86400000000000,"upstreams":[{"dial":"%s"}]}]}]}}}}}\n' "$upstream"
+            callback_stage=live
+            [[ "$*" != *'caddy caddy adapt'* ]] || callback_stage=candidate
+            jq -cn --arg upstream "$upstream" --arg scenario "$scenario" --arg stage "$callback_stage" '
+              def proxy($target): {handler:"reverse_proxy",stream_close_delay:86400000000000,upstreams:[{dial:$target}]};
+              def routes: [
+                {match:[{path:["/api/bps-images/blue/*"]}],handle:[proxy("sub2api-blue:8080")]},
+                {match:[{path:["/api/bps-images/green/*"]}],handle:[proxy("sub2api-green:8080")]},
+                {handle:[proxy($upstream)]}];
+              {apps:{http:{servers:{public:{listen:[":443"],routes:[{match:[{host:["example.invalid"]}],handle:[{handler:"subroute",routes:routes}]}]},internal:{listen:[":8081"],routes:routes}}}}} |
+              if $scenario == ("fusion_" + $stage + "_callbacks_missing") then
+                .apps.http.servers.internal.routes |= map(select(.match == null))
+              elif $scenario == ("fusion_" + $stage + "_callbacks_swapped") then
+                .apps.http.servers.internal.routes[0].handle[0].upstreams[0].dial="sub2api-green:8080"
+              elif $scenario == ("fusion_" + $stage + "_callbacks_rewritten") then
+                .apps.http.servers.public.routes[0].handle[0].routes[0].handle[0].rewrite={uri:"/other"}
+              elif $scenario == ("fusion_" + $stage + "_callbacks_shadowed") then
+                .apps.http.servers.public.routes[0].handle[0].routes |= [{match:[{path:["/api/*"]}],handle:[proxy($upstream)]}] + .
+              else . end'
 		;;
   *'logs --no-color --tail 200 sub2api-worker')
     [[ "$scenario" != worker_request_failure_log ]] || { printf 'sub2api-worker-1  | Request failed: upstream timeout\n'; exit 0; }
@@ -2587,7 +2604,9 @@ test_fusion_online_transition() {
   ROLLBACK_RECORD=$record run_executor FAKE_SCENARIO=post_success_rollback >"$CASE_DIR/rollback.stdout" 2>"$CASE_DIR/rollback.stderr" || fail "fusion rollback failed: $(cat "$CASE_DIR/rollback.stderr")"
   "$REAL_JQ" -e --arg hash "$new_hash" '.migrations_hash == $hash and .active_slot == "blue"' "$CASE_DIR/state.json" >/dev/null || fail 'reader rollback lost expanded schema identity'
 
-  for scenario in fusion_missing_stream_delay fusion_public_failure fusion_partial_migration; do
+  for scenario in fusion_missing_stream_delay fusion_public_failure fusion_partial_migration \
+    fusion_live_callbacks_missing fusion_live_callbacks_swapped fusion_live_callbacks_rewritten fusion_live_callbacks_shadowed \
+    fusion_candidate_callbacks_missing fusion_candidate_callbacks_swapped fusion_candidate_callbacks_rewritten fusion_candidate_callbacks_shadowed; do
     setup_case "$scenario"
     write_meminfo
     MIGRATIONS_HASH=$new_hash
