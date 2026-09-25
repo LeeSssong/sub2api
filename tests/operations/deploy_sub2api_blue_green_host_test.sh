@@ -384,7 +384,7 @@ JSON
 		if [[ "$scenario" == worker_role_all ]]; then printf 'SERVER_PROCESS_ROLE=all\n'; else printf 'SERVER_PROCESS_ROLE=worker\n'; fi
 		;;
 	'inspect legacy-id --format {{range .Config.Env}}{{println .}}{{end}}') printf 'SERVER_PROCESS_ROLE=all\n' ;;
-  *'fusion-receipts'*) if [[ "$scenario" == fusion_partial_migration ]]; then printf '%064d\n' 7; else printf '%s\n' "${EXPECTED_MIGRATIONS_HASH:?}"; fi ;;
+  *'fusion-receipts'*) if [[ "$scenario" == fusion_partial_migration || "$scenario" == september26_receipt_mismatch ]]; then printf '%064d\n' 7; else printf '%s\n' "${EXPECTED_MIGRATIONS_HASH:?}"; fi ;;
   *' -migrate-only') [[ "$scenario" != fusion_partial_migration ]] || exit 1 ;;
   *'exec -T postgres '*'schema_migrations'*) printf '%s\n' "${FAKE_ROLLBACK_SCHEMA_COMPAT:-t}" ;;
   *'exec -T postgres '*'openai_scheduler_logs'*) printf '%s\n' "${FAKE_RETIRED_SCHEDULER_ARTIFACTS:-0}" ;;
@@ -2626,6 +2626,87 @@ test_fusion_online_transition() {
 
 }
 
+test_preserve_detector_updates_worker() {
+  setup_case preserve_detector
+  write_meminfo
+  cp "$CASE_DIR/compose.yaml" "$CASE_DIR/compose.before"
+  cp "$CASE_DIR/secret.env" "$CASE_DIR/secret.before"
+  DRAIN_MODE=retain run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=drain_timeout >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "worker-only auxiliary update failed: $(cat "$CASE_DIR/stderr")"
+  cmp -s "$CASE_DIR/compose.before" "$CASE_DIR/compose.yaml" || fail 'preserve detector changed Compose topology'
+  cmp -s "$CASE_DIR/secret.before" "$CASE_DIR/secret.env" || fail 'preserve detector changed its credentials'
+  ! grep -Eq 'compose .* (up|pull|stop|restart).*model-detector' "$EVENT_LOG" || fail 'preserved detector was mutated'
+  grep -q 'up --no-deps -d --force-recreate sub2api-worker' "$EVENT_LOG" || fail 'new worker was not started'
+  "$REAL_JQ" -e --arg image "$IMAGE" '.worker_image == $image' "$CASE_DIR/state.json" >/dev/null || fail 'worker image was not promoted'
+
+  setup_case preserve_detector_invalid
+  write_meminfo
+  expect_failure preserve_detector_invalid run_executor PRESERVE_DETECTOR=maybe
+  assert_no_mutation preserve_detector_invalid
+  [[ ! -d "$CASE_DIR/records/.blue-green.lock" ]] || fail 'invalid detector flag retained release lock'
+}
+
+prepare_september26_online_case() {
+  setup_case "$1"
+  write_meminfo
+  MIGRATIONS_HASH=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
+  "$REAL_JQ" --arg hash 5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"
+  chmod 0600 "$CASE_DIR/state.json"
+}
+
+test_september26_online_transition() {
+  local old_hash=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
+  local new_hash=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
+  local record scenario previous line pattern
+  prepare_september26_online_case september26_online
+  cp "$CASE_DIR/compose.yaml" "$CASE_DIR/compose.before"
+  ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=retain run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=drain_timeout >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "September 26 online release failed: $(cat "$CASE_DIR/stderr")"
+  previous=0
+  for pattern in ' -migrate-only' 'fusion-receipts' 'up --no-deps -d sub2api-green' 'caddy caddy reload' 'curl .*https://example.invalid/health' 'up --no-deps -d --force-recreate sub2api-worker'; do
+    line=$(awk -v pattern="$pattern" -v after="$previous" 'NR > after && $0 ~ pattern { print NR; exit }' "$EVENT_LOG")
+    [[ -n "$line" && "$line" -gt "$previous" ]] || fail "online ordering missing: $pattern"
+    previous=$line
+  done
+  ! grep -Eq 'docker (stop|kill)|maintenance stop api-worker|compose .* (up|pull|stop|restart).*model-detector' "$EVENT_LOG" || fail 'online release stopped old streams or changed detector'
+  cmp -s "$CASE_DIR/compose.before" "$CASE_DIR/compose.yaml" || fail 'online release changed shared Compose topology'
+  "$REAL_JQ" -e --arg hash "$new_hash" --arg image "$IMAGE" '.active_slot == "green" and .migrations_hash == $hash and .worker_image == $image' "$CASE_DIR/state.json" >/dev/null || fail 'online release state is incomplete'
+  record=$(find "$CASE_DIR/records" -name '*.json' -print -quit)
+  ROLLBACK_RECORD=$record run_executor FAKE_SCENARIO=post_success_rollback >"$CASE_DIR/rollback.stdout" 2>"$CASE_DIR/rollback.stderr" || fail "September 26 rollback failed: $(cat "$CASE_DIR/rollback.stderr")"
+  "$REAL_JQ" -e --arg hash "$new_hash" --arg image "$PREVIOUS_IMAGE" '.active_slot == "blue" and .migrations_hash == $hash and .worker_image == $image' "$CASE_DIR/state.json" >/dev/null || fail 'reader rollback lost expanded schema or worker identity'
+
+  for scenario in wrong_predecessor wrong_target forced_drain preserved_worker detector_not_preserved; do
+    prepare_september26_online_case "september26_$scenario"
+    local predecessor=$old_hash drain=retain keep_worker=false keep_detector=true
+    case "$scenario" in
+      wrong_predecessor) predecessor=$(printf '%064d' 3) ;;
+      wrong_target) MIGRATIONS_HASH=$(printf '%064d' 4) ;;
+      forced_drain) drain=force ;;
+      preserved_worker) keep_worker=true ;;
+      detector_not_preserved) keep_detector=false ;;
+    esac
+    ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$predecessor DRAIN_MODE=$drain \
+      expect_failure "september26_$scenario" run_executor PRESERVE_WORKER=$keep_worker PRESERVE_DETECTOR=$keep_detector
+    assert_no_mutation "september26_$scenario"
+  done
+
+  for scenario in fusion_public_failure fusion_partial_migration september26_receipt_mismatch fusion_missing_stream_delay; do
+    prepare_september26_online_case "september26_$scenario"
+    ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=retain \
+      expect_failure "september26_$scenario" run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=$scenario
+    if [[ "$scenario" == fusion_public_failure ]]; then
+      "$REAL_JQ" -e --arg hash "$new_hash" '.migrations_hash == $hash and .active_slot == "blue"' "$CASE_DIR/state.json" >/dev/null || fail 'automatic rollback lost applied schema hash'
+    elif [[ "$scenario" == fusion_partial_migration || "$scenario" == september26_receipt_mismatch ]]; then
+      "$REAL_JQ" -e --arg hash "$(printf '%064d' 7)" '.migrations_hash == $hash and .active_slot == "blue"' "$CASE_DIR/state.json" >/dev/null || fail 'partial migration receipts lost'
+      ! grep -q 'SUB2API_ACTIVE_UPSTREAM=sub2api-green:8080 caddy caddy reload' "$EVENT_LOG" || fail 'partial migration cut over'
+      ! grep -q 'up --no-deps -d --force-recreate sub2api-worker' "$EVENT_LOG" || fail 'partial migration updated worker'
+    else
+      ! grep -q ' -migrate-only' "$EVENT_LOG" || fail 'unsafe stream configuration reached migrations'
+    fi
+  done
+}
+
 test_preserve_worker_and_drain() {
   setup_case drain_pending_blocks_next_release
   write_meminfo
@@ -3031,6 +3112,8 @@ case "${ONLY_TEST:-all}" in
     printf 'PASS: authorized maintenance transition and Caddy reconciliation route\n'
     test_caddy_identity_refresh_without_maintenance
     test_preserve_worker_and_drain
+    test_preserve_detector_updates_worker
+    test_september26_online_transition
     test_success_order_and_atomic_records
     test_worker_request_failure_log_does_not_trigger_startup_failure
     printf 'PASS: successful blue-green command order\n'
@@ -3158,6 +3241,8 @@ case "${ONLY_TEST:-all}" in
 	caddy-identity) test_caddy_identity_refresh_without_maintenance ;;
 	drain) test_preserve_worker_and_drain; test_fusion_retain_drain ;;
   fusion-online) test_fusion_online_transition ;;
+  preserve-detector) test_preserve_detector_updates_worker ;;
+  september26-online) test_september26_online_transition ;;
 	gates) test_downtime_gates ;;
 	preloaded) test_preloaded_transport_loads_archive_without_pull ;;
   *) fail "unknown ONLY_TEST: ${ONLY_TEST}" ;;

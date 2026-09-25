@@ -3,6 +3,9 @@ set -euo pipefail
 
 umask 077
 
+readonly SEPTEMBER_26_OLD_MIGRATIONS_HASH=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
+readonly SEPTEMBER_26_NEW_MIGRATIONS_HASH=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
+
 fail() {
   printf 'sub2api_blue_green_release status=failed: %s\n' "$1" >&2
   exit 1
@@ -48,7 +51,7 @@ done
 [[ "$maintenance_authorized" == false || "$mode" == production ]] || fail '--maintenance-authorized is only valid in production mode'
 [[ -z "$online_migrations_from_hash" || ( "$mode" == production && "$maintenance_authorized" == false ) ]] \
   || fail 'online migrations require production mode without maintenance'
-[[ -z "$online_migrations_from_hash" || "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 || "$online_migrations_from_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b ]] \
+[[ -z "$online_migrations_from_hash" || "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 || "$online_migrations_from_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b || "$online_migrations_from_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" ]] \
   || fail 'online migration source hash is not a reviewed predecessor'
 maintenance_from_hash=${RELEASE_MAINTENANCE_FROM_HASH:-}
 if [[ "$maintenance_authorized" == true ]]; then
@@ -102,6 +105,11 @@ if [[ "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6
 fi
 if [[ "$online_migrations_from_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b ]]; then
   [[ "$migrations_hash" == 5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df && "$drain_mode" == retain ]] || fail 'fusion requires reviewed target migrations and --drain-mode retain'
+fi
+if [[ "$online_migrations_from_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" ]]; then
+  [[ "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" && "$drain_mode" == retain \
+      && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
+    || fail 'September 26 online release requires reviewed migrations, retain drain, new worker, and preserved detector'
 fi
 
 ruby -rjson -rtime -e '
@@ -456,6 +464,7 @@ host_environment=(
   "RELEASE_STATE=${RELEASE_STATE_PATH:-/var/lib/sub2api/release-state}"
   "RELEASE_RECORD_ROOT=${RELEASE_RECORD_ROOT_PATH:-/var/lib/sub2api/release-records}"
   "PRESERVE_WORKER=${RELEASE_PRESERVE_WORKER:-false}"
+  "PRESERVE_DETECTOR=${RELEASE_PRESERVE_DETECTOR:-false}"
   "WORKER_HEALTH_TIMEOUT_SECONDS=${RELEASE_WORKER_HEALTH_TIMEOUT_SECONDS:-240}"
   "ADMIN_API_KEY_FILE=${RELEASE_ADMIN_API_KEY_FILE:-/opt/sub2api/production/secrets/sub2api-admin-api-key}"
   "GATEWAY_API_KEY_FILE=${RELEASE_GATEWAY_API_KEY_FILE:-/opt/sub2api/production/secrets/sub2api-gateway-api-key}"

@@ -5,6 +5,8 @@ umask 077
 
 readonly FUSION_2813_OLD_MIGRATIONS_HASH=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b
 readonly FUSION_2813_NEW_MIGRATIONS_HASH=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
+readonly SEPTEMBER_26_OLD_MIGRATIONS_HASH=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
+readonly SEPTEMBER_26_NEW_MIGRATIONS_HASH=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
 
 fail() {
   printf 'blue-green deploy failed: %s\n' "$1" >&2
@@ -53,8 +55,9 @@ rollback_committed_release() {
   previous_hash=$(jq -r '.previous.migrations_hash' "$record")
   current_hash=$(jq -r '.migrations_hash' "$state")
   if [[ "$previous_hash" != "$current_hash" ]]; then
-    if [[ "$previous_hash" == "$FUSION_2813_OLD_MIGRATIONS_HASH" && "$current_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ]]; then
-      # Reviewed additive fusion: old readers remain compatible; keep new schema.
+    if [[ ( "$previous_hash" == "$FUSION_2813_OLD_MIGRATIONS_HASH" && "$current_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ) \
+        || ( "$previous_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ) ]]; then
+      # Reviewed additive transitions keep old readers compatible with new schema.
       :
     else
     [[ "$previous_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 \
@@ -677,6 +680,9 @@ if [[ "$preloaded_image" == true ]]; then
   network_probe_pull_args=(--pull never)
 fi
 
+preserve_detector=${PRESERVE_DETECTOR:-false}
+[[ "$preserve_detector" == true || "$preserve_detector" == false ]] || fail 'PRESERVE_DETECTOR must be true or false'
+
 lock_dir="$record_root/.blue-green.lock"
 lock_owner_path="$lock_dir/owner.pid"
 lock_owned=false
@@ -808,6 +814,7 @@ configure_detector_topology() {
   [[ "$mode" == production ]] || return 0
   # API-only promotion keeps the existing worker and detector topology intact.
   [[ "$preserve_worker" == false ]] || return 0
+  [[ "$preserve_detector" == false ]] || return 0
   if ! jq -e 'type == "object" and (.services | type == "object")' "$base_compose" >/dev/null 2>&1; then
     grep -Eq '^[[:space:]]+model-detector:' "$base_compose" && detector_enabled=true
     return 0
@@ -1730,7 +1737,8 @@ if [[ "$migrations_hash" != "$state_migrations_hash" ]]; then
   if [[ -n "$online_migrations_from_hash" \
       && "$online_migrations_from_hash" == "$state_migrations_hash" \
       && ( ( "$state_migrations_hash" == "$MAINTENANCE_32_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$MAINTENANCE_32_NEW_MIGRATIONS_HASH" ) ||
-           ( "$state_migrations_hash" == "$FUSION_2813_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ) ) ]]; then
+           ( "$state_migrations_hash" == "$FUSION_2813_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ) ||
+           ( "$state_migrations_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ) ) ]]; then
     online_migration_transition=true
   elif [[ "$maintenance_authorized" == true \
       && "$maintenance_from_hash" == "$state_migrations_hash" ]] \
@@ -1753,6 +1761,10 @@ fi
 
 if [[ "$online_migration_transition" == true && "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" && "$drain_mode" != retain ]]; then
   gate fusion_requires_retain 'fusion requires --drain-mode retain to preserve long requests' 300
+fi
+if [[ "$online_migration_transition" == true && "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ]]; then
+  [[ "$drain_mode" == retain && "$preserve_worker" == false && "$preserve_detector" == true ]] \
+    || gate september26_online_contract 'September 26 requires retain drain, new worker, and preserved detector' 300
 fi
 postgres_id=$(resolve_container_id postgres) || gate legacy_topology_bootstrap 'PostgreSQL container identity is not uniquely resolvable' 600
 redis_id=$(resolve_container_id redis) || gate legacy_topology_bootstrap 'Redis container identity is not uniquely resolvable' 600
@@ -1892,7 +1904,7 @@ jq -e --arg service "sub2api-$candidate_slot" --arg active_service "sub2api-$sta
 partial_path="$record_root/$attempt_id.partial"
 write_partial preflight_complete
 
-if [[ "$online_migration_transition" == true && "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ]]; then
+if [[ "$online_migration_transition" == true && ( "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ) ]]; then
   # Existing upgraded streams use the OLD proxy handler's cleanup policy.
   # Merely putting a delay in the incoming file cannot preserve them.
   "${compose_current[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ |
