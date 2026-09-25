@@ -423,6 +423,7 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 		return nil, errors.New("priority must be >= 1")
 	}
 	accountExtra = MergeOpenAICodexTicketExtra(accountExtra, nil)
+	delete(accountExtra, AccountAdmissionBlockedKey)
 	// Probe/session state is system-managed. New accounts always start with automatic refresh disabled.
 	delete(accountExtra, UpstreamBillingProbeEnabledExtraKey)
 	delete(accountExtra, UpstreamBillingRateSyncEnabledExtraKey)
@@ -516,6 +517,9 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 }
 
 func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error) {
+	if err := s.validateAdmission(ctx, input); err != nil {
+		return nil, err
+	}
 	accountExtra, err := normalizeOpenAILongContextBillingExtra(input.Platform, input.Extra)
 	if err != nil {
 		return nil, err
@@ -535,7 +539,7 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	// 绑定分组
 	groupIDs := input.GroupIDs
 	// 如果没有指定分组,自动绑定对应平台的默认分组
-	if len(groupIDs) == 0 && !input.SkipDefaultGroupBind {
+	if len(groupIDs) == 0 && !input.SkipDefaultGroupBind && !input.Admission.IsEnabled() {
 		defaultGroupName := input.Platform + "-default"
 		groups, err := s.groupRepo.ListActiveByPlatform(ctx, input.Platform)
 		if err == nil {
@@ -572,12 +576,25 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	if err := s.ValidateAccountGroupBindings(ctx, groupIDs); err != nil {
 		return nil, err
 	}
-	if err := s.accountRepo.Create(ctx, account); err != nil {
+	if input.Admission.IsEnabled() {
+		creator, ok := s.accountRepo.(AccountAdmissionCreator)
+		if !ok {
+			return nil, errors.New("durable account admission is unavailable")
+		}
+		account.Schedulable = false
+		if account.Extra == nil {
+			account.Extra = map[string]any{}
+		}
+		account.Extra[AccountAdmissionBlockedKey] = true
+		if err := creator.CreateWithAdmission(ctx, account, groupIDs, input.Admission.TestGroupID); err != nil {
+			return nil, err
+		}
+	} else if err := s.accountRepo.Create(ctx, account); err != nil {
 		return nil, err
 	}
 
-	// 绑定分组
-	if len(groupIDs) > 0 {
+	// Admission owns temporary membership until both tests pass.
+	if len(groupIDs) > 0 && !input.Admission.IsEnabled() {
 		if err := s.accountRepo.BindGroups(ctx, account.ID, groupIDs); err != nil {
 			return nil, err
 		}
@@ -990,6 +1007,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		}
 	}
 
+	if len(input.Credentials) > 0 {
+		ctx = WithAdmissionCredentialEdit(ctx)
+	}
 	billingSettingsAppliedAtomically := false
 	updater := s.accountBillingRepo
 	if updater == nil {
@@ -1498,6 +1518,11 @@ func (s *adminServiceImpl) SetAccountError(ctx context.Context, id int64, errorM
 }
 
 func (s *adminServiceImpl) SetAccountSchedulable(ctx context.Context, id int64, schedulable bool) (*Account, error) {
+	if r, ok := s.accountRepo.(AccountAdmissionMutator); ok {
+		if err := r.PauseAdmission(ctx, id, schedulable); err != nil {
+			return nil, err
+		}
+	}
 	if err := s.accountRepo.SetSchedulable(ctx, id, schedulable); err != nil {
 		return nil, err
 	}

@@ -122,6 +122,7 @@ func provideCleanup(
 	grokOAuth *service.GrokOAuthService,
 	openAIGateway *service.OpenAIGatewayService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
+	accountAdmission *service.AccountAdmissionService,
 	accountOps *service.AccountOpsService,
 	accountTokenGuard *service.AccountTokenGuardService,
 	backupSvc *service.BackupService,
@@ -377,6 +378,12 @@ func provideCleanup(
 			{"AccountOpsService", func() error {
 				if accountOps != nil {
 					accountOps.Stop()
+				}
+				return nil
+			}},
+			{"AccountAdmissionService", func() error {
+				if accountAdmission != nil {
+					accountAdmission.Stop()
 				}
 				return nil
 			}},

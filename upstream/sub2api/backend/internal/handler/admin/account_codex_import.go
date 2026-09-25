@@ -22,24 +22,25 @@ import (
 const codexImportClockSkewSeconds int64 = 120
 
 type CodexSessionImportRequest struct {
-	Content                 string         `json:"content"`
-	Contents                []string       `json:"contents"`
-	Name                    string         `json:"name"`
-	Notes                   *string        `json:"notes"`
-	GroupIDs                []int64        `json:"group_ids"`
-	ProxyID                 *int64         `json:"proxy_id"`
-	Concurrency             *int           `json:"concurrency"`
-	Priority                *int           `json:"priority"`
-	RateMultiplier          *float64       `json:"rate_multiplier"`
-	LoadFactor              *int           `json:"load_factor"`
-	ExpiresAt               *int64         `json:"expires_at"`
-	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
-	CredentialExtras        map[string]any `json:"credential_extras"`
-	Extra                   map[string]any `json:"extra"`
-	UpdateExisting          *bool          `json:"update_existing"`
-	SkipDefaultGroupBind    *bool          `json:"skip_default_group_bind"`
-	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"`
-	ActiveProbeEnabled      *bool          `json:"active_probe_enabled"`
+	Admission               *service.AccountAdmissionInput `json:"admission,omitempty"`
+	Content                 string                         `json:"content"`
+	Contents                []string                       `json:"contents"`
+	Name                    string                         `json:"name"`
+	Notes                   *string                        `json:"notes"`
+	GroupIDs                []int64                        `json:"group_ids"`
+	ProxyID                 *int64                         `json:"proxy_id"`
+	Concurrency             *int                           `json:"concurrency"`
+	Priority                *int                           `json:"priority"`
+	RateMultiplier          *float64                       `json:"rate_multiplier"`
+	LoadFactor              *int                           `json:"load_factor"`
+	ExpiresAt               *int64                         `json:"expires_at"`
+	AutoPauseOnExpired      *bool                          `json:"auto_pause_on_expired"`
+	CredentialExtras        map[string]any                 `json:"credential_extras"`
+	Extra                   map[string]any                 `json:"extra"`
+	UpdateExisting          *bool                          `json:"update_existing"`
+	SkipDefaultGroupBind    *bool                          `json:"skip_default_group_bind"`
+	ConfirmMixedChannelRisk *bool                          `json:"confirm_mixed_channel_risk"`
+	ActiveProbeEnabled      *bool                          `json:"active_probe_enabled"`
 }
 
 type CodexSessionImportResult struct {
@@ -255,6 +256,11 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 		markCodexIdentitySeen(seenIdentity, item.IdentityKeys, entry.Index, item.UserID)
 
 		existing, matchedKey := index.Find(item.IdentityKeys, item.UserID)
+		if existing != nil && req.Admission.IsEnabled() {
+			result.Skipped++
+			result.Items = append(result.Items, CodexSessionImportItem{Index: entry.Index, Name: accountName, Action: "skipped", AccountID: existing.ID, Message: "admission skipped: existing account is preserved"})
+			continue
+		}
 		if existing != nil && updateExisting {
 			if strings.HasPrefix(matchedKey, "account:") && item.UserID != "" &&
 				codexCredentialString(existing.Credentials, "chatgpt_user_id") == "" {
@@ -331,23 +337,25 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 		}
 
 		account, createErr := h.adminService.CreateAccount(ctx, &service.CreateAccountInput{
-			Name:                  accountName,
-			Notes:                 req.Notes,
-			Platform:              service.PlatformOpenAI,
-			Type:                  service.AccountTypeOAuth,
-			Credentials:           credentials,
-			Extra:                 extra,
-			ProxyID:               req.ProxyID,
-			Concurrency:           concurrency,
-			Priority:              priority,
-			RateMultiplier:        req.RateMultiplier,
-			LoadFactor:            req.LoadFactor,
-			GroupIDs:              req.GroupIDs,
-			ExpiresAt:             effectiveExpiresAt,
-			AutoPauseOnExpired:    autoPauseOnExpired,
-			ActiveProbeEnabled:    req.ActiveProbeEnabled,
-			SkipDefaultGroupBind:  skipDefaultGroupBind,
-			SkipMixedChannelCheck: skipMixedChannelCheck,
+			Name:                    accountName,
+			Notes:                   req.Notes,
+			Platform:                service.PlatformOpenAI,
+			Type:                    service.AccountTypeOAuth,
+			Credentials:             credentials,
+			Extra:                   extra,
+			ProxyID:                 req.ProxyID,
+			Concurrency:             concurrency,
+			Priority:                priority,
+			RateMultiplier:          req.RateMultiplier,
+			LoadFactor:              req.LoadFactor,
+			GroupIDs:                req.GroupIDs,
+			Admission:               req.Admission,
+			AdmissionAllowUngrouped: true,
+			ExpiresAt:               effectiveExpiresAt,
+			AutoPauseOnExpired:      autoPauseOnExpired,
+			ActiveProbeEnabled:      req.ActiveProbeEnabled,
+			SkipDefaultGroupBind:    skipDefaultGroupBind,
+			SkipMixedChannelCheck:   skipMixedChannelCheck,
 		})
 		if createErr != nil {
 			result.Failed++

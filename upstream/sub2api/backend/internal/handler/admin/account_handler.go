@@ -146,29 +146,30 @@ func NewAccountHandler(
 
 // CreateAccountRequest represents create account request
 type CreateAccountRequest struct {
-	Name                    string         `json:"name" binding:"required"`
-	Notes                   *string        `json:"notes"`
-	Platform                string         `json:"platform" binding:"required"`
-	Type                    string         `json:"type" binding:"required,oneof=oauth setup-token apikey upstream bedrock service_account"`
-	Credentials             map[string]any `json:"credentials" binding:"required"`
-	Extra                   map[string]any `json:"extra"`
-	ProxyID                 *int64         `json:"proxy_id"`
-	Concurrency             int            `json:"concurrency"`
-	Priority                int            `json:"priority"`
-	RateMultiplier          *float64       `json:"rate_multiplier"`
-	EffectiveCostModel      string         `json:"effective_cost_model"`
-	UpstreamActualCost      *float64       `json:"upstream_actual_cost"`
-	UpstreamObtainedQuota   *float64       `json:"upstream_obtained_quota"`
-	GroupRateMultiplier     *float64       `json:"group_rate_multiplier"`
-	LoadFactor              *int           `json:"load_factor"`
-	GroupIDs                []int64        `json:"group_ids"`
-	ExpiresAt               *int64         `json:"expires_at"`
-	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
-	ProbeEnabled            *bool          `json:"upstream_billing_probe_enabled"`
-	RateSyncEnabled         *bool          `json:"upstream_billing_rate_sync_enabled"`
-	ActiveProbeEnabled      *bool          `json:"active_probe_enabled"`
-	ModelDetectionEnabled   *bool          `json:"model_detection_enabled"`
-	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
+	Admission               *service.AccountAdmissionInput `json:"admission,omitempty"`
+	Name                    string                         `json:"name" binding:"required"`
+	Notes                   *string                        `json:"notes"`
+	Platform                string                         `json:"platform" binding:"required"`
+	Type                    string                         `json:"type" binding:"required,oneof=oauth setup-token apikey upstream bedrock service_account"`
+	Credentials             map[string]any                 `json:"credentials" binding:"required"`
+	Extra                   map[string]any                 `json:"extra"`
+	ProxyID                 *int64                         `json:"proxy_id"`
+	Concurrency             int                            `json:"concurrency"`
+	Priority                int                            `json:"priority"`
+	RateMultiplier          *float64                       `json:"rate_multiplier"`
+	EffectiveCostModel      string                         `json:"effective_cost_model"`
+	UpstreamActualCost      *float64                       `json:"upstream_actual_cost"`
+	UpstreamObtainedQuota   *float64                       `json:"upstream_obtained_quota"`
+	GroupRateMultiplier     *float64                       `json:"group_rate_multiplier"`
+	LoadFactor              *int                           `json:"load_factor"`
+	GroupIDs                []int64                        `json:"group_ids"`
+	ExpiresAt               *int64                         `json:"expires_at"`
+	AutoPauseOnExpired      *bool                          `json:"auto_pause_on_expired"`
+	ProbeEnabled            *bool                          `json:"upstream_billing_probe_enabled"`
+	RateSyncEnabled         *bool                          `json:"upstream_billing_rate_sync_enabled"`
+	ActiveProbeEnabled      *bool                          `json:"active_probe_enabled"`
+	ModelDetectionEnabled   *bool                          `json:"model_detection_enabled"`
+	ConfirmMixedChannelRisk *bool                          `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
 }
 
 // UpdateAccountRequest represents update account request
@@ -1194,6 +1195,7 @@ func (h *AccountHandler) Create(c *gin.Context) {
 			GroupRateMultiplier:   req.GroupRateMultiplier,
 			LoadFactor:            req.LoadFactor,
 			GroupIDs:              req.GroupIDs,
+			Admission:             req.Admission,
 			ExpiresAt:             req.ExpiresAt,
 			AutoPauseOnExpired:    req.AutoPauseOnExpired,
 			ProbeEnabled:          req.ProbeEnabled,
@@ -3632,4 +3634,3 @@ func sanitizeExtraBaseRPM(extra map[string]any) {
 	}
 	extra["base_rpm"] = v
 }
-

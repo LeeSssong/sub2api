@@ -1134,6 +1134,7 @@ var ProviderSet = wire.NewSet(
 	NewPelicanShowcaseService,
 	ProvideScheduledTestService,
 	ProvideScheduledTestRunnerService,
+	ProvideAccountAdmissionService,
 	NewQualityJudgeService,
 	NewGroupCapacityService,
 	NewChannelService,
@@ -1400,6 +1401,14 @@ func ProvideAccountTokenGuardService(settings SettingRepository, repo AccountTok
 	svc := NewAccountTokenGuardService(settings, repo, accounts, admin, invalidator)
 	svc.SetEncryptor(encryptor)
 	svc.runtimeRedis = rdb
+	if shouldStartSingleton(cfg) {
+		svc.Start()
+	}
+	return svc
+}
+
+func ProvideAccountAdmissionService(repo AccountAdmissionRepository, test *AccountTestService, cfg *config.Config) *AccountAdmissionService {
+	svc := NewAccountAdmissionService(repo, test)
 	if shouldStartSingleton(cfg) {
 		svc.Start()
 	}

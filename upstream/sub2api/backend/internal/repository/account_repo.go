@@ -553,6 +553,32 @@ func (r *accountRepository) updateLockedAccount(
 		return nil, err
 	}
 	account.Extra = extra
+	if _, managed := extra[service.AccountAdmissionBlockedKey]; managed {
+		// lockAndMergeAccountProbeExtra already holds this account row lock.
+		// A stale whole-object update must not undo a completed admission round.
+		rows, err := client.QueryContext(ctx, "SELECT a.schedulable,j.blocked FROM accounts a JOIN account_admission_jobs j ON j.account_id=a.id WHERE a.id=$1", account.ID)
+		if err != nil {
+			return nil, err
+		}
+		if rows.Next() {
+			var blocked bool
+			err = rows.Scan(&account.Schedulable, &blocked)
+			extra[service.AccountAdmissionBlockedKey] = blocked
+		}
+		rowErr := rows.Err()
+		rows.Close()
+		if err != nil {
+			return nil, err
+		}
+		if rowErr != nil {
+			return nil, rowErr
+		}
+	}
+	if service.IsAdmissionCredentialEdit(ctx) {
+		if _, err = client.ExecContext(ctx, "SELECT set_config('sub2api.admission_manual_credentials','on',true)"); err != nil {
+			return nil, err
+		}
+	}
 
 	schedulable := account.Schedulable
 	if account.Status == service.StatusError {
@@ -779,6 +805,9 @@ func lockAndMergeAccountProbeExtra(
 		}
 	}
 	extra := service.MergeOpenAICodexTicketExtra(copyJSONMap(normalizeJSONMap(account.Extra)), currentExtra)
+	if gate, managed := currentExtra[service.AccountAdmissionBlockedKey]; managed {
+		extra[service.AccountAdmissionBlockedKey] = gate
+	}
 	for _, key := range []string{
 		service.UpstreamBillingProbeEnabledExtraKey,
 		service.UpstreamBillingRateSyncEnabledExtraKey,
@@ -1996,6 +2025,9 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 	if err := lockLiveGroups(ctx, txClient, groupIDs); err != nil {
 		return err
 	}
+	if err := pauseAdmissionForGroupEdit(ctx, txClient, accountID); err != nil {
+		return err
+	}
 
 	// 绑定关系是整体删除重建的；仍保留的分组要沿用原有的模型限制，否则每次改分组都会把它清掉。
 	existingAllowedModels, err := loadAccountGroupAllowedModels(ctx, txClient, accountID)
@@ -2008,8 +2040,15 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 	}
 
 	if len(groupIDs) == 0 {
+		payload := buildSchedulerGroupPayload(existingGroupIDs)
+		if err := enqueueSchedulerOutbox(ctx, txClient, service.SchedulerOutboxEventAccountGroupsChanged, &accountID, nil, payload); err != nil {
+			return err
+		}
 		if tx != nil {
-			return tx.Commit()
+			if err := tx.Commit(); err != nil {
+				return err
+			}
+			r.syncSchedulerAccountSnapshot(ctx, accountID)
 		}
 		return nil
 	}
@@ -2059,6 +2098,9 @@ func (r *accountRepository) SetGroupAllowedModels(ctx context.Context, accountID
 		txClient = r.client
 	}
 
+	if err := pauseAdmissionForGroupEdit(ctx, txClient, accountID); err != nil {
+		return err
+	}
 	entries, err := txClient.AccountGroup.Query().
 		Where(dbaccountgroup.AccountIDEQ(accountID)).
 		All(ctx)
@@ -3547,6 +3589,16 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 		}
 	}
 
+	if len(updates.Credentials) > 0 {
+		if _, err := exec.ExecContext(ctx, "SELECT set_config('sub2api.admission_manual_credentials','on',true)"); err != nil {
+			return 0, err
+		}
+	}
+	if updates.Schedulable != nil {
+		if _, err := exec.ExecContext(ctx, "SELECT set_config('sub2api.admission_manual_scheduling','on',true)"); err != nil {
+			return 0, err
+		}
+	}
 	result, err := exec.ExecContext(ctx, query, args...)
 	if err != nil {
 		return 0, err
