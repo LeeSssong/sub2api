@@ -65,4 +65,19 @@ describe('regular user storefront menu', () => {
     await nextTick()
     expect(sidebar.find('a[href="/custom/xingqiao-storefront"]').exists()).toBe(false)
   })
+
+  it('shows the Pelican gallery only when its public setting is enabled', async () => {
+    const { sidebar, app } = await setup([])
+    expect(sidebar.find('a[href="/pelican-showcase"]').exists()).toBe(false)
+    app.$patch({ cachedPublicSettings: { custom_menu_items: [], pelican_showcase_enabled: true } })
+    await nextTick()
+    expect(sidebar.get('a[href="/pelican-showcase"]').text()).toBe('nav.pelicanShowcase')
+    expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual([
+      '/dashboard', '/usage', '/keys', '/pelican-showcase',
+    ])
+    app.$patch({ cachedPublicSettings: { custom_menu_items: [], pelican_showcase_enabled: false } })
+    await nextTick()
+    expect(sidebar.find('a[href="/pelican-showcase"]').exists()).toBe(false)
+  })
+
 })
