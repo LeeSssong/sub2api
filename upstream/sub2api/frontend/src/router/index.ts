@@ -531,6 +531,18 @@ const routes: RouteRecordRaw[] = [
     redirect: '/custom/performance-monitor',
   },
   {
+    path: '/pelican-showcase',
+    name: 'PelicanShowcase',
+    component: () => import('@/views/user/PelicanShowcaseView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Pelican Showcase',
+      titleKey: 'pelicanShowcase.title',
+      descriptionKey: 'pelicanShowcase.description'
+    }
+  },
+  {
     path: '/admin/subscriptions',
     name: 'AdminSubscriptions',
     component: () => import('@/views/admin/SubscriptionsView.vue'),

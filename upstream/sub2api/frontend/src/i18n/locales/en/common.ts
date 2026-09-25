@@ -221,6 +221,7 @@ export default {
     channelPricing: 'Channel Pricing',
     channelMonitor: 'Channel Monitor',
     accountMonitor: 'Account Monitor',
+    pelicanShowcase: 'Pelican Showcase',
     channelStatus: 'Channel Status',
     performanceMonitor: 'Group Performance Monitor',
     riskControl: 'Risk Control',

@@ -7377,6 +7377,14 @@
           </div>
         </div>
 
+        <PelicanShowcaseSettings
+          v-model:enabled="form.pelican_showcase_enabled"
+          v-model:config="form.pelican_showcase_config"
+          :groups="pelicanShowcaseGroups"
+          :groups-loaded="pelicanShowcaseGroupsLoaded"
+          :groups-load-failed="pelicanShowcaseGroupsLoadFailed"
+        />
+
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -9032,6 +9040,7 @@ import type {
   DefaultSubscriptionSetting,
   DefaultPlatformQuotasMap,
   OpenAIFastPolicyRule,
+  PelicanShowcaseConfig,
   WeChatConnectMode,
   WebSearchEmulationConfig,
   WebSearchProviderConfig,
@@ -9066,6 +9075,8 @@ import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
+import PelicanShowcaseSettings from "@/views/admin/settings/PelicanShowcaseSettings.vue";
+import { defaultPelicanShowcaseConfig, sanitizePelicanShowcaseConfig } from "@/views/admin/settings/pelicanShowcase";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import {
@@ -9210,6 +9221,9 @@ const adminApiKeyMasked = ref("");
 const adminApiKeyOperating = ref(false);
 const newAdminApiKey = ref("");
 const subscriptionGroups = ref<AdminGroup[]>([]);
+const pelicanShowcaseGroups = ref<AdminGroup[]>([]);
+const pelicanShowcaseGroupsLoaded = ref(false);
+const pelicanShowcaseGroupsLoadFailed = ref(false);
 const schedulerGroups = ref<AdminGroup[]>([]);
 const schedulerGroupsLoadError = ref(false);
 
@@ -9797,6 +9811,8 @@ type SettingsForm = Omit<
   channel_monitor_hide_throughput: boolean;
   channel_monitor_show_quota: boolean;
   channel_monitor_hide_user_ranking: boolean;
+  pelican_showcase_enabled: boolean;
+  pelican_showcase_config: PelicanShowcaseConfig;
   smtp_password: string;
   turnstile_secret_key: string;
   tencent_captcha_app_secret_key: string;
@@ -10120,6 +10136,8 @@ const form = reactive<SettingsForm>({
   channel_monitor_hide_user_ranking: false,
   // Available Channels feature switch
   available_channels_enabled: false,
+  pelican_showcase_enabled: false,
+  pelican_showcase_config: defaultPelicanShowcaseConfig(),
   // Subscription feature switch (user sidebar "My Subscriptions" entry)
   subscription_enabled: true,
   // Model Plaza feature switches + description
@@ -11294,7 +11312,11 @@ async function loadSettings() {
 
 async function loadSubscriptionGroups() {
   try {
-    const groups = await adminAPI.groups.getAll("openai");
+    const allGroups = await adminAPI.groups.getAll();
+    pelicanShowcaseGroups.value = allGroups.filter((group) => group.status === "active");
+    pelicanShowcaseGroupsLoaded.value = true;
+    pelicanShowcaseGroupsLoadFailed.value = false;
+    const groups = allGroups.filter((group) => group.platform === "openai");
     subscriptionGroups.value = groups.filter(
       (group) =>
         group.subscription_type === "subscription" && group.status === "active",
@@ -11303,6 +11325,9 @@ async function loadSubscriptionGroups() {
     schedulerGroupsLoadError.value = false;
   } catch (_error: unknown) {
     subscriptionGroups.value = [];
+    pelicanShowcaseGroups.value = [];
+    pelicanShowcaseGroupsLoaded.value = false;
+    pelicanShowcaseGroupsLoadFailed.value = true;
     schedulerGroups.value = [];
     schedulerGroupsLoadError.value = true;
   }
@@ -11857,6 +11882,8 @@ async function saveSettings() {
       channel_monitor_hide_user_ranking: Boolean(form.channel_monitor_hide_user_ranking),
       // Available Channels feature switch
       available_channels_enabled: form.available_channels_enabled,
+      pelican_showcase_enabled: form.pelican_showcase_enabled,
+      pelican_showcase_config: sanitizePelicanShowcaseConfig(form.pelican_showcase_config),
       // Subscription feature switch
       subscription_enabled: form.subscription_enabled,
       // Model Plaza feature switches + description
