@@ -32,7 +32,7 @@ func getShowcaseSettings(t *testing.T, h *SettingHandler) (bool, service.Pelican
 func TestSettingsPelicanShowcaseDefaultsRoundTripAndOmission(t *testing.T) {
 	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
 	enabled, cfg := getShowcaseSettings(t, h)
-	require.False(t, enabled, "the gallery is opt-in")
+	require.True(t, enabled, "gallery is visible on deployment, with no groups published by default")
 	require.Equal(t, service.DefaultPelicanShowcaseConfig(), cfg)
 
 	rec := doUpdateSettings(t, h, map[string]any{

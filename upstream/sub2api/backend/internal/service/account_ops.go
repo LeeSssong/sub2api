@@ -154,7 +154,9 @@ func (s *AccountOpsService) Observe(account *Account, status int, headers http.H
 		s.dropped.Add(1)
 	}
 }
-func (s *AccountOpsService) Start() {
+func (s *AccountOpsService) Start() { s.start(true) }
+
+func (s *AccountOpsService) start(deliver bool) {
 	s.lifecycle.Lock()
 	defer s.lifecycle.Unlock()
 	if s.cancel != nil {
@@ -183,7 +185,7 @@ func (s *AccountOpsService) Start() {
 					s.failures.Add(1)
 				}
 			case <-ticker.C:
-				if s.refreshConfig(ctx) {
+				if s.refreshConfig(ctx) && deliver {
 					s.deliver(ctx)
 				}
 			}

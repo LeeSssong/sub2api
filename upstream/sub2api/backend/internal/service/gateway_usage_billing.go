@@ -995,7 +995,6 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		groupDefault := apiKey.Group.RateMultiplier
 		multiplier = s.ResolveUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, groupDefault)
 	}
-	multiplier *= account.UserGroupRateMultiplier()
 	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。高峰因子按请求时刻现算，
 	// 不并入上面的 getUserGroupRateMultiplier，以免污染 user:group 倍率缓存。
 	pricingAt := input.PricingAt
@@ -1003,6 +1002,8 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		pricingAt = timezone.Now()
 	}
 	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, multiplier, pricingAt)
+	multiplier *= account.UserGroupRateMultiplier()
+	imageMultiplier *= account.UserGroupRateMultiplier()
 
 	// 确定计费模型
 	concreteBillingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)

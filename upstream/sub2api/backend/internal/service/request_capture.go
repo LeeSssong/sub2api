@@ -3,8 +3,13 @@ package service
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/requestcapture"
@@ -26,7 +31,10 @@ func (s *SystemSettings) requestCaptureConfig() requestcapture.Config {
 	}
 	return c
 }
-func ProvideRequestCaptureManager(db *sql.DB, settings *SettingService) (*requestcapture.Manager, error) {
+func ProvideRequestCaptureManager(db *sql.DB, settings *SettingService, cfg *config.Config) (*requestcapture.Manager, error) {
+	if !shouldStartRequestLocal(cfg) {
+		return nil, nil
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	config, err := settings.GetAllSettings(ctx)
@@ -37,10 +45,49 @@ func ProvideRequestCaptureManager(db *sql.DB, settings *SettingService) (*reques
 	if dir == "" {
 		dir = "./data"
 	}
-	manager, err := requestcapture.New(&requestcapture.SQLStore{DB: db}, filepath.Join(dir, "request-captures"), config.requestCaptureConfig())
+	dir, err = requestCaptureDirectory(dir)
 	if err != nil {
 		return nil, err
 	}
+	// One owner per persistent slot. Never recover files while a live process still owns them.
+	owner, err := db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var acquired bool
+	if err = owner.QueryRowContext(ctx, "SELECT pg_try_advisory_lock(hashtextextended($1, 0))", "request-capture:"+dir).Scan(&acquired); err != nil || !acquired {
+		_ = owner.Close()
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("request capture slot already has an active owner")
+	}
+	release := func() {
+		releaseCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stop()
+		_, unlockErr := owner.ExecContext(releaseCtx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", "request-capture:"+dir)
+		if unlockErr != nil {
+			_ = owner.Raw(func(any) error { return driver.ErrBadConn })
+		}
+		_ = owner.Close()
+	}
+	manager, err := requestcapture.New(&requestcapture.SQLStore{DB: db}, dir, config.requestCaptureConfig())
+	if err != nil {
+		release()
+		return nil, err
+	}
+	manager.SetRelease(release)
 	settings.requestCapture = manager
 	return manager, nil
+}
+
+func requestCaptureDirectory(dataDir string) (string, error) {
+	slot := strings.TrimSpace(os.Getenv("SUB2API_CONTAINER_SLOT"))
+	if slot == "" {
+		slot = "standalone"
+	}
+	if !regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$`).MatchString(slot) {
+		return "", fmt.Errorf("invalid request capture slot")
+	}
+	return filepath.Join(dataDir, "request-captures", slot), nil
 }

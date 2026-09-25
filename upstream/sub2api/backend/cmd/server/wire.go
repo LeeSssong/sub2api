@@ -84,6 +84,7 @@ func providePluginHostInfo(buildInfo handler.BuildInfo) service.PluginHostInfo {
 
 func provideCleanup(
 	requestCaptures *requestcapture.Manager,
+	usageLogRepo service.UsageLogRepository,
 	entClient *ent.Client,
 	rdb *redis.Client,
 	opsMetricsCollector *service.OpsMetricsCollector,
@@ -122,6 +123,7 @@ func provideCleanup(
 	openAIGateway *service.OpenAIGatewayService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	accountOps *service.AccountOpsService,
+	accountTokenGuard *service.AccountTokenGuardService,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 	channelMonitorRunner *service.ChannelMonitorRunner,
@@ -366,6 +368,12 @@ func provideCleanup(
 				}
 				return nil
 			}},
+			{"AccountTokenGuard", func() error {
+				if accountTokenGuard != nil {
+					accountTokenGuard.Stop()
+				}
+				return nil
+			}},
 			{"AccountOpsService", func() error {
 				if accountOps != nil {
 					accountOps.Stop()
@@ -441,6 +449,12 @@ func provideCleanup(
 		}
 
 		infraSteps := []cleanupStep{
+			{"RequestTiming", func() error {
+				if closer, ok := usageLogRepo.(interface{ CloseRequestTiming(context.Context) error }); ok {
+					return closer.CloseRequestTiming(ctx)
+				}
+				return nil
+			}},
 			{"Redis", func() error {
 				if rdb == nil {
 					return nil

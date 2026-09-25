@@ -207,7 +207,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyAvailableChannelsEnabled: "false",
 
 		// Pelican showcase (default disabled; opt-in). A missing config means the defaults.
-		SettingKeyPelicanShowcaseEnabled: "false",
+		SettingKeyPelicanShowcaseEnabled: "true",
 
 		// Subscription feature (default enabled; opt-out)
 		SettingKeySubscriptionEnabled: "true",
@@ -837,7 +837,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	// Pelican showcase (default: disabled; strict true). A corrupt config is shown as the
 	// defaults so the admin page still loads; the runtime reader fails closed on it.
-	result.PelicanShowcaseEnabled = settings[SettingKeyPelicanShowcaseEnabled] == "true"
+	result.PelicanShowcaseEnabled = pelicanShowcaseEnabledByDefault(settings[SettingKeyPelicanShowcaseEnabled])
 	result.PelicanShowcase = DefaultPelicanShowcaseConfig()
 	if showcase, err := parsePelicanShowcaseConfig(settings[SettingKeyPelicanShowcaseConfig]); err == nil {
 		result.PelicanShowcase = showcase

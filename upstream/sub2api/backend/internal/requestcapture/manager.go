@@ -34,6 +34,8 @@ type Manager struct {
 	done             chan struct{}
 	closed           chan struct{}
 	closeOnce        sync.Once
+	releaseOnce      sync.Once
+	release          func()
 	enabled          atomic.Bool
 	admissionSkipped atomic.Int64
 	buffer           atomic.Int64
@@ -412,12 +414,21 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	m.mu.Unlock()
 	return nil
 }
+
+// SetRelease attaches the lifetime owner lease before publishing this manager.
+func (m *Manager) SetRelease(release func()) { m.release = release }
+
 func (m *Manager) Close() {
 	if m == nil {
 		return
 	}
 	m.closeOnce.Do(func() { m.stopping.Store(true); m.stopAll("server_shutdown"); close(m.done) })
 	<-m.closed
+	m.releaseOnce.Do(func() {
+		if m.release != nil {
+			m.release()
+		}
+	})
 }
 
 type Stats struct {

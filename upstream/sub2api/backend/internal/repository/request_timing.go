@@ -24,8 +24,24 @@ func (r *usageLogRepository) RecordRequestTiming(ctx context.Context, requestID 
 	if c == nil || r.db == nil || requestID == "" {
 		return
 	}
-	r.timingOnce.Do(func() { r.timingQueue = make(chan timingWrite, 512); go r.runTimingWriter() })
+
+	r.timingMu.Lock()
+	if r.timingClosed {
+		r.timingMu.Unlock()
+		return
+	}
+	r.timingOnce.Do(func() {
+		r.timingQueue = make(chan timingWrite, 512)
+		r.timingDone = make(chan struct{})
+		go r.runTimingWriter()
+	})
+	r.timingMu.Unlock()
 	c.WhenFinished(func(data requesttiming.Snapshot) {
+		r.timingMu.Lock()
+		defer r.timingMu.Unlock()
+		if r.timingClosed {
+			return
+		}
 		select {
 		case r.timingQueue <- timingWrite{requestID, apiKeyID, data}:
 		default:
@@ -34,37 +50,78 @@ func (r *usageLogRepository) RecordRequestTiming(ctx context.Context, requestID 
 	})
 }
 func (r *usageLogRepository) runTimingWriter() {
-	ticker := time.NewTicker(time.Hour)
-	defer ticker.Stop()
-	for {
-		select {
-		case job := <-r.timingQueue:
-			// All errors remain diagnostic-only. A short bounded retry handles transient
-			// SQL failures; it never retries billing or a model request.
-			for attempt := 0; attempt < 3; attempt++ {
-				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-				err := r.writeTiming(ctx, job)
-				cancel()
-				if err == nil {
-					break
-				}
-				if attempt == 2 {
-					logger.LegacyPrintf("request_timing", "detail persistence failed: %v", err)
-				}
-			}
-		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			_, err := r.db.ExecContext(ctx, `DELETE FROM request_timing_details WHERE (usage_log_id,trace_id) IN (
-   SELECT d.usage_log_id,d.trace_id FROM request_timing_details d
-   WHERE d.created_at < NOW() - INTERVAL '30 days' OR NOT EXISTS (SELECT 1 FROM usage_logs u WHERE u.id=d.usage_log_id)
-   LIMIT 10000)`)
+	defer close(r.timingDone)
+	for job := range r.timingQueue {
+		for attempt := 0; attempt < 3; attempt++ {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			err := r.writeTiming(ctx, job)
 			cancel()
-			if err != nil {
-				logger.LegacyPrintf("request_timing", "detail retention failed: %v", err)
+			if err == nil {
+				break
+			}
+			if attempt == 2 {
+				logger.LegacyPrintf("request_timing", "detail persistence failed: %v", err)
 			}
 		}
 	}
 }
+func (r *usageLogRepository) startTimingMaintenance() {
+	r.timingMu.Lock()
+	defer r.timingMu.Unlock()
+	if r.timingClosed || r.timingMaintenanceCancel != nil {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	r.timingMaintenanceCancel = cancel
+	r.timingMaintenanceDone = make(chan struct{})
+	go func() {
+		defer close(r.timingMaintenanceDone)
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				query, stop := context.WithTimeout(ctx, 5*time.Second)
+				_, err := r.db.ExecContext(query, `DELETE FROM request_timing_details WHERE (usage_log_id,trace_id) IN (
+ SELECT d.usage_log_id,d.trace_id FROM request_timing_details d WHERE d.created_at < NOW()-INTERVAL '30 days'
+ OR NOT EXISTS (SELECT 1 FROM usage_logs u WHERE u.id=d.usage_log_id) LIMIT 10000)`)
+				stop()
+				if err != nil && ctx.Err() == nil {
+					logger.LegacyPrintf("request_timing", "detail retention failed: %v", err)
+				}
+			}
+		}
+	}()
+}
+
+// Invoked after request/usage producers stop, before shared database teardown.
+func (r *usageLogRepository) CloseRequestTiming(ctx context.Context) error {
+	r.timingMu.Lock()
+	if !r.timingClosed {
+		r.timingClosed = true
+		if r.timingQueue != nil {
+			close(r.timingQueue)
+		}
+		if r.timingMaintenanceCancel != nil {
+			r.timingMaintenanceCancel()
+		}
+	}
+	writer, maintenance := r.timingDone, r.timingMaintenanceDone
+	r.timingMu.Unlock()
+	for _, done := range []chan struct{}{writer, maintenance} {
+		if done != nil {
+			select {
+			case <-done:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
+	return nil
+}
+
 func (r *usageLogRepository) writeTiming(ctx context.Context, job timingWrite) error {
 	raw, err := json.Marshal(job.data)
 	if err != nil {

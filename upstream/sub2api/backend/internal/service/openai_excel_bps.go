@@ -217,6 +217,10 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 	// client effort for usage display, and the BPS-normalized effort for billing.
 	requestedEffort := coalesceRequestedReasoningEffort(RequestedReasoningEffortFromContext(ctx), &bridge.RequestedEffort)
 	result := &OpenAIForwardResult{Model: originalModel, UpstreamModel: model, UpstreamEndpoint: "/basispoints/api/responses", Stream: stream, ReasoningEffort: &bridge.Effort, RequestedReasoningEffort: requestedEffort, RequestID: resp.Header.Get("x-request-id")}
+	defer func() {
+		result.Duration = time.Since(start)
+		result.UsageIncomplete = result.UpstreamTerminalEvent != "response.completed"
+	}()
 	if stream {
 		c.Header("Content-Type", "text/event-stream")
 		c.Header("Cache-Control", "no-cache")
@@ -241,6 +245,12 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 			payload := []byte(strings.TrimPrefix(line, "data: "))
 			kind := gjson.GetBytes(payload, "type").String()
 			s.parseSSEUsageBytes(payload, &result.Usage)
+			if _, known := extractOpenAIUsageFromJSONBytes(payload); known {
+				result.UsageKnown = true
+			}
+			if openAIStreamDataStartsClientOutput(string(payload), kind) {
+				result.OutputStarted = true
+			}
 			if cacheCreationAsInput {
 				payload, err = excelBPSDownstreamUsage(payload)
 				if err != nil {
@@ -255,6 +265,7 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 			switch kind {
 			case "response.completed", "response.failed", "response.incomplete", "error":
 				terminal = kind
+				result.UpstreamTerminalEvent = kind
 				completed = []byte(gjson.GetBytes(payload, "response").Raw)
 				result.ResponseID = gjson.GetBytes(payload, "response.id").String()
 				result.UpstreamResponseModel = gjson.GetBytes(payload, "response.model").String()

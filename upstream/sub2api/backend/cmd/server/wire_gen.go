@@ -104,7 +104,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	authHandler := handler.NewAuthHandler(configConfig, authService, userService, settingService, promoService, redeemService, totpService, userAttributeService)
 	userHandler := handler.NewUserHandler(userService, authService, emailService, emailCache, affiliateService, serviceUserPlatformQuotaRepository)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
-	usageLogRepository := repository.NewUsageLogRepository(client, db)
+	usageLogRepository := repository.ProvideUsageLogRepository(client, db, configConfig)
 	usageService := service.NewUsageService(usageLogRepository, userRepository, client, apiKeyAuthCacheInvalidator, v...)
 	opsRepository := repository.NewOpsRepository(db)
 	usageBillingRepository := repository.NewUsageBillingRepository(client, db)
@@ -127,7 +127,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	leaderLockCache := repository.NewLeaderLockCache(redisClient)
 	ollamaCloudUsageService := service.ProvideOllamaCloudUsageService(accountRepository, httpUpstream, settingService, secretEncryptor, configConfig, leaderLockCache, db)
 	accountOpsRepository := repository.NewAccountOpsRepository(db)
-	accountOpsService := service.ProvideAccountOpsService(settingRepository, accountOpsRepository, emailService)
+	accountOpsService := service.ProvideAccountOpsService(settingRepository, accountOpsRepository, emailService, configConfig)
 	rateLimitService := service.ProvideRateLimitService(accountRepository, usageLogRepository, configConfig, geminiQuotaService, tempUnschedCache, timeoutCounterCache, openAI403CounterCache, settingService, compositeTokenCacheInvalidator, ollamaCloudUsageService, accountOpsService)
 	identityCache := repository.NewIdentityCache(redisClient)
 	identityService := service.NewIdentityService(identityCache)
@@ -248,7 +248,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	codexRadarCommunityHandler := handler.ProvideCodexRadarCommunityHandler(codexRadarCommunityService)
 	channelMonitorV2Service := service.ProvideChannelMonitorV2Service(channelMonitorV2Repository, settingService)
 	channelMonitorV2Handler := handler.NewChannelMonitorV2Handler(channelMonitorV2Service, apiKeyService)
-	manager, err := service.ProvideRequestCaptureManager(db, settingService)
+	manager, err := service.ProvideRequestCaptureManager(db, settingService, configConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +335,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	scheduledTestHandler := admin.NewScheduledTestHandler(scheduledTestService)
 	accountOpsHandler := admin.NewAccountOpsHandler(accountOpsService, emailService)
 	accountTokenGuardRepository := repository.NewAccountTokenGuardRepository(db)
-	accountTokenGuardService := service.ProvideAccountTokenGuardService(settingRepository, accountTokenGuardRepository, accountRepository, adminService, compositeTokenCacheInvalidator)
+	accountTokenGuardService := service.ProvideAccountTokenGuardService(settingRepository, accountTokenGuardRepository, accountRepository, adminService, compositeTokenCacheInvalidator, configConfig, secretEncryptor)
 	accountTokenGuardHandler := admin.NewAccountTokenGuardHandler(accountTokenGuardService)
 	channelHandler := admin.NewChannelHandler(channelService, billingService, pricingService)
 	channelMonitorHandler := admin.NewChannelMonitorHandler(channelMonitorService)
@@ -431,7 +431,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService, configConfig, accountUsageService)
 	channelMonitorV2Aggregator := service.ProvideChannelMonitorV2Aggregator(channelMonitorV2Repository, db, settingService, configConfig)
 	userPlatformQuotaUsageFlusher := service.ProvideUserPlatformQuotaUsageFlusher(configConfig, billingCache, serviceUserPlatformQuotaRepository, timingWheelService)
-	v2 := provideCleanup(manager, client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, opsService, opsIngressRejectAggregator, apiKeyService, authCacheInvalidationWorker, schedulerSnapshotService, tokenRefreshService, accountExpiryService, cnProviderBalanceCheckService, openAICodexVersionSyncService, claudeCodeVersionSyncService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, contentModerationService, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, openAIGatewayService, scheduledTestRunnerService, accountOpsService, backupService, paymentOrderExpiryService, channelMonitorRunner, accountMonitorRunner, upstreamBalanceNotificationService, channelMonitorV2Aggregator, userPlatformQuotaUsageFlusher, upstreamBillingProbeService, ollamaCloudUsageService, openCodeGoUsageService, auditLogService, openAIQuotaAutoResetService, promptService, pluginManager)
+	v2 := provideCleanup(manager, usageLogRepository, client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, opsService, opsIngressRejectAggregator, apiKeyService, authCacheInvalidationWorker, schedulerSnapshotService, tokenRefreshService, accountExpiryService, cnProviderBalanceCheckService, openAICodexVersionSyncService, claudeCodeVersionSyncService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, batchImageCleanupService, batchImageWorkerRuntime, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, contentModerationService, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, grokOAuthService, openAIGatewayService, scheduledTestRunnerService, accountOpsService, accountTokenGuardService, backupService, paymentOrderExpiryService, channelMonitorRunner, accountMonitorRunner, upstreamBalanceNotificationService, channelMonitorV2Aggregator, userPlatformQuotaUsageFlusher, upstreamBillingProbeService, ollamaCloudUsageService, openCodeGoUsageService, auditLogService, openAIQuotaAutoResetService, promptService, pluginManager)
 	application := &Application{
 		Server:        httpServer,
 		PromptAudit:   promptService,
@@ -470,6 +470,7 @@ func providePluginHostInfo(buildInfo handler.BuildInfo) service.PluginHostInfo {
 
 func provideCleanup(
 	requestCaptures *requestcapture.Manager,
+	usageLogRepo service.UsageLogRepository,
 	entClient *ent.Client,
 	rdb *redis.Client,
 	opsMetricsCollector *service.OpsMetricsCollector,
@@ -508,6 +509,7 @@ func provideCleanup(
 	openAIGateway *service.OpenAIGatewayService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	accountOps *service.AccountOpsService,
+	accountTokenGuard *service.AccountTokenGuardService,
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 	channelMonitorRunner *service.ChannelMonitorRunner,
@@ -751,6 +753,12 @@ func provideCleanup(
 				}
 				return nil
 			}},
+			{"AccountTokenGuard", func() error {
+				if accountTokenGuard != nil {
+					accountTokenGuard.Stop()
+				}
+				return nil
+			}},
 			{"AccountOpsService", func() error {
 				if accountOps != nil {
 					accountOps.Stop()
@@ -826,6 +834,12 @@ func provideCleanup(
 		}
 
 		infraSteps := []cleanupStep{
+			{"RequestTiming", func() error {
+				if closer, ok := usageLogRepo.(interface{ CloseRequestTiming(context.Context) error }); ok {
+					return closer.CloseRequestTiming(ctx)
+				}
+				return nil
+			}},
 			{"Redis", func() error {
 				if rdb == nil {
 					return nil

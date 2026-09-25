@@ -84,7 +84,7 @@ var ProviderSet = wire.NewSet(
 	NewPromoCodeRepository,
 	NewAnnouncementRepository,
 	NewAnnouncementReadRepository,
-	NewUsageLogRepository,
+	ProvideUsageLogRepository,
 	NewAccountProbeCostRepository,
 	NewAccountFinancialUsageReader,
 	NewUsageCostEvidenceRepository,
@@ -246,4 +246,12 @@ func ProvideSQLDB(client *ent.Client) (*sql.DB, error) {
 // 提供：*redis.Client
 func ProvideRedis(cfg *config.Config) *redis.Client {
 	return InitRedis(cfg)
+}
+
+func ProvideUsageLogRepository(client *ent.Client, db *sql.DB, cfg *config.Config) service.UsageLogRepository {
+	r := newUsageLogRepositoryWithSQL(client, db)
+	if cfg == nil || service.ShouldStartSingleton(cfg.Server.ProcessRole) || cfg.Server.ProcessRole == "" {
+		r.startTimingMaintenance()
+	}
+	return r
 }

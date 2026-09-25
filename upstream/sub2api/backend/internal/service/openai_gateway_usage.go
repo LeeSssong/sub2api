@@ -202,6 +202,12 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		result.OutputStarted || attemptMetadata.OutputStarted,
 		attemptMetadata.UsageProduced,
 	)
+	if result.UsageIncomplete {
+		usageCompleteness = UsageCompletenessUnknown
+		if result.UsageKnown || result.Usage.InputTokens+result.Usage.OutputTokens+result.Usage.CacheCreationInputTokens+result.Usage.CacheReadInputTokens > 0 {
+			usageCompleteness = UsageCompletenessPartial
+		}
+	}
 	reconciliationRequired := input.ReconciliationRequired || usageCompleteness == UsageCompletenessPartial
 	unsafeToReplay := input.UnsafeToReplay || reconciliationRequired || attemptMetadata.OutputStarted
 	if s.rateLimitService != nil && input.Account != nil && input.Account.Platform == PlatformOpenAI {
@@ -249,6 +255,11 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ImageOutputTokens:    result.Usage.ImageOutputTokens,
 	}
 
+	// Raw upstream buckets remain independent from customer cache conversion.
+	upstreamTokens := tokens
+	upstreamTokens.InputTokens = max(result.Usage.InputTokens-result.Usage.CacheReadInputTokens-result.Usage.CacheCreationInputTokens, 0)
+	upstreamTokens.CacheCreationTokens = result.Usage.CacheCreationInputTokens
+
 	// Get rate multiplier
 	multiplier := 1.0
 	if s.cfg != nil {
@@ -260,7 +271,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	// Account-side group multiplier is independent from RateMultiplier (which
 	// only changes account cost statistics). A value of 5 offsets a 0.2x group
 	// for this account and restores a 1.0x user charge.
-	multiplier *= account.UserGroupRateMultiplier()
 	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。
 	// 高峰因子按请求级 PricingAt 现算（与利润门 D 同源同刻，跨峰谷请求不中途
 	// 变价）；未装配 PricingAt 的路径回退记录时刻，保持既有行为。不并入上面的
@@ -269,6 +279,11 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	pricingAt := openAIUsagePricingAt(input)
 	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, baseMultiplier, pricingAt)
 	videoMultiplier := resolveVideoRateMultiplier(apiKey, baseMultiplier)
+	accountGroupRate := account.UserGroupRateMultiplier()
+	multiplier *= accountGroupRate
+	imageMultiplier *= accountGroupRate
+	videoMultiplier *= accountGroupRate
+	baseMultiplier *= accountGroupRate
 
 	var cost *CostBreakdown
 	var err error
@@ -549,11 +564,19 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.SubscriptionID = &subscription.ID
 	}
 
-	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）
+	// 计算账号统计定价费用（使用原始上游用量，不能被下游缓存转换选项污染）。
+	upstreamTotalCost := cost.TotalCost
+	if upstreamTokens != tokens {
+		rawCost, rawErr := s.calculateOpenAIRecordUsageCost(ctx, result, apiKey, billingModels, multiplier, imageMultiplier, videoMultiplier, baseMultiplier, upstreamTokens, serviceTier, longContextBillingGate, pricingAt)
+		if rawErr != nil {
+			return rawErr
+		}
+		upstreamTotalCost = rawCost.TotalCost
+	}
 	if apiKey.GroupID != nil {
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
 			account.ID, *apiKey.GroupID, result.UpstreamModel, result.Model,
-			tokens, cost.TotalCost, pricingAt, accountRateMultiplier,
+			upstreamTokens, upstreamTotalCost, pricingAt, accountRateMultiplier,
 		)
 	}
 	if usageCompleteness == UsageCompletenessUnknown {

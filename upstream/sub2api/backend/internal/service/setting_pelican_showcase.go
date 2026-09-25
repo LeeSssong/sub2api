@@ -116,7 +116,7 @@ func (s *SettingService) GetPelicanShowcaseRuntime(ctx context.Context) (Pelican
 	if err != nil {
 		return PelicanShowcaseRuntime{}, err
 	}
-	return PelicanShowcaseRuntime{Enabled: vals[SettingKeyPelicanShowcaseEnabled] == "true", Config: cfg}, nil
+	return PelicanShowcaseRuntime{Enabled: pelicanShowcaseEnabledByDefault(vals[SettingKeyPelicanShowcaseEnabled]), Config: cfg}, nil
 }
 
 // validateAddedPelicanShowcaseGroups checks only groups that were not selected before,
@@ -145,3 +145,6 @@ func (s *SettingService) validateAddedPelicanShowcaseGroups(ctx context.Context,
 	}
 	return nil
 }
+
+// An unconfigured deployment exposes an empty gallery; explicit disabling is preserved.
+func pelicanShowcaseEnabledByDefault(raw string) bool { return raw == "" || raw == "true" }

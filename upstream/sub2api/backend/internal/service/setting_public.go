@@ -366,7 +366,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ChannelMonitorHideUserRanking:        isTrueSettingValue(settings[SettingKeyChannelMonitorHideUserRanking]),
 
 		AvailableChannelsEnabled: settings[SettingKeyAvailableChannelsEnabled] == "true",
-		PelicanShowcaseEnabled:   settings[SettingKeyPelicanShowcaseEnabled] == "true",
+		PelicanShowcaseEnabled:   pelicanShowcaseEnabledByDefault(settings[SettingKeyPelicanShowcaseEnabled]),
 
 		SubscriptionEnabled: !isFalseSettingValue(settings[SettingKeySubscriptionEnabled]),
 

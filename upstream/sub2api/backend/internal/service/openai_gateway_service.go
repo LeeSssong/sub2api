@@ -296,8 +296,9 @@ type OpenAIForwardResult struct {
 	// OutputStarted records whether semantic upstream output reached the client.
 	// UsageKnown distinguishes a complete/partial usage snapshot from a transport
 	// failure observed before any usage-bearing event.
-	OutputStarted bool
-	UsageKnown    bool
+	OutputStarted   bool
+	UsageKnown      bool
+	UsageIncomplete bool
 	// SearchCount is Grok-native web_search / tool search call count (per 1k pricing).
 	SearchCount int
 	// AudioUsage carries Voice billing units when present.
@@ -678,7 +679,9 @@ func NewOpenAIGatewayService(
 		option(svc)
 	}
 	svc.logOpenAIWSModeBootstrap()
-	svc.StartOpenAICodexTicketHarvester()
+	if shouldStartSingleton(cfg) {
+		svc.StartOpenAICodexTicketHarvester()
+	}
 	return svc
 }
 

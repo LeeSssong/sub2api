@@ -84,6 +84,7 @@ func TestExcelBPSForwardContract(t *testing.T) {
 			require.Equal(t, "xhigh", *result.ReasoningEffort)
 			require.NotNil(t, result.RequestedReasoningEffort)
 			require.Equal(t, "max", *result.RequestedReasoningEffort)
+			require.True(t, result.UsageKnown, "BPS must preserve observed upstream usage evidence")
 			require.Equal(t, 10, result.Usage.InputTokens)
 			require.Contains(t, rec.Body.String(), "21")
 		})
