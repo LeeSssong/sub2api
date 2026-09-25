@@ -18,24 +18,28 @@ type PelicanTestConfig struct {
 
 // ScheduledTestPlan represents a scheduled test plan domain model.
 type ScheduledTestPlan struct {
-	AccountName    string             `json:"account_name,omitempty"`
-	PelicanConfig  *PelicanTestConfig `json:"pelican_config,omitempty"`
-	RunningUntil   *time.Time         `json:"running_until,omitempty"`
-	ID             int64              `json:"id"`
-	AccountID      int64              `json:"account_id"`
-	ModelID        string             `json:"model_id"`
-	CronExpression string             `json:"cron_expression"`
-	Enabled        bool               `json:"enabled"`
-	MaxResults     int                `json:"max_results"`
-	AutoRecover    bool               `json:"auto_recover"`
-	LastRunAt      *time.Time         `json:"last_run_at"`
-	NextRunAt      *time.Time         `json:"next_run_at"`
-	CreatedAt      time.Time          `json:"created_at"`
-	UpdatedAt      time.Time          `json:"updated_at"`
+	// PelicanGroupIDs is the account membership captured atomically with the execution claim.
+	PelicanGroupIDs []int64            `json:"-"`
+	AccountName     string             `json:"account_name,omitempty"`
+	PelicanConfig   *PelicanTestConfig `json:"pelican_config,omitempty"`
+	RunningUntil    *time.Time         `json:"running_until,omitempty"`
+	ID              int64              `json:"id"`
+	AccountID       int64              `json:"account_id"`
+	ModelID         string             `json:"model_id"`
+	CronExpression  string             `json:"cron_expression"`
+	Enabled         bool               `json:"enabled"`
+	MaxResults      int                `json:"max_results"`
+	AutoRecover     bool               `json:"auto_recover"`
+	LastRunAt       *time.Time         `json:"last_run_at"`
+	NextRunAt       *time.Time         `json:"next_run_at"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
 }
 
 // ScheduledTestResult represents a single test execution result.
 type ScheduledTestResult struct {
+	// PelicanGroupIDs carries execution-start attribution into durable statistics.
+	PelicanGroupIDs []int64            `json:"-"`
 	QualityRoundID  string             `json:"quality_round_id,omitempty"`
 	QualityJudgment *QualityJudgment   `json:"quality_judgment,omitempty"`
 	QualityAction   string             `json:"quality_action,omitempty"`
@@ -80,6 +84,7 @@ type PelicanHistoryPage struct {
 
 // ScheduledTestResultRepository defines the data access interface for test results.
 type ScheduledTestResultRepository interface {
+	MaintainPelicanStatistics(ctx context.Context, now time.Time) error
 	ListQualityHistory(context.Context, int64, int) ([]*QualityHistoryResult, error)
 	ListPelicanHistory(ctx context.Context, beforeID int64, limit int) ([]*PelicanHistoryResult, error)
 	PruneExpiredPelican(ctx context.Context, before time.Time) error

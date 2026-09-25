@@ -24,6 +24,7 @@ type PelicanShowcaseItem struct {
 }
 
 type PelicanShowcaseGroup struct {
+	Stats    *PelicanShowcaseStats  `json:"stats"`
 	ID       int64                  `json:"id"`
 	Name     string                 `json:"name"`
 	Platform string                 `json:"platform"`
@@ -32,10 +33,12 @@ type PelicanShowcaseGroup struct {
 
 // PelicanShowcaseView is the user gallery. RetentionDays is 0 when auto cleanup is off.
 type PelicanShowcaseView struct {
-	Enabled       bool                    `json:"enabled"`
-	MaxItems      int                     `json:"max_items"`
-	RetentionDays int                     `json:"retention_days"`
-	Groups        []*PelicanShowcaseGroup `json:"groups"`
+	Stats         *PelicanShowcaseStats       `json:"stats"`
+	StatsWindow   *PelicanShowcaseStatsWindow `json:"stats_window"`
+	Enabled       bool                        `json:"enabled"`
+	MaxItems      int                         `json:"max_items"`
+	RetentionDays int                         `json:"retention_days"`
+	Groups        []*PelicanShowcaseGroup     `json:"groups"`
 }
 
 // PelicanShowcaseRepository stores gallery snapshots. A zero since/before time means
@@ -144,6 +147,7 @@ func (s *PelicanShowcaseService) View(ctx context.Context, now time.Time) (*Peli
 	byID := make(map[int64]*PelicanShowcaseGroup, len(groups))
 	for _, group := range groups {
 		group.Items = []*PelicanShowcaseItem{}
+		group.Stats = nil
 		groupIDs = append(groupIDs, group.ID)
 		byID[group.ID] = group
 	}
@@ -157,6 +161,7 @@ func (s *PelicanShowcaseService) View(ctx context.Context, now time.Time) (*Peli
 		}
 	}
 	view.Groups = groups
+	s.populateStatistics(ctx, view, groupIDs, now)
 	return view, nil
 }
 
