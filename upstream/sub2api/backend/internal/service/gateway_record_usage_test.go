@@ -744,7 +744,7 @@ func TestGatewayServiceRecordUsage_DroppedUsageLogFallsBackToSyncCreate(t *testi
 	require.NoError(t, usageRepo.lastCtxErr)
 }
 
-func TestGatewayServiceRecordUsage_RegistersEvidenceAfterInsert(t *testing.T) {
+func TestGatewayServiceRecordUsage_DoesNotQueryUpstreamAfterInsert(t *testing.T) {
 	usageRepo := &evidenceUsageLogRepoStub{inserted: true, usageLogID: 812}
 	registrar := &usageCostEvidenceRegistrarStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
@@ -759,8 +759,8 @@ func TestGatewayServiceRecordUsage_RegistersEvidenceAfterInsert(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 1, usageRepo.calls)
-	require.Equal(t, 1, registrar.calls)
-	require.Equal(t, int64(812), registrar.usageLogID)
+	require.Zero(t, registrar.calls)
+	require.Zero(t, registrar.usageLogID)
 }
 
 func TestGatewayServiceRecordUsage_DoesNotRegisterEvidenceForConflictOrOAuth(t *testing.T) {
@@ -805,7 +805,7 @@ func TestGatewayServiceRecordUsage_RegistrationFailureDoesNotChangeSuccess(t *te
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, 1, registrar.calls)
+	require.Zero(t, registrar.calls)
 }
 
 func TestGatewayServiceRecordUsage_BillingErrorWritesUnsettledUsageLog(t *testing.T) {
