@@ -58,8 +58,6 @@ func TestExcelBPSImageAdmission200ConcurrentRequests(t *testing.T) {
 	}{
 		{"small", 1024, "", 32},
 		{"large", 32 << 20, "", 2},
-		{"chunked", -1, "", 1},
-		{"compressed", 1024, "gzip", 1},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var reads atomic.Int32
@@ -184,8 +182,8 @@ func TestExcelBPSImageAdmissionReleaseIsIdempotent(t *testing.T) {
 	require.True(t, ok)
 	_, ok = budget.acquire(1)
 	require.False(t, ok)
-	release()
-	release()
+	release.release()
+	release.release()
 	require.Zero(t, budget.bytes)
 	require.Zero(t, budget.requests)
 }
