@@ -87,7 +87,7 @@ describe('Pelican sandbox measurement runtime', () => {
   let contentWidth = 1600
   let contentHeight = 1200
 
-  function start(html: string, initialWidth = 1600, initialHeight = 1200, artBounds?: DOMRect) {
+  function start(html: string, initialWidth = 1600, initialHeight = 1200, artBounds?: DOMRect, prepare?: (frame: Window & typeof globalThis) => void) {
     vi.useFakeTimers()
     reports.length = 0
     contentWidth = initialWidth
@@ -102,10 +102,15 @@ describe('Pelican sandbox measurement runtime', () => {
       scrollWidth: { configurable: true, get: () => contentWidth },
       scrollHeight: { configurable: true, get: () => contentHeight },
     })
+    Object.defineProperties(sandbox.document.body, {
+      scrollWidth: { configurable: true, get: () => contentWidth },
+      scrollHeight: { configurable: true, get: () => contentHeight },
+    })
     if (artBounds) sandbox.document.getElementById('art')!.getBoundingClientRect = () => artBounds
     // jsdom exposes a distinct parent WindowProxy for this iframe. Capture the
     // sandbox-to-host boundary directly; document measurement still runs for real.
     Object.defineProperty(sandbox, 'parent', { configurable: true, value: { postMessage: (message: { width: number; height: number }) => reports.push(message) } })
+    prepare?.(sandbox)
     const script = sandbox.document.querySelector('script[data-pelican-preview]')!.textContent!
     new Function('window', script)(sandbox)
     sandbox.document.dispatchEvent(new sandbox.Event('DOMContentLoaded'))
@@ -130,9 +135,57 @@ describe('Pelican sandbox measurement runtime', () => {
     expect(sandbox.document.querySelector('h1')?.textContent).toBe('Original title')
   })
 
+  it('fits overflow inside the fixed native viewport without treating its unscaled scrollbar floor as content', async () => {
+    start('<html><body><div>Portrait artwork</div></body></html>', 1024, 1600)
+    const root = sandbox.document.documentElement
+    expect(root.style.zoom).toBe('0.48')
+    Object.defineProperties(root, {
+      scrollWidth: { configurable: true, value: 1024 },
+      scrollHeight: { configurable: true, value: 768 },
+    })
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(reports).toHaveLength(1)
+    expect(reports[0]).toMatchObject({ width: 1024, height: 1600 })
+    expect(root.style.zoom).toBe('0.48')
+  })
+
+  it('preserves the author root zoom while applying its own reduction', () => {
+    // jsdom does not parse the zoom declaration; provide the browser's property.
+    start('<html style="zoom:2"><body>Artwork</body></html>', 1600, 1200, undefined, (frame) => { frame.document.documentElement.style.zoom = '2' })
+    expect(reports.at(-1)).toMatchObject({ width: 3200, height: 2400 })
+    expect(sandbox.document.documentElement.style.zoom).toBe('0.64')
+  })
+
   it('includes a centered fixed-size artwork that initially extends beyond the top and left edges', () => {
     start('<html><body><div id="art">Artwork</div></body></html>', 1024, 768, { left: -288, top: -216, right: 1312, bottom: 984, width: 1600, height: 1200 } as DOMRect)
     expect(reports.at(-1)).toMatchObject({ width: 1600, height: 1200 })
+  })
+
+  it('keeps a fixed marker stationary when another element animates from negative to positive coordinates', async () => {
+    let movingX = -40
+    let movingY = -20
+    start('<html><body><div id="marker">Fixed marker</div><div id="art">Moving artwork</div></body></html>', 1024, 768, undefined, (frame) => {
+      const root = frame.document.documentElement
+      const rect = (x: number, y: number, width: number, height: number) => {
+        const shifts = Array.from(root.style.translate.matchAll(/\+ (\d+)px/g), (match) => Number(match[1]))
+        const left = x + (shifts[0] || 0)
+        const top = y + (shifts[1] || 0)
+        return { left, top, right: left + width, bottom: top + height, width, height } as DOMRect
+      }
+      root.getBoundingClientRect = () => rect(0, 0, 1024, 768)
+      frame.document.body.getBoundingClientRect = () => rect(0, 0, 1024, 768)
+      frame.document.getElementById('marker')!.getBoundingClientRect = () => rect(0, 0, 20, 20)
+      frame.document.getElementById('art')!.getBoundingClientRect = () => rect(movingX, movingY, 200, 200)
+    })
+    const marker = sandbox.document.getElementById('marker')!
+    expect(marker.getBoundingClientRect()).toMatchObject({ left: 40, top: 20 })
+    movingX = 40
+    movingY = 20
+    sandbox.document.getElementById('art')!.style.transform = 'translate(80px, 40px)'
+    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(marker.getBoundingClientRect()).toMatchObject({ left: 40, top: 20 })
+    expect(reports.every((report) => report.width <= 8192 && report.height <= 8192)).toBe(true)
   })
 
   it('pins viewport-relative sizing to its logical canvas so growing the iframe cannot create a size loop', async () => {

@@ -31,6 +31,7 @@ const props = withDefaults(defineProps<{ html: string; title: string; mode?: Pel
 const containerRef = ref<HTMLElement | null>(null)
 const frameRef = ref<HTMLIFrameElement | null>(null)
 const available = ref({ width: 0, height: 0 })
+const viewport = ref({ width: 1024, height: 768 })
 const artwork = ref({ width: 1024, height: 768 })
 const srcdoc = ref('')
 let channel = ''
@@ -40,23 +41,29 @@ let observer: ResizeObserver | undefined
 watch(() => props.html, (html) => {
   channel = `pelican-${crypto.randomUUID()}`
   updates = 0
-  artwork.value = getPelicanViewport(html)
+  viewport.value = getPelicanViewport(html)
+  artwork.value = { ...viewport.value }
   srcdoc.value = createPelicanPreviewDocument(html, channel)
 }, { immediate: true })
 
 const fitted = computed(() => fitPelicanArtwork(artwork.value, available.value, props.mode))
+const innerScale = computed(() => fitPelicanArtwork(artwork.value, viewport.value, 'fit').scale)
 const surfaceStyle = computed(() => ({ width: `${Math.max(available.value.width, fitted.value.width)}px`, height: `${Math.max(available.value.height, fitted.value.height)}px` }))
 const frameStyle = computed(() => ({
-  width: `${artwork.value.width}px`,
-  height: `${artwork.value.height}px`,
-  transform: `scale(${fitted.value.scale})`,
+  // Native viewport dimensions never change: @media, matchMedia, and authored
+  // window.innerWidth/Height reads must describe the same canvas in every mode.
+  width: `${viewport.value.width}px`,
+  height: `${viewport.value.height}px`,
+  transform: `scale(${fitted.value.scale / innerScale.value})`,
   transformOrigin: 'top left',
   pointerEvents: props.interactive ? 'auto' as const : 'none' as const,
 }))
 
 function resize() {
-  const rect = containerRef.value?.getBoundingClientRect()
-  if (rect) available.value = { width: rect.width, height: rect.height }
+  const container = containerRef.value
+  // Dialog entrance transforms affect painted bounds, not its layout viewport.
+  // Client dimensions remain correct after the transition without a resize event.
+  if (container) available.value = { width: container.clientWidth, height: container.clientHeight }
 }
 
 function receiveSize(event: MessageEvent) {

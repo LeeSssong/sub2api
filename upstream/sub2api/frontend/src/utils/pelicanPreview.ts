@@ -56,15 +56,16 @@ export function installPelicanMeasurement(target: Window & typeof globalThis, ch
   let lastHeight = 0
   let offsetX = 0
   let offsetY = 0
+  let innerScale = 1
+  let authorZoom = 1
   let originalTranslate = ['0px', '0px']
   let resizeObserver: ResizeObserver | undefined
   let mutationObserver: MutationObserver | undefined
   const timers: number[] = []
   const observed = new WeakSet<Element>()
 
-  // Growing an iframe to reveal its document must not grow 100vh/100vw again.
-  // Resolve viewport units against the original logical canvas, including keyframes
-  // and styles added later, while retaining the original DOM and animation scripts.
+  // Resolve viewport lengths against the logical canvas, including keyframes
+  // and styles added later. The iframe viewport itself always remains this size.
   function pinDeclaration(style: CSSStyleDeclaration) {
     for (let i = 0; i < style.length; i++) {
       const property = style[i]
@@ -105,8 +106,11 @@ export function installPelicanMeasurement(target: Window & typeof globalThis, ch
     if (disposed || !doc.body || sent >= 120) return
     const elements = prepareElements()
     const root = doc.documentElement
-    let width = Math.max(viewport.width, root.scrollWidth - offsetX, doc.body.scrollWidth)
-    let height = Math.max(viewport.height, root.scrollHeight - offsetY, doc.body.scrollHeight)
+    // Body scroll metrics remain in authored CSS pixels under root zoom; DOMRects
+    // are painted pixels and need the inverse of only our own reduction. Root
+    // scroll metrics have a viewport-sized floor and would create a feedback loop.
+    let width = Math.max(viewport.width, doc.body.scrollWidth * authorZoom)
+    let height = Math.max(viewport.height, doc.body.scrollHeight * authorZoom)
     let left = 0
     let top = 0
     for (const element of elements) {
@@ -116,19 +120,19 @@ export function installPelicanMeasurement(target: Window & typeof globalThis, ch
       const svg = element.closest('svg')
       if (svg && svg !== element) continue
       const rect = element.getBoundingClientRect()
-      left = Math.min(left, rect.left + target.scrollX - offsetX)
-      top = Math.min(top, rect.top + target.scrollY - offsetY)
-      width = Math.max(width, rect.right + target.scrollX - offsetX)
-      height = Math.max(height, rect.bottom + target.scrollY - offsetY)
+      left = Math.min(left, (rect.left + target.scrollX) / innerScale - offsetX)
+      top = Math.min(top, (rect.top + target.scrollY) / innerScale - offsetY)
+      width = Math.max(width, (rect.right + target.scrollX) / innerScale - offsetX)
+      height = Math.max(height, (rect.bottom + target.scrollY) / innerScale - offsetY)
     }
-    const nextX = Math.min(limit, Math.ceil(-left))
-    const nextY = Math.min(limit, Math.ceil(-top))
+    const nextX = Math.min(limit, Math.max(offsetX, Math.ceil(-left)))
+    const nextY = Math.min(limit, Math.max(offsetY, Math.ceil(-top)))
     if (nextX !== offsetX || nextY !== offsetY) {
       offsetX = nextX
       offsetY = nextY
       // An oversized centered drawing can start at a negative coordinate. Move
       // the whole document's paint origin into view without wrapping/replacing it.
-      root.style.setProperty('translate', `calc(${originalTranslate[0]} + ${offsetX}px) calc(${originalTranslate[1]} + ${offsetY}px)`, 'important')
+      root.style.setProperty('translate', `calc(${originalTranslate[0]} + ${offsetX / authorZoom}px) calc(${originalTranslate[1]} + ${offsetY / authorZoom}px)`, 'important')
     }
     width = Math.min(limit, Math.ceil(width + offsetX))
     height = Math.min(limit, Math.ceil(height + offsetY))
@@ -139,6 +143,12 @@ export function installPelicanMeasurement(target: Window & typeof globalThis, ch
     if (width === lastWidth && height === lastHeight) return
     lastWidth = width
     lastHeight = height
+    // Fit all document paint into a fixed native viewport. The parent cancels
+    // this reduction before its own contain/100% transform. Native browser media
+    // rules and viewport reads stay untouched, including queries made later.
+    innerScale = Math.min(1, viewport.width / width, viewport.height / height)
+    root.style.zoom = String(authorZoom * innerScale)
+    root.style.setProperty('zoom', root.style.zoom, 'important')
     sent++
     target.parent.postMessage({ type: 'pelican-preview:size', channel, width, height }, '*')
   }
@@ -152,14 +162,17 @@ export function installPelicanMeasurement(target: Window & typeof globalThis, ch
     prepareElements()
     const root = doc.documentElement
     const rootStyle = target.getComputedStyle(root)
+    const originalZoom = rootStyle.getPropertyValue('zoom') || root.style.getPropertyValue('zoom') || root.style.zoom
+    const parsedZoom = parseFloat(originalZoom)
+    if (Number.isFinite(parsedZoom) && parsedZoom > 0) authorZoom = originalZoom.endsWith('%') ? parsedZoom / 100 : parsedZoom
     const pixelSize = (value: string, fallback: number) => /^\d+(?:\.\d+)?px$/.test(value) && parseFloat(value) > 0 ? Math.min(limit, parseFloat(value)) : fallback
     const width = pixelSize(rootStyle.width, viewport.width)
     const height = pixelSize(rootStyle.height, viewport.height)
     originalTranslate = rootStyle.translate && rootStyle.translate !== 'none' ? rootStyle.translate.split(/\s+(?![^()]*\))/) : ['0px', '0px']
     if (!originalTranslate[1]) originalTranslate[1] = '0px'
-    // The frame may grow to reveal overflow, but the original document keeps its
-    // layout canvas. In particular, html/body height:100% plus a caption must not
-    // recursively add the caption height every time the host resizes the iframe.
+    // Root zoom must not enlarge the layout width/height used by percentages.
+    // Keep their original basis so an extra caption cannot repeatedly grow a
+    // height:100% document while the measurement zoom settles.
     root.style.setProperty('width', `${width}px`, 'important')
     root.style.setProperty('height', `${height}px`, 'important')
     if (target.ResizeObserver) resizeObserver = new target.ResizeObserver(schedule)
