@@ -2,11 +2,13 @@
   <div
     ref="containerRef"
     class="relative h-full min-h-0 w-full min-w-0"
-    :style="{ overflow: mode === 'actual' ? 'auto' : 'hidden' }"
+    :style="{ overflow: mode === 'actual' ? 'auto' : 'clip' }"
     data-testid="pelican-artwork-preview"
   >
     <div class="flex min-h-full min-w-full items-center justify-center" :style="surfaceStyle">
-      <div class="relative shrink-0 overflow-hidden" :style="{ width: `${fitted.width}px`, height: `${fitted.height}px` }">
+      <!-- Clipping must not create a scroll container: browser focus/anchoring
+           can otherwise pan the larger native iframe and crop the artwork. -->
+      <div class="relative shrink-0 overflow-clip" :style="{ width: `${fitted.width}px`, height: `${fitted.height}px` }">
         <iframe
           ref="frameRef"
           :srcdoc="srcdoc"

@@ -29,7 +29,7 @@ describe('PelicanArtworkPreview', () => {
     expect(frame.element.style.width).toBe('1200px')
     expect(frame.element.style.height).toBe('600px')
     expect(frame.element.style.transform).toBe('scale(0.3333333333333333)')
-    expect(preview.element.style.overflow).toBe('hidden')
+    expect(preview.element.style.overflow).toBe('clip')
   })
 
   it('fits delayed content while preserving the native viewport, srcdoc, and animation', async () => {
