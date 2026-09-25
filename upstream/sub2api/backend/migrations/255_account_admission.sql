@@ -1,3 +1,6 @@
+SET LOCAL lock_timeout = '100ms';
+SET LOCAL statement_timeout = '2s';
+
 CREATE TABLE account_admission_jobs (
  account_id BIGINT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
  target_group_ids BIGINT[] NOT NULL CHECK(cardinality(target_group_ids)>0),
