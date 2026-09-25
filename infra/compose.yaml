@@ -133,6 +133,7 @@ services:
     logging: *logging
 
   sub2api-worker:
+    stop_grace_period: 60s
     image: ${SUB2API_WORKER_IMAGE:?SUB2API_WORKER_IMAGE is required}
     restart: unless-stopped
     expose: ["8080"]

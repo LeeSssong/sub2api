@@ -1,3 +1,7 @@
+-- Online fusion: fail promptly on live-table lock contention, including worker startup.
+SET LOCAL lock_timeout = '100ms';
+SET LOCAL statement_timeout = '2s';
+
 -- 账号凭证守护（智能运维 → 凭证守护）
 -- 事件表保存每次探活/重登/状态自愈的审计记录；状态表保存每个账号最近一次巡检结果，供页面直接展示。
 

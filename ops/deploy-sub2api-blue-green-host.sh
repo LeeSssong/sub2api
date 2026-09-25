@@ -3,6 +3,9 @@ set -euo pipefail
 
 umask 077
 
+readonly FUSION_2813_OLD_MIGRATIONS_HASH=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b
+readonly FUSION_2813_NEW_MIGRATIONS_HASH=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
+
 fail() {
   printf 'blue-green deploy failed: %s\n' "$1" >&2
   exit 1
@@ -50,6 +53,10 @@ rollback_committed_release() {
   previous_hash=$(jq -r '.previous.migrations_hash' "$record")
   current_hash=$(jq -r '.migrations_hash' "$state")
   if [[ "$previous_hash" != "$current_hash" ]]; then
+    if [[ "$previous_hash" == "$FUSION_2813_OLD_MIGRATIONS_HASH" && "$current_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ]]; then
+      # Reviewed additive fusion: old readers remain compatible; keep new schema.
+      :
+    else
     [[ "$previous_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 \
         && "$current_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b ]] \
       || fail 'database migration set changed; rollback compatibility has not been reviewed'
@@ -59,6 +66,7 @@ rollback_committed_release() {
       'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE filename = '\''241_reasoning_pricing_rollback_compat.sql'\'' AND checksum = '\''8d191edefda98710e0626131fae301a85ad072705130c77e753044654daeeff6'\'') AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = '\''channel_model_pricing'\''::regclass AND tgname = '\''channel_reasoning_pricing_compat'\'' AND tgenabled = '\''O'\'') AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = '\''groups'\''::regclass AND tgname = '\''group_reasoning_pricing_compat'\'' AND tgenabled = '\''O'\'')"') \
       || fail 'rollback schema compatibility probe failed'
     [[ "$migration_probe" == t ]] || fail 'rollback schema compatibility is not installed'
+    fi
   fi
 
   previous_slot=$(jq -r '.previous.active_slot' "$record")
@@ -91,7 +99,7 @@ rollback_committed_release() {
   caddy_id=$("${compose[@]}" ps -q caddy)
   [[ "$postgres_id" == "$(jq -r '.postgres_id' "$state")" && "$redis_id" == "$(jq -r '.redis_id' "$state")" \
       && "$caddy_id" == "$(jq -r '.caddy_id' "$state")" ]] || fail 'shared runtime identity changed'
-  [[ "$("${compose[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ | jq -er '[.. | objects | .dial? // empty | select(. == "sub2api-blue:8080" or . == "sub2api-green:8080")] | unique | if length == 1 then .[0] else error("ambiguous route") end')" == "$current_upstream" ]] \
+  [[ "$("${compose[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ | jq -er 'walk(if type == "object" and (.match == [{"path":["/api/bps-images/blue/*"]}] or .match == [{"path":["/api/bps-images/green/*"]}]) then {} else . end) | [.. | objects | .dial? // empty | select(. == "sub2api-blue:8080" or . == "sub2api-green:8080")] | unique | if length == 1 then .[0] else error("ambiguous route") end')" == "$current_upstream" ]] \
     || fail 'live Caddy upstream does not match release state'
   expected_id=$(jq -r --arg slot "$current_slot" '.[$slot + "_image_id"] // empty' "$state")
   [[ -z "$expected_id" || "$(docker inspect "$("${compose[@]}" ps -q "sub2api-$current_slot")" --format '{{.Image}}')" == "$expected_id" ]] \
@@ -129,7 +137,7 @@ rollback_committed_release() {
         caddy reload --config - --adapter caddyfile <"$deploy_root/Caddyfile" >/dev/null 2>&1; then
         recovery_ok=false
       else
-        live_route=$("${compose[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ | jq -er '[.. | objects | .dial? // empty | select(. == "sub2api-blue:8080" or . == "sub2api-green:8080")] | unique | if length == 1 then .[0] else error("ambiguous route") end') || recovery_ok=false
+        live_route=$("${compose[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ | jq -er 'walk(if type == "object" and (.match == [{"path":["/api/bps-images/blue/*"]}] or .match == [{"path":["/api/bps-images/green/*"]}]) then {} else . end) | [.. | objects | .dial? // empty | select(. == "sub2api-blue:8080" or . == "sub2api-green:8080")] | unique | if length == 1 then .[0] else error("ambiguous route") end') || recovery_ok=false
         [[ "$live_route" == "$current_upstream" ]] || recovery_ok=false
       fi
     fi
@@ -244,6 +252,7 @@ deadline_epoch=''
 maintenance_authorized=false
 maintenance_from_hash=''
 online_migrations_from_hash=''
+drain_mode=force
 preloaded_archive=''
 preloaded_archive_sha256=''
 preloaded_image_id=''
@@ -331,10 +340,12 @@ while (($#)); do
 		--maintenance-authorized) [[ "$maintenance_authorized" == false ]] || fail '--maintenance-authorized may be supplied once'; maintenance_authorized=true; shift ;;
 		--maintenance-from-hash) (($# >= 2)) || fail '--maintenance-from-hash requires a value'; [[ -z "$maintenance_from_hash" ]] || fail '--maintenance-from-hash may be supplied once'; maintenance_from_hash=$2; shift 2 ;;
 		--online-migrations-from-hash) (($# >= 2)) || fail '--online-migrations-from-hash requires a value'; [[ -z "$online_migrations_from_hash" ]] || fail '--online-migrations-from-hash may be supplied once'; online_migrations_from_hash=$2; shift 2 ;;
+    --drain-mode) (($# >= 2)) || fail '--drain-mode requires a value'; drain_mode=$2; shift 2 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
 
+[[ "$drain_mode" == force || "$drain_mode" == retain ]] || fail '--drain-mode must be force or retain'
 [[ "$mode" == rehearsal || "$mode" == production ]] || fail '--mode must be rehearsal or production'
 [[ "$maintenance_authorized" == false || "$mode" == production ]] || fail '--maintenance-authorized is only valid in production mode'
 [[ -z "$maintenance_from_hash" || "$maintenance_from_hash" =~ ^[a-f0-9]{64}$ ]] || fail '--maintenance-from-hash must be 64 lowercase hex'
@@ -1183,6 +1194,7 @@ container_role() {
 live_caddy_upstream() {
   local jq_filter
   jq_filter='
+        walk(if type == "object" and (.match == [{"path":["/api/bps-images/blue/*"]}] or .match == [{"path":["/api/bps-images/green/*"]}]) then {} else . end) |
 		[.. | objects | .dial? // empty |
 		 select(. == "sub2api-blue:8080" or . == "sub2api-green:8080")] |
 		unique | if length == 1 then .[0] else error("active upstream is not unique") end
@@ -1232,6 +1244,7 @@ worker_logs_are_acceptable() {
 }
 
 restore_previous() {
+  [[ "${migration_receipts_unknown:-false}" != true ]] || return 1
   local rollback_ok=true current_blue current_green previous_previous
   rollback_in_progress=true
   if [[ "$cutover_attempted" == true ]]; then
@@ -1273,7 +1286,7 @@ restore_previous() {
 		[[ "$rollback_ok" == false || "$(resolve_container_id redis)" == "$rollback_redis_id" ]] || rollback_ok=false
 		[[ "$rollback_ok" == false || "$(resolve_container_id caddy)" == "$rollback_caddy_id" ]] || rollback_ok=false
 	fi
-  if [[ "$rollback_ok" == true && ( "$persistence_started" == true || "$state_persisted" == true || "$worker_update_started" == true ) ]]; then
+  if [[ "$rollback_ok" == true && ( "$persistence_started" == true || "$state_persisted" == true || "$worker_update_started" == true || ( "$online_migration_transition" == true && "$rollback_migrations_hash" != "$state_migrations_hash" ) ) ]]; then
     current_blue=$rollback_blue_image
     current_green=$rollback_green_image
     previous_previous=$candidate_slot
@@ -1404,6 +1417,8 @@ partial_rollback_image_ids_match_local_images() {
 recover_partial() {
   local existing=$1 now age recovery_cutover_attempted recovery_cutover recovery_worker
   partial_record_is_valid "$existing" || fail 'stale or invalid partial release record is present'
+  [[ "$(jq -r '.phase' "$existing")" != migration_started ]] \
+    || fail 'interrupted migrator has uncertain receipts; inspect applied schema before recovery'
   partial_rollback_image_ids_match_local_images "$existing" \
     || fail 'partial release image ID does not match its local image reference'
   now=$(date -u +%s)
@@ -1660,8 +1675,8 @@ state_previous_slot=green
 if [[ "$migrations_hash" != "$state_migrations_hash" ]]; then
   if [[ -n "$online_migrations_from_hash" \
       && "$online_migrations_from_hash" == "$state_migrations_hash" \
-      && "$state_migrations_hash" == "$MAINTENANCE_32_OLD_MIGRATIONS_HASH" \
-      && "$migrations_hash" == "$MAINTENANCE_32_NEW_MIGRATIONS_HASH" ]]; then
+      && ( ( "$state_migrations_hash" == "$MAINTENANCE_32_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$MAINTENANCE_32_NEW_MIGRATIONS_HASH" ) ||
+           ( "$state_migrations_hash" == "$FUSION_2813_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ) ) ]]; then
     online_migration_transition=true
   elif [[ "$maintenance_authorized" == true \
       && "$maintenance_from_hash" == "$state_migrations_hash" ]] \
@@ -1680,8 +1695,11 @@ elif [[ "$maintenance_authorized" == true \
   maintenance_transition=true
 fi
 [[ -z "$online_migrations_from_hash" || "$online_migration_transition" == true ]] \
-  || gate migration_set_changed 'online migration transition is not the reviewed v0.2.8 migration set' 300
+  || gate migration_set_changed 'online migration transition is not a reviewed migration pair' 300
 
+if [[ "$online_migration_transition" == true && "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" && "$drain_mode" != retain ]]; then
+  gate fusion_requires_retain 'fusion requires --drain-mode retain to preserve long requests' 300
+fi
 postgres_id=$(resolve_container_id postgres) || gate legacy_topology_bootstrap 'PostgreSQL container identity is not uniquely resolvable' 600
 redis_id=$(resolve_container_id redis) || gate legacy_topology_bootstrap 'Redis container identity is not uniquely resolvable' 600
 caddy_id=$(resolve_container_id caddy) || gate legacy_topology_bootstrap 'Caddy container identity is not uniquely resolvable' 600
@@ -1765,7 +1783,7 @@ db_headroom=$(printf '%s' "$db_headroom" | tr -d '[:space:]')
 [[ "$db_headroom" =~ ^[0-9]+$ && "$db_headroom" -ge "${MIN_DB_CONNECTION_HEADROOM:-10}" ]] \
   || gate insufficient_db_connection_headroom 'fewer than 10 PostgreSQL connections remain available' 300
 
-if [[ "$online_migration_transition" == true ]]; then
+if [[ "$online_migration_transition" == true && "$state_migrations_hash" == "$MAINTENANCE_32_OLD_MIGRATIONS_HASH" ]]; then
   retired_artifacts=$("${compose_current[@]}" exec -T postgres sh -c \
     'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT (SELECT count(*) FROM settings WHERE key IN ('"'"'openai_advanced_scheduler_candidate_pool_mode'"'"','"'"'openai_advanced_scheduler_exploration_ratio'"'"','"'"'openai_advanced_scheduler_starvation_threshold_seconds'"'"','"'"'openai_advanced_scheduler_fairness_weight'"'"','"'"'openai_advanced_scheduler_group_overrides'"'"','"'"'openai_advanced_scheduler_group_policies'"'"','"'"'openai_advanced_scheduler_custom_presets'"'"')) + CASE WHEN to_regclass('"'"'public.openai_scheduler_logs'"'"') IS NULL THEN 0 ELSE 1 END"') \
     || gate retired_scheduler_artifacts 'retired scheduler artifact check failed' 300
@@ -1820,6 +1838,20 @@ jq -e --arg service "sub2api-$candidate_slot" --arg active_service "sub2api-$sta
 partial_path="$record_root/$attempt_id.partial"
 write_partial preflight_complete
 
+if [[ "$online_migration_transition" == true && "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ]]; then
+  # Existing upgraded streams use the OLD proxy handler's cleanup policy.
+  # Merely putting a delay in the incoming file cannot preserve them.
+  "${compose_current[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ |
+    jq -e '[.. | objects | select(.upstreams? | type == "array") | select(any(.upstreams[]; .dial == "sub2api-blue:8080" or .dial == "sub2api-green:8080"))] | length > 0 and all(.[]; (.stream_close_delay // 0) >= 86400000000000)' >/dev/null \
+    || gate stream_retention_not_ready 'live Caddy must already preserve upgraded streams across reload (24h); stage and verify separately before this release' 300
+  jq -e '.services["sub2api-worker"].stop_grace_period == "1m0s" or .services["sub2api-worker"].stop_grace_period == "60s"' <<<"$candidate_config" >/dev/null \
+    || gate worker_shutdown_not_ready 'worker requires a verified 60s graceful stop budget' 300
+  # Inspect the actual Caddyfile used for cutover too, before any migrations.
+  "${compose_current[@]}" exec -T -e "SUB2API_ACTIVE_UPSTREAM=$candidate_upstream" caddy caddy adapt --config - --adapter caddyfile <"$deploy_root/Caddyfile" |
+    jq -e '[.. | objects | select(.upstreams? | type == "array") | select(any(.upstreams[]; .dial == "sub2api-blue:8080" or .dial == "sub2api-green:8080"))] | length > 0 and all(.[]; (.stream_close_delay // 0) >= 86400000000000)' >/dev/null \
+    || gate stream_retention_not_ready 'candidate Caddyfile must retain upgraded streams too' 300
+fi
+
 if [[ "$online_migration_transition" == true ]]; then
   failure_reason=online_migration_failed
   if [[ "$preloaded_image" == false ]]; then
@@ -1827,8 +1859,23 @@ if [[ "$online_migration_transition" == true ]]; then
   fi
   # This one-shot process runs only the embedded migrations. The old API and
   # singleton worker remain live; a lock/statement timeout aborts before cutover.
-  run_post_stop_command "${compose_candidate[@]}" run --rm --no-deps --user 1000:1000 \
-    --entrypoint /app/sub2api sub2api-worker -migrate-only >/dev/null
+  migration_receipts_unknown=true
+  write_partial migration_started
+  migration_ok=false
+  if run_post_stop_command "${compose_candidate[@]}" run --rm --no-deps --user 1000:1000 \
+    --entrypoint /app/sub2api sub2api-worker -migrate-only >/dev/null; then migration_ok=true; fi
+  # Applied receipts describe the shared DB even after a partially failed run.
+  # PostgreSQL bytea concatenation preserves the hash format's NUL separator.
+  schema_receipt_sql="SELECT encode(sha256(string_agg(convert_to(filename,'UTF8') || decode('00','hex') || convert_to(checksum || chr(10),'UTF8'), ''::bytea ORDER BY filename)), 'hex') FROM schema_migrations"
+  observed_schema_hash=$("${compose_current[@]}" exec -T postgres sh -c \
+    'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' fusion-receipts "$schema_receipt_sql") \
+    || fail 'migration receipts unavailable; preserve checkpoint and inspect schema before retry'
+  [[ "$observed_schema_hash" =~ ^[a-f0-9]{64}$ ]] || fail 'invalid applied migration receipt hash'
+  migration_receipts_unknown=false
+  rollback_migrations_hash=$observed_schema_hash
+  write_partial migration_observed
+  [[ "$migration_ok" == true && "$observed_schema_hash" == "$migrations_hash" ]] \
+    || fail 'online migration incomplete; old readers retained with actual applied schema hash'
   write_partial migration_prepared
 fi
 
@@ -2061,7 +2108,10 @@ if [[ "$mode" == production && "$maintenance_transition" == false ]]; then
     [[ "$connections" =~ ^[0-9]+$ ]] || fail 'invalid old-slot connection count'
     [[ "$connections" -gt 0 ]] || break
     drain_now=$(date -u +%s)
-    if (( drain_now - cutover_epoch >= 300 )); then drain_forced=true; break; fi
+    if (( drain_now - cutover_epoch >= 300 )); then
+      if [[ "$drain_mode" == retain ]]; then drain_status=retained; else drain_forced=true; fi
+      break
+    fi
     sleep 2
   done
   if [[ "$drain_status" == pending ]]; then
@@ -2070,8 +2120,18 @@ if [[ "$mode" == production && "$maintenance_transition" == false ]]; then
       persist_lock_owner
       if jq -e --arg slot "$candidate_slot" --arg upstream "$candidate_upstream" \
         '.active_slot == $slot and .active_upstream == $upstream' "$release_state" >/dev/null; then
-        docker stop --time 0 "$active_container_id" >/dev/null || fail 'promoted, but old-slot stop failed'
-        drain_status=completed
+        stop_budget=$((300 - $(date -u +%s) + cutover_epoch))
+        (( stop_budget > 0 )) || stop_budget=0
+        if [[ "$drain_mode" == retain ]]; then
+          # No SIGKILL in retain mode: SIGTERM runs application queue cleanup;
+          # leave the marker if cleanup has not completed within this turn.
+          docker kill --signal TERM "$active_container_id" >/dev/null || fail 'promoted, but graceful stop signal failed'
+          drain_status=retained
+          if [[ "$(docker inspect "$active_container_id" --format '{{.State.Running}}')" == false ]]; then drain_status=completed; fi
+        else
+          docker stop --time "$stop_budget" "$active_container_id" >/dev/null || fail 'promoted, but old-slot stop failed'
+          drain_status=completed
+        fi
       else
         drain_status=skipped
       fi
@@ -2085,7 +2145,7 @@ if [[ "$mode" == production && "$maintenance_transition" == false ]]; then
     '. + {drain:{status:$status,seconds:$seconds,forced:$forced}}' "$record_path" >"$record_path.drain.tmp"
   chmod 0600 "$record_path.drain.tmp"
   mv "$record_path.drain.tmp" "$record_path"
-  rm -f -- "$drain_marker"
+  [[ "$drain_status" == retained ]] || rm -f -- "$drain_marker"
 fi
 printf '{"schema_version":1,"downtime_required":false,"result":"succeeded","active_slot":"%s","active_upstream":"%s","image":"%s"}\n' \
   "$candidate_slot" "$candidate_upstream" "$requested_image"

@@ -1,3 +1,7 @@
+-- Online fusion: fail promptly on live-table lock contention, including worker startup.
+SET LOCAL lock_timeout = '100ms';
+SET LOCAL statement_timeout = '2s';
+
 CREATE TABLE IF NOT EXISTS codex_harvest_learning_epoch (
     id SMALLINT PRIMARY KEY CHECK (id = 1),
     generation BIGINT NOT NULL DEFAULT 1

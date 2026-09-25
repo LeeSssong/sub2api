@@ -1,3 +1,7 @@
+-- Online fusion: fail promptly on live-table lock contention, including worker startup.
+SET LOCAL lock_timeout = '100ms';
+SET LOCAL statement_timeout = '2s';
+
 -- Request capture bodies live in DATA_DIR/request-captures, never in PostgreSQL.
 CREATE TABLE IF NOT EXISTS request_capture_tasks (
     id TEXT PRIMARY KEY,

@@ -1,3 +1,7 @@
+-- Online fusion: fail promptly on live-table lock contention, including worker startup.
+SET LOCAL lock_timeout = '100ms';
+SET LOCAL statement_timeout = '2s';
+
 -- 鹈鹕测智用户展示：定时鹈鹕测试成功生成的 HTML 按展示分组各复制一份，
 -- 独立于管理员的测试历史保留与清理（每组最多保留 N 张，可选超过 N 天自动清理）。
 -- 旧版本二进制不读写这张表，可继续运行。

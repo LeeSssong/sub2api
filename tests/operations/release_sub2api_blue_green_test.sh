@@ -207,7 +207,8 @@ run_controller() {
     RELEASE_MONOTONIC_BIN="$CASE_DIR/bin/monotonic" \
     "$@" bash "$CONTROLLER" --mode "$controller_mode" --evidence "$EVIDENCE" \
     ${CONTROLLER_MAINTENANCE_AUTHORIZED:+--maintenance-authorized} \
-    ${CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH:+--online-migrations-from-hash "$CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH"}
+    ${CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH:+--online-migrations-from-hash "$CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH"} \
+    ${CONTROLLER_DRAIN_MODE:+--drain-mode "$CONTROLLER_DRAIN_MODE"}
 }
 
 expect_failure_before_transport() {
@@ -374,11 +375,29 @@ test_maintenance_controller_forwards_exact_current_migration_hash() {
 test_online_migration_controller_requires_explicit_hash() {
   local old_hash=dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54
   setup_case online-migration-hash
+  git -C "$ROOT" archive origin/main upstream/sub2api/backend/migrations | tar -x -C "$CASE_DIR/repo"
+  git -C "$CASE_DIR/repo" add .
+  git -C "$CASE_DIR/repo" commit -qm baseline-migrations
+  git -C "$CASE_DIR/repo" push -q origin main
   write_evidence
   CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH=$old_hash run_controller >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
     || fail "online migration controller failed: $(cat "$CASE_DIR/stderr")"
   grep -F -- "--online-migrations-from-hash $old_hash" "$CASE_DIR/ssh.log" >/dev/null \
     || fail 'online migration source hash was not forwarded'
+}
+
+test_fusion_controller_hash_and_retain() {
+  local predecessor=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b
+  setup_case fusion-controller
+  cp "$ROOT"/upstream/sub2api/backend/migrations/*.sql "$CASE_DIR/repo/upstream/sub2api/backend/migrations/"
+  git -C "$CASE_DIR/repo" add .
+  git -C "$CASE_DIR/repo" commit -qm fusion-migrations
+  git -C "$CASE_DIR/repo" push -q origin main
+  write_evidence
+  if CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH=$predecessor run_controller >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr"; then fail 'fusion accepted forced drain'; fi
+  [[ ! -s "$CASE_DIR/docker.log" && ! -s "$CASE_DIR/ssh.log" ]] || fail 'unsafe fusion reached transport'
+  CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH=$predecessor CONTROLLER_DRAIN_MODE=retain run_controller >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" || fail "fusion controller failed: $(cat "$CASE_DIR/stderr")"
+  grep -q -- '--drain-mode retain' "$CASE_DIR/ssh.log" || fail 'retain mode was not forwarded'
 }
 
 test_downtime_gate_is_propagated_without_retry() {
@@ -575,6 +594,7 @@ test_evidence_rejected_before_transport
 test_build_publish_and_host_invocation
 test_maintenance_controller_forwards_exact_current_migration_hash
 test_online_migration_controller_requires_explicit_hash
+test_fusion_controller_hash_and_retain
 test_downtime_gate_is_propagated_without_retry
 test_executor_install_failures_stop_before_build
 test_executor_parent_chain_rejects_before_build

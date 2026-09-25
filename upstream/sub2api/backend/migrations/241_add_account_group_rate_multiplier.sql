@@ -1,3 +1,7 @@
+-- Online fusion: fail promptly on live-table lock contention, including worker startup.
+SET LOCAL lock_timeout = '100ms';
+SET LOCAL statement_timeout = '2s';
+
 ALTER TABLE accounts
     ADD COLUMN IF NOT EXISTS group_rate_multiplier DECIMAL(10,4) NOT NULL DEFAULT 1.0;
 

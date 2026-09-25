@@ -129,6 +129,7 @@ services:
     logging: *logging
 
   sub2api-worker:
+    stop_grace_period: 60s
     <<: *sub2api-service
     image: ${SUB2API_WORKER_IMAGE:?SUB2API_WORKER_IMAGE is required}
     environment:
