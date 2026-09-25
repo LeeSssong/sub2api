@@ -1,6 +1,9 @@
 package service
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 const tokenGuardSecretMask = "********"
 
@@ -55,13 +58,43 @@ func restoreTokenGuardSecrets(c, previous AccountTokenGuardConfig) AccountTokenG
 	c.BarkKey = restore(c.BarkKey, previous.BarkKey)
 	c.ReloginAccounts = append([]AccountTokenGuardReloginAccount(nil), c.ReloginAccounts...)
 	for i := range c.ReloginAccounts {
+		prior := AccountTokenGuardReloginAccount{}
 		for _, old := range previous.ReloginAccounts {
 			if strings.EqualFold(strings.TrimSpace(c.ReloginAccounts[i].Email), old.Email) {
-				c.ReloginAccounts[i].Password = restore(c.ReloginAccounts[i].Password, old.Password)
-				c.ReloginAccounts[i].MFASecret = restore(c.ReloginAccounts[i].MFASecret, old.MFASecret)
+				prior = old
 				break
 			}
 		}
+		c.ReloginAccounts[i].Password = restore(c.ReloginAccounts[i].Password, prior.Password)
+		c.ReloginAccounts[i].MFASecret = restore(c.ReloginAccounts[i].MFASecret, prior.MFASecret)
 	}
 	return c
+}
+
+const tokenGuardEncryptedPrefix = "encrypted:v1:"
+
+// SetEncryptor must be called during construction before the service is used.
+func (s *AccountTokenGuardService) SetEncryptor(e SecretEncryptor) { s.encryptor = e }
+func (s *AccountTokenGuardService) encodeConfig(raw string) (string, error) {
+	if s.encryptor == nil {
+		return raw, nil
+	}
+	encrypted, err := s.encryptor.Encrypt(raw)
+	if err != nil {
+		return "", errors.New("凭证守护配置加密失败")
+	}
+	return tokenGuardEncryptedPrefix + encrypted, nil
+}
+func (s *AccountTokenGuardService) decodeConfig(raw string) (string, error) {
+	if !strings.HasPrefix(raw, tokenGuardEncryptedPrefix) {
+		return raw, nil
+	}
+	if s.encryptor == nil {
+		return "", errors.New("凭证守护配置缺少解密器")
+	}
+	decoded, err := s.encryptor.Decrypt(strings.TrimPrefix(raw, tokenGuardEncryptedPrefix))
+	if err != nil {
+		return "", errors.New("凭证守护配置解密失败")
+	}
+	return decoded, nil
 }
