@@ -1,6 +1,7 @@
 export default {
     accounts: {
       admission: {
+        importWarning: 'Accounts automatically join the selected groups after both checks pass. Accounts that do not pass stay in the temporary test group or remain unassigned.',
         enabled: 'Check for degraded performance before import',
         testGroup: 'Temporary test group',
         selectTestGroup: 'Select a temporary test group',

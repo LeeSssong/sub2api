@@ -2,6 +2,7 @@ export default {
     accounts: {
       admission: {
         enabled: '导入前降智检测',
+        importWarning: '检测全部通过后自动加入所选分组；未通过的账号保留在临时检测分组或未分配状态。',
         testGroup: '临时检测分组',
         selectTestGroup: '请选择临时检测分组',
         unassigned: '未分配',
