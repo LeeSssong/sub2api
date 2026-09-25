@@ -174,22 +174,23 @@ type OpenAIRefreshTokenRequest struct {
 }
 
 type OpenAICodexPATCreateRequest struct {
-	AccessToken             string         `json:"access_token" binding:"required"`
-	Name                    string         `json:"name"`
-	Notes                   *string        `json:"notes"`
-	GroupIDs                []int64        `json:"group_ids"`
-	ProxyID                 *int64         `json:"proxy_id"`
-	Concurrency             *int           `json:"concurrency"`
-	Priority                *int           `json:"priority"`
-	RateMultiplier          *float64       `json:"rate_multiplier"`
-	LoadFactor              *int           `json:"load_factor"`
-	ExpiresAt               *int64         `json:"expires_at"`
-	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
-	CredentialExtras        map[string]any `json:"credential_extras"`
-	Extra                   map[string]any `json:"extra"`
-	SkipDefaultGroupBind    *bool          `json:"skip_default_group_bind"`
-	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"`
-	ActiveProbeEnabled      *bool          `json:"active_probe_enabled"`
+	Admission               *service.AccountAdmissionInput `json:"admission,omitempty"`
+	AccessToken             string                         `json:"access_token" binding:"required"`
+	Name                    string                         `json:"name"`
+	Notes                   *string                        `json:"notes"`
+	GroupIDs                []int64                        `json:"group_ids"`
+	ProxyID                 *int64                         `json:"proxy_id"`
+	Concurrency             *int                           `json:"concurrency"`
+	Priority                *int                           `json:"priority"`
+	RateMultiplier          *float64                       `json:"rate_multiplier"`
+	LoadFactor              *int                           `json:"load_factor"`
+	ExpiresAt               *int64                         `json:"expires_at"`
+	AutoPauseOnExpired      *bool                          `json:"auto_pause_on_expired"`
+	CredentialExtras        map[string]any                 `json:"credential_extras"`
+	Extra                   map[string]any                 `json:"extra"`
+	SkipDefaultGroupBind    *bool                          `json:"skip_default_group_bind"`
+	ConfirmMixedChannelRisk *bool                          `json:"confirm_mixed_channel_risk"`
+	ActiveProbeEnabled      *bool                          `json:"active_probe_enabled"`
 }
 
 // RefreshToken refreshes an OpenAI OAuth token
@@ -301,74 +302,93 @@ func (h *OpenAIOAuthHandler) RefreshAccountToken(c *gin.Context) {
 // POST /api/v1/admin/openai/create-from-oauth
 func (h *OpenAIOAuthHandler) CreateAccountFromOAuth(c *gin.Context) {
 	var req struct {
-		SessionID   string  `json:"session_id" binding:"required"`
-		Code        string  `json:"code" binding:"required"`
-		State       string  `json:"state" binding:"required"`
-		RedirectURI string  `json:"redirect_uri"`
-		ProxyID     *int64  `json:"proxy_id"`
-		Name        string  `json:"name"`
-		Concurrency int     `json:"concurrency"`
-		Priority    int     `json:"priority"`
-		GroupIDs    []int64 `json:"group_ids"`
+		Admission   *service.AccountAdmissionInput `json:"admission,omitempty"`
+		SessionID   string                         `json:"session_id" binding:"required"`
+		Code        string                         `json:"code" binding:"required"`
+		State       string                         `json:"state" binding:"required"`
+		RedirectURI string                         `json:"redirect_uri"`
+		ProxyID     *int64                         `json:"proxy_id"`
+		Name        string                         `json:"name"`
+		Concurrency int                            `json:"concurrency"`
+		Priority    int                            `json:"priority"`
+		GroupIDs    []int64                        `json:"group_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	if !validateAdmissionBeforeAuthorization(c, h.adminService, &service.CreateAccountInput{Platform: service.PlatformOpenAI, Extra: nil, GroupIDs: req.GroupIDs, Admission: req.Admission}) {
+		return
+	}
 
-	// Exchange code for tokens
-	tokenInfo, err := h.openaiOAuthService.ExchangeCode(c.Request.Context(), &service.OpenAIExchangeCodeInput{
-		SessionID:   req.SessionID,
-		Code:        req.Code,
-		State:       req.State,
-		RedirectURI: req.RedirectURI,
-		ProxyID:     req.ProxyID,
-	})
+	execute := func(ctx context.Context) (any, error) {
+		// Exchange code for tokens
+		tokenInfo, err := h.openaiOAuthService.ExchangeCode(ctx, &service.OpenAIExchangeCodeInput{
+			SessionID:   req.SessionID,
+			Code:        req.Code,
+			State:       req.State,
+			RedirectURI: req.RedirectURI,
+			ProxyID:     req.ProxyID,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// Build credentials from token info
+		credentials := h.openaiOAuthService.BuildAccountCredentials(tokenInfo)
+
+		platform := oauthPlatformFromPath(c)
+
+		// Use email as default name if not provided
+		name := req.Name
+		if name == "" && tokenInfo.Email != "" {
+			name = tokenInfo.Email
+		}
+		if name == "" {
+			name = "OpenAI OAuth Account"
+		}
+
+		// Create account
+		account, err := h.adminService.CreateAccount(ctx, &service.CreateAccountInput{
+			Name:        name,
+			Platform:    platform,
+			Type:        "oauth",
+			Credentials: credentials,
+			Extra:       nil,
+			ProxyID:     req.ProxyID,
+			Concurrency: req.Concurrency,
+			Priority:    req.Priority,
+			GroupIDs:    req.GroupIDs,
+			Admission:   req.Admission,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return dto.AccountFromService(account), nil
+	}
+	if req.Admission.IsEnabled() {
+		if c.GetHeader("Idempotency-Key") == "" {
+			c.Request.Header.Set("Idempotency-Key", "admission-oauth-"+req.SessionID)
+		}
+		executeAdminIdempotentJSON(c, "admin.accounts.admission.openai_oauth", req, service.DefaultWriteIdempotencyTTL(), execute)
+		return
+	}
+	data, err := execute(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-
-	// Build credentials from token info
-	credentials := h.openaiOAuthService.BuildAccountCredentials(tokenInfo)
-
-	platform := oauthPlatformFromPath(c)
-
-	// Use email as default name if not provided
-	name := req.Name
-	if name == "" && tokenInfo.Email != "" {
-		name = tokenInfo.Email
-	}
-	if name == "" {
-		name = "OpenAI OAuth Account"
-	}
-
-	// Create account
-	account, err := h.adminService.CreateAccount(c.Request.Context(), &service.CreateAccountInput{
-		Name:        name,
-		Platform:    platform,
-		Type:        "oauth",
-		Credentials: credentials,
-		Extra:       nil,
-		ProxyID:     req.ProxyID,
-		Concurrency: req.Concurrency,
-		Priority:    req.Priority,
-		GroupIDs:    req.GroupIDs,
-	})
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, dto.AccountFromService(account))
+	response.Success(c, data)
 }
 
-// CreateAccountFromCodexPAT creates an OpenAI OAuth account from a Codex at-* personal access token.
-// POST /api/v1/admin/openai/create-from-codex-pat
 func (h *OpenAIOAuthHandler) CreateAccountFromCodexPAT(c *gin.Context) {
 	var req OpenAICodexPATCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if !validateAdmissionBeforeAuthorization(c, h.adminService, &service.CreateAccountInput{Platform: service.PlatformOpenAI, Extra: req.Extra, GroupIDs: req.GroupIDs, Admission: req.Admission}) {
 		return
 	}
 	if err := service.ValidateOpenAILongContextBillingExtra(service.PlatformOpenAI, req.Extra); err != nil {
@@ -447,6 +467,7 @@ func (h *OpenAIOAuthHandler) CreateAccountFromCodexPAT(c *gin.Context) {
 		RateMultiplier:        req.RateMultiplier,
 		LoadFactor:            req.LoadFactor,
 		GroupIDs:              req.GroupIDs,
+		Admission:             req.Admission,
 		ExpiresAt:             req.ExpiresAt,
 		AutoPauseOnExpired:    req.AutoPauseOnExpired,
 		ActiveProbeEnabled:    req.ActiveProbeEnabled,

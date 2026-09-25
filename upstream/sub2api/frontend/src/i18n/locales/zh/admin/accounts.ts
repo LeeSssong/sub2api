@@ -1,5 +1,17 @@
 export default {
     accounts: {
+      admission: {
+        enabled: '导入前降智检测',
+        importWarning: '检测全部通过后自动加入所选分组；未通过的账号保留在临时检测分组或未分配状态。',
+        testGroup: '临时检测分组',
+        selectTestGroup: '请选择临时检测分组',
+        unassigned: '未分配',
+        targetGroups: '通过后的分组',
+        testGroupRequired: '请选择临时检测分组后再继续授权',
+        targetGroupsRequired: '请至少选择一个通过后加入的分组',
+        groupsOverlap: '临时检测分组不能与通过后的分组重合',
+        invalidGroups: '请选择有效且与账号平台兼容的分组，且不要重复选择'
+      },
       title: '账号管理',
       description: '管理 AI 平台账号和 Cookie',
       modelDetection: {

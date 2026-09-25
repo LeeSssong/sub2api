@@ -240,7 +240,7 @@ func (a *Account) IsSchedulable() bool {
 // IsSchedulableAt applies the same account-level scheduling gates as
 // IsSchedulable against a caller-owned snapshot time.
 func (a *Account) IsSchedulableAt(now time.Time) bool {
-	if !a.IsActive() || !a.Schedulable {
+	if a.AdmissionBlocked() || !a.IsActive() || !a.Schedulable {
 		return false
 	}
 	if a.AutoPauseOnExpired && a.ExpiresAt != nil && !now.Before(*a.ExpiresAt) {
@@ -274,7 +274,7 @@ func (a *Account) IsSchedulableAt(now time.Time) bool {
 // 手动 Schedulable 开关:spark 影子拥有独立 spark 配额窗口,母账号 global 429(走 RateLimitResetAt)
 // 不应连坐 spark(否则重新耦合影子架构本应解耦的两条 429 道)。nil receiver 返回 false。
 func (a *Account) IsCredentialUsableForShadow() bool {
-	if a == nil || !a.IsActive() {
+	if a == nil || a.AdmissionBlocked() || !a.IsActive() {
 		return false
 	}
 	now := time.Now()
