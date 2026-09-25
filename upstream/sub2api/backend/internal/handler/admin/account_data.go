@@ -74,14 +74,17 @@ type DataAccount struct {
 }
 
 type DataImportRequest struct {
-	Data                 DataPayload `json:"data"`
-	SkipDefaultGroupBind *bool       `json:"skip_default_group_bind"`
+	Admission            *service.AccountAdmissionInput `json:"admission,omitempty"`
+	GroupIDs             []int64                        `json:"group_ids,omitempty"`
+	Data                 DataPayload                    `json:"data"`
+	SkipDefaultGroupBind *bool                          `json:"skip_default_group_bind"`
 }
 
 type DataImportResult struct {
 	ProxyCreated   int               `json:"proxy_created"`
 	ProxyReused    int               `json:"proxy_reused"`
 	ProxyFailed    int               `json:"proxy_failed"`
+	AccountSkipped int               `json:"account_skipped"`
 	AccountCreated int               `json:"account_created"`
 	AccountFailed  int               `json:"account_failed"`
 	Errors         []DataImportError `json:"errors,omitempty"`
@@ -436,24 +439,31 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 		enrichCredentialsFromIDToken(&item)
 
 		accountInput := &service.CreateAccountInput{
-			Name:                 item.Name,
-			Notes:                item.Notes,
-			Platform:             item.Platform,
-			Type:                 item.Type,
-			Credentials:          item.Credentials,
-			Extra:                item.Extra,
-			ProxyID:              proxyID,
-			Concurrency:          item.Concurrency,
-			Priority:             item.Priority,
-			RateMultiplier:       item.RateMultiplier,
-			GroupRateMultiplier:  item.GroupRateMultiplier,
-			GroupIDs:             nil,
-			ExpiresAt:            item.ExpiresAt,
-			AutoPauseOnExpired:   item.AutoPauseOnExpired,
-			SkipDefaultGroupBind: skipDefaultGroupBind,
+			Name:                    item.Name,
+			Notes:                   item.Notes,
+			Platform:                item.Platform,
+			Type:                    item.Type,
+			Credentials:             item.Credentials,
+			Extra:                   item.Extra,
+			ProxyID:                 proxyID,
+			Concurrency:             item.Concurrency,
+			Priority:                item.Priority,
+			RateMultiplier:          item.RateMultiplier,
+			GroupRateMultiplier:     item.GroupRateMultiplier,
+			GroupIDs:                req.GroupIDs,
+			Admission:               req.Admission,
+			AdmissionAllowUngrouped: true,
+			ExpiresAt:               item.ExpiresAt,
+			AutoPauseOnExpired:      item.AutoPauseOnExpired,
+			SkipDefaultGroupBind:    skipDefaultGroupBind,
 		}
 
 		created, err := h.adminService.CreateAccount(ctx, accountInput)
+		if errors.Is(err, service.ErrAdmissionDuplicate) {
+			result.AccountSkipped++
+			result.Errors = append(result.Errors, DataImportError{Kind: "account", Name: item.Name, Message: "admission skipped: existing account is preserved"})
+			continue
+		}
 		if err != nil {
 			result.AccountFailed++
 			result.Errors = append(result.Errors, DataImportError{

@@ -415,25 +415,28 @@ type UpdateGroupInput struct {
 }
 
 type CreateAccountInput struct {
-	Name                  string
-	Notes                 *string
-	Platform              string
-	Type                  string
-	Credentials           map[string]any
-	Extra                 map[string]any
-	ProxyID               *int64
-	Concurrency           int
-	Priority              int
-	RateMultiplier        *float64 // 账号计费倍率（>=0，允许 0）
-	EffectiveCostModel    string
-	UpstreamActualCost    *float64
-	UpstreamObtainedQuota *float64
-	LoadFactor            *int
-	GroupIDs              []int64
-	ExpiresAt             *int64
-	AutoPauseOnExpired    *bool
-	ProbeEnabled          *bool
-	RateSyncEnabled       *bool
+	Admission *AccountAdmissionInput
+	// AdmissionAllowUngrouped is set only by JSON import handlers.
+	AdmissionAllowUngrouped bool
+	Name                    string
+	Notes                   *string
+	Platform                string
+	Type                    string
+	Credentials             map[string]any
+	Extra                   map[string]any
+	ProxyID                 *int64
+	Concurrency             int
+	Priority                int
+	RateMultiplier          *float64 // 账号计费倍率（>=0，允许 0）
+	EffectiveCostModel      string
+	UpstreamActualCost      *float64
+	UpstreamObtainedQuota   *float64
+	LoadFactor              *int
+	GroupIDs                []int64
+	ExpiresAt               *int64
+	AutoPauseOnExpired      *bool
+	ProbeEnabled            *bool
+	RateSyncEnabled         *bool
 	// ActiveProbeEnabled controls automatic connection probes and scheduled model detection.
 	// Nil preserves the backward-compatible enabled default.
 	ActiveProbeEnabled  *bool
