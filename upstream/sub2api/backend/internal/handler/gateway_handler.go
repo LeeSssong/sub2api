@@ -1298,8 +1298,15 @@ func (h *GatewayHandler) CodexModels(c *gin.Context) {
 	if value, exists := middleware2.GetForcePlatformFromContext(c); exists {
 		forcedPlatform = strings.TrimSpace(value)
 	}
-	modelIDs := service.FilterCodexModelIDsForGroup(h.codexModelIDsForGroup(c.Request.Context(), apiKey.Group, forcedPlatform), apiKey.Group)
-	body, err := h.gatewayService.BuildCodexModelsManifestForGroup(c.Request.Context(), apiKey.Group, forcedPlatform, modelIDs)
+	modelIDs := h.codexModelIDsForGroup(c.Request.Context(), apiKey.Group, forcedPlatform)
+	modelIDs = service.FilterCodexModelIDsForGroup(modelIDs, apiKey.Group)
+	modelIDs = service.FilterUserGroupDeniedModelIDs(modelIDs, apiKey.DeniedModelsInGroup())
+	body, err := h.gatewayService.BuildCodexModelsManifestForGroup(
+		c.Request.Context(),
+		apiKey.Group,
+		forcedPlatform,
+		modelIDs,
+	)
 	if err != nil {
 		h.errorResponse(c, http.StatusInternalServerError, "api_error", "Failed to build Codex models manifest")
 		return
@@ -1586,10 +1593,13 @@ func mergeModelIDs(primary, secondary []string) []string {
 // 分组级模型白名单开启时按白名单过滤。
 func (h *GatewayHandler) AntigravityModels(c *gin.Context) {
 	models := antigravity.DefaultModels()
-	if apiKey, ok := middleware2.GetAPIKeyFromContext(c); ok && apiKey != nil && apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
+	if apiKey, ok := middleware2.GetAPIKeyFromContext(c); ok && apiKey != nil &&
+		((apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled()) || len(apiKey.DeniedModelsInGroup()) > 0) {
+		allowlistEnabled := apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled()
+		denied := apiKey.DeniedModelsInGroup()
 		filtered := make([]antigravity.ClaudeModel, 0, len(models))
 		for _, model := range models {
-			if apiKey.Group.ModelAllowlist.Allows(model.ID) {
+			if (!allowlistEnabled || apiKey.Group.ModelAllowlist.Allows(model.ID)) && !service.UserGroupDeniesModel(denied, model.ID) {
 				filtered = append(filtered, model)
 			}
 		}

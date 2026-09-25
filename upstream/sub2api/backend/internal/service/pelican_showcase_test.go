@@ -115,6 +115,8 @@ func TestPelicanShowcasePublishOnlyEnabledHTMLSuccess(t *testing.T) {
 			PelicanConfig: &PelicanTestConfig{QuestionKind: "candy"}}},
 		{"built-in candy prompt", enabledShowcase(1), &ScheduledTestResult{ID: 1, Status: "success", ResponseText: "<svg></svg>",
 			PelicanConfig: &PelicanTestConfig{Prompt: CandyPrompt}}},
+		{"graded quality question", enabledShowcase(1), &ScheduledTestResult{ID: 1, Status: "success", ResponseText: "<html></html>",
+			PelicanConfig: &PelicanTestConfig{Quality: &QualityPolicy{}}}},
 		{"unsaved result", enabledShowcase(1), pelicanSuccess(0, "<svg></svg>")},
 		{"gallery off", &showcaseSettingsStub{runtime: PelicanShowcaseRuntime{Config: PelicanShowcaseConfig{GroupIDs: []int64{1}}}}, pelicanSuccess(1, "<svg></svg>")},
 		{"no groups", enabledShowcase(), pelicanSuccess(1, "<svg></svg>")},

@@ -257,6 +257,10 @@ func firstNonEmpty(values ...string) string {
 }
 
 type SystemSettings struct {
+	OpenAICodexTicketHarvestScope       CodexTicketHarvestScope
+	OpenAICodexTicketStrictResponse     bool
+	OpenAICodexTicketFailClosed         bool
+	OpenAICodexTicketStrategy           string
 	RegistrationEnabled                 bool
 	EmailVerifyEnabled                  bool
 	RegistrationEmailSuffixWhitelist    []string
@@ -424,6 +428,7 @@ type SystemSettings struct {
 	DefaultUserRPMLimit               int
 	DefaultSubscriptions              []DefaultSubscriptionSetting
 	MonitorPageRefreshIntervalSeconds int
+	CyberSessionIdentityStrictEnabled bool
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -500,15 +505,19 @@ type SystemSettings struct {
 	OpenAICodexClientVersion               string // 出站声明的 Codex 客户端版本号（管理员覆写）；空值跟随自动同步值
 	OpenAICodexClientVersionSynced         string // 自动同步到的官方最新稳定版版本号（只读展示）
 	OpenAICodexVersionAutoSyncEnabled      bool   // 是否启用 Codex 客户端版本号自动同步（默认 true）
-	ClaudeCodeClientVersion                string // 出站声明的 Claude Code CLI 客户端版本号（管理员覆写）；空值跟随自动同步值
-	ClaudeCodeClientVersionSynced          string // 自动同步到的官方最新版本号（只读展示）
-	ClaudeCodeVersionAutoSyncEnabled       bool   // 是否启用 Claude Code 客户端版本号自动同步（默认 true）
-	MinCodexVersion                        string // codex_cli_only 最低 Codex 引擎版本；空=不检查
-	MaxCodexVersion                        string // codex_cli_only 最高 Codex 引擎版本；空=不检查
-	CodexCLIOnlyBlacklist                  string // codex_cli_only 全局黑名单 JSON（[]AllowedClientEntry，OR deny）
-	CodexCLIOnlyWhitelist                  string // codex_cli_only 全局白名单 JSON（[]AllowedClientEntry，AND allow）
-	CodexCLIOnlyAllowAppServerClients      bool   // codex_cli_only App Server 开关：对未列名客户端开闸（默认 false）
-	CodexCLIOnlyEngineFingerprintSignals   string // codex_cli_only 引擎指纹门信号列表 JSON（[]EngineFingerprintSignal）
+	OpenAICodexTicketEnabled               bool   // Codex 292 打票总开关；关闭则不打票不注入
+	OpenAICodexTicketHarvestProxyURL       string // Codex 292 打票代理 URL；空则回退 yaml/env
+	OpenAICodexTicketStaticProxyURL        string
+	OpenAICodexTicketModels                []string // Codex 292 打票模型列表；缺失时回退 yaml/env
+	MinCodexVersion                        string   // codex_cli_only 最低 Codex 引擎版本；空=不检查
+	MaxCodexVersion                        string   // codex_cli_only 最高 Codex 引擎版本；空=不检查
+	CodexCLIOnlyBlacklist                  string   // codex_cli_only 全局黑名单 JSON（[]AllowedClientEntry，OR deny）
+	CodexCLIOnlyWhitelist                  string   // codex_cli_only 全局白名单 JSON（[]AllowedClientEntry，AND allow）
+	CodexCLIOnlyAllowAppServerClients      bool     // codex_cli_only App Server 开关：对未列名客户端开闸（默认 false）
+	CodexCLIOnlyEngineFingerprintSignals   string   // codex_cli_only 引擎指纹门信号列表 JSON（[]EngineFingerprintSignal）
+	ClaudeCodeClientVersion                string   // 出站声明的 Claude Code CLI 客户端版本号（管理员覆写）；空值跟随自动同步值
+	ClaudeCodeClientVersionSynced          string   // 自动同步到的官方最新版本号（只读展示）
+	ClaudeCodeVersionAutoSyncEnabled       bool     // 是否启用 Claude Code 客户端版本号自动同步（默认 true）
 
 	// Web Search Emulation
 	WebSearchEmulationEnabled bool // 是否启用 web search 模拟
@@ -567,7 +576,12 @@ type SystemSettings struct {
 	AccountSchedulingThresholds map[string]int `json:"account_scheduling_thresholds"`
 
 	// 允许终端用户在用量页查看自己的失败请求
-	AllowUserViewErrorRequests bool
+	AllowUserViewErrorRequests  bool
+	RequestCaptureEnabled       bool
+	RequestCaptureQuotaMiB      int64
+	RequestCaptureRetentionDays int
+	ExcelBPSImageRelayEnabled   bool
+	ExcelBPSImageBaseURL        string
 }
 
 type DefaultSubscriptionSetting struct {

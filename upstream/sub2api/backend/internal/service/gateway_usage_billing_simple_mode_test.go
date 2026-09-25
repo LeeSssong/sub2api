@@ -92,7 +92,7 @@ func TestApplyUsageBillingSimpleModeRejectsLegacyFallback(t *testing.T) {
 			p := &postUsageBillingParams{
 				Cost: &CostBreakdown{ActualCost: 1}, User: &User{ID: 7},
 				UsageCompleteness: UsageCompletenessComplete,
-				APIKey: &APIKey{ID: 13, RateLimit5h: 10}, Account: &Account{ID: 9},
+				APIKey:            &APIKey{ID: 13, RateLimit5h: 10}, Account: &Account{ID: 9},
 				SimpleModeKeyRateLimitOnly: true,
 			}
 			var repo UsageBillingRepository = &simpleModeUsageBillingRepoStub{}

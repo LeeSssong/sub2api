@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -20,10 +21,12 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/platform/liveattestation"
+	"github.com/Wei-Shaw/sub2api/internal/service/basispoints"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/cespare/xxhash/v2"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -303,6 +306,9 @@ type OpenAIForwardResult struct {
 	wsReplayInput                []json.RawMessage
 	wsReplayInputExists          bool
 	wsAccountFailoverReplayInput []json.RawMessage
+	// Local stream-read timeout is not an observed upstream terminal event.
+	// Keep observed partial usage without reporting a successful generation.
+	streamReadIncomplete bool
 }
 
 // UpdateActualResponseModel persists the audit-only model observed in an
@@ -330,6 +336,9 @@ func (s *OpenAIGatewayService) UpdateActualResponseModel(ctx context.Context, re
 // that may clear model-scoped transient state. The zero value remains a success
 // for existing non-WS callers.
 func (r *OpenAIForwardResult) SucceededForScheduling() bool {
+	if r != nil && r.streamReadIncomplete {
+		return false
+	}
 	if r == nil || !r.OpenAIWSMode || r.UpstreamTerminalEvent == "" {
 		return true
 	}
@@ -503,6 +512,10 @@ type OpenAIGatewayService struct {
 	costEvidenceRegistrar         UsageCostEvidenceRegisterer
 	liveAttestation               liveattestation.Provider
 	liveAttestationCipher         SecretEncryptor
+	excelBPSImagesMu              sync.Mutex
+	excelBPSImages                *basispoints.ImageRelay
+	codexHarvestRunMu             sync.RWMutex
+	proxyRepo                     ProxyRepository
 
 	openaiWSPoolOnce               sync.Once
 	openaiWSStateStoreOnce         sync.Once
@@ -542,6 +555,21 @@ type OpenAIGatewayService struct {
 	// 剥离跨账号回带（openai_codex_turn_state.go）。
 	openaiCodexTurnStateOrigins sync.Map
 	openaiCodexTurnStateWrites  atomic.Uint64
+	// openaiCodexTickets: accountID\x00model → *openAICodexTicket，292 长度门票。
+	openaiCodexTickets             sync.Map
+	openaiCodexTicketStateMu       sync.Mutex
+	openaiCodexTicketCursors       sync.Map // codexHarvestTier -> *atomic.Uint64
+	openaiCodexTicketFlight        singleflight.Group
+	openaiCodexTicketProbeCooldown sync.Map // accountID\x00model -> time.Time
+	openaiCodexTicketChatHold      sync.Map // accountID -> *int64 in-flight bound chats
+	openaiCodexTicketLifecycleMu   sync.Mutex
+	openaiCodexTicketCancel        context.CancelFunc
+	openaiCodexTicketDone          chan struct{}
+	openaiCodexTicketStopped       bool
+
+	requireLatestTurnAdmission bool
+	codexHarvest               *CodexHarvestService
+	codexHarvestRoundActive    atomic.Bool
 }
 
 func (s *OpenAIGatewayService) SetUsageCostEvidenceRegistrar(registrar UsageCostEvidenceRegisterer) {
@@ -557,9 +585,12 @@ func (s *OpenAIGatewayService) usageCostEvidenceRegistrarFor(account *Account) U
 	return s.costEvidenceRegistrar
 }
 
+type OpenAIGatewayOption func(*OpenAIGatewayService)
+
 // NewOpenAIGatewayService creates a new OpenAIGatewayService
 func NewOpenAIGatewayService(
 	accountRepo AccountRepository,
+	proxyRepo ProxyRepository,
 	usageLogRepo UsageLogRepository,
 	usageBillingRepo UsageBillingRepository,
 	userRepo UserRepository,
@@ -581,6 +612,7 @@ func NewOpenAIGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	options ...OpenAIGatewayOption,
 ) *OpenAIGatewayService {
 	// enforceCodexIdentityHeaders 是 HTTP / 透传 / WS / 探针 等出站路径共用的纯函数收口点，
 	// 拿不到配置，故在此发布进程级开关快照。配置取反义，零值即「强制统一出口开启」。
@@ -589,6 +621,7 @@ func NewOpenAIGatewayService(
 	}
 	svc := &OpenAIGatewayService{
 		accountRepo:         accountRepo,
+		proxyRepo:           proxyRepo,
 		usageLogRepo:        usageLogRepo,
 		usageBillingRepo:    usageBillingRepo,
 		userRepo:            userRepo,
@@ -608,23 +641,24 @@ func NewOpenAIGatewayService(
 			nil,
 			"service.openai_gateway",
 		),
-		httpUpstream:          httpUpstream,
-		deferredService:       deferredService,
-		openAITokenProvider:   openAITokenProvider,
-		grokTokenProvider:     grokTokenProvider,
-		toolCorrector:         NewCodexToolCorrector(),
-		openaiWSResolver:      NewOpenAIWSProtocolResolver(cfg),
-		resolver:              resolver,
-		channelService:        channelService,
-		balanceNotifyService:  balanceNotifyService,
-		settingService:        settingService,
-		userPlatformQuotaRepo: userPlatformQuotaRepo,
-		liveAttestation:       liveattestation.NewProvider(),
-		liveAttestationCipher: newLiveAttestationCipher(cfg),
-		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
-		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
-		openaiModelTransient:  newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax),
-		openaiFirstOutputSlow: newOpenAIFirstOutputSlowTracker(nil, nil),
+		httpUpstream:               httpUpstream,
+		deferredService:            deferredService,
+		openAITokenProvider:        openAITokenProvider,
+		grokTokenProvider:          grokTokenProvider,
+		toolCorrector:              NewCodexToolCorrector(),
+		openaiWSResolver:           NewOpenAIWSProtocolResolver(cfg),
+		resolver:                   resolver,
+		channelService:             channelService,
+		balanceNotifyService:       balanceNotifyService,
+		settingService:             settingService,
+		userPlatformQuotaRepo:      userPlatformQuotaRepo,
+		liveAttestation:            liveattestation.NewProvider(),
+		liveAttestationCipher:      newLiveAttestationCipher(cfg),
+		responseHeaderFilter:       compileResponseHeaderFilter(cfg),
+		codexSnapshotThrottle:      newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
+		openaiModelTransient:       newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax),
+		requireLatestTurnAdmission: true,
+		openaiFirstOutputSlow:      newOpenAIFirstOutputSlowTracker(nil, nil),
 	}
 	svc.openaiFirstOutputSlow.onSlow = func(key openAIFirstOutputSlowKey, ttftMS float64) {
 		RecordOpenAIResilienceOutcome(OpenAIResilienceEvent{
@@ -640,7 +674,11 @@ func NewOpenAIGatewayService(
 	if openAITokenProvider != nil {
 		openAITokenProvider.SetAccountRuntimeBlocker(svc)
 	}
+	for _, option := range options {
+		option(svc)
+	}
 	svc.logOpenAIWSModeBootstrap()
+	svc.StartOpenAICodexTicketHarvester()
 	return svc
 }
 
@@ -1290,6 +1328,7 @@ func hashSensitiveValueForLog(raw string) string {
 
 // GetAccessToken gets the access token for an OpenAI account
 func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Account) (string, string, error) {
+	defer requesttiming.Observe(ctx, "upstream_credentials")()
 	if account.IsShadow() {
 		credAccount, err := resolveCredentialAccount(ctx, s.accountRepo, account)
 		if err != nil {

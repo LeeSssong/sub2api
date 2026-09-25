@@ -581,8 +581,10 @@ func ProvideRateLimitService(
 	settingService *SettingService,
 	tokenCacheInvalidator TokenCacheInvalidator,
 	ollamaCloudUsage *OllamaCloudUsageService,
+	accountOps *AccountOpsService,
 ) *RateLimitService {
 	svc := NewRateLimitService(accountRepo, usageRepo, cfg, geminiQuotaService, tempUnschedCache)
+	svc.accountOps = accountOps
 	if healthCache, ok := tempUnschedCache.(OpenAIAPIKeyHealthCache); ok {
 		svc.SetOpenAIAPIKeyHealthCache(healthCache)
 	}
@@ -752,8 +754,10 @@ func ProvideScheduledTestRunnerService(
 	accountTestSvc *AccountTestService,
 	rateLimitSvc *RateLimitService,
 	cfg *config.Config,
+	judge *QualityJudgeService,
 ) *ScheduledTestRunnerService {
 	svc := NewScheduledTestRunnerService(planRepo, scheduledSvc, accountTestSvc, rateLimitSvc, cfg)
+	svc.judgeQuality = judge.Judge
 	if shouldStartSingleton(cfg) {
 		svc.Start()
 	}
@@ -989,62 +993,6 @@ func ProvideAPIKeyService(
 	return svc
 }
 
-func ProvideOpenAIGatewayService(
-	accountRepo AccountRepository,
-	usageLogRepo UsageLogRepository,
-	usageBillingRepo UsageBillingRepository,
-	userRepo UserRepository,
-	userSubRepo UserSubscriptionRepository,
-	userGroupRateRepo UserGroupRateRepository,
-	cache GatewayCache,
-	cfg *config.Config,
-	schedulerSnapshot *SchedulerSnapshotService,
-	concurrencyService *ConcurrencyService,
-	billingService *BillingService,
-	rateLimitService *RateLimitService,
-	billingCacheService *BillingCacheService,
-	httpUpstream HTTPUpstream,
-	deferredService *DeferredService,
-	openAITokenProvider *OpenAITokenProvider,
-	grokTokenProvider *GrokTokenProvider,
-	resolver *ModelPricingResolver,
-	channelService *ChannelService,
-	balanceNotifyService *BalanceNotifyService,
-	settingService *SettingService,
-	userPlatformQuotaRepo UserPlatformQuotaRepository,
-	turnStateStore OpenAITurnStateStore,
-	proxyRepo ProxyRepository,
-) *OpenAIGatewayService {
-	svc := NewOpenAIGatewayService(
-		accountRepo,
-		usageLogRepo,
-		usageBillingRepo,
-		userRepo,
-		userSubRepo,
-		userGroupRateRepo,
-		cache,
-		cfg,
-		schedulerSnapshot,
-		concurrencyService,
-		billingService,
-		rateLimitService,
-		billingCacheService,
-		httpUpstream,
-		deferredService,
-		openAITokenProvider,
-		grokTokenProvider,
-		resolver,
-		channelService,
-		balanceNotifyService,
-		settingService,
-		userPlatformQuotaRepo,
-	)
-	svc.SetOpenAITurnStateStore(turnStateStore)
-	svc.SetOpenAITurnStateHarvesterProxyRepository(proxyRepo)
-	svc.StartOpenAITurnStateHarvester()
-	return svc
-}
-
 func ProvideUsageCostEvidenceRegistrar(
 	usageRepo UsageLogRepository,
 	evidenceRepo UsageCostEvidenceRepository,
@@ -1062,6 +1010,7 @@ func ProvideUsageCostEvidenceRegistrar(
 var ProviderSet = wire.NewSet(
 	ProvideCodexRadarInsightsService,
 	ProvideCodexRadarCommunityService,
+	ProvideRequestCaptureManager,
 	// Core services
 	ProvideAuthService,
 	NewPasskeyService,
@@ -1090,6 +1039,8 @@ var ProviderSet = wire.NewSet(
 	NewGatewayService,
 	ProvideOpenAIGatewayService,
 	ProvideUsageCostEvidenceRegistrar,
+	wire.Struct(new(OpenAIGatewayDependencies), "*"),
+	ProvideCodexHarvestService,
 	ProvideImageStorageSettingService,
 	ProvideImageTaskService,
 	ProvideBatchImageModelPricingResolver,
@@ -1140,6 +1091,8 @@ var ProviderSet = wire.NewSet(
 	ProvideOpsAlertEvaluatorService,
 	ProvideOpsCleanupService,
 	ProvideOpsScheduledReportService,
+	ProvideAccountOpsService,
+	ProvideAccountTokenGuardService,
 	NewEmailService,
 	NewNotificationEmailService,
 	ProvideEmailQueueService,
@@ -1181,6 +1134,7 @@ var ProviderSet = wire.NewSet(
 	NewPelicanShowcaseService,
 	ProvideScheduledTestService,
 	ProvideScheduledTestRunnerService,
+	NewQualityJudgeService,
 	NewGroupCapacityService,
 	NewChannelService,
 	NewModelPlazaService,
@@ -1432,4 +1386,18 @@ func ProvideChannelMonitorV2Aggregator(repo ChannelMonitorV2Repository, db *sql.
 	}
 	aggregator.Start()
 	return aggregator
+}
+
+func ProvideAccountOpsService(settings SettingRepository, repo AccountOpsRepository, email *EmailService) *AccountOpsService {
+	svc := NewAccountOpsService(settings, repo, email)
+	svc.Start()
+	return svc
+}
+
+// ProvideAccountTokenGuardService 创建并启动「凭证守护」后台巡检（智能运维子页面）。
+func ProvideAccountTokenGuardService(settings SettingRepository, repo AccountTokenGuardRepository,
+	accounts AccountRepository, admin AdminService, invalidator TokenCacheInvalidator) *AccountTokenGuardService {
+	svc := NewAccountTokenGuardService(settings, repo, accounts, admin, invalidator)
+	svc.Start()
+	return svc
 }

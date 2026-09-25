@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -47,10 +48,14 @@ func (s *SettingService) UpdateSettingsOmitting(ctx context.Context, settings *S
 		return err
 	}
 
+	wakeHarvest := s.codexHarvestSettingsChanged(ctx, updates)
 	if err := s.settingRepo.SetMultiple(ctx, updates); err != nil {
 		return err
 	}
 	s.refreshCachedSettingsAfterWrite(ctx, settings, omitted)
+	if wakeHarvest {
+		s.notifyCodexHarvestAfterSettingsWrite()
+	}
 	return nil
 }
 
@@ -80,10 +85,14 @@ func (s *SettingService) UpdateSettingsWithAuthSourceDefaultsOmitting(ctx contex
 		return err
 	}
 
+	wakeHarvest := s.codexHarvestSettingsChanged(ctx, updates)
 	if err := s.settingRepo.SetMultiple(ctx, updates); err != nil {
 		return err
 	}
 	s.refreshCachedSettingsAfterWrite(ctx, settings, omitted)
+	if wakeHarvest {
+		s.notifyCodexHarvestAfterSettingsWrite()
+	}
 	return nil
 }
 
@@ -105,6 +114,15 @@ func (s *SettingService) refreshCachedSettingsAfterWrite(ctx context.Context, se
 }
 
 func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, settings *SystemSettings) (map[string]string, error) {
+	captureConfig := settings.requestCaptureConfig()
+	if err := captureConfig.Validate(); err != nil {
+		return nil, infraerrors.BadRequest("INVALID_REQUEST_CAPTURE_SETTINGS", err.Error())
+	}
+	imageRelay, err := normalizeExcelBPSImageRelaySettings(settings.ExcelBPSImageRelayEnabled, settings.ExcelBPSImageBaseURL)
+	if err != nil {
+		return nil, err
+	}
+	settings.ExcelBPSImageBaseURL = imageRelay.BaseURL
 	if err := s.validateDefaultSubscriptionGroups(ctx, settings.DefaultSubscriptions); err != nil {
 		return nil, err
 	}
@@ -472,6 +490,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if settings.CyberSessionBlockTTLSeconds > 0 {
 		updates[SettingKeyCyberSessionBlockTTLSeconds] = strconv.Itoa(settings.CyberSessionBlockTTLSeconds)
 	}
+	updates[SettingKeyCyberSessionIdentityStrictEnabled] = strconv.FormatBool(settings.CyberSessionIdentityStrictEnabled)
 
 	// Claude Code version check
 	updates[SettingKeyMinClaudeCodeVersion] = settings.MinClaudeCodeVersion
@@ -505,6 +524,50 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyOpenAICodexUserAgent] = strings.TrimSpace(settings.OpenAICodexUserAgent)
 	updates[SettingKeyOpenAICodexClientVersion] = NormalizeCodexClientVersion(settings.OpenAICodexClientVersion)
 	updates[SettingKeyOpenAICodexVersionAutoSyncEnabled] = strconv.FormatBool(settings.OpenAICodexVersionAutoSyncEnabled)
+	updates[SettingKeyOpenAICodexTicketEnabled] = strconv.FormatBool(settings.OpenAICodexTicketEnabled)
+	updates[SettingKeyOpenAICodexTicketFailClosed] = strconv.FormatBool(settings.OpenAICodexTicketFailClosed)
+	if err := ValidateOpenAICodexTicketHarvestProxyURL(settings.OpenAICodexTicketHarvestProxyURL); err != nil {
+		return nil, infraerrors.BadRequest("INVALID_CODEX_HARVEST_PROXY", err.Error())
+	}
+	updates[SettingKeyOpenAICodexTicketHarvestProxyURL] = strings.TrimSpace(settings.OpenAICodexTicketHarvestProxyURL)
+	if value := settings.OpenAICodexTicketStrategy; value != "" && value != "fixed" && value != "standby" {
+		return nil, infraerrors.BadRequest("INVALID_TICKET_STRATEGY", "strategy must be fixed or standby")
+	}
+	scope, scopeErr := NormalizeCodexTicketHarvestScope(settings.OpenAICodexTicketHarvestScope)
+	if scopeErr != nil {
+		return nil, infraerrors.BadRequest("INVALID_TICKET_HARVEST_SCOPE", scopeErr.Error())
+	}
+	// Validate only a changed selection, so deleting a selected group does not
+	// prevent unrelated settings from being saved. Stale IDs match no accounts.
+	scopeJSON, _ := json.Marshal(scope)
+	if s.defaultSubGroupReader != nil && len(scope.GroupIDs) > 0 {
+		old, readErr := s.GetCodexTicketHarvestScope(ctx)
+		if readErr != nil || old.Mode != scope.Mode || !slices.Equal(old.GroupIDs, scope.GroupIDs) {
+			for _, id := range scope.GroupIDs {
+				group, err := s.defaultSubGroupReader.GetByID(ctx, id)
+				if err != nil && !errors.Is(err, ErrGroupNotFound) {
+					return nil, err
+				}
+				if err != nil || group == nil || group.Platform != PlatformOpenAI {
+					return nil, infraerrors.BadRequest("INVALID_TICKET_HARVEST_GROUP", "harvest groups must exist and use the OpenAI platform")
+				}
+			}
+		}
+	}
+	updates[SettingKeyOpenAICodexTicketHarvestScope] = string(scopeJSON)
+	updates[SettingKeyOpenAICodexTicketStrategy] = NormalizeCodexTicketStrategy(settings.OpenAICodexTicketStrategy)
+	updates[SettingKeyOpenAICodexTicketStrict] = strconv.FormatBool(settings.OpenAICodexTicketStrictResponse)
+	if settings.OpenAICodexTicketStaticProxyURL != "" {
+		updates[SettingKeyOpenAICodexTicketStaticProxyURL] = settings.OpenAICodexTicketStaticProxyURL
+	}
+	if proxy := strings.TrimSpace(settings.OpenAICodexTicketHarvestProxyURL); proxy != "" && proxy != "http://127.0.0.1:3101" {
+		updates[SettingKeyOpenAICodexTicketStaticProxyURL] = proxy
+	}
+	modelsJSON, err := json.Marshal(NormalizeOpenAICodexTicketModels(settings.OpenAICodexTicketModels))
+	if err != nil {
+		return nil, fmt.Errorf("marshal Codex ticket models: %w", err)
+	}
+	updates[SettingKeyOpenAICodexTicketModels] = string(modelsJSON)
 	// SettingKeyOpenAICodexClientVersionSynced 由自动同步任务独占写入，此处不得覆盖，
 	// 否则面板保存会把同步结果清空。
 	updates[SettingKeyClaudeCodeClientVersion] = NormalizeClaudeCodeClientVersion(settings.ClaudeCodeClientVersion)
@@ -574,6 +637,11 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 
 	updates[SettingKeyAllowUserViewErrorRequests] = strconv.FormatBool(settings.AllowUserViewErrorRequests)
+	updates[SettingKeyRequestCaptureEnabled] = strconv.FormatBool(captureConfig.Enabled)
+	updates[SettingKeyRequestCaptureQuotaMiB] = strconv.FormatInt(captureConfig.QuotaMiB, 10)
+	updates[SettingKeyRequestCaptureRetentionDays] = strconv.Itoa(captureConfig.RetentionDays)
+	updates[SettingKeyExcelBPSImageRelayEnabled] = strconv.FormatBool(imageRelay.Enabled)
+	updates[SettingKeyExcelBPSImageBaseURL] = imageRelay.BaseURL
 
 	return updates, nil
 }
@@ -785,6 +853,11 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	// 版本号缓存只做失效，不在此重算：生效值还取决于自动同步写入的 synced 键，
 	// 这里没有它的最新值，重算会把同步结果覆盖成陈旧值。
 	s.InvalidateOpenAICodexClientVersionCache()
+	s.InvalidateOpenAICodexTicketEnabledCache()
+	s.InvalidateOpenAICodexTicketFailClosedCache()
+	s.InvalidateOpenAICodexTicketModelsCache()
+	s.InvalidateOpenAICodexTicketHarvestProxyCache()
+	s.InvalidateOpenAICodexTicketHarvestScopeCache()
 	s.InvalidateClaudeCodeClientVersionCache()
 	openAIAdvancedSchedulerSettingSF.Forget(openAIAdvancedSchedulerSettingKey)
 	openAIAdvancedSchedulerSettingCache.Store(&cachedOpenAIAdvancedSchedulerSetting{
@@ -839,6 +912,13 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	// codex_cli_only 加固策略缓存：设置更新后强制下次重载（涉及 4 个键 + JSON 解析，直接置过期）。
 	s.codexRestrictionPolicySF.Forget("codex_restriction_policy")
 	s.codexRestrictionPolicyCache.Store(&cachedCodexRestrictionPolicy{expiresAt: 0})
+	// Cyber 会话屏蔽与严格身份门控必须在后台保存后立即生效，不能继续
+	// 使用最长 60 秒的旧开关快照。
+	s.cyberSessionBlockRuntimeSF.Forget("cyber_session_block_runtime")
+	s.cyberSessionBlockRuntimeCache.Store(&cachedCyberSessionBlockRuntime{expiresAt: 0})
+	if s.requestCapture != nil {
+		s.requestCapture.ApplyConfig(settings.requestCaptureConfig())
+	}
 	if s.onUpdate != nil {
 		s.onUpdate() // Invalidate cache after settings update
 	}

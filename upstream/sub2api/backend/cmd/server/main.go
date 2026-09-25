@@ -20,6 +20,7 @@ import (
 	_ "github.com/Wei-Shaw/sub2api/ent/runtime"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/mihomo"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/repository"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
@@ -65,7 +66,29 @@ func main() {
 	setupMode := flag.Bool("setup", false, "Run setup wizard in CLI mode")
 	showVersion := flag.Bool("version", false, "Show version information")
 	migrateOnly := flag.Bool("migrate-only", false, "Apply database migrations without starting API or background jobs")
+	migrateMihomo := flag.String("migrate-mihomo", "", "Stage legacy Mihomo into the specified Sub2API data directory (root deployment only)")
+	checkMihomo := flag.String("check-managed-mihomo", "", "Check managed Mihomo in the specified data directory")
 	flag.Parse()
+	if *checkMihomo != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := mihomo.CheckManaged(ctx, *checkMihomo); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if *migrateMihomo != "" {
+		if os.Geteuid() != 0 {
+			log.Fatal("Mihomo migration requires root")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		if err := mihomo.PrepareLegacy(ctx, *migrateMihomo, "/etc/mihomo-codex/config.yaml", "/var/lib/mihomo-codex/providers/airport.yaml", "/usr/local/bin/mihomo"); err != nil {
+			log.Fatalf("Mihomo migration failed: %v", err)
+		}
+		log.Print("Mihomo migration staged; original configuration retained")
+		return
+	}
 
 	if *showVersion {
 		log.Printf("Sub2API %s (commit: %s, built: %s)\n", Version, Commit, Date)
@@ -260,4 +283,5 @@ func runMainServer() {
 	}
 
 	log.Println("Server exited")
+	mihomo.CloseAll()
 }

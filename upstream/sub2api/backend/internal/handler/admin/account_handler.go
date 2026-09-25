@@ -78,6 +78,9 @@ type AccountHandler struct {
 	procurementProfitability *service.AccountProfitabilityService
 	cfg                      *config.Config
 	opencodeGoUsage          *service.OpenCodeGoUsageService
+	codexTicketSettings      *service.SettingService
+	codexHarvest             *service.CodexHarvestService
+	openAIGatewayService     *service.OpenAIGatewayService
 }
 
 // SetUpstreamBillingProbeService attaches the optional remote billing probe service.
@@ -91,6 +94,15 @@ func (h *AccountHandler) SetOllamaCloudUsageService(usage *service.OllamaCloudUs
 
 func (h *AccountHandler) SetProcurementProfitabilityService(svc *service.AccountProfitabilityService) {
 	h.procurementProfitability = svc
+}
+
+// SetCodexTicketSettings supplies the live policy without mutating shared config.
+func (h *AccountHandler) SetCodexTicketSettings(settings *service.SettingService) {
+	h.codexTicketSettings = settings
+}
+
+func (h *AccountHandler) SetOpenAIGatewayService(gateway *service.OpenAIGatewayService) {
+	h.openAIGatewayService = gateway
 }
 
 func (h *AccountHandler) SetOpenCodeGoUsageService(usage *service.OpenCodeGoUsageService) {
@@ -147,6 +159,7 @@ type CreateAccountRequest struct {
 	EffectiveCostModel      string         `json:"effective_cost_model"`
 	UpstreamActualCost      *float64       `json:"upstream_actual_cost"`
 	UpstreamObtainedQuota   *float64       `json:"upstream_obtained_quota"`
+	GroupRateMultiplier     *float64       `json:"group_rate_multiplier"`
 	LoadFactor              *int           `json:"load_factor"`
 	GroupIDs                []int64        `json:"group_ids"`
 	ExpiresAt               *int64         `json:"expires_at"`
@@ -161,6 +174,8 @@ type CreateAccountRequest struct {
 // UpdateAccountRequest represents update account request
 // 使用指针类型来区分"未提供"和"设置为0"
 type UpdateAccountRequest struct {
+	GroupRateMultiplier     *float64               `json:"group_rate_multiplier"`
+	GroupAllowedModels      map[int64][]string     `json:"group_allowed_models"`
 	Name                    string                 `json:"name"`
 	Notes                   *string                `json:"notes"`
 	Type                    string                 `json:"type" binding:"omitempty,oneof=oauth setup-token apikey upstream bedrock service_account"`
@@ -278,6 +293,7 @@ type BulkUpdateAccountsRequest struct {
 	Concurrency             *int                      `json:"concurrency"`
 	Priority                *int                      `json:"priority"`
 	RateMultiplier          *float64                  `json:"rate_multiplier"`
+	GroupRateMultiplier     *float64                  `json:"group_rate_multiplier"`
 	LoadFactor              *int                      `json:"load_factor"`
 	Status                  string                    `json:"status" binding:"omitempty,oneof=active inactive error"`
 	Schedulable             *bool                     `json:"schedulable"`
@@ -453,6 +469,7 @@ const accountListGroupUngroupedQueryValue = "ungrouped"
 
 func (h *AccountHandler) accountResponseFromService(account *service.Account) *dto.Account {
 	out := dto.AccountFromService(account)
+	h.enrichCodexTicketStatus(account, out)
 	if h != nil && h.ollamaCloudUsage != nil && out != nil {
 		h.ollamaCloudUsage.EnrichState(out.OllamaCloudUsage)
 	}
@@ -461,6 +478,7 @@ func (h *AccountHandler) accountResponseFromService(account *service.Account) *d
 
 func (h *AccountHandler) accountListResponseFromService(account *service.Account) *dto.Account {
 	out := dto.AccountFromServiceShallow(account)
+	h.enrichCodexTicketStatus(account, out)
 	if out != nil && account != nil {
 		out.Proxy = dto.ProxyFromService(account.Proxy)
 	}
@@ -468,6 +486,18 @@ func (h *AccountHandler) accountListResponseFromService(account *service.Account
 		h.ollamaCloudUsage.EnrichState(out.OllamaCloudUsage)
 	}
 	return out
+}
+
+func (h *AccountHandler) enrichCodexTicketStatus(account *service.Account, out *dto.Account) {
+	if h != nil && h.cfg != nil && out != nil {
+		cfg := h.cfg.Gateway.OpenAICodexTicket
+		if h.codexTicketSettings != nil {
+			cfg.Enabled = h.codexTicketSettings.GetOpenAICodexTicketEnabled(context.Background(), cfg.Enabled)
+			cfg.Models = h.codexTicketSettings.GetOpenAICodexTicketModels(context.Background(), cfg.Models)
+			cfg.FailClosed = h.codexTicketSettings.GetOpenAICodexTicketFailClosed(context.Background())
+		}
+		out.CodexTurnTickets = service.OpenAICodexTicketStatuses(account, cfg, time.Now())
+	}
 }
 
 func (h *AccountHandler) isSimpleMode() bool {
@@ -1128,6 +1158,10 @@ func (h *AccountHandler) Create(c *gin.Context) {
 		response.BadRequest(c, "rate_multiplier must be >= 0")
 		return
 	}
+	if req.GroupRateMultiplier != nil && *req.GroupRateMultiplier < 0 {
+		response.BadRequest(c, "group_rate_multiplier must be >= 0")
+		return
+	}
 	// base_rpm 输入校验：负值归零，超过 10000 截断
 	sanitizeExtraBaseRPM(req.Extra)
 	if err := service.ValidateUpstreamRequestIDHeaderExtra(req.Extra); err != nil {
@@ -1157,6 +1191,7 @@ func (h *AccountHandler) Create(c *gin.Context) {
 			EffectiveCostModel:    req.EffectiveCostModel,
 			UpstreamActualCost:    req.UpstreamActualCost,
 			UpstreamObtainedQuota: req.UpstreamObtainedQuota,
+			GroupRateMultiplier:   req.GroupRateMultiplier,
 			LoadFactor:            req.LoadFactor,
 			GroupIDs:              req.GroupIDs,
 			ExpiresAt:             req.ExpiresAt,
@@ -1299,6 +1334,10 @@ func (h *AccountHandler) Update(c *gin.Context) {
 			return
 		}
 	}
+	if req.GroupRateMultiplier != nil && *req.GroupRateMultiplier < 0 {
+		response.BadRequest(c, "group_rate_multiplier must be >= 0")
+		return
+	}
 	// base_rpm 输入校验：负值归零，超过 10000 截断
 	sanitizeExtraBaseRPM(req.Extra)
 	if err := service.ValidateUpstreamRequestIDHeaderExtra(req.Extra); err != nil {
@@ -1358,9 +1397,11 @@ func (h *AccountHandler) Update(c *gin.Context) {
 			}
 			return nil
 		}(),
+		GroupRateMultiplier:   req.GroupRateMultiplier,
 		LoadFactor:            req.LoadFactor,
 		Status:                req.Status,
 		GroupIDs:              req.GroupIDs,
+		GroupAllowedModels:    req.GroupAllowedModels,
 		ExpiresAt:             req.ExpiresAt,
 		AutoPauseOnExpired:    req.AutoPauseOnExpired,
 		ProbeEnabled:          req.ProbeEnabled,
@@ -1505,6 +1546,12 @@ type TestAccountRequest struct {
 	AudioDataURL string `json:"audio_data_url"`
 }
 
+type PelicanTestRequest struct {
+	ModelID         string `json:"model_id"`
+	Prompt          string `json:"prompt"`
+	ReasoningEffort string `json:"reasoning_effort"`
+}
+
 type SyncFromCRSRequest struct {
 	BaseURL            string   `json:"base_url" binding:"required"`
 	Username           string   `json:"username" binding:"required"`
@@ -1547,6 +1594,25 @@ func (h *AccountHandler) Test(c *gin.Context) {
 		if _, err := h.rateLimitService.RecoverAccountAfterSuccessfulTest(c.Request.Context(), accountID); err != nil {
 			_ = c.Error(err)
 		}
+	}
+}
+
+// PelicanTest handles the dedicated Pelican HTML-generation test stream.
+// POST /api/v1/admin/accounts/:id/pelican-test
+func (h *AccountHandler) PelicanTest(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+
+	var req PelicanTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.accountTestService.TestPelicanAccountConnection(c, accountID, req.ModelID, req.Prompt, req.ReasoningEffort); err != nil {
+		return
 	}
 }
 
@@ -2366,6 +2432,7 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 				Concurrency:           item.Concurrency,
 				Priority:              item.Priority,
 				RateMultiplier:        item.RateMultiplier,
+				GroupRateMultiplier:   item.GroupRateMultiplier,
 				GroupIDs:              item.GroupIDs,
 				ExpiresAt:             item.ExpiresAt,
 				AutoPauseOnExpired:    item.AutoPauseOnExpired,
@@ -2544,6 +2611,10 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		response.BadRequest(c, "priority must be >= 1")
 		return
 	}
+	if req.GroupRateMultiplier != nil && *req.GroupRateMultiplier < 0 {
+		response.BadRequest(c, "group_rate_multiplier must be >= 0")
+		return
+	}
 	if len(req.AccountIDs) == 0 && req.Filters == nil {
 		response.BadRequest(c, "account_ids or filters is required")
 		return
@@ -2563,6 +2634,7 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		req.Concurrency != nil ||
 		req.Priority != nil ||
 		req.RateMultiplier != nil ||
+		req.GroupRateMultiplier != nil ||
 		req.LoadFactor != nil ||
 		req.Status != "" ||
 		req.Schedulable != nil ||
@@ -2585,6 +2657,7 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		Concurrency:           req.Concurrency,
 		Priority:              req.Priority,
 		RateMultiplier:        req.RateMultiplier,
+		GroupRateMultiplier:   req.GroupRateMultiplier,
 		LoadFactor:            req.LoadFactor,
 		Status:                req.Status,
 		Schedulable:           req.Schedulable,
@@ -3560,27 +3633,3 @@ func sanitizeExtraBaseRPM(extra map[string]any) {
 	extra["base_rpm"] = v
 }
 
-type PelicanTestRequest struct {
-	ModelID         string `json:"model_id"`
-	Prompt          string `json:"prompt"`
-	ReasoningEffort string `json:"reasoning_effort"`
-}
-
-// PelicanTest handles the dedicated Pelican HTML-generation test stream.
-// POST /api/v1/admin/accounts/:id/pelican-test
-func (h *AccountHandler) PelicanTest(c *gin.Context) {
-	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		response.BadRequest(c, "Invalid account ID")
-		return
-	}
-
-	var req PelicanTestRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-	if err := h.accountTestService.TestPelicanAccountConnection(c, accountID, req.ModelID, req.Prompt, req.ReasoningEffort); err != nil {
-		return
-	}
-}

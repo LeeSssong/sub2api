@@ -237,6 +237,20 @@ func (_c *AccountCreate) SetNillableProcurementCostEffectiveAt(v *time.Time) *Ac
 	return _c
 }
 
+// SetGroupRateMultiplier sets the "group_rate_multiplier" field.
+func (_c *AccountCreate) SetGroupRateMultiplier(v float64) *AccountCreate {
+	_c.mutation.SetGroupRateMultiplier(v)
+	return _c
+}
+
+// SetNillableGroupRateMultiplier sets the "group_rate_multiplier" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableGroupRateMultiplier(v *float64) *AccountCreate {
+	if v != nil {
+		_c.SetGroupRateMultiplier(*v)
+	}
+	return _c
+}
+
 // SetStatus sets the "status" field.
 func (_c *AccountCreate) SetStatus(v string) *AccountCreate {
 	_c.mutation.SetStatus(v)
@@ -607,6 +621,10 @@ func (_c *AccountCreate) defaults() error {
 		v := account.DefaultRateMultiplier
 		_c.mutation.SetRateMultiplier(v)
 	}
+	if _, ok := _c.mutation.GroupRateMultiplier(); !ok {
+		v := account.DefaultGroupRateMultiplier
+		_c.mutation.SetGroupRateMultiplier(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := account.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -672,6 +690,9 @@ func (_c *AccountCreate) check() error {
 	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "Account.rate_multiplier"`)}
+	}
+	if _, ok := _c.mutation.GroupRateMultiplier(); !ok {
+		return &ValidationError{Name: "group_rate_multiplier", err: errors.New(`ent: missing required field "Account.group_rate_multiplier"`)}
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "Account.status"`)}
@@ -794,6 +815,10 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ProcurementCostEffectiveAt(); ok {
 		_spec.SetField(account.FieldProcurementCostEffectiveAt, field.TypeTime, value)
 		_node.ProcurementCostEffectiveAt = &value
+	}
+	if value, ok := _c.mutation.GroupRateMultiplier(); ok {
+		_spec.SetField(account.FieldGroupRateMultiplier, field.TypeFloat64, value)
+		_node.GroupRateMultiplier = value
 	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(account.FieldStatus, field.TypeString, value)
@@ -1284,6 +1309,24 @@ func (u *AccountUpsert) UpdateProcurementCostEffectiveAt() *AccountUpsert {
 // ClearProcurementCostEffectiveAt clears the value of the "procurement_cost_effective_at" field.
 func (u *AccountUpsert) ClearProcurementCostEffectiveAt() *AccountUpsert {
 	u.SetNull(account.FieldProcurementCostEffectiveAt)
+	return u
+}
+
+// SetGroupRateMultiplier sets the "group_rate_multiplier" field.
+func (u *AccountUpsert) SetGroupRateMultiplier(v float64) *AccountUpsert {
+	u.Set(account.FieldGroupRateMultiplier, v)
+	return u
+}
+
+// UpdateGroupRateMultiplier sets the "group_rate_multiplier" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateGroupRateMultiplier() *AccountUpsert {
+	u.SetExcluded(account.FieldGroupRateMultiplier)
+	return u
+}
+
+// AddGroupRateMultiplier adds v to the "group_rate_multiplier" field.
+func (u *AccountUpsert) AddGroupRateMultiplier(v float64) *AccountUpsert {
+	u.Add(account.FieldGroupRateMultiplier, v)
 	return u
 }
 
@@ -1936,6 +1979,27 @@ func (u *AccountUpsertOne) UpdateProcurementCostEffectiveAt() *AccountUpsertOne 
 func (u *AccountUpsertOne) ClearProcurementCostEffectiveAt() *AccountUpsertOne {
 	return u.Update(func(s *AccountUpsert) {
 		s.ClearProcurementCostEffectiveAt()
+	})
+}
+
+// SetGroupRateMultiplier sets the "group_rate_multiplier" field.
+func (u *AccountUpsertOne) SetGroupRateMultiplier(v float64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetGroupRateMultiplier(v)
+	})
+}
+
+// AddGroupRateMultiplier adds v to the "group_rate_multiplier" field.
+func (u *AccountUpsertOne) AddGroupRateMultiplier(v float64) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddGroupRateMultiplier(v)
+	})
+}
+
+// UpdateGroupRateMultiplier sets the "group_rate_multiplier" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateGroupRateMultiplier() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateGroupRateMultiplier()
 	})
 }
 
@@ -2798,6 +2862,27 @@ func (u *AccountUpsertBulk) UpdateProcurementCostEffectiveAt() *AccountUpsertBul
 func (u *AccountUpsertBulk) ClearProcurementCostEffectiveAt() *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
 		s.ClearProcurementCostEffectiveAt()
+	})
+}
+
+// SetGroupRateMultiplier sets the "group_rate_multiplier" field.
+func (u *AccountUpsertBulk) SetGroupRateMultiplier(v float64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetGroupRateMultiplier(v)
+	})
+}
+
+// AddGroupRateMultiplier adds v to the "group_rate_multiplier" field.
+func (u *AccountUpsertBulk) AddGroupRateMultiplier(v float64) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.AddGroupRateMultiplier(v)
+	})
+}
+
+// UpdateGroupRateMultiplier sets the "group_rate_multiplier" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateGroupRateMultiplier() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateGroupRateMultiplier()
 	})
 }
 

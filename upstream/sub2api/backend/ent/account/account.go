@@ -52,6 +52,8 @@ const (
 	FieldEstimatedUsableQuotaUsd = "estimated_usable_quota_usd"
 	// FieldProcurementCostEffectiveAt holds the string denoting the procurement_cost_effective_at field in the database.
 	FieldProcurementCostEffectiveAt = "procurement_cost_effective_at"
+	// FieldGroupRateMultiplier holds the string denoting the group_rate_multiplier field in the database.
+	FieldGroupRateMultiplier = "group_rate_multiplier"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldErrorMessage holds the string denoting the error_message field in the database.
@@ -155,6 +157,7 @@ var Columns = []string{
 	FieldProcurementCostCny,
 	FieldEstimatedUsableQuotaUsd,
 	FieldProcurementCostEffectiveAt,
+	FieldGroupRateMultiplier,
 	FieldStatus,
 	FieldErrorMessage,
 	FieldLastUsedAt,
@@ -219,6 +222,8 @@ var (
 	DefaultPriority int
 	// DefaultRateMultiplier holds the default value on creation for the "rate_multiplier" field.
 	DefaultRateMultiplier float64
+	// DefaultGroupRateMultiplier holds the default value on creation for the "group_rate_multiplier" field.
+	DefaultGroupRateMultiplier float64
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
@@ -343,6 +348,11 @@ func ByEstimatedUsableQuotaUsd(opts ...sql.OrderTermOption) OrderOption {
 // ByProcurementCostEffectiveAt orders the results by the procurement_cost_effective_at field.
 func ByProcurementCostEffectiveAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldProcurementCostEffectiveAt, opts...).ToFunc()
+}
+
+// ByGroupRateMultiplier orders the results by the group_rate_multiplier field.
+func ByGroupRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGroupRateMultiplier, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.

@@ -19,6 +19,7 @@ type ScheduledTestRunnerService struct {
 	accountTestSvc *AccountTestService
 	rateLimitSvc   *RateLimitService
 	cfg            *config.Config
+	judgeQuality   func(context.Context, int64, *PelicanTestConfig, string) *QualityJudgment
 	runPelican     func(context.Context, int64, string, *PelicanTestConfig) (*ScheduledTestResult, error)
 
 	cron      *cron.Cron

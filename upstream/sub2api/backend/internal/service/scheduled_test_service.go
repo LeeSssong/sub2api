@@ -103,6 +103,9 @@ func nextPlanRun(plan *ScheduledTestPlan, now time.Time) (time.Time, error) {
 		if strings.TrimSpace(cfg.Prompt) == "" || len(cfg.Prompt) > 32000 || strings.TrimSpace(plan.ModelID) == "" || len(plan.ModelID) > 100 {
 			return time.Time{}, fmt.Errorf("pelican prompt and model are required (maximum 32000/100 bytes)")
 		}
+		if err := validateQualityPolicy(plan); err != nil {
+			return time.Time{}, err
+		}
 		if cfg.QuestionKind != "" && cfg.QuestionKind != "pelican" && cfg.QuestionKind != "candy" {
 			return time.Time{}, fmt.Errorf("invalid question kind")
 		}

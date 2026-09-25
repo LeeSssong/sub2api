@@ -95,6 +95,15 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 			if err != nil {
 				result = &ScheduledTestResult{Status: "failed", ErrorMessage: fmt.Sprint(err), StartedAt: now, FinishedAt: time.Now(), PelicanConfig: plan.PelicanConfig}
 			}
+			if plan.PelicanConfig.Quality != nil && result.Status == "success" {
+				var judgment *QualityJudgment
+				if s.judgeQuality != nil {
+					judgment = s.judgeQuality(runCtx, plan.AccountID, plan.PelicanConfig, result.ResponseText)
+				}
+				applyQualityJudgment(result, judgment)
+				result.FinishedAt = time.Now()
+				result.LatencyMs = result.FinishedAt.Sub(result.StartedAt).Milliseconds()
+			}
 			results[index] = result
 		}(i)
 	}
@@ -102,8 +111,21 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 	// Persist timeout failures with a fresh context even after the request deadline.
 	saveCtx, stop := context.WithTimeout(context.Background(), 30*time.Second)
 	defer stop()
+	qualityAction := ""
+	if plan.PelicanConfig.Quality != nil {
+		var actionErr error
+		qualityAction, actionErr = s.planRepo.ApplyQualityOutcome(saveCtx, plan, until, qualityOutcome(results))
+		if actionErr != nil {
+			qualityAction = "action_error"
+			logger.LegacyPrintf("service.scheduled_test_runner", "quality plan=%d action failed: %v", plan.ID, actionErr)
+		}
+	}
 	succeeded := false
 	for _, result := range results {
+		result.QualityAction = qualityAction
+		if plan.PelicanConfig.Quality != nil {
+			result.QualityRoundID = until.Format(time.RFC3339Nano)
+		}
 		if result.Status == "success" {
 			succeeded = true
 		}
@@ -111,7 +133,7 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 			logger.LegacyPrintf("service.scheduled_test_runner", "pelican plan=%d save failed: %v", plan.ID, err)
 		}
 	}
-	if succeeded && plan.AutoRecover && !isBuiltinCandyPlan(plan.PelicanConfig) {
+	if succeeded && plan.AutoRecover && plan.PelicanConfig.Quality == nil && !isBuiltinCandyPlan(plan.PelicanConfig) {
 		s.tryRecoverAccount(saveCtx, plan.AccountID, plan.ID)
 	}
 	if err := s.planRepo.FinishPelican(saveCtx, plan.ID, until, time.Now()); err != nil {
@@ -166,6 +188,9 @@ func isBuiltinCandyPlan(cfg *PelicanTestConfig) bool {
 
 // Missing kind preserves HTML validation for saved plans from older versions.
 func intelligenceTestPrompt(cfg *PelicanTestConfig) string {
+	if cfg.Quality != nil {
+		return cfg.Prompt + "\n\n只输出最终答案，不要解释。"
+	}
 	contract := PelicanDeliveryContract
 	if cfg.QuestionKind == "candy" || isBuiltinCandyPlan(cfg) {
 		contract = "只输出最终整数，不要解释。"
@@ -173,6 +198,13 @@ func intelligenceTestPrompt(cfg *PelicanTestConfig) string {
 	return cfg.Prompt + "\n\n" + contract
 }
 func intelligenceTestOutputError(cfg *PelicanTestConfig, output string) string {
+	if cfg.Quality != nil {
+		// Completed answers are graded by the configured model in the runner.
+		if strings.TrimSpace(output) == "" {
+			return "Model returned empty output"
+		}
+		return ""
+	}
 	if isBuiltinCandyPlan(cfg) && strings.TrimSpace(output) != "21" {
 		return "answer_mismatch: expected 21"
 	}

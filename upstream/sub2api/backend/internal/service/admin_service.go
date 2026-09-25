@@ -72,6 +72,9 @@ type AdminService interface {
 	BatchSetGroupRateMultipliers(ctx context.Context, groupID int64, entries []GroupRateMultiplierInput) error
 	ClearGroupRPMOverrides(ctx context.Context, groupID int64) error
 	BatchSetGroupRPMOverrides(ctx context.Context, groupID int64, entries []GroupRPMOverrideInput) error
+	// ClearGroupUserDeniedModels / BatchSetGroupUserDeniedModels 管理分组内各用户的禁用模型。
+	ClearGroupUserDeniedModels(ctx context.Context, groupID int64) error
+	BatchSetGroupUserDeniedModels(ctx context.Context, groupID int64, entries []GroupUserDeniedModelsInput) error
 	UpdateGroupSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
 
 	// API Key management (admin)
@@ -159,6 +162,7 @@ const (
 	AdminGroupOperationCompositeRoute AdminGroupOperation = "composite_route"
 	AdminGroupOperationMultiplier     AdminGroupOperation = "multiplier"
 	AdminGroupOperationRPMOverride    AdminGroupOperation = "rpm_override"
+	AdminGroupOperationDeniedModels   AdminGroupOperation = "user_denied_models"
 	AdminGroupOperationSort           AdminGroupOperation = "sort"
 )
 
@@ -290,6 +294,7 @@ type CreateGroupInput struct {
 	FallbackGroupID              *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	StreamOnly                      bool // 仅允许流式请求
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64
 	ModelRoutingEnabled bool // 是否启用模型路由
@@ -373,6 +378,7 @@ type UpdateGroupInput struct {
 	FallbackGroupID              *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	StreamOnly                      *bool // 仅允许流式请求
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64
 	ModelRoutingEnabled *bool // 是否启用模型路由
@@ -430,7 +436,8 @@ type CreateAccountInput struct {
 	RateSyncEnabled       *bool
 	// ActiveProbeEnabled controls automatic connection probes and scheduled model detection.
 	// Nil preserves the backward-compatible enabled default.
-	ActiveProbeEnabled *bool
+	ActiveProbeEnabled  *bool
+	GroupRateMultiplier *float64 // 账号级分组计费倍率（>=0，默认 1）
 	// SkipDefaultGroupBind prevents auto-binding to platform default group when GroupIDs is empty.
 	SkipDefaultGroupBind bool
 	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
@@ -473,6 +480,8 @@ type UpdateAccountInput struct {
 	// ActiveProbeEnabled controls automatic connection probes and scheduled model detection.
 	ActiveProbeEnabled    *bool
 	ModelDetectionEnabled *bool
+	GroupRateMultiplier   *float64 // 账号级分组计费倍率（>=0，默认 1）
+	GroupAllowedModels    map[int64][]string
 	SkipMixedChannelCheck bool // 跳过混合渠道检查（用户已确认风险）
 }
 
@@ -485,21 +494,22 @@ type ProcurementCostUpdate struct {
 
 // BulkUpdateAccountsInput describes the payload for bulk updating accounts.
 type BulkUpdateAccountsInput struct {
-	AccountIDs         []int64
-	Filters            *BulkUpdateAccountFilters
-	Name               string
-	ProxyID            *int64
-	Concurrency        *int
-	Priority           *int
-	RateMultiplier     *float64 // 账号计费倍率（>=0，允许 0）
-	LoadFactor         *int
-	Status             string
-	Schedulable        *bool
-	GroupIDs           *[]int64
-	Credentials        map[string]any
-	Extra              map[string]any
-	ProbeEnabled       *bool
-	ActiveProbeEnabled *bool
+	AccountIDs          []int64
+	Filters             *BulkUpdateAccountFilters
+	Name                string
+	ProxyID             *int64
+	Concurrency         *int
+	Priority            *int
+	RateMultiplier      *float64 // 账号计费倍率（>=0，允许 0）
+	LoadFactor          *int
+	Status              string
+	Schedulable         *bool
+	GroupIDs            *[]int64
+	Credentials         map[string]any
+	Extra               map[string]any
+	ProbeEnabled        *bool
+	ActiveProbeEnabled  *bool
+	GroupRateMultiplier *float64 // 账号级分组计费倍率（>=0，默认 1）
 	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
 	// This should only be set when the caller has explicitly confirmed the risk.
 	SkipMixedChannelCheck bool

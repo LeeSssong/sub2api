@@ -99,6 +99,9 @@ func TestOpenAIGatewayService_Forward_PreservePreviousResponseIDWhenWSEnabled(t 
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          1,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -158,6 +161,9 @@ func TestOpenAIGatewayService_Forward_HTTPIngressStaysHTTPWhenWSEnabled(t *testi
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          101,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -233,6 +239,9 @@ func TestOpenAIGatewayService_Forward_HTTPIngressRetriesInvalidEncryptedContentO
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          102,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -322,6 +331,9 @@ func TestOpenAIGatewayService_Forward_HTTPIngressRetriesWrappedInvalidEncryptedC
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          103,
 		Name:        "openai-apikey-wrapped",
 		Platform:    PlatformOpenAI,
@@ -391,6 +403,9 @@ func TestOpenAIGatewayService_Forward_APIKeyHTTPPreservesPreviousResponseIDWhenW
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          1,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -451,6 +466,9 @@ func TestOpenAIGatewayService_Forward_WSv2Dial426FallbackHTTP(t *testing.T) {
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          12,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -514,6 +532,9 @@ func TestOpenAIGatewayService_Forward_WSv2FallbackCoolingSkipWS(t *testing.T) {
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          21,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -573,6 +594,9 @@ func TestOpenAIGatewayService_Forward_ReturnErrorWhenOnlyWSv1Enabled(t *testing.
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          31,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -600,6 +624,7 @@ func TestOpenAIGatewayService_Forward_ReturnErrorWhenOnlyWSv1Enabled(t *testing.
 func TestNewOpenAIGatewayService_InitializesOpenAIWSResolver(t *testing.T) {
 	cfg := &config.Config{}
 	svc := NewOpenAIGatewayService(
+		nil,
 		nil,
 		nil,
 		nil,
@@ -667,6 +692,9 @@ func TestOpenAIGatewayService_Forward_WSv2FallbackWhenResponseAlreadyWrittenRetu
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          41,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -760,6 +788,9 @@ func TestOpenAIGatewayService_Forward_WSv2StreamEarlyCloseFallbackHTTP(t *testin
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          88,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -842,6 +873,9 @@ func TestOpenAIGatewayService_Forward_WSv2RetryFiveTimesThenFallbackHTTP(t *test
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          89,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -923,6 +957,9 @@ func TestOpenAIGatewayService_Forward_WSv2PolicyViolationFastFallbackHTTP(t *tes
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          8901,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1007,6 +1044,9 @@ func TestOpenAIGatewayService_Forward_WSv2ConnectionLimitReachedRetryThenFallbac
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          90,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1114,6 +1154,9 @@ func TestOpenAIGatewayService_Forward_WSv2PreviousResponseNotFoundRecoversByDrop
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          91,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1214,6 +1257,9 @@ func TestOpenAIGatewayService_Forward_WSv2PreviousResponseNotFoundSkipsRecoveryF
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          92,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1313,6 +1359,9 @@ func TestOpenAIGatewayService_Forward_WSv2PreviousResponseNotFoundSkipsRecoveryW
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          93,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1410,6 +1459,9 @@ func TestOpenAIGatewayService_Forward_WSv2PreviousResponseNotFoundOnlyRecoversOn
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          94,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1525,6 +1577,9 @@ func TestOpenAIGatewayService_Forward_WSv2InvalidEncryptedContentRecoversOnce(t 
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          95,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1629,6 +1684,9 @@ func TestOpenAIGatewayService_Forward_WSv2InvalidEncryptedContentSkipsRecoveryWi
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          96,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1746,6 +1804,9 @@ func TestOpenAIGatewayService_Forward_WSv2InvalidEncryptedContentRecoversSingleO
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          97,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1864,6 +1925,9 @@ func TestOpenAIGatewayService_Forward_WSv2InvalidEncryptedContentKeepsPreviousRe
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          98,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,

@@ -1491,7 +1491,23 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		if len(mapping) > 0 {
 			hasAnyMapping = true
 			for model := range mapping {
+				if platform != "" && acc.Platform != platform && !mixedListingModelAllowed(platform, model) {
+					continue
+				}
+				if !acc.IsModelAllowedInGroup(groupID, model) {
+					continue
+				}
 				modelSet[model] = struct{}{}
+			}
+		}
+		// 没有映射的账号默认支持全部模型；在本分组被限制时改为公布限制清单里的具体模型名。
+		if len(mapping) == 0 {
+			for _, model := range groupAllowedConcreteModels(&acc, groupID) {
+				if platform != "" && acc.Platform != platform && !mixedListingModelAllowed(platform, model) {
+					continue
+				}
+				modelSet[model] = struct{}{}
+				hasAnyMapping = true
 			}
 		}
 	}
@@ -1513,7 +1529,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	sort.Strings(models)
 
 	if platform == PlatformOpenAI {
-		models = supplementUnmappedOpenAIModels(accounts, models)
+		models = supplementUnmappedOpenAIModels(accounts, groupID, models)
 	}
 
 	if s.modelsListCache != nil {
@@ -1737,4 +1753,8 @@ func (s *GatewayService) debugLogGatewaySnapshot(tag string, headers http.Header
 
 	// 写入文件（调试用，并发写入可能交错但不影响可读性）
 	_, _ = f.WriteString(buf.String())
+}
+
+func mixedListingModelAllowed(groupPlatform, model string) bool {
+	return groupPlatform == PlatformGemini && isAntigravityGeminiModel(model)
 }
