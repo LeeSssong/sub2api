@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"io"
 	"log/slog"
 	"net/http"
@@ -156,13 +157,14 @@ type AccountTokenGuardProbeResult struct {
 
 // AccountTokenGuardService 负责凭证巡检与修复。
 type AccountTokenGuardService struct {
-	settings    SettingRepository
-	repo        AccountTokenGuardRepository
-	accounts    accountTokenGuardAccounts
-	admin       AdminService
-	invalidator TokenCacheInvalidator
-	httpClient  *http.Client
-	encryptor   SecretEncryptor
+	runtimeRedis *redis.Client
+	settings     SettingRepository
+	repo         AccountTokenGuardRepository
+	accounts     accountTokenGuardAccounts
+	admin        AdminService
+	invalidator  TokenCacheInvalidator
+	httpClient   *http.Client
+	encryptor    SecretEncryptor
 
 	config atomic.Value
 
@@ -442,7 +444,7 @@ func (s *AccountTokenGuardService) Status(ctx context.Context) (AccountTokenGuar
 	return AccountTokenGuardStatus{Config: publicTokenGuardConfig(cfg), Accounts: states, Events: events, Runtime: s.runtimeInfo()}, nil
 }
 
-func (s *AccountTokenGuardService) runtimeInfo() AccountTokenGuardRuntime {
+func (s *AccountTokenGuardService) localRuntimeInfo() AccountTokenGuardRuntime {
 	s.stateMu.Lock()
 	defer s.stateMu.Unlock()
 	info := AccountTokenGuardRuntime{LastMessage: s.lastMessage, Stats: s.stats}
@@ -471,9 +473,12 @@ func (s *AccountTokenGuardService) RunCycle(ctx context.Context, manual bool) (A
 	started := time.Now()
 	s.cycleRunning.Store(true)
 	s.cycleStartedAt.Store(started.Unix())
+	stopRuntimePublisher := s.startRuntimePublisher()
 	defer func() {
+		stopRuntimePublisher()
 		s.cycleRunning.Store(false)
 		s.cycleStartedAt.Store(0)
+		s.publishRuntime()
 	}()
 	cfg, err := s.GetConfig(ctx)
 	if err != nil {

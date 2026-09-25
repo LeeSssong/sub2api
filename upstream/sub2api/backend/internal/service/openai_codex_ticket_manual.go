@@ -56,6 +56,11 @@ func (s *OpenAIGatewayService) ExecuteManualHarvest(ctx context.Context, req Man
 		return errors.New("another harvest is running")
 	}
 	defer s.codexHarvestRunMu.Unlock()
+	ctx, release, leaseErr := s.acquireHarvestCoordination(ctx)
+	if leaseErr != nil {
+		return leaseErr
+	}
+	defer release()
 	normalizeManualHarvestRequest(&req)
 	req, err := NormalizeManualHarvestRequest(req)
 	if err != nil {

@@ -54,7 +54,7 @@ func TestBulkUpdateExcelBPSExtra(t *testing.T) {
 					expression = "(" + expression + ") - '" + key + "'"
 				}
 			}
-			require.Equal(t, "UPDATE accounts SET extra = "+expression+", updated_at = NOW() WHERE id = ANY($2) AND deleted_at IS NULL", query)
+			require.Equal(t, "UPDATE accounts SET extra = "+expression+", updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond') WHERE id = ANY($2) AND deleted_at IS NULL", query)
 			payload, ok := exec.execArgs[0][0].([]byte)
 			require.True(t, ok)
 			want, err := json.Marshal(tt.extra)

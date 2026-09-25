@@ -1,10 +1,14 @@
 package service
 
-import "github.com/Wei-Shaw/sub2api/internal/config"
+import (
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/redis/go-redis/v9"
+)
 
 // The production composition root attaches optional services before starting
 // the harvest loop; no post-construction setter races with startup.
 type OpenAIGatewayDependencies struct {
+	Redis         *redis.Client
 	Accounts      AccountRepository
 	Proxies       ProxyRepository
 	UsageLogs     UsageLogRepository
@@ -37,7 +41,7 @@ func ProvideOpenAIGatewayService(d OpenAIGatewayDependencies) *OpenAIGatewayServ
 		d.GroupRates, d.Cache, d.Config, d.Scheduler, d.Concurrency, d.Billing, d.RateLimit,
 		d.BillingCache, d.Upstream, d.Deferred, d.OpenAITokens, d.GrokTokens, d.Pricing,
 		d.Channels, d.BalanceNotify, d.Settings, d.Quotas,
-		func(s *OpenAIGatewayService) { s.codexHarvest = d.Harvest })
+		func(s *OpenAIGatewayService) { s.codexHarvest = d.Harvest; s.coordinationRedis = d.Redis })
 	svc.SetOpenAITurnStateStore(d.TurnState)
 	svc.SetOpenAITurnStateHarvesterProxyRepository(d.Proxies)
 	if shouldStartSingleton(d.Config) {

@@ -773,11 +773,13 @@ func (s *OpenAIGatewayService) holdCodexTicketChat(account *Account) func() {
 	if ctr == nil {
 		return func() {}
 	}
+	releaseDistributed := s.holdDistributedCodexChat(account.ID)
 	atomic.AddInt64(ctr, 1)
 	var once sync.Once
 	return func() {
 		once.Do(func() {
 			atomic.AddInt64(ctr, -1)
+			releaseDistributed()
 		})
 	}
 }
@@ -788,10 +790,10 @@ func (s *OpenAIGatewayService) codexTicketChatHeld(accountID int64) bool {
 	}
 	raw, ok := s.openaiCodexTicketChatHold.Load(accountID)
 	if !ok {
-		return false
+		return s.distributedCodexChatHeld(accountID)
 	}
 	ctr, _ := raw.(*int64)
-	return ctr != nil && atomic.LoadInt64(ctr) > 0
+	return (ctr != nil && atomic.LoadInt64(ctr) > 0) || s.distributedCodexChatHeld(accountID)
 }
 
 func (s *OpenAIGatewayService) manualHarvestLiveModels(account *Account, models []string) map[string]struct{} {
@@ -1045,6 +1047,11 @@ func (s *OpenAIGatewayService) refreshOpenAICodexTickets(ctx context.Context) {
 	if s == nil || s.accountRepo == nil || ctx.Err() != nil || !s.openAICodexTicketEnabledContext(ctx) {
 		return
 	}
+	ctx, release, err := s.acquireHarvestCoordination(ctx)
+	if err != nil {
+		return
+	}
+	defer release()
 	if !s.codexHarvestRoundActive.CompareAndSwap(false, true) {
 		return
 	}

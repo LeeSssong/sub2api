@@ -164,9 +164,10 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	grokTokenProvider := service.ProvideGrokTokenProvider(accountRepository, geminiTokenCache, grokOAuthService, oAuthRefreshAPI, tempUnschedCache)
 	codexHarvestNodeRepository := repository.NewCodexHarvestNodeRepository(db)
 	codexHarvestFlowRepository := repository.NewCodexHarvestFlowRepository(db)
-	codexHarvestService := service.ProvideCodexHarvestService(codexHarvestNodeRepository, settingRepository, configConfig, codexHarvestFlowRepository)
+	codexHarvestService := service.ProvideCodexHarvestService(codexHarvestNodeRepository, settingRepository, configConfig, codexHarvestFlowRepository, redisClient)
 	openAITurnStateStore := repository.NewOpenAITurnStateStore(redisClient)
 	openAIGatewayDependencies := service.OpenAIGatewayDependencies{
+		Redis:         redisClient,
 		Accounts:      accountRepository,
 		Proxies:       proxyRepository,
 		UsageLogs:     usageLogRepository,
@@ -335,7 +336,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	scheduledTestHandler := admin.NewScheduledTestHandler(scheduledTestService)
 	accountOpsHandler := admin.NewAccountOpsHandler(accountOpsService, emailService)
 	accountTokenGuardRepository := repository.NewAccountTokenGuardRepository(db)
-	accountTokenGuardService := service.ProvideAccountTokenGuardService(settingRepository, accountTokenGuardRepository, accountRepository, adminService, compositeTokenCacheInvalidator, configConfig, secretEncryptor)
+	accountTokenGuardService := service.ProvideAccountTokenGuardService(settingRepository, accountTokenGuardRepository, accountRepository, adminService, compositeTokenCacheInvalidator, configConfig, secretEncryptor, redisClient)
 	accountTokenGuardHandler := admin.NewAccountTokenGuardHandler(accountTokenGuardService)
 	channelHandler := admin.NewChannelHandler(channelService, billingService, pricingService)
 	channelMonitorHandler := admin.NewChannelMonitorHandler(channelMonitorService)

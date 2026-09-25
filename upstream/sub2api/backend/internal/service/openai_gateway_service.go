@@ -25,6 +25,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/cespare/xxhash/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 )
@@ -473,6 +474,7 @@ var ErrNoAvailableCompactAccounts = errors.New("no available accounts support /r
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
+	coordinationRedis             *redis.Client
 	accountRepo                   AccountRepository
 	usageLogRepo                  UsageLogRepository
 	usageBillingRepo              UsageBillingRepository

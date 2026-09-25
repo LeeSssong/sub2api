@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/redis/go-redis/v9"
 )
 
 const codexHarvestControlsKey = "openai_codex_harvest_controls_v1"
@@ -62,19 +63,21 @@ type CodexHarvestControlSnapshot struct {
 }
 
 type CodexHarvestService struct {
-	nodes       CodexHarvestNodeRepository
-	settings    SettingRepository
-	defaults    CodexHarvestControls
-	configMu    sync.Mutex
-	current     CodexHarvestControls
-	configured  bool
-	configErr   error
-	loadedUntil time.Time
-	wake        chan struct{}
-	runtimeMu   sync.Mutex
-	runtime     CodexHarvestRuntime
-	lastRequest time.Time
-	explore     atomic.Uint64
+	runtimeRedis     *redis.Client
+	runtimePublisher bool
+	nodes            CodexHarvestNodeRepository
+	settings         SettingRepository
+	defaults         CodexHarvestControls
+	configMu         sync.Mutex
+	current          CodexHarvestControls
+	configured       bool
+	configErr        error
+	loadedUntil      time.Time
+	wake             chan struct{}
+	runtimeMu        sync.Mutex
+	runtime          CodexHarvestRuntime
+	lastRequest      time.Time
+	explore          atomic.Uint64
 }
 
 func CodexHarvestSpeedPresets() map[string]CodexHarvestSpeed {
@@ -201,9 +204,12 @@ func NewCodexHarvestService(nodes CodexHarvestNodeRepository, settings SettingRe
 	return &CodexHarvestService{nodes: nodes, settings: settings, defaults: v, current: v, wake: make(chan struct{}, 1)}
 }
 
-func ProvideCodexHarvestService(nodes CodexHarvestNodeRepository, settings SettingRepository, cfg *config.Config, flows CodexHarvestFlowRepository) *CodexHarvestService {
+func ProvideCodexHarvestService(nodes CodexHarvestNodeRepository, settings SettingRepository, cfg *config.Config, flows CodexHarvestFlowRepository, rdb *redis.Client) *CodexHarvestService {
 	bindCodexHarvestFlowStore(flows)
-	return NewCodexHarvestService(nodes, settings, cfg)
+	svc := NewCodexHarvestService(nodes, settings, cfg)
+	svc.runtimeRedis = rdb
+	svc.runtimePublisher = shouldStartSingleton(cfg)
+	return svc
 }
 
 func ValidateCodexHarvestControls(v CodexHarvestControls) error {
@@ -291,11 +297,33 @@ func (s *CodexHarvestService) SaveControls(ctx context.Context, v CodexHarvestCo
 
 func (s *CodexHarvestService) setRuntime(update func(*CodexHarvestRuntime)) {
 	s.runtimeMu.Lock()
-	defer s.runtimeMu.Unlock()
 	update(&s.runtime)
+	snapshot := s.runtime
+	s.runtimeMu.Unlock()
+	if s.runtimePublisher && s.runtimeRedis != nil {
+		raw, err := json.Marshal(snapshot)
+		if err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			_ = s.runtimeRedis.Set(ctx, harvestRuntimeKey, raw, 2*time.Hour).Err()
+		}
+	}
 }
 
 func (s *CodexHarvestService) Runtime() CodexHarvestRuntime {
+	if !s.runtimePublisher && s.runtimeRedis != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		raw, err := s.runtimeRedis.Get(ctx, harvestRuntimeKey).Bytes()
+		var v CodexHarvestRuntime
+		if err == nil && json.Unmarshal(raw, &v) == nil {
+			if v.Running {
+				n, e := s.runtimeRedis.Exists(ctx, harvestCoordinationKey).Result()
+				v.Running = e == nil && n > 0
+			}
+			return v
+		}
+	}
 	s.runtimeMu.Lock()
 	defer s.runtimeMu.Unlock()
 	return s.runtime
