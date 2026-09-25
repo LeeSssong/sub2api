@@ -375,7 +375,7 @@ test_maintenance_controller_forwards_exact_current_migration_hash() {
 test_online_migration_controller_requires_explicit_hash() {
   local old_hash=dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54
   setup_case online-migration-hash
-  git -C "$ROOT" archive origin/main upstream/sub2api/backend/migrations | tar -x -C "$CASE_DIR/repo"
+  git -C "$ROOT" archive 50c1376e754bf81517b7c1e4fadd9073decf16c6 upstream/sub2api/backend/migrations | tar -x -C "$CASE_DIR/repo"
   git -C "$CASE_DIR/repo" add .
   git -C "$CASE_DIR/repo" commit -qm baseline-migrations
   git -C "$CASE_DIR/repo" push -q origin main
@@ -389,7 +389,7 @@ test_online_migration_controller_requires_explicit_hash() {
 test_fusion_controller_hash_and_retain() {
   local predecessor=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b
   setup_case fusion-controller
-  cp "$ROOT"/upstream/sub2api/backend/migrations/*.sql "$CASE_DIR/repo/upstream/sub2api/backend/migrations/"
+  git -C "$ROOT" archive d8859f6949b3cee22fd5a455d16ab845bacfeaf8 upstream/sub2api/backend/migrations | tar -x -C "$CASE_DIR/repo"
   git -C "$CASE_DIR/repo" add .
   git -C "$CASE_DIR/repo" commit -qm fusion-migrations
   git -C "$CASE_DIR/repo" push -q origin main
@@ -398,6 +398,44 @@ test_fusion_controller_hash_and_retain() {
   [[ ! -s "$CASE_DIR/docker.log" && ! -s "$CASE_DIR/ssh.log" ]] || fail 'unsafe fusion reached transport'
   CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH=$predecessor CONTROLLER_DRAIN_MODE=retain run_controller >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" || fail "fusion controller failed: $(cat "$CASE_DIR/stderr")"
   grep -q -- '--drain-mode retain' "$CASE_DIR/ssh.log" || fail 'retain mode was not forwarded'
+}
+
+test_september26_controller_requires_exact_online_contract() {
+  local predecessor=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
+  setup_case september26-controller
+  cp "${MIGRATIONS_FIXTURE_ROOT:-$ROOT}"/upstream/sub2api/backend/migrations/*.sql "$CASE_DIR/repo/upstream/sub2api/backend/migrations/"
+  git -C "$CASE_DIR/repo" add .
+  git -C "$CASE_DIR/repo" commit -qm september26-migrations
+  git -C "$CASE_DIR/repo" push -q origin main
+  write_evidence
+  CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH=$predecessor CONTROLLER_DRAIN_MODE=retain \
+    run_controller RELEASE_PRESERVE_DETECTOR=true >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "September 26 controller failed: $(cat "$CASE_DIR/stderr")"
+  grep -F -- "--online-migrations-from-hash $predecessor" "$CASE_DIR/ssh.log" >/dev/null || fail 'reviewed predecessor was not forwarded'
+  grep -F -- 'PRESERVE_DETECTOR=true' "$CASE_DIR/ssh.log" >/dev/null || fail 'detector preservation was not forwarded'
+  grep -F -- 'PRESERVE_WORKER=false' "$CASE_DIR/ssh.log" >/dev/null || fail 'new worker update was disabled'
+  grep -F -- '--drain-mode retain' "$CASE_DIR/ssh.log" >/dev/null || fail 'retain mode was not forwarded'
+
+  local scenario drain keep_worker keep_detector
+  for scenario in forced_drain preserved_worker detector_not_preserved; do
+    : >"$CASE_DIR/docker.log"
+    : >"$CASE_DIR/ssh.log"
+    drain=retain keep_worker=false keep_detector=true
+    case "$scenario" in
+      forced_drain) drain=force ;;
+      preserved_worker) keep_worker=true ;;
+      detector_not_preserved) keep_detector=false ;;
+    esac
+    CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH=$predecessor CONTROLLER_DRAIN_MODE=$drain \
+      expect_failure_before_transport "september26_$scenario" run_controller RELEASE_PRESERVE_WORKER=$keep_worker RELEASE_PRESERVE_DETECTOR=$keep_detector
+  done
+  printf '\n-- unreviewed change\n' >>"$CASE_DIR/repo/upstream/sub2api/backend/migrations/001_init.sql"
+  git -C "$CASE_DIR/repo" add .
+  git -C "$CASE_DIR/repo" commit -qm changed-migration
+  git -C "$CASE_DIR/repo" push -q origin main
+  write_evidence
+  CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH=$predecessor CONTROLLER_DRAIN_MODE=retain \
+    expect_failure_before_transport september26_wrong_target run_controller RELEASE_PRESERVE_DETECTOR=true
 }
 
 test_downtime_gate_is_propagated_without_retry() {
@@ -588,6 +626,12 @@ test_rejects_unattested_build_context_before_transport() {
   [[ ! -s "$CASE_DIR/ssh.log" ]] || fail 'untrusted build context invoked SSH'
 }
 
+if [[ "${ONLY_TEST:-}" == september26-online ]]; then
+  test_september26_controller_requires_exact_online_contract
+  printf 'PASS: September 26 controller online contract\n'
+  exit
+fi
+
 test_writer_schema_and_permissions
 test_migration_hash_matches_go_trim_space_for_unicode_whitespace
 test_evidence_rejected_before_transport
@@ -595,6 +639,7 @@ test_build_publish_and_host_invocation
 test_maintenance_controller_forwards_exact_current_migration_hash
 test_online_migration_controller_requires_explicit_hash
 test_fusion_controller_hash_and_retain
+test_september26_controller_requires_exact_online_contract
 test_downtime_gate_is_propagated_without_retry
 test_executor_install_failures_stop_before_build
 test_executor_parent_chain_rejects_before_build
