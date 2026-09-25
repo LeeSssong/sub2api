@@ -147,6 +147,11 @@ type NewAPIRateRefreshRepository interface {
 	ReleaseNewAPIRateRefresh(ctx context.Context, accountID int64, claimToken string) error
 }
 
+// AccountExcelBPSRepository disables only BPS, provided the account credentials and opt-in switches still match.
+type AccountExcelBPSRepository interface {
+	DisableExcelBPSOn403(ctx context.Context, account *Account) (bool, error)
+}
+
 type AccountDuplicateRepository interface {
 	// CreateWithAccountGroups atomically persists an account, its exact group priorities,
 	// and the scheduler outbox event for the new routing snapshot.
