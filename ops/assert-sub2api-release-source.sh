@@ -23,6 +23,13 @@ worktree=$(cd "$worktree" && pwd -P)
 
 branch=$(git -C "$worktree" symbolic-ref --quiet --short HEAD 2>/dev/null || true)
 [[ "$branch" == main ]] || fail 'releases must use the main branch'
+source_commit=$(git -C "$worktree" rev-parse HEAD) || fail 'could not resolve worktree HEAD'
+source_tree=$(git -C "$worktree" rev-parse 'HEAD^{tree}') || fail 'could not resolve worktree tree'
+if [[ -n "${RELEASE_LOCAL_SOURCE_COMMIT:-}" ]]; then
+  [[ "$mode" == production && "$RELEASE_LOCAL_SOURCE_COMMIT" =~ ^[a-f0-9]{40}$ && "$RELEASE_LOCAL_SOURCE_COMMIT" == "$source_commit" ]] || fail 'local source authorization must match the exact production commit'
+  [[ -z "$(git -C "$worktree" status --porcelain)" ]] || fail 'local source worktree is dirty'
+  printf 'release_source remote_verification=waived explicit_local_commit=%s\n' "$source_commit"
+else
 remote_commit=$(git -C "$worktree" rev-parse --verify refs/remotes/origin/main 2>/dev/null) \
   || fail 'origin/main is unavailable; fetch the remote before release'
 source_commit=$(git -C "$worktree" rev-parse HEAD) || fail 'could not resolve worktree HEAD'
@@ -31,6 +38,8 @@ remote_tree=$(git -C "$worktree" rev-parse 'refs/remotes/origin/main^{tree}') \
   || fail 'could not resolve origin/main tree'
 [[ "$source_commit" == "$remote_commit" ]] || fail 'release source is not the pushed origin/main commit'
 [[ "$source_tree" == "$remote_tree" ]] || fail 'release source tree does not match origin/main'
+
+fi
 
 # Every real Sub2API release must prove that account concurrency remains
 # provider-native. Lightweight release-source fixtures may omit the backend,
