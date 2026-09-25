@@ -1,5 +1,16 @@
 export default {
     accounts: {
+      admission: {
+        enabled: 'Check for degraded performance before import',
+        testGroup: 'Temporary test group',
+        selectTestGroup: 'Select a temporary test group',
+        unassigned: 'Unassigned',
+        targetGroups: 'Groups after passing',
+        testGroupRequired: 'Select a temporary test group before continuing authorization',
+        targetGroupsRequired: 'Select at least one group to join after passing',
+        groupsOverlap: 'The temporary test group must differ from the groups to join after passing',
+        invalidGroups: 'Select active, compatible groups without duplicate selections'
+      },
       title: 'Account Management',
       description: 'Manage AI platform accounts and credentials',
       modelDetection: {

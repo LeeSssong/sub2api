@@ -11,6 +11,7 @@ export { getCodexHarvestControls, saveCodexHarvestControls, getCodexHarvestNodes
 import type { OpenAIReferralRefreshResult, OpenAIReferralSendResult } from '@/types/openaiReferrals'
 import type {
   Account,
+  AccountAdmissionConfig,
   AccountListItem,
   CreateAccountRequest,
   UpdateAccountRequest,
@@ -812,10 +813,14 @@ export async function exportData(options?: {
 export async function importData(payload: {
   data: AdminDataPayload
   skip_default_group_bind?: boolean
+  group_ids?: number[]
+  admission?: AccountAdmissionConfig
 }): Promise<AdminDataImportResult> {
   const { data } = await apiClient.post<AdminDataImportResult>('/admin/accounts/data', {
     data: payload.data,
-    skip_default_group_bind: payload.skip_default_group_bind
+    skip_default_group_bind: payload.skip_default_group_bind,
+    ...(payload.group_ids !== undefined ? { group_ids: payload.group_ids } : {}),
+    ...(payload.admission ? { admission: payload.admission } : {})
   })
   return data
 }

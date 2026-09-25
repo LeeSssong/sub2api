@@ -51,6 +51,36 @@
         />
       </div>
 
+      <label class="flex cursor-pointer items-center gap-2">
+        <input
+          v-model="admissionEnabled"
+          type="checkbox"
+          data-testid="data-admission-enabled"
+          :disabled="importing"
+          class="h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
+        />
+        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.accounts.admission.enabled') }}</span>
+      </label>
+      <div v-if="admissionEnabled" class="space-y-4">
+        <div>
+          <label for="data-admission-test-group" class="input-label">{{ t('admin.accounts.admission.testGroup') }}</label>
+          <Select
+            id="data-admission-test-group"
+            v-model="admissionTestGroupId"
+            data-testid="data-admission-test-group"
+            :options="admissionTestGroupOptions"
+            :aria-label="t('admin.accounts.admission.testGroup')"
+            :disabled="importing"
+            searchable
+          />
+        </div>
+        <GroupSelector
+          v-model="targetGroupIds"
+          :groups="activeGroups"
+          :label="t('admin.accounts.admission.targetGroups')"
+        />
+      </div>
+
       <div
         v-if="result"
         class="space-y-2 rounded-xl border border-gray-200 p-4 dark:border-dark-700"
@@ -99,12 +129,16 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import Select from '@/components/common/Select.vue'
+import GroupSelector from '@/components/common/GroupSelector.vue'
+import { buildAccountAdmission, getAccountAdmissionError, getAdmissionGroups } from '@/components/account/accountAdmission'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { AdminDataImportResult, AdminDataPayload } from '@/types'
+import type { AdminDataImportResult, AdminDataPayload, AdminGroup, AccountPlatform } from '@/types'
 
 interface Props {
   show: boolean
+  groups?: AdminGroup[]
 }
 
 interface Emits {
@@ -112,11 +146,22 @@ interface Emits {
   (e: 'imported'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { groups: () => [] })
 const emit = defineEmits<Emits>()
 
 const { t } = useI18n()
 const appStore = useAppStore()
+
+const admissionEnabled = ref(false)
+const admissionTestGroupId = ref<number | null>(null)
+const targetGroupIds = ref<number[]>([])
+const filePlatforms = ref<AccountPlatform[]>([])
+let selectedFilesVersion = 0
+const activeGroups = computed(() => getAdmissionGroups(props.groups, filePlatforms.value))
+const admissionTestGroupOptions = computed(() => [
+  { value: null, label: t('admin.accounts.admission.unassigned') },
+  ...activeGroups.value.map(group => ({ value: group.id, label: group.name }))
+])
 
 const importing = ref(false)
 const files = ref<File[]>([])
@@ -139,7 +184,12 @@ watch(
   () => props.show,
   (open) => {
     if (open) {
+      admissionEnabled.value = false
+      admissionTestGroupId.value = null
+      targetGroupIds.value = []
       files.value = []
+      filePlatforms.value = []
+      selectedFilesVersion += 1
       dragDepth.value = 0
       hasCreatedData.value = false
       result.value = null
@@ -189,6 +239,21 @@ const setSelectedFiles = (sourceFiles: FileList | File[] | null | undefined) => 
   }
   files.value = picked
   result.value = null
+  filePlatforms.value = []
+  const version = ++selectedFilesVersion
+  // Preview platforms only; the existing import handler still owns file validation/errors.
+  void Promise.all(picked.map(async sourceFile => {
+    try {
+      const payload: unknown = JSON.parse(await readFileAsText(sourceFile))
+      return isValidDataPayload(payload)
+        ? payload.accounts.map(account => account?.platform).filter(Boolean)
+        : []
+    } catch {
+      return []
+    }
+  })).then(platforms => {
+    if (version === selectedFilesVersion) filePlatforms.value = [...new Set(platforms.flat())]
+  })
 }
 
 const handleDragEnter = () => {
@@ -292,10 +357,23 @@ const handleImport = async () => {
       dataPayloads.push(parsed)
     }
     const dataPayload = mergeDataPayloads(dataPayloads)
+    const admissionError = getAccountAdmissionError({
+      enabled: admissionEnabled.value,
+      testGroupId: admissionTestGroupId.value,
+      targetGroupIds: targetGroupIds.value,
+      groups: props.groups,
+      platforms: admissionEnabled.value ? dataPayload.accounts.map(account => account?.platform) : []
+    })
+    if (admissionError) {
+      appStore.showError(t(admissionError))
+      return
+    }
+    const admission = buildAccountAdmission(admissionEnabled.value, admissionTestGroupId.value)
 
     const res = await adminAPI.accounts.importData({
       data: dataPayload,
-      skip_default_group_bind: true
+      skip_default_group_bind: true,
+      ...(admission ? { admission, group_ids: targetGroupIds.value } : {})
     })
 
     result.value = res
