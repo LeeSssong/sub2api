@@ -41,11 +41,11 @@ Stats failures leave gallery usable and return null stats. The frontend must tol
 ## Work packages
 
 ### A — complete preview renderer (isolated preview worker)
-- [ ] Write/run failing fit geometry, sandbox message validation and document instrumentation tests.
-- [ ] Add one shared preview component/helper with stable document viewport, sandbox-side content measurement, bounded source-checked postMessage updates, proportional centering, safe SVG sizing and lifecycle cleanup.
-- [ ] Replace card iframe with that renderer; keep 4:3 wrapper, lazy body loading and overlay click semantics.
-- [ ] Deliver a fit/100% preview dialog component or integration instructions. Root owns `PelicanShowcaseView.vue` and locales to avoid conflicts. Preview uses available remaining dialog height, not fixed 65vh; 100% permits intentional scrolling.
-- [ ] Run only directly relevant tests and targeted type/lint checks. Commit worker changes locally and report commands/results.
+- [x] Write/run failing fit geometry, sandbox message validation and document instrumentation tests.
+- [x] Add one shared preview component/helper with stable document viewport, sandbox-side content measurement, bounded source-checked postMessage updates, proportional centering, safe SVG sizing and lifecycle cleanup.
+- [x] Replace card iframe with that renderer; keep 4:3 wrapper, lazy body loading and overlay click semantics.
+- [x] Deliver a fit/100% preview dialog component or integration instructions. Root owns `PelicanShowcaseView.vue` and locales to avoid conflicts. Preview uses available remaining dialog height, not fixed 65vh; 100% permits intentional scrolling.
+- [x] Run only directly relevant tests and targeted type/lint checks. Commit worker changes locally and report commands/results.
 
 ### B — durable statistics backend (isolated backend worker)
 - [x] Write/run failing tests for eligibility, duplicate multi-group totals, terminal outcomes, rolling window and coverage, visibility and unavailable reads.
@@ -57,15 +57,23 @@ Stats failures leave gallery usable and return null stats. The frontend must tol
 ### C — statistics UI and integration (root)
 - [x] Write/run failing gallery tests for selected-group statistics, null/empty rates, incomplete coverage and error handling. Initial red 5 failures, then all 10 tests passed.
 - [x] Add typed API fields, compact summary beneath tabs, group-header stats, explicit artwork counts and bilingual copy. Reuse existing theme, loading/refresh behavior and i18n.
-- [ ] Integrate worker commits after focused review; connect the shared preview dialog.
-- [ ] Run affected Vitest tests, typecheck, locale check, frontend production build and required backend integration checks. Reuse unchanged test evidence.
-- [ ] Inspect real Vue components in a local browser with synthetic fixtures: desktop, short viewport, mobile, portrait/landscape HTML/SVG, oversized document, delayed size changes, zoom and statistics filters/states.
-- [ ] Fix concrete failures, perform one focused review, record local commit(s), test evidence and remaining deployment requirement.
+- [x] Integrate worker commits after focused review; connect the shared preview dialog.
+- [x] Run affected Vitest tests, typecheck, locale check, frontend production build and required backend integration checks. Reuse unchanged test evidence.
+- [x] Inspect real Vue components in a local browser with synthetic fixtures: desktop, short viewport, mobile, portrait/landscape HTML/SVG, oversized document, delayed size changes, zoom and statistics filters/states.
+- [x] Fix concrete failures, perform one focused review, record local commit(s), test evidence and remaining deployment requirement.
 
 ## Completion record
-- Backend: focused service/repository and handler suites pass. Real PostgreSQL 18.1 integration passes all 12 top-level `TestPelican*` tests, including seven new statistics tests and ten eligibility subcases (8.073s). Full service `-tags unit` is blocked by unrelated baseline test compilation errors; no unrelated repairs attempted.
-- Frontend so far: integrated gallery 10/10; native BaseDialog and locale completeness 13/13; targeted lint, full `vue-tsc -b`, application production build and minified fixture build pass. Renderer worker initial package 34/34.
-- Browser so far: five thumbnail cases fit, including 1200×1600 HTML, portrait SVG, viewBox-only SVG and delayed content. 1280×720 and 390×844 dialogs fit without body/document overflow. 100% intentionally scrolls; mode switch preserves the same document.
-- Focused review confirmed a negative-to-positive animated element can shrink the document origin offset; renderer follow-up in progress. Browser verification also identified modal entrance transforms affecting measurements, and native iframe growth potentially changing media queries. Final verification follows these fixes.
-- Implementation and directly relevant verification constitute candidate completion only. Production deployment has not been requested.
-- The statistics migration is part of this feature; a future authorized deployment must follow the repository database migration release policy.
+
+- Local implementation candidate: `273e9db3dfe8c99de2554877be24ed6fb53e879b`, tree `3c7b7d8c0759e0ba26c1ffd3ebc204bd71a20014`, branch `codex/pelican-preview-stats`. The following documentation-only commit records this evidence.
+- Frontend: 56 distinct directly relevant tests verified: preview helper 25, preview component 5, integrated gallery 10, native dialog plus locale completeness 13, and existing HTML extraction 3. After the final clipping correction, component plus gallery tests were rerun: 15/15 pass; unchanged helper/dialog/locale/extraction evidence reused.
+- Full `vue-tsc -b`, scoped ESLint, `git diff --check`, application production build (17.36s), and minified browser fixture build (4.95s) pass. Build outputs are local validation artifacts under `/tmp`, not deployed release artifacts.
+- Backend: focused service/repository and handler suites pass. Real PostgreSQL 18.1 integration passes all 12 top-level `TestPelican*` tests, including seven new statistics tests and ten eligibility subcases. This covers atomic rollback, execution-start group attribution, terminal status filtering, exact rolling-window boundaries, duplicate-group totals, missing metadata, collector activation, cleanup backlog and counts surviving raw-result/plan/artwork deletion.
+- Backend commands: `go test ./internal/service ./internal/repository -run 'TestPelican|TestScheduledSaveResultPublishes|TestIntelligenceQuestion|TestLegacyCandy' -count=1`; `go test -tags unit ./internal/handler -run '^TestPelicanShowcaseHandler' -count=1`; real-PG `go test -tags integration ./internal/repository -run '^TestPelican' -count=1 -v` using the local Colima Docker socket.
+- Known baseline limitation: the broader service `-tags unit` suite cannot compile because of existing unrelated test issues (duplicate `ptrFloat`, stale cost-resolution function arguments, missing `context`, and outdated upstream-error fields). No unrelated fixes or full-regression expansion were made.
+- Browser verification used real Vue components and synthetic data, including the production-minified measurement script: 1200×1600 HTML, landscape SVG, portrait SVG, viewBox-only SVG, delayed content and a responsive 1600px document. Verified desktop 1440×960 / 1280×720, phone 390×844, short window 960×540 and light/dark themes.
+- All six fitted artworks preserve their top-left paint origin and stay within their preview bounds. The modal stays inside the viewport without body/document overflow. Explicit 100% scrolls only the intended canvas, retains the document across mode changes, and opening another preview resets to Fit.
+- Responsive artwork retains native `1024×768` iframe dimensions and `matchMedia('(min-width:1200px)') === false`; CSS media styling remains unchanged. The renderer also preserves author root zoom.
+- Statistics browser checks: selected group changes the server-supplied summary; `0 / 0` shows a dash rate, unavailable data shows dashes while artwork remains visible, and partial coverage explicitly shows collection start. No browser runtime errors observed.
+- One focused review found shrinking negative-coordinate offsets could move stationary content. Fixed with monotonic origin offsets and a regression. Browser QA additionally fixed entrance-transform sizing, media-query changes from iframe growth, and hidden wrappers auto-scrolling the rendered canvas. The final renderer uses a fixed native viewport, internal document zoom, outer fit/actual scaling, and non-scrollable clipping.
+- Work remains on the isolated feature branch. Main, remote and servers were not changed; no production deployment or test-station synchronization was performed. The local preview is clearly labeled synthetic sample data.
+- Migration `255_pelican_drawing_statistics.sql` creates independent outcome and coverage storage. A future authorized deployment must follow the project database-migration release policy. Collection starts when the new collector runs; no historical backfill is fabricated.
