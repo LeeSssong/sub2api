@@ -23,6 +23,7 @@ func TestPelicanClaimUsesDatabaseLeaseAndSavedVersion(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT pg_try_advisory_xact_lock").WithArgs(plan.AccountID).WillReturnRows(sqlmock.NewRows([]string{"locked"}).AddRow(true))
 	mock.ExpectExec(query).WithArgs(plan.ID, now, until, next, plan.UpdatedAt).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT COALESCE.*account_groups").WithArgs(plan.AccountID).WillReturnRows(sqlmock.NewRows([]string{"group_ids"}).AddRow("{3,7}"))
 	mock.ExpectCommit()
 	ok, err := repo.ClaimPelican(context.Background(), plan, now, until, next)
 	require.NoError(t, err)

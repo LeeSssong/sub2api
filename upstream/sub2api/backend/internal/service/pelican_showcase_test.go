@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -224,4 +225,22 @@ func TestScheduledSaveResultPublishesSavedPelicanResult(t *testing.T) {
 	require.NoError(t, svc.SaveResult(context.Background(), 7, 50, result))
 	require.Equal(t, []publishCall{{resultID: 91, groupIDs: []int64{6}, maxItems: 12}}, repo.published)
 	require.Equal(t, 50, results.pruned, "admin history retention is unchanged")
+}
+
+func TestPelicanShowcaseViewIncludesUnavailableStatistics(t *testing.T) {
+	repo := &showcaseRepoStub{groups: []*PelicanShowcaseGroup{{ID: 3, Name: "A"}}}
+	view, err := (&PelicanShowcaseService{repo: repo, settings: enabledShowcase(3)}).View(context.Background(), time.Now())
+	require.NoError(t, err)
+	encoded, err := json.Marshal(view)
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &payload))
+	require.Contains(t, payload, "stats")
+	require.Nil(t, payload["stats"])
+	require.Contains(t, payload, "stats_window")
+	require.Nil(t, payload["stats_window"])
+	group := payload["groups"].([]any)[0].(map[string]any)
+	require.Contains(t, group, "stats")
+	require.Nil(t, group["stats"])
+	require.Equal(t, "A", group["name"])
 }

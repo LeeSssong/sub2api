@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 )
 
 // --- Plan Repository ---
@@ -96,7 +97,18 @@ func NewScheduledTestResultRepository(db *sql.DB) service.ScheduledTestResultRep
 }
 
 func (r *scheduledTestResultRepository) Create(ctx context.Context, result *service.ScheduledTestResult) (*service.ScheduledTestResult, error) {
-	row := r.db.QueryRowContext(ctx, `
+	queryRow := r.db.QueryRowContext
+	var tx *sql.Tx
+	if service.IsPelicanDrawingResult(result) {
+		var err error
+		tx, err = r.db.BeginTx(ctx, nil)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = tx.Rollback() }()
+		queryRow = tx.QueryRowContext
+	}
+	row := queryRow(ctx, `
 		INSERT INTO scheduled_test_results (plan_id, status, response_text, error_message, latency_ms, started_at, finished_at, created_at, pelican_config, quality_action, quality_judgment, quality_round_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11)
 		RETURNING id, plan_id, status, response_text, error_message, latency_ms, started_at, finished_at, created_at, pelican_config, quality_action, quality_judgment, quality_round_id
@@ -118,6 +130,14 @@ func (r *scheduledTestResultRepository) Create(ctx context.Context, result *serv
 	}
 	if len(judgment) > 0 {
 		if err := json.Unmarshal(judgment, &out.QualityJudgment); err != nil {
+			return nil, err
+		}
+	}
+	if tx != nil {
+		if err := recordPelicanDrawingOutcome(ctx, tx, out, result.PelicanGroupIDs); err != nil {
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
 			return nil, err
 		}
 	}
@@ -253,8 +273,18 @@ func (r *scheduledTestPlanRepository) ClaimPelican(ctx context.Context, plan *se
 	if err != nil {
 		return false, err
 	}
+	var groups pq.Int64Array
+	if n == 1 {
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(array_agg(DISTINCT group_id ORDER BY group_id), '{}'::bigint[])
+         FROM account_groups WHERE account_id = $1`, plan.AccountID).Scan(&groups); err != nil {
+			return false, err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return false, err
+	}
+	if n == 1 {
+		plan.PelicanGroupIDs = append([]int64{}, groups...)
 	}
 	return n == 1, nil
 }
