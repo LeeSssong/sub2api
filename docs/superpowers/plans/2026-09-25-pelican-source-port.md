@@ -15,15 +15,15 @@
 - Functional adaptation and relevant tests are required. Keep source attribution and license.
 
 ## Task 1 — Sub Pelican backend
-- [ ] Compare source scheduled-test contracts/repository/service/runner and port Pelican-specific extensions only.
-- [ ] Add Pelican execution, configuration snapshots, bounded output, leases, history endpoints and migrations with unused names.
-- [ ] Adapt account test payload options, handler routes, provider wiring and showcase settings/API.
-- [ ] Bring source behavioral tests before implementations, run focused tests and compile affected packages.
+- [x] Compare source scheduled-test contracts/repository/service/runner and port Pelican-specific extensions only.
+- [x] Add Pelican execution, configuration snapshots, bounded output, leases, history endpoints and migrations with unused names.
+- [x] Adapt account test payload options, handler routes, provider wiring and showcase settings/API.
+- [x] Bring source behavioral tests before implementations, run focused tests and compile affected packages.
 
 ## Task 2 — Sub Pelican UI
-- [ ] Port source Pelican manual account panel, scheduled controls and records dashboard.
-- [ ] Port source user showcase/card/HTML sandbox/formatting, admin settings, APIs, routes, navigation and localized strings.
-- [ ] Reuse current native components; verify source-target API parity, focused UI tests and typecheck/build.
+- [x] Port source Pelican manual account panel, scheduled controls and records dashboard.
+- [x] Port source user showcase/card/HTML sandbox/formatting, admin settings, APIs, routes, navigation and localized strings.
+- [x] Reuse current native components; verify source-target API parity, focused UI tests and typecheck/build.
 
 ## Task 3 — Codex2API account quality and operations
 - [ ] Delegate independently in codex/account-ops-source-port; own all changes in that checkout.
