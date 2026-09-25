@@ -1191,6 +1191,60 @@ container_role() {
 	' "$container_id"
 }
 
+verify_fusion_callback_routes() {
+  # Prove both callback prefixes reach their exact slot for every suffix. Unknown
+  # matchers/handlers which could intercept the prefix fail closed; merely
+  # finding a proxy somewhere in the JSON does not establish reachability.
+  jq -e --arg origin "$1" '
+    def disjoint($prefix):
+      if contains("*") then
+        if endswith("*") and (rtrimstr("*") | contains("*") | not) then
+          rtrimstr("*") as $p | (($prefix | startswith($p)) or ($p | startswith($prefix))) | not
+        else false end
+      else startswith($prefix) | not end;
+    def covers($prefix):
+      endswith("*") and (rtrimstr("*") | contains("*") | not) and
+      (rtrimstr("*") as $p | $prefix | startswith($p));
+    def set_covers($prefix; $host):
+      (keys - ["host","path"] | length == 0) and
+      ((.host // [$host]) | index($host) != null) and
+      (if has("path") then any(.path[]; covers($prefix)) else true end);
+    def set_disjoint($prefix; $host):
+      (has("host") and all(.host[]; . != $host and (contains("*") | not))) or
+      (has("path") and all(.path[]; disjoint($prefix))) or
+      any(.not[]?; set_covers($prefix; $host));
+    def prove($routes; $prefix; $target; $host; $exact):
+      reduce $routes[] as $r ("continue";
+        if . != "continue" then .
+        elif (($r.match // [] | length) > 0 and all($r.match[]; set_disjoint($prefix; $host))) then .
+        elif $r.group != null then "unsafe"
+        else
+          (($r.match // [] | length) == 0 or any($r.match[]; set_covers($prefix; $host))) as $certain |
+          ($exact or $r.match == [{path:[$prefix + "*"]}]) as $bound |
+          (reduce ($r.handle // [])[] as $h ("continue";
+            if . != "continue" then .
+            elif (["headers","encode","log_append"] | index($h.handler)) != null then .
+            elif $h.handler == "subroute" then prove($h.routes // []; $prefix; $target; $host; $bound)
+            elif $h.handler == "reverse_proxy" and $bound and
+                 $h.upstreams == [{dial:$target}] and $h.rewrite == null and
+                 $h.handle_response == null and $h.dynamic_upstreams == null then "found"
+            else "unsafe" end)) as $result |
+          if $result == "found" and ($certain | not) then "unsafe"
+          elif $result == "continue" and $r.terminal == true then "unsafe"
+          else $result end
+        end);
+    ($origin | capture("^https://(?<host>[^/:]+)(:(?<port>[0-9]+))?/?$")) as $address |
+    (.apps.http.servers | to_entries | map(.value)) as $servers |
+    def server_ok($port):
+      [$servers[] | select(any(.listen[]?; endswith(":" + $port)))] as $matching |
+      ($matching | length) == 1 and
+      all(["blue","green"][]; . as $slot |
+        prove($matching[0].routes; "/api/bps-images/" + $slot + "/";
+          "sub2api-" + $slot + ":8080"; $address.host; false) == "found");
+    server_ok($address.port // "443") and server_ok("8081")
+  ' >/dev/null
+}
+
 live_caddy_upstream() {
   local jq_filter
   jq_filter='
@@ -1844,12 +1898,18 @@ if [[ "$online_migration_transition" == true && "$migrations_hash" == "$FUSION_2
   "${compose_current[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ |
     jq -e '[.. | objects | select(.upstreams? | type == "array") | select(any(.upstreams[]; .dial == "sub2api-blue:8080" or .dial == "sub2api-green:8080"))] | length > 0 and all(.[]; (.stream_close_delay // 0) >= 86400000000000)' >/dev/null \
     || gate stream_retention_not_ready 'live Caddy must already preserve upgraded streams across reload (24h); stage and verify separately before this release' 300
+  "${compose_current[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ |
+    verify_fusion_callback_routes "$base_url" \
+    || gate callback_affinity_not_ready 'live public/internal Caddy routes must preserve both callback slot prefixes without rewrite or interception' 300
   jq -e '.services["sub2api-worker"].stop_grace_period == "1m0s" or .services["sub2api-worker"].stop_grace_period == "60s"' <<<"$candidate_config" >/dev/null \
     || gate worker_shutdown_not_ready 'worker requires a verified 60s graceful stop budget' 300
   # Inspect the actual Caddyfile used for cutover too, before any migrations.
   "${compose_current[@]}" exec -T -e "SUB2API_ACTIVE_UPSTREAM=$candidate_upstream" caddy caddy adapt --config - --adapter caddyfile <"$deploy_root/Caddyfile" |
     jq -e '[.. | objects | select(.upstreams? | type == "array") | select(any(.upstreams[]; .dial == "sub2api-blue:8080" or .dial == "sub2api-green:8080"))] | length > 0 and all(.[]; (.stream_close_delay // 0) >= 86400000000000)' >/dev/null \
     || gate stream_retention_not_ready 'candidate Caddyfile must retain upgraded streams too' 300
+  "${compose_current[@]}" exec -T -e "SUB2API_ACTIVE_UPSTREAM=$candidate_upstream" caddy caddy adapt --config - --adapter caddyfile <"$deploy_root/Caddyfile" |
+    verify_fusion_callback_routes "$base_url" \
+    || gate callback_affinity_not_ready 'actual cutover Caddyfile lacks reachable public/internal callback slot routes' 300
 fi
 
 if [[ "$online_migration_transition" == true ]]; then

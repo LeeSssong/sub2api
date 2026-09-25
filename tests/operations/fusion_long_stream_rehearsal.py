@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Disposable local Caddy reload proof. Requires cached node:24-alpine/caddy:2.10.2-alpine; never pulls."""
-import base64, http.client, json, os, socket, subprocess, tempfile, time, uuid
+import base64, copy, http.client, json, os, socket, subprocess, tempfile, time, uuid
 from pathlib import Path
 
 def run(*args):
@@ -27,6 +27,40 @@ for slot in ['blue','green']:
     for route in routes:
         assert [item['dial'] for item in objects(route) if 'dial' in item]==['sub2api-'+slot+':8080']
         assert not any(item.get('handler')=='rewrite' for item in objects(route))
+
+# Exercise the SAME fail-closed verifier embedded in the uploaded host script,
+# against Caddy-adapted JSON, including placement and ancestor mutations.
+host_script=(root/'ops/deploy-sub2api-blue-green-host.sh').read_text()
+validator='verify_fusion_callback_routes() {' + host_script.split('verify_fusion_callback_routes() {',1)[1].split('\n}',1)[0] + '\n}'
+def verifies(value):
+    return subprocess.run(['bash','-c',validator+'\nverify_fusion_callback_routes "$1"',
+        'verify','https://fusion.invalid'],
+        input=json.dumps(value),text=True,capture_output=True).returncode == 0
+assert verifies(config_json), 'real shared snippet must pass the host verifier'
+def callback_lists(value):
+    if isinstance(value,dict):
+        for child in value.values():yield from callback_lists(child)
+    elif isinstance(value,list):
+        if any(isinstance(item,dict) and item.get('match')==[{'path':['/api/bps-images/blue/*']}] for item in value):yield value
+        for child in value:yield from callback_lists(child)
+for host_index in range(2):
+    for mutation in ['missing','swapped','rewrite','rewrite_handler','shadow','catchall','empty_match_catchall','conditional','group']:
+        bad=copy.deepcopy(config_json)
+        routes=list(callback_lists(bad))[host_index]
+        index=next(i for i,r in enumerate(routes) if r.get('match')==[{'path':['/api/bps-images/blue/*']}])
+        if mutation=='missing':routes.pop(index)
+        elif mutation=='swapped':routes[index]['handle'][0]['upstreams'][0]['dial']='sub2api-green:8080'
+        elif mutation=='rewrite':routes[index]['handle'][0]['rewrite']={'uri':'/stripped'}
+        elif mutation=='rewrite_handler':routes[index]['handle'].insert(0,{'handler':'rewrite','strip_path_prefix':'/api/bps-images/blue'})
+        elif mutation=='conditional':routes[index]['match'][0]['header']={'X-Test':['yes']}
+        elif mutation=='group':routes[index]['group']='hidden-first-match'
+        else:
+            blocker={'handle':[{'handler':'static_response','status_code':404}]}
+            if mutation=='shadow':blocker['match']=[{'path':['/api/*']}]
+            elif mutation=='empty_match_catchall':blocker['match']=[]
+            routes.insert(index,blocker)
+        assert not verifies(bad), 'unsafe callback config accepted: '+str(host_index)+'/'+mutation
+print('PASS: actual Caddy JSON callback proof rejects missing/swapped/rewritten/shadowed/conditional routes on both hosts')
 
 prefix='fusion-stream-'+uuid.uuid4().hex[:10]
 network=prefix; backend=prefix+'-backend'; proxy=prefix+'-caddy'
