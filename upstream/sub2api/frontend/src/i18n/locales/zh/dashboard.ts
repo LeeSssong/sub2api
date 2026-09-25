@@ -445,6 +445,9 @@ export default {
     latency: '延迟',
     latencyFirstToken: '首字',
     latencyDuration: '总耗时',
+    latencyTps: 'TPS',
+    latencyTpsHint: '输出速度 = 输出 Token ÷ (总耗时 − 首字)',
+    latencyTpsHintNoFirstToken: '输出速度 = 输出 Token ÷ 总耗时（无首字数据，含等待时间）',
     time: '时间',
     ws: 'WS',
     stream: '流式',
@@ -700,6 +703,7 @@ export default {
     }
   },
 
+  // Pelican showcase (user-facing gallery)
   pelicanShowcase: {
     title: '鹈鹕测智',
     description: '各分组的模型定时完成同一道绘图题，直接看生成的作品，直观比较模型水平',
@@ -739,6 +743,7 @@ export default {
       description: '管理员还没有选择要展示的分组。'
     }
   },
+
   // Available Channels (user-facing)
   availableChannels: {
     title: '可用渠道',
