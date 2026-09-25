@@ -16,11 +16,26 @@ export interface PelicanShowcaseItem {
   response_text?: string
 }
 
+export interface PelicanShowcaseStats {
+  success_count: number
+  total_count: number
+  /** Percentage from 0 to 100; null when there are no completed tests. */
+  success_rate: number | null
+}
+
+export interface PelicanShowcaseStatsWindow {
+  from: string
+  to: string
+  coverage_started_at: string
+  complete: boolean
+}
+
 export interface PelicanShowcaseGroup {
   id: number
   name: string
   platform: string
   items: PelicanShowcaseItem[]
+  stats?: PelicanShowcaseStats | null
 }
 
 export interface PelicanShowcaseView {
@@ -30,6 +45,9 @@ export interface PelicanShowcaseView {
   /** Snapshots older than this are cleaned up; 0 = auto cleanup off. */
   retention_days: number
   groups: PelicanShowcaseGroup[]
+  /** Deduplicated over visible groups, not the sum of overlapping memberships. */
+  stats?: PelicanShowcaseStats | null
+  stats_window?: PelicanShowcaseStatsWindow | null
 }
 
 export async function getShowcase(options?: { signal?: AbortSignal }): Promise<PelicanShowcaseView> {
