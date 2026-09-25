@@ -1556,7 +1556,13 @@ export interface OpenAIResponsesState {
   openai_responses_supported?: boolean
 }
 
+export interface AccountAdmissionConfig {
+  enabled: true
+  test_group_id?: number
+}
+
 export interface CreateAccountRequest {
+  admission?: AccountAdmissionConfig
   name: string
   notes?: string | null
   platform: AccountPlatform
@@ -1727,6 +1733,7 @@ export interface AdminDataImportResult {
 }
 
 export interface CodexSessionImportRequest {
+  admission?: AccountAdmissionConfig
   content?: string
   contents?: string[]
   name?: string
@@ -1748,6 +1755,7 @@ export interface CodexSessionImportRequest {
 }
 
 export interface OpenAICodexPATCreateRequest {
+  admission?: AccountAdmissionConfig
   access_token: string
   name?: string
   notes?: string | null

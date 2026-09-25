@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from '../client'
-import type { GrokBillingSummary, GrokQuotaWindow, WindowStats } from '@/types'
+import type { AccountAdmissionConfig, GrokBillingSummary, GrokQuotaWindow, WindowStats } from '@/types'
 
 export type { GrokBillingSummary, GrokQuotaWindow } from '@/types'
 
@@ -56,6 +56,7 @@ export interface GrokTokenInfo {
 }
 
 export interface GrokSSOToOAuthRequest {
+  admission?: AccountAdmissionConfig
   sso_tokens: string[]
   name?: string
   notes?: string | null

@@ -3528,6 +3528,30 @@
           </div>
         </div>
 
+        <div v-if="isOAuthFlow" class="mb-4 space-y-3">
+          <label class="flex cursor-pointer items-center gap-2">
+            <input
+              v-model="admissionEnabled"
+              type="checkbox"
+              data-testid="account-admission-enabled"
+              class="h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
+            />
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.accounts.admission.enabled') }}</span>
+          </label>
+          <div v-if="admissionEnabled">
+            <label for="account-admission-test-group" class="input-label">{{ t('admin.accounts.admission.testGroup') }} <span class="text-red-500">*</span></label>
+            <Select
+              id="account-admission-test-group"
+              v-model="admissionTestGroupId"
+              data-testid="account-admission-test-group"
+              :options="admissionTestGroupOptions"
+              :placeholder="t('admin.accounts.admission.selectTestGroup')"
+              :aria-label="t('admin.accounts.admission.testGroup')"
+              searchable
+            />
+          </div>
+        </div>
+
         <!-- Group Selection - 仅标准模式显示 -->
         <GroupSelector
           v-model="form.group_ids"
@@ -3938,6 +3962,7 @@ import Icon from '@/components/icons/Icon.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
+import { buildAccountAdmission, getAccountAdmissionError, getAdmissionGroups } from './accountAdmission'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import Toggle from '@/components/common/Toggle.vue'
@@ -5216,8 +5241,37 @@ const withAntigravityConfirmFlag = (payload: CreateAccountRequest): CreateAccoun
   return cloned
 }
 
+const admissionEnabled = ref(false)
+const admissionTestGroupId = ref<number | null>(null)
+const admissionTestGroupOptions = computed(() =>
+  getAdmissionGroups(props.groups, [form.platform], mixedScheduling.value)
+    .map(group => ({ value: group.id, label: group.name }))
+)
+const admissionFields = computed(() => {
+  const admission = buildAccountAdmission(admissionEnabled.value && isOAuthFlow.value, admissionTestGroupId.value)
+  return admission ? { admission } : {}
+})
+const validateAdmission = () => {
+  const error = getAccountAdmissionError({
+    enabled: admissionEnabled.value && isOAuthFlow.value,
+    testGroupId: admissionTestGroupId.value,
+    targetGroupIds: form.group_ids,
+    groups: props.groups,
+    platforms: [form.platform],
+    requireTestGroup: true,
+    mixedScheduling: mixedScheduling.value
+  })
+  if (error) appStore.showError(t(error))
+  return !error
+}
+watch(() => [form.platform, isOAuthFlow.value], () => {
+  admissionEnabled.value = false
+  admissionTestGroupId.value = null
+})
+
 const withActiveProbeFlag = (payload: CreateAccountRequest): CreateAccountRequest => ({
   ...payload,
+  ...admissionFields.value,
   active_probe_enabled: activeProbeEnabled.value
 })
 
@@ -5252,6 +5306,7 @@ const ensureAntigravityMixedChannelConfirmed = async (onConfirm: () => Promise<v
 }
 
 const submitCreateAccount = async (payload: CreateAccountRequest) => {
+  if (!validateAdmission()) return
   submitting.value = true
   try {
     const account = await adminAPI.accounts.create(
@@ -5301,6 +5356,8 @@ const resetForm = () => {
   form.priority = 1
   form.rate_multiplier = 1
   form.group_ids = []
+  admissionEnabled.value = false
+  admissionTestGroupId.value = null
   form.expires_at = null
   accountCategory.value = 'oauth-based'
   addMethod.value = 'oauth'
@@ -5622,6 +5679,7 @@ const handleVertexServiceAccountDrop = async (event: DragEvent) => {
 }
 
 const handleSubmit = async () => {
+  if (!validateAdmission()) return
   // For OAuth-based type, handle OAuth flow (goes to step 2)
   if (isOAuthFlow.value) {
     if (!isGrokSSOInputMethod.value && !form.name.trim()) {
@@ -5898,6 +5956,7 @@ const goBackToBasicInfo = () => {
 }
 
 const handleGenerateUrl = async () => {
+  if (!validateAdmission()) return
   if (form.platform === 'openai') {
     await openaiOAuth.generateAuthUrl(form.proxy_id)
   } else if (form.platform === 'gemini') {
@@ -6024,6 +6083,7 @@ const createAccountAndFinish = async (
 
 // Grok 手动 RT 批量验证和创建
 const handleGrokValidateRT = async (refreshTokenInput: string) => {
+  if (!validateAdmission()) return
   if (!refreshTokenInput.trim()) return
 
   const refreshTokens = refreshTokenInput
@@ -6114,6 +6174,7 @@ const handleGrokValidateRT = async (refreshTokenInput: string) => {
 }
 
 const handleGrokImportSSO = async (ssoInput: string) => {
+  if (!validateAdmission()) return
   // Align with OpenAI/Grok RT batch import: one token per line, no client-side dedupe.
   const ssoTokens = ssoInput
     .split('\n')
@@ -6138,6 +6199,7 @@ const handleGrokImportSSO = async (ssoInput: string) => {
 
   try {
     const result = await adminAPI.grok.createFromSSO({
+      ...admissionFields.value,
       sso_tokens: ssoTokens,
       name: form.name || undefined,
       notes: form.notes || undefined,
@@ -6190,6 +6252,7 @@ const handleGrokImportSSO = async (ssoInput: string) => {
  * Password is only used for the authorize API call; buildCredentials never stores it.
  */
 const handleGrokAuthorizePassword = async (emailPasswordInput: string) => {
+  if (!validateAdmission()) return
   if (!emailPasswordInput.trim()) return
   if (!validateGrokOAuthUpstreamConfig()) return
 
@@ -6431,6 +6494,7 @@ const isAgentIdentityImportContent = (content: string) => {
 }
 
 const handleOpenAIImportCodexSession = async (content: string) => {
+  if (!validateAdmission()) return
   const oauthClient = openaiOAuth
   const trimmed = content.trim()
   if (!trimmed) {
@@ -6453,6 +6517,7 @@ const handleOpenAIImportCodexSession = async (content: string) => {
   try {
     const extra = buildOpenAICodexImportExtra()
     const result = await adminAPI.accounts.importCodexSession({
+      ...admissionFields.value,
       content: trimmed,
       name: form.name,
       notes: form.notes || null,
@@ -6514,6 +6579,7 @@ const handleOpenAIImportCodexSession = async (content: string) => {
 }
 
 const handleOpenAIImportCodexPAT = async (accessToken: string) => {
+  if (!validateAdmission()) return
   const oauthClient = openaiOAuth
   const trimmed = accessToken.trim()
   if (!trimmed) {
@@ -6532,6 +6598,7 @@ const handleOpenAIImportCodexPAT = async (accessToken: string) => {
   try {
     const extra = buildOpenAICodexImportExtra()
     await adminAPI.accounts.createOpenAICodexPAT({
+      ...admissionFields.value,
       access_token: trimmed,
       name: form.name,
       notes: form.notes || null,
@@ -6565,6 +6632,7 @@ const handleOpenAIImportCodexPAT = async (accessToken: string) => {
 
 // OpenAI RT 批量验证和创建（共享逻辑）
 const handleOpenAIBatchRT = async (refreshTokenInput: string, clientId?: string) => {
+  if (!validateAdmission()) return
   const oauthClient = openaiOAuth
   if (!refreshTokenInput.trim()) return
 
@@ -6685,6 +6753,7 @@ const handleOpenAIValidateMobileRT = (rt: string) => handleOpenAIBatchRT(rt, OPE
 
 // Antigravity 手动 RT 批量验证和创建
 const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
+  if (!validateAdmission()) return
   if (!refreshTokenInput.trim()) return
 
   // Parse multiple refresh tokens (one per line)
@@ -6986,6 +7055,7 @@ const handleAnthropicExchange = async (authCode: string) => {
 
 // 主入口：根据平台路由到对应处理函数
 const handleExchangeCode = async () => {
+  if (!validateAdmission()) return
   const authCode = oauthFlowRef.value?.authCode || ''
 
   switch (form.platform) {
@@ -7003,6 +7073,7 @@ const handleExchangeCode = async () => {
 }
 
 const handleCookieAuth = async (sessionKey: string) => {
+  if (!validateAdmission()) return
   oauth.loading.value = true
   oauth.error.value = ''
 
