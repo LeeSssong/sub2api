@@ -1,3 +1,7 @@
+-- Online fusion: fail promptly on live-table lock contention, including worker startup.
+SET LOCAL lock_timeout = '100ms';
+SET LOCAL statement_timeout = '2s';
+
 -- 用户在单个分组内被禁用的模型清单，与专属倍率 / RPM 共用一行。
 -- NULL 表示不限制；rate_multiplier、rpm_override、denied_models 都为 NULL 时整行删除。
 ALTER TABLE user_group_rate_multipliers

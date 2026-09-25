@@ -215,6 +215,7 @@ for arg in "$@"; do
   case "$arg" in @*) [[ -s "${arg#@}" ]] || exit 26 ;; esac
 done
 case "${FAKE_SCENARIO:-success}:$*" in
+	fusion_public_failure:*example.invalid*) [[ ! -e "${FAKE_EVENT_LOG}.live-route-green" ]] || exit 22 ;;
 	public_failure:*example.invalid*) exit 22 ;;
 	post_rollback_restore_failure:*'/health'*) [[ -e "${FAKE_EVENT_LOG}.live-route-green" ]] || exit 22 ;;
 	caddy_identity_rollback:*example.invalid*|rollback_shared_id_drift:*example.invalid*) [[ -e "${FAKE_EVENT_LOG}.live-route-green" ]] && exit 22 ;;
@@ -294,11 +295,11 @@ JSON
     [[ "$scenario" == candidate_role ]] && role=worker
 		if [[ "${FAKE_CANDIDATE_SLOT:-green}" == blue ]]; then
 		  worker_image=${EXPECTED_WORKER_IMAGE:-${PREVIOUS_IMAGE_FOR_FAKE:?}}
-		  printf '{"services":{"caddy":{"image":"fixture-caddy:current"},"sub2api-green":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"api"}},"sub2api-blue":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"%s"}},"sub2api-worker":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"worker"}}}}\n' \
+		  printf '{"services":{"caddy":{"image":"fixture-caddy:current"},"sub2api-green":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"api"}},"sub2api-blue":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"%s"}},"sub2api-worker":{"image":"%s","stop_grace_period":"1m0s","environment":{"SERVER_PROCESS_ROLE":"worker"}}}}\n' \
 		    "${PREVIOUS_IMAGE_FOR_FAKE:?}" "${EXPECTED_IMAGE:?}" "$role" "$worker_image"
 		else
 		  worker_image=${EXPECTED_WORKER_IMAGE:-${PREVIOUS_IMAGE_FOR_FAKE:?}}
-		  printf '{"services":{"caddy":{"image":"fixture-caddy:current"},"sub2api-green":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"%s"}},"sub2api-blue":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"api"}},"sub2api-worker":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"worker"}}}}\n' \
+		  printf '{"services":{"caddy":{"image":"fixture-caddy:current"},"sub2api-green":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"%s"}},"sub2api-blue":{"image":"%s","environment":{"SERVER_PROCESS_ROLE":"api"}},"sub2api-worker":{"image":"%s","stop_grace_period":"1m0s","environment":{"SERVER_PROCESS_ROLE":"worker"}}}}\n' \
 		    "${EXPECTED_IMAGE:?}" "$role" "${PREVIOUS_IMAGE_FOR_FAKE:?}" "$worker_image"
     fi
     ;;
@@ -383,6 +384,8 @@ JSON
 		if [[ "$scenario" == worker_role_all ]]; then printf 'SERVER_PROCESS_ROLE=all\n'; else printf 'SERVER_PROCESS_ROLE=worker\n'; fi
 		;;
 	'inspect legacy-id --format {{range .Config.Env}}{{println .}}{{end}}') printf 'SERVER_PROCESS_ROLE=all\n' ;;
+  *'fusion-receipts'*) if [[ "$scenario" == fusion_partial_migration ]]; then printf '%064d\n' 7; else printf '%s\n' "${EXPECTED_MIGRATIONS_HASH:?}"; fi ;;
+  *' -migrate-only') [[ "$scenario" != fusion_partial_migration ]] || exit 1 ;;
   *'exec -T postgres '*'schema_migrations'*) printf '%s\n' "${FAKE_ROLLBACK_SCHEMA_COMPAT:-t}" ;;
   *'exec -T postgres '*'openai_scheduler_logs'*) printf '%s\n' "${FAKE_RETIRED_SCHEDULER_ARTIFACTS:-0}" ;;
   *'exec -T postgres '*'psql'*) printf '%s\n' "${FAKE_DB_HEADROOM:-30}" ;;
@@ -508,11 +511,12 @@ JSON
     [[ "$scenario" != maintenance_rollback_previous_api_unhealthy ]] || { printf 'unhealthy\n'; exit 0; }
     printf 'healthy\n'
     ;;
-		*'exec -T caddy wget -qO- http://127.0.0.1:2019/config/'*)
+		*'exec -T caddy wget -qO- http://127.0.0.1:2019/config/'*|*'caddy caddy adapt --config - --adapter caddyfile'*)
 			upstream=sub2api-blue:8080
 			[[ "$scenario" == live_route_green || -e "${FAKE_EVENT_LOG}.live-route-green" ]] && upstream=sub2api-green:8080
 			[[ "$scenario" == maintenance_rollback_caddy_mismatch && -e "${FAKE_EVENT_LOG}.rollback-phase" ]] && upstream=sub2api-green:8080
-			printf '{"apps":{"http":{"servers":{"srv0":{"routes":[{"handle":[{"upstreams":[{"dial":"%s"}]}]}]}}}}}\n' "$upstream"
+			[[ "$scenario" != fusion_missing_stream_delay ]] || { printf '{"upstreams":[{"dial":"sub2api-blue:8080"}]}\n'; exit 0; }
+			printf '{"apps":{"http":{"servers":{"srv0":{"routes":[{"handle":[{"stream_close_delay":86400000000000,"upstreams":[{"dial":"%s"}]}]}]}}}}}\n' "$upstream"
 		;;
   *'logs --no-color --tail 200 sub2api-worker')
     [[ "$scenario" != worker_request_failure_log ]] || { printf 'sub2api-worker-1  | Request failed: upstream timeout\n'; exit 0; }
@@ -541,6 +545,7 @@ run_executor() {
     --migrations-hash "$MIGRATIONS_HASH"
     --deadline-epoch "${RELEASE_DEADLINE_EPOCH:-1785515400}"
   )
+  executor_args+=(--drain-mode "${DRAIN_MODE:-force}")
   if [[ "${PRELOADED_MODE:-false}" == true ]]; then
     executor_args+=(
       --preloaded-archive "${PRELOADED_ARCHIVE:?}"
@@ -2548,6 +2553,60 @@ test_caddy_identity_refresh_without_maintenance() {
   assert_no_mutation caddy_identity_wrong_image
 }
 
+test_fusion_retain_drain() {
+  setup_case retain_busy
+  write_meminfo
+  DRAIN_MODE=retain run_executor PRESERVE_WORKER=true FAKE_SCENARIO=drain_timeout >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" || fail "retain release failed: $(cat "$CASE_DIR/stderr")"
+  ! grep -Eq 'docker (stop|kill)' "$EVENT_LOG" || fail 'retain mode terminated live requests'
+  [[ -n "$(find "$CASE_DIR/records" -name '.drain-*.pending' -print -quit)" ]] || fail 'retained slot did not block next release'
+  local record
+  record=$(find "$CASE_DIR/records" -name '*.json' -print -quit)
+  "$REAL_JQ" -e '.drain.status == "retained" and .drain.forced == false' "$record" >/dev/null || fail 'retain outcome absent'
+  setup_case retain_idle_cleanup
+  write_meminfo
+  DRAIN_MODE=retain run_executor PRESERVE_WORKER=true FAKE_SCENARIO=drain_empty >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" || fail 'idle retain release failed'
+  grep -q 'docker kill --signal TERM blue-id' "$EVENT_LOG" || fail 'idle retain did not signal queue cleanup'
+  ! grep -q 'docker stop --time 0' "$EVENT_LOG" || fail 'idle retain skipped queue cleanup'
+
+}
+
+test_fusion_online_transition() {
+  local old_hash=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b new_hash=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
+  setup_case fusion_online
+  write_meminfo
+  MIGRATIONS_HASH=$new_hash
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"
+  chmod 0600 "$CASE_DIR/state.json"
+  ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=retain run_executor FAKE_SCENARIO=drain_timeout >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" || fail "fusion failed: $(cat "$CASE_DIR/stderr")"
+  ! grep -Eq 'docker (stop|kill)' "$EVENT_LOG" || fail 'fusion killed old stream'
+  ! grep -q 'retired_scheduler_artifacts' "$EVENT_LOG" || fail 'fusion ran unrelated retired scheduler probe'
+  "$REAL_JQ" -e --arg hash "$new_hash" '.migrations_hash == $hash' "$CASE_DIR/state.json" >/dev/null || fail 'fusion schema hash absent'
+  local record
+  record=$(find "$CASE_DIR/records" -name '*.json' -print -quit)
+  ROLLBACK_RECORD=$record run_executor FAKE_SCENARIO=post_success_rollback >"$CASE_DIR/rollback.stdout" 2>"$CASE_DIR/rollback.stderr" || fail "fusion rollback failed: $(cat "$CASE_DIR/rollback.stderr")"
+  "$REAL_JQ" -e --arg hash "$new_hash" '.migrations_hash == $hash and .active_slot == "blue"' "$CASE_DIR/state.json" >/dev/null || fail 'reader rollback lost expanded schema identity'
+
+  for scenario in fusion_missing_stream_delay fusion_public_failure fusion_partial_migration; do
+    setup_case "$scenario"
+    write_meminfo
+    MIGRATIONS_HASH=$new_hash
+    "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+    mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"
+    chmod 0600 "$CASE_DIR/state.json"
+    if ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=retain run_executor FAKE_SCENARIO=$scenario >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr"; then fail "$scenario incorrectly accepted"; fi
+    if [[ "$scenario" == fusion_public_failure ]]; then
+      "$REAL_JQ" -e --arg hash "$new_hash" '.migrations_hash == $hash and .active_slot == "blue"' "$CASE_DIR/state.json" >/dev/null || fail 'automatic rollback claimed old schema'
+    elif [[ "$scenario" == fusion_partial_migration ]]; then
+      "$REAL_JQ" -e --arg hash "$(printf '%064d' 7)" '.migrations_hash == $hash and .active_slot == "blue"' "$CASE_DIR/state.json" >/dev/null || fail 'partial migration receipts lost'
+      ! grep -q 'SUB2API_ACTIVE_UPSTREAM=sub2api-green:8080 caddy caddy reload' "$EVENT_LOG" || fail 'partial migration cut over'
+    else
+      ! grep -q ' -migrate-only' "$EVENT_LOG" || fail 'unsafe stream configuration reached migrations'
+    fi
+  done
+
+}
+
 test_preserve_worker_and_drain() {
   setup_case drain_pending_blocks_next_release
   write_meminfo
@@ -2572,7 +2631,8 @@ test_preserve_worker_and_drain() {
     ! grep -q 'force-recreate sub2api-worker' "$EVENT_LOG" || fail 'unrelated worker was recreated'
     ! grep -q 'force-recreate model-detector' "$EVENT_LOG" || fail 'unrelated detector was recreated'
     "$REAL_JQ" -e --arg image "$PREVIOUS_IMAGE" '.worker_image == $image' "$CASE_DIR/state.json" >/dev/null || fail 'worker image was not preserved'
-    grep -q 'docker stop --time 0 blue-id' "$EVENT_LOG" || fail 'old slot not retired after draining'
+    grep -Eq 'docker stop --time [0-9]+ blue-id' "$EVENT_LOG" || fail 'old slot not retired after draining'
+    if [[ "$drain_scenario" != drain_timeout ]]; then ! grep -q 'docker stop --time 0 blue-id' "$EVENT_LOG" || fail 'early drain skipped application cleanup'; fi
     if [[ "$drain_scenario" == drain_active || "$drain_scenario" == drain_halfclose ]]; then
       grep -q 'sleep 2' "$EVENT_LOG" || fail 'active connections were not allowed to drain'
     fi
@@ -3077,7 +3137,8 @@ case "${ONLY_TEST:-all}" in
 	online-migrations) test_online_official_028_migrations_keep_old_api_running ;;
   post-success-rollback) test_successful_release_can_rollback_without_stopping_current_api; test_online_migration_release_can_rollback_to_previous_schema_reader; test_failed_rollback_restoration_keeps_exclusive_lock; test_failed_rollback_state_write_restores_release_env ;;
 	caddy-identity) test_caddy_identity_refresh_without_maintenance ;;
-	drain) test_preserve_worker_and_drain ;;
+	drain) test_preserve_worker_and_drain; test_fusion_retain_drain ;;
+  fusion-online) test_fusion_online_transition ;;
 	gates) test_downtime_gates ;;
 	preloaded) test_preloaded_transport_loads_archive_without_pull ;;
   *) fail "unknown ONLY_TEST: ${ONLY_TEST}" ;;

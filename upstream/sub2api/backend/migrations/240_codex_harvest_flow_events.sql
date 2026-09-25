@@ -1,3 +1,7 @@
+-- Online fusion: fail promptly on live-table lock contention, including worker startup.
+SET LOCAL lock_timeout = '100ms';
+SET LOCAL statement_timeout = '2s';
+
 CREATE TABLE IF NOT EXISTS codex_harvest_flow_events (
     id BIGSERIAL PRIMARY KEY,
     event_id VARCHAR(64) NOT NULL UNIQUE,

@@ -1,3 +1,7 @@
+-- Online fusion: fail promptly on live-table lock contention, including worker startup.
+SET LOCAL lock_timeout = '100ms';
+SET LOCAL statement_timeout = '2s';
+
 -- Additive diagnostics storage; old binaries do not read or write this table.
 -- No FK: usage_logs can be partitioned; retention also removes orphaned details.
 CREATE TABLE IF NOT EXISTS request_timing_details (

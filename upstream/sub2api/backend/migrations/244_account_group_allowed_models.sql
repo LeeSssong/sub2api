@@ -1,3 +1,7 @@
+-- Online fusion: fail promptly on live-table lock contention, including worker startup.
+SET LOCAL lock_timeout = '100ms';
+SET LOCAL statement_timeout = '2s';
+
 -- 账号在单个分组内可用的模型清单。NULL 表示不限制，沿用账号自身支持的模型；
 -- 旧版本二进制不读写该列，可继续运行。
 ALTER TABLE account_groups

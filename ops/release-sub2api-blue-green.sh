@@ -12,6 +12,7 @@ mode=''
 evidence=''
 maintenance_authorized=false
 online_migrations_from_hash=''
+drain_mode=force
 while (($#)); do
   case "$1" in
     --mode)
@@ -37,16 +38,18 @@ while (($#)); do
 			online_migrations_from_hash=$2
 			shift 2
 			;;
+    --drain-mode) (($# >= 2)) || fail '--drain-mode requires a value'; drain_mode=$2; shift 2 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
 
+[[ "$drain_mode" == force || "$drain_mode" == retain ]] || fail '--drain-mode must be force or retain'
 [[ "$mode" == rehearsal || "$mode" == production ]] || fail '--mode must be rehearsal or production'
 [[ "$maintenance_authorized" == false || "$mode" == production ]] || fail '--maintenance-authorized is only valid in production mode'
 [[ -z "$online_migrations_from_hash" || ( "$mode" == production && "$maintenance_authorized" == false ) ]] \
   || fail 'online migrations require production mode without maintenance'
-[[ -z "$online_migrations_from_hash" || "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 ]] \
-  || fail 'online migration source hash is not the reviewed v0.2.8 predecessor'
+[[ -z "$online_migrations_from_hash" || "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 || "$online_migrations_from_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b ]] \
+  || fail 'online migration source hash is not a reviewed predecessor'
 maintenance_from_hash=${RELEASE_MAINTENANCE_FROM_HASH:-}
 if [[ "$maintenance_authorized" == true ]]; then
   [[ "$maintenance_from_hash" =~ ^[a-f0-9]{64}$ ]] \
@@ -94,6 +97,12 @@ migrations_hash=$(ruby -rdigest -e '
   print digest.hexdigest
 ' "$migrations_dir") || fail 'could not compute migration hash'
 [[ "$migrations_hash" =~ ^[a-f0-9]{64}$ ]] || fail 'migration hash is invalid'
+if [[ "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 ]]; then
+  [[ "$migrations_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b ]] || fail 'legacy online migration target is not reviewed'
+fi
+if [[ "$online_migrations_from_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b ]]; then
+  [[ "$migrations_hash" == 5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df && "$drain_mode" == retain ]] || fail 'fusion requires reviewed target migrations and --drain-mode retain'
+fi
 
 ruby -rjson -rtime -e '
   path, commit, tree, migrations = ARGV
@@ -485,6 +494,7 @@ fi
 if [[ -n "$online_migrations_from_hash" ]]; then
   host_args+=(--online-migrations-from-hash "$online_migrations_from_hash")
 fi
+host_args+=(--drain-mode "$drain_mode")
 host_output=$(perl -e 'alarm shift @ARGV; exec @ARGV' "$host_timeout" "$ssh_bin" \
   -T -i "$ssh_key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
   -o "UserKnownHostsFile=$ssh_known_hosts" -p "$ssh_port" "$ssh_target" \

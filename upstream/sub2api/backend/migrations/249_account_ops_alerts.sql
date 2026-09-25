@@ -1,3 +1,7 @@
+-- Online fusion: fail promptly on live-table lock contention, including worker startup.
+SET LOCAL lock_timeout = '100ms';
+SET LOCAL statement_timeout = '2s';
+
 -- One durable, coalesced alert per account and error category. Raw upstream responses are never stored.
 CREATE TABLE IF NOT EXISTS account_ops_alerts (
  account_id BIGINT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,

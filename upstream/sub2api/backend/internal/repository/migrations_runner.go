@@ -325,6 +325,18 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 		}
 
 		if nonTx {
+			if name == "252_account_quality_unique_notx.sql" {
+				// Only this reviewed new index gets a longer build budget. Restore
+				// connection defaults before returning it to the pool.
+				if _, err := lockConn.ExecContext(ctx, "SET lock_timeout = '100ms'; SET statement_timeout = '60s'"); err != nil {
+					return err
+				}
+				defer func() {
+					resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					_, _ = lockConn.ExecContext(resetCtx, "RESET lock_timeout; RESET statement_timeout")
+				}()
+			}
 			if err := prepareNonTransactionalMigration(ctx, lockConn, name); err != nil {
 				return fmt.Errorf("prepare migration %s: %w", name, err)
 			}
@@ -387,6 +399,15 @@ type migrationConnection interface {
 
 func prepareNonTransactionalMigration(ctx context.Context, db migrationConnection, name string) error {
 	switch name {
+	case "252_account_quality_unique_notx.sql":
+		var duplicate bool
+		if err := db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM scheduled_test_plans WHERE pelican_config->'quality' IS NOT NULL GROUP BY account_id HAVING COUNT(*) > 1)`).Scan(&duplicate); err != nil {
+			return fmt.Errorf("precheck quality rule ownership: %w", err)
+		}
+		if duplicate {
+			return errors.New("duplicate quality rules per account; resolve before retrying online migration")
+		}
+		return dropInvalidIndexIfPresent(ctx, db, "scheduled_test_quality_account_unique")
 	case paymentOrdersOutTradeNoUniqueMigration:
 		return preparePaymentOrdersOutTradeNoUniqueMigration(ctx, db)
 	case schedulerOutboxPendingDedupKeyMigration:
