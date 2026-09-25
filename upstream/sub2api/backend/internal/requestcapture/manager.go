@@ -36,6 +36,7 @@ type Manager struct {
 	closeOnce        sync.Once
 	releaseOnce      sync.Once
 	release          func()
+	ownerRelease     func()
 	enabled          atomic.Bool
 	admissionSkipped atomic.Int64
 	buffer           atomic.Int64
@@ -58,6 +59,16 @@ func New(store Store, dir string, config Config) (*Manager, error) {
 	if err := os.Chmod(dir, 0700); err != nil {
 		return nil, err
 	}
+	ownerRelease, err := lockCaptureDirectory(dir)
+	if err != nil {
+		return nil, err
+	}
+	owned := false
+	defer func() {
+		if !owned {
+			ownerRelease()
+		}
+	}()
 	instanceFile := filepath.Join(dir, ".instance")
 	if info, e := os.Lstat(instanceFile); e == nil && info.Mode()&os.ModeSymlink != 0 {
 		return nil, errors.New("symlink capture identity")
@@ -84,7 +95,7 @@ func New(store Store, dir string, config Config) (*Manager, error) {
 		if d.Type()&os.ModeSymlink != 0 {
 			return errors.New("symlink in capture directory")
 		}
-		if !d.IsDir() && d.Name() != ".instance" {
+		if !d.IsDir() && d.Name() != ".instance" && d.Name() != ".owner.lock" {
 			info, e := d.Info()
 			if e != nil {
 				return e
@@ -167,7 +178,7 @@ func New(store Store, dir string, config Config) (*Manager, error) {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() && d.Name() != ".instance" {
+		if !d.IsDir() && d.Name() != ".instance" && d.Name() != ".owner.lock" {
 			info, err := d.Info()
 			if err != nil {
 				return err
@@ -178,6 +189,8 @@ func New(store Store, dir string, config Config) (*Manager, error) {
 	}); err != nil {
 		return nil, err
 	}
+	m.ownerRelease = ownerRelease
+	owned = true
 	go m.run()
 	return m, nil
 }
@@ -427,6 +440,9 @@ func (m *Manager) Close() {
 	m.releaseOnce.Do(func() {
 		if m.release != nil {
 			m.release()
+		}
+		if m.ownerRelease != nil {
+			m.ownerRelease()
 		}
 	})
 }

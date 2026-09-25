@@ -25,3 +25,24 @@ func TestBlueGreenDirectoriesDoNotRecoverLivePeer(t *testing.T) {
 	_, err = store.Task(context.Background(), green.InstanceID(), running.ID)
 	require.Error(t, err, "instance authorization remains isolated")
 }
+
+func TestCaptureDirectoryExclusiveUntilOwnerCloses(t *testing.T) {
+	store := newMemoryStore()
+	dir := t.TempDir()
+	cfg := Config{Enabled: true, QuotaMiB: 10, RetentionDays: 7}
+	first, err := New(store, dir, cfg)
+	require.NoError(t, err)
+	running := task(t, first, "user", 1, false)
+	second, err := New(store, dir, cfg)
+	if second != nil {
+		second.Close()
+	}
+	require.Error(t, err, "a live directory owner must prevent recovery even if database locks are lost")
+	saved, err := store.Task(context.Background(), first.InstanceID(), running.ID)
+	require.NoError(t, err)
+	require.Equal(t, "running", saved.Status)
+	first.Close()
+	restarted, err := New(store, dir, cfg)
+	require.NoError(t, err)
+	restarted.Close()
+}

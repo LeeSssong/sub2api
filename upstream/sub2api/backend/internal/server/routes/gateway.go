@@ -34,6 +34,10 @@ func RegisterGatewayRoutes(
 	// no public upload route; only authenticated BPS requests can create them.
 	r.GET("/api/bps-images/:token", h.OpenAIGateway.ExcelBPSImage)
 	r.HEAD("/api/bps-images/:token", h.OpenAIGateway.ExcelBPSImage)
+	for _, slot := range []string{"blue", "green"} {
+		r.GET("/api/bps-images/"+slot+"/:token", h.OpenAIGateway.ExcelBPSImage)
+		r.HEAD("/api/bps-images/"+slot+"/:token", h.OpenAIGateway.ExcelBPSImage)
+	}
 	bodyLimit := middleware.RequestBodyLimit(cfg.Gateway.MaxBodySize)
 	textBodyLimit := middleware.RequestBodyLimit(cfg.Gateway.TextMaxBodySize)
 	imageAdmission := middleware.ExcelBPSImageAdmission(settingService, cfg.Gateway.MaxBodySize)

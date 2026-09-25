@@ -183,11 +183,11 @@ func previewAccountProfitAdmission(
 		verdict.Class = ProfitPreviewClassAdmitted
 	case !validRate:
 		verdict.Class = ProfitPreviewClassRejectedInvalidRate
-	case profitControlOverThreshold(*account.RateMultiplier, thresholdDefault):
+	case profitControlOverThreshold(*account.RateMultiplier, clampProfitControlThreshold(thresholdDefault*account.UserGroupRateMultiplier())):
 		verdict.Class = ProfitPreviewClassRejectedThreshold
 	default:
 		verdict.Class = ProfitPreviewClassAdmitted
-		verdict.RejectedUnderMinD = profitControlOverThreshold(*account.RateMultiplier, thresholdMinD)
+		verdict.RejectedUnderMinD = profitControlOverThreshold(*account.RateMultiplier, clampProfitControlThreshold(thresholdMinD*account.UserGroupRateMultiplier()))
 	}
 	return verdict
 }

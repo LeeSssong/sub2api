@@ -36,7 +36,11 @@ func (s *OpenAIGatewayService) excelBPSImageRelay(ctx context.Context) (*basispo
 		if dataDir == "" {
 			dataDir = "./data"
 		}
-		s.excelBPSImages, err = basispoints.NewImageRelay(settings.BaseURL, filepath.Join(dataDir, "bps-images"))
+		slot := os.Getenv("SUB2API_CONTAINER_SLOT")
+		if slot != "blue" && slot != "green" {
+			slot = ""
+		}
+		s.excelBPSImages, err = basispoints.NewImageRelay(settings.BaseURL, filepath.Join(dataDir, "bps-images"), slot)
 	} else {
 		err = s.excelBPSImages.SetPublicOrigin(settings.BaseURL)
 	}
@@ -317,7 +321,7 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 
 var excelBPSBearerPattern = regexp.MustCompile(`(?i)\bBearer\s+[^\s"',;<>]+`)
 var excelBPSURLCredentialsPattern = regexp.MustCompile(`(https?://)[^/\s@]+@`)
-var excelBPSImageCapabilityPattern = regexp.MustCompile(`/api/bps-images/[A-Za-z0-9_-]+`)
+var excelBPSImageCapabilityPattern = regexp.MustCompile(`/api/bps-images/(?:blue/|green/)?[A-Za-z0-9_-]+`)
 
 func excelBPSSanitizeErrorBody(raw, token string, account *Account) string {
 	if !json.Valid([]byte(raw)) {

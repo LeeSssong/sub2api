@@ -351,3 +351,22 @@ func TestImageRelayConcurrentOriginUpdatesPreserveImages(t *testing.T) {
 	wg.Wait()
 	require.Len(t, r.entries, 1)
 }
+
+func TestImageRelayBlueGreenCapabilityAffinity(t *testing.T) {
+	blue, err := NewImageRelay("https://images.example", t.TempDir(), "blue")
+	require.NoError(t, err)
+	defer blue.Close()
+	green, err := NewImageRelay("https://images.example", t.TempDir(), "green")
+	require.NoError(t, err)
+	defer green.Close()
+	body, err := blue.Rewrite(relayTestRequest(t, relayTestPNG(t)), "scope")
+	require.NoError(t, err)
+	link := relayTestURL(t, body)
+	require.Contains(t, link, "/api/bps-images/blue/")
+	response := httptest.NewRecorder()
+	blue.ServeHTTP(response, httptest.NewRequest(http.MethodGet, link, nil))
+	require.Equal(t, http.StatusOK, response.Code)
+	response = httptest.NewRecorder()
+	green.ServeHTTP(response, httptest.NewRequest(http.MethodGet, link, nil))
+	require.Equal(t, http.StatusNotFound, response.Code)
+}

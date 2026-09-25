@@ -48,6 +48,7 @@ const (
 // as a static directory and downloads use bounded streaming buffers.
 type ImageRelay struct {
 	baseURL         string
+	routePath       string
 	key             [32]byte
 	mu              sync.Mutex
 	entries         map[string]*relayImage
@@ -81,14 +82,24 @@ func ValidateImageRelayOrigin(baseURL string) error {
 	return nil
 }
 
-func NewImageRelay(baseURL, storageRoot string) (*ImageRelay, error) {
+func NewImageRelay(baseURL, storageRoot string, slots ...string) (*ImageRelay, error) {
 	if err := ValidateImageRelayOrigin(baseURL); err != nil {
 		return nil, err
 	}
 	if storageRoot == "" {
 		return nil, ErrImageRelayStorage
 	}
-	relay := &ImageRelay{baseURL: strings.TrimRight(baseURL, "/"), entries: make(map[string]*relayImage), root: storageRoot, stop: make(chan struct{}), done: make(chan struct{}), downloads: make(chan struct{}, 32)}
+	routePath := ImageRelayPath
+	if len(slots) > 1 {
+		return nil, fmt.Errorf("only one image relay slot is allowed")
+	}
+	if len(slots) == 1 && slots[0] != "" {
+		if slots[0] != "blue" && slots[0] != "green" {
+			return nil, fmt.Errorf("invalid image relay slot")
+		}
+		routePath += slots[0] + "/"
+	}
+	relay := &ImageRelay{routePath: routePath, baseURL: strings.TrimRight(baseURL, "/"), entries: make(map[string]*relayImage), root: storageRoot, stop: make(chan struct{}), done: make(chan struct{}), downloads: make(chan struct{}, 32)}
 	if _, err := rand.Read(relay.key[:]); err != nil {
 		return nil, ErrImageRelayStorage
 	}
@@ -229,7 +240,7 @@ func (r *ImageRelay) Rewrite(raw []byte, scope string) ([]byte, error) {
 				if totalBytes > imageRelayMaxRequestBytes {
 					return nil, fmt.Errorf("basispoints inline images exceed the 32 MiB request limit")
 				}
-				part["image_url"] = baseURL + ImageRelayPath + token
+				part["image_url"] = baseURL + r.routePath + token
 				if err := validateImage(part); err != nil {
 					return nil, err
 				}
@@ -416,8 +427,12 @@ func (r *ImageRelay) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	token, ok := strings.CutPrefix(req.URL.Path, ImageRelayPath)
-	if r == nil || !ok || len(token) != 43 {
+	if r == nil {
+		http.NotFound(w, req)
+		return
+	}
+	token, ok := strings.CutPrefix(req.URL.Path, r.routePath)
+	if !ok || len(token) != 43 {
 		http.NotFound(w, req)
 		return
 	}

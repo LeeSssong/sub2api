@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"fmt"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"os"
@@ -50,31 +49,8 @@ func ProvideRequestCaptureManager(db *sql.DB, settings *SettingService, cfg *con
 	if err != nil {
 		return nil, err
 	}
-	// One owner per persistent slot. Never recover files while a live process still owns them.
-	owner, err := db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var acquired bool
-	if err = owner.QueryRowContext(ctx, "SELECT pg_try_advisory_lock(hashtextextended($1, 0))", "request-capture:"+dir).Scan(&acquired); err != nil || !acquired {
-		_ = owner.Close()
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("request capture slot already has an active owner")
-	}
-	release := func() {
-		releaseCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
-		defer stop()
-		_, unlockErr := owner.ExecContext(releaseCtx, "SELECT pg_advisory_unlock(hashtextextended($1, 0))", "request-capture:"+dir)
-		if unlockErr != nil {
-			_ = owner.Raw(func(any) error { return driver.ErrBadConn })
-		}
-		_ = owner.Close()
-	}
 	manager, err := requestcapture.New(&requestcapture.SQLStore{DB: db}, dir, config.requestCaptureConfig())
 	if err != nil {
-		release()
 		return nil, err
 	}
 	watchCtx, stopWatch := context.WithCancel(context.Background())
@@ -92,7 +68,7 @@ func ProvideRequestCaptureManager(db *sql.DB, settings *SettingService, cfg *con
 			}
 		}
 	}()
-	manager.SetRelease(func() { stopWatch(); <-watchDone; release() })
+	manager.SetRelease(func() { stopWatch(); <-watchDone })
 	settings.requestCapture = manager
 	return manager, nil
 }

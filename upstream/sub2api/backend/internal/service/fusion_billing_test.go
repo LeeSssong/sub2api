@@ -34,3 +34,11 @@ func TestFusionBPSRawCostRemainsIndependentFromCustomerBuckets(t *testing.T) {
 	require.Equal(t, 900, repo.lastLog.InputTokens)
 	require.Zero(t, repo.lastLog.CacheCreationTokens)
 }
+
+func TestFusionProfitPreviewMatchesAccountMultiplier(t *testing.T) {
+	rate, factor := 0.8, 5.0
+	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, RateMultiplier: &rate, GroupRateMultiplier: &factor}
+	verdict := previewAccountProfitAdmission(account, true, 0.2, 0.1, time.Now())
+	require.Equal(t, ProfitPreviewClassAdmitted, verdict.Class)
+	require.True(t, verdict.RejectedUnderMinD)
+}
