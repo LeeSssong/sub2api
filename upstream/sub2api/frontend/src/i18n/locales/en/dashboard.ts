@@ -440,6 +440,9 @@ export default {
     latency: 'Latency',
     latencyFirstToken: 'First',
     latencyDuration: 'Total',
+    latencyTps: 'TPS',
+    latencyTpsHint: 'Output speed = output tokens ÷ (total − first token)',
+    latencyTpsHintNoFirstToken: 'Output speed = output tokens ÷ total (no first-token data, so waiting time is included)',
     time: 'Time',
     ws: 'WS',
     stream: 'Stream',
@@ -695,6 +698,7 @@ export default {
     }
   },
 
+  // Pelican showcase (user-facing gallery)
   pelicanShowcase: {
     title: 'Pelican Showcase',
     description: 'Each group answers the same drawing prompt on a schedule. Compare model quality by looking at the results.',
@@ -734,6 +738,7 @@ export default {
       description: 'The administrator has not selected any groups to showcase.'
     }
   },
+
   // Available Channels (user-facing)
   availableChannels: {
     title: 'Available Channels',

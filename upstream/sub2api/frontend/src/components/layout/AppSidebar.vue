@@ -260,6 +260,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -541,6 +542,10 @@ const GlobeIcon = {
         })
       ]
     )
+}
+
+const FlowIcon = {
+  render: () => h(Icon, { name: 'swap' })
 }
 
 const ServerIcon = {
@@ -938,6 +943,7 @@ const customMenuItemsForAdmin = computed(() => {
 const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
+    { path: '/admin/request-captures', label: t('admin.requestCapture.title'), icon: ChartIcon, featureFlag: () => adminSettingsStore.requestCaptureEnabled },
     { path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
     {
       path: '/admin/operations',
@@ -966,6 +972,12 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/accounts/monitor', label: t('nav.accountMonitor'), icon: ChartIcon },
+    { path: '/admin/smart-ops', label: t('accountOps.smartTitle'), icon: ChartIcon, expandOnly: true, children: [
+      { path: '/admin/account-quality', label: t('qualityOps.title'), icon: ChartIcon },
+      { path: '/admin/account-ops', label: t('accountOps.title'), icon: BellIcon },
+      { path: '/admin/token-guard', label: t('tokenGuard.title'), icon: ShieldIcon },
+    ] },
+    { path: '/admin/harvest-flow', label: t('nav.harvestFlow'), icon: FlowIcon },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     {

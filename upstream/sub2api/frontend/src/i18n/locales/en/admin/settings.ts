@@ -31,6 +31,17 @@ export default {
         statuses: { missing: 'Missing', fresh: 'Fresh', renew_due: 'Renewal due', paused_auth: 'Paused: authentication', paused_429: 'Paused: rate limit' },
       },
       features: {
+        excelBpsImages: {
+          title: 'Excel / BPS Image Relay',
+          description: 'Automatically convert uploaded base64 images and tool screenshots to temporary HTTPS links hosted by this server.',
+          enabled: 'Enable image relay',
+          enabledHint: 'Changes apply immediately after saving, without restarting. Disabling stops conversion and blocks temporary image access.',
+          baseUrl: 'Public HTTPS address',
+          baseUrlHint: 'Enter the public HTTPS origin of this service, without /v1 or another path. The account must still have the Excel / BPS protocol enabled.',
+          retentionHint: 'Supports PNG, JPEG, GIF and WebP. Maximum 20 MiB per image and 20 images / 32 MiB per request. Files are temporarily stored in the data directory, capped at 1 GiB / 512 images per process. Links expire 30 minutes after the last submission and files are cleaned in the background. Anyone with a valid link can read the image.',
+          capacityHint: 'When enabled, OpenAI/Composite Responses, Chat and Messages HTTP requests (including text-only requests) share a 64 MiB body limit, a resource budget and a maximum of 32 in-flight requests. Larger requests allow less concurrency. Excess requests receive 503 without being queued in memory. This is not a 200-concurrent-user capacity guarantee.',
+          invalidBaseUrl: 'Enter a valid HTTPS origin without a path, credentials, query or fragment.',
+        },
         channelMonitor: {
           title: 'Channel Monitor',
           description: 'Choose either V1 active probes or V2 passive usage monitoring. When disabled, both background jobs stop and the user entry is hidden.',
@@ -127,8 +138,10 @@ export default {
           enabled: 'Enable Risk Control',
           enabledHint: 'When off, the admin sidebar entry is hidden and gateway moderation is skipped.',
           cyberSessionBlock: 'Cyber session auto-block',
-          cyberSessionBlockHint: 'When enabled, sessions hit by upstream cyber_policy are blocked locally for the TTL and no longer forwarded. Only the offending session is blocked; other sessions on the same key are unaffected.',
+          cyberSessionBlockHint: 'When enabled, locally block an upstream cyber_policy hit for the TTL only when an explicit session ID is available. Different sessions on the same API key remain isolated. Requests without a session ID are still evaluated upstream; IP, client type, cache keys and history length never identify a blocked session.',
           cyberSessionBlockTTL: 'Block TTL (seconds)',
+          cyberSessionIdentityStrict: 'Require explicit session identity',
+          cyberSessionIdentityStrictHint: 'High-risk option, disabled by default. When enabled, missing, invalid, or conflicting identities are rejected before account selection and upstream forwarding. Later WebSocket turns may inherit the first verified identity on that connection, but an explicit identity switch closes the connection. Verify every client reliably sends thread_id or session_id before enabling.',
         },
         affiliate: {
           title: 'Affiliate (Invite Rebate)',
@@ -604,6 +617,27 @@ export default {
         claudeCodeVersionAutoSyncHint: 'Fetches the latest Claude Code client version from the official release channel every hour, so you never need to upgrade this service just to keep the version current. When disabled, fetching stops but the previously synced version remains available. The manual version above always takes priority.',
         claudeCodeVersionSyncedValue: 'Currently synced: {version}',
         codexHardeningTitle: "Codex Settings",
+        codexTicketEnabled: "780 ticket harvest",
+        codexTicketEnabledDesc:
+          "When off, the gateway neither harvests nor injects x-codex-turn-state and forwards traffic as usual. When on, it harvests tickets in the background and overwrites that header on production requests.",
+        codexTicketFailClosed: "Pause accounts without a ticket",
+        codexTicketFailClosedDesc:
+          "Off by default. When off, a missing, expired, or mismatched ticket only disables injection and the account remains schedulable. When on, target-model accounts without a valid ticket are paused.",
+        codexTicketModels: "Ticket models",
+        codexTicketModelsDesc: "Harvest and inject tickets only for selected models. Unselected models use the normal forwarding path.",
+        codexTicketShapeNotice: "780 only describe the observed state shape and do not measure model quality. Only tickets matching the current validation rules are injected; with account pausing off, a shape mismatch does not block requests.",
+        codexTicketHarvestProxy: "780 harvest proxy",
+        codexTicketHarvestProxyDesc:
+          "Used only for minting 780 tickets when the ticket feature is enabled. Changes apply to subsequent probes without a restart. Production traffic still uses each account's residential proxy. Paste a full HTTP or SOCKS5h proxy URL including username and password. The proxy provider must handle IP rotation. Leave blank when saving to keep the stored value.",
+        codexTicketHarvestProxyPlaceholder: "http://user:pass{'@'}proxy.example.com:1080",
+        codexTicketHarvestProxyConfigured: "Configured (password hidden). Paste a full new proxy URL to replace it.",
+        codexTicketProxyMode: "Ticket exit type",
+        codexTicketProxyModeMihomo: "Mihomo/VPN kernel",
+        codexTicketProxyModeStatic: "Static residential proxy",
+        codexTicketProxyMihomoEndpoint: "Kernel local endpoint",
+        codexTicketProxyMihomoSelected: 'Mihomo selected for ticket harvesting. Click "Save Settings" to apply.',
+        codexTicketProxyMihomoHint:
+          "Uses the Mihomo airport subscription running on this server. Run install-mihomo-codex.sh from the release package first; normal account proxies are unchanged.",
         codexClientRestrictionTitle: "Codex client restriction",
         codexHardeningDesc:
           "Only affects OpenAI OAuth accounts with 'Codex official clients only' enabled (global). Beyond User-Agent/Originator, harden the decision with a version range, an engine-fingerprint gate, and black/whitelists.",
