@@ -589,6 +589,9 @@ func harvestTicketSessionID(ticket *openAICodexTicket) string {
 // 会话改写必须在 applyOpenAICodexTicket 之前就能判定，因为 Forward 的
 // isolate/fingerprint 发生在出站头钉票之前。
 func (s *OpenAIGatewayService) harvestPinnedSessionForModel(ctx context.Context, account *Account, model string) string {
+	if s.nativeTurnStateOwnsModel(ctx, account, model) {
+		return ""
+	}
 	if s == nil || account == nil {
 		return ""
 	}
@@ -617,6 +620,9 @@ func (s *OpenAIGatewayService) harvestPinsCodexIdentity(ctx context.Context, acc
 // 请求路径只注入已捕获的有效门票，不现场打票；无票则返回
 // ErrOpenAICodexTicketUnavailable。打票由后台 harvester 完成。
 func (s *OpenAIGatewayService) applyOpenAICodexTicket(ctx context.Context, account *Account, model string, h http.Header, transport ...string) error {
+	if s.nativeTurnStateOwnsModel(ctx, account, model) {
+		return nil
+	}
 	if s == nil || h == nil || !isOpenAICodexTicketAccount(account, model) || !s.openAICodexTicketEnabledContext(ctx) {
 		return nil
 	}
@@ -697,6 +703,9 @@ func (s *OpenAIGatewayService) openAICodexTicketOutboundModel(account *Account, 
 // outboundModel 必须是真正会发给上游的模型名（openAICodexTicketOutboundModel），
 // 不是客户端原始模型：注入侧读的是出站 body.model，两侧口径必须一致。
 func (s *OpenAIGatewayService) openAICodexTicketBlocksAccount(account *Account, outboundModel string) bool {
+	if s.nativeTurnStateOwnsModel(context.Background(), account, outboundModel) {
+		return false
+	}
 	if s == nil || !isOpenAICodexTicketAccount(account, outboundModel) || !s.openAICodexTicketEnabled() {
 		return false
 	}

@@ -77,6 +77,9 @@ func (s *OpenAIGatewayService) harvestTicketConfig(ctx context.Context) config.O
 }
 
 func (s *OpenAIGatewayService) freshHarvestAccount(ctx context.Context, account *Account, model string) (*Account, bool) {
+	if s.nativeTurnStateOwnsModel(ctx, account, model) {
+		return nil, false
+	}
 	if ctx.Err() != nil || account == nil || openAICodexSkipHarvest(account) || !s.openAICodexTicketEnabledContext(ctx) {
 		return nil, false
 	}
@@ -111,6 +114,9 @@ func (s *OpenAIGatewayService) freshHarvestAccount(ctx context.Context, account 
 }
 
 func (s *OpenAIGatewayService) codexHarvestNeedsTicket(account *Account, model string, cfg config.OpenAICodexTicketConfig) bool {
+	if s.nativeTurnStateOwnsModel(context.Background(), account, model) {
+		return false
+	}
 	refresh := time.Duration(cfg.RefreshBeforeSeconds) * time.Second
 	if s.settingService.GetCodexTicketStrategy(context.Background()) == "fixed" {
 		refresh = 0

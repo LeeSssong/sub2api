@@ -396,3 +396,32 @@ func TestOpenAITurnStateHarvesterSweepUsesLeaseAndStopsCleanly(t *testing.T) {
 		t.Fatal("harvester did not stop")
 	}
 }
+
+func TestNativeTurnStateOwnershipPreventsCompetingTicketInjection(t *testing.T) {
+	settings := NewSettingService(&fusionNativeAndTicketSettings{}, nil)
+	s := &OpenAIGatewayService{settingService: settings}
+	a := ticketTestAccount(3)
+	a.Groups = []*Group{{ID: 9, Platform: PlatformOpenAI, TurnStateInjectEnabled: true}}
+	require.True(t, s.nativeTurnStateOwnsModel(context.Background(), a, "gpt-6-astra"))
+	require.False(t, s.nativeTurnStateOwnsModel(context.Background(), a, "gpt-5.6-sol"))
+	header := http.Header{"X-Codex-Turn-State": []string{"native-ticket"}}
+	require.NoError(t, s.applyOpenAICodexTicket(context.Background(), a, "gpt-6-astra", header))
+	require.Equal(t, "native-ticket", header.Get("X-Codex-Turn-State"))
+	require.False(t, s.openAICodexTicketBlocksAccount(a, "gpt-6-astra"))
+	a.Groups = nil
+	require.False(t, s.nativeTurnStateOwnsModel(context.Background(), a, "gpt-6-astra"))
+	require.True(t, s.openAICodexTicketBlocksAccount(a, "gpt-6-astra"), "new ticket policy still applies outside native scope")
+}
+
+type fusionNativeAndTicketSettings struct{ SettingRepository }
+
+func (*fusionNativeAndTicketSettings) GetValue(_ context.Context, key string) (string, error) {
+	switch key {
+	case SettingKeyOpenAITurnStateReuseSettings:
+		return `{"enabled":true,"harvest_model":"gpt-6-astra","harvest_use_proxy_pool":true,"miss_action":"none","recovered_action":"none"}`, nil
+	case SettingKeyOpenAICodexTicketEnabled, SettingKeyOpenAICodexTicketFailClosed:
+		return "true", nil
+	default:
+		return "", ErrSettingNotFound
+	}
+}

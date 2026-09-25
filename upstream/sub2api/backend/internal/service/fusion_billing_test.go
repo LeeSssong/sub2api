@@ -42,3 +42,14 @@ func TestFusionProfitPreviewMatchesAccountMultiplier(t *testing.T) {
 	require.Equal(t, ProfitPreviewClassAdmitted, verdict.Class)
 	require.True(t, verdict.RejectedUnderMinD)
 }
+
+func TestFusionBPSOutputWithoutUsageIsNotReplayable(t *testing.T) {
+	repo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billing := &openAIRecordUsageBillingRepoStub{}
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(repo, billing, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{Result: &OpenAIForwardResult{RequestID: "bps-partial-no-usage", Model: "gpt-5.1", UpstreamEndpoint: "/basispoints/api/responses", OutputStarted: true, UsageIncomplete: true}, APIKey: &APIKey{ID: 1}, User: &User{ID: 2}, Account: excelAccount()})
+	require.NoError(t, err)
+	require.Zero(t, billing.calls)
+	require.True(t, repo.lastLog.UnsafeToReplay)
+	require.Equal(t, UsageCompletenessUnknown, repo.lastLog.UsageCompleteness)
+}

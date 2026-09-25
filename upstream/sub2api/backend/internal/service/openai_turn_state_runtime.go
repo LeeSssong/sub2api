@@ -202,3 +202,16 @@ func (s *OpenAIGatewayService) applyOpenAITurnStateReuseWebsocketPayload(ctx con
 	metadata[openAIWSTurnStateHeader] = ticket.Raw
 	payload["client_metadata"] = metadata
 }
+
+// Existing explicitly enabled Xingqiao reuse owns its scoped model. The new
+// harvester must not replace its headers, identity, or admission policy.
+func (s *OpenAIGatewayService) nativeTurnStateOwnsModel(ctx context.Context, account *Account, model string) bool {
+	if s == nil || strings.TrimSpace(model) != OpenAITurnStateHarvestModel || !openAITurnStateAccountInScope(account) {
+		return false
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	settings, ok := s.openAITurnStateSettings(ctx, time.Now())
+	return ok && settings != nil && settings.Enabled
+}

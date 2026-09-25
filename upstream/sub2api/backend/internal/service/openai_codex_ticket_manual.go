@@ -70,6 +70,11 @@ func (s *OpenAIGatewayService) ExecuteManualHarvest(ctx context.Context, req Man
 	if err != nil || account == nil {
 		return fmt.Errorf("account %d not found: %w", req.AccountID, err)
 	}
+	for _, model := range req.Models {
+		if s.nativeTurnStateOwnsModel(ctx, account, model) {
+			return errors.New("model is owned by the enabled Xingqiao turn-state reuse policy; change its group configuration before enabling competing harvesting")
+		}
+	}
 	if !isOpenAICodexTicketAccount(account) {
 		return errors.New("account does not support Codex ticket harvesting; only OpenAI OAuth accounts can harvest tickets")
 	}

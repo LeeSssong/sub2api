@@ -209,7 +209,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		}
 	}
 	reconciliationRequired := input.ReconciliationRequired || usageCompleteness == UsageCompletenessPartial
-	unsafeToReplay := input.UnsafeToReplay || reconciliationRequired || attemptMetadata.OutputStarted
+	unsafeToReplay := input.UnsafeToReplay || reconciliationRequired || attemptMetadata.OutputStarted || result.OutputStarted
 	if s.rateLimitService != nil && input.Account != nil && input.Account.Platform == PlatformOpenAI {
 		s.rateLimitService.ResetOpenAI403Counter(ctx, input.Account.ID)
 	}

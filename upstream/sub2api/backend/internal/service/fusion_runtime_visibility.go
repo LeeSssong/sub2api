@@ -14,13 +14,18 @@ func (s *AccountTokenGuardService) publishRuntime() {
 	if s.runtimeRedis == nil {
 		return
 	}
-	raw, err := json.Marshal(s.localRuntimeInfo())
+	snapshot := s.localRuntimeInfo()
+	raw, err := json.Marshal(snapshot)
 	if err != nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_ = s.runtimeRedis.Set(ctx, guardRuntimeKey, raw, 90*time.Second).Err()
+	ttl := 90 * time.Second
+	if !snapshot.Running {
+		ttl = 48 * time.Hour
+	}
+	_ = s.runtimeRedis.Set(ctx, guardRuntimeKey, raw, ttl).Err()
 }
 func (s *AccountTokenGuardService) startRuntimePublisher() func() {
 	if s.runtimeRedis == nil {
