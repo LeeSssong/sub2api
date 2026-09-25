@@ -15,22 +15,22 @@
 - Native test execution, group binding, default model choices and scheduler invalidation remain authoritative.
 
 ## Task 1 — Backend admission lifecycle
-- [ ] Inspect CreateAccountInput/admin_account, account create/data/codex/OAuth handlers, scheduled test persistence, native model defaults and runtime wiring.
-- [ ] Write direct behavior tests first: enabled creation is non-schedulable before persistence; missing temp group in normal creation rejects; JSON may be ungrouped; destination binding waits for two successful results.
-- [ ] Implement the shared service/repository contract and native handler plumbing in upstream/sub2api/backend. Use durable admission state, claim/finish ownership and account/credential/group checks; persist results and scheduler changes transactionally. Keep ordinary paths identical when admission is absent.
-- [ ] Test one-success-one-failure, transport inconclusive, immediate enqueue, process lease recovery, subsequent 10-minute rounds, manual edits and duplicate imports. Use local fakes/DB only; no real upstream calls.
-- [ ] Run only relevant backend tests and compilation, report exact commands and commit the backend branch.
+- [x] Inspect CreateAccountInput/admin_account, account create/data/codex/OAuth handlers, scheduled test persistence, native model defaults and runtime wiring.
+- [x] Write direct behavior tests first: enabled creation is non-schedulable before persistence; missing temp group in normal creation rejects; JSON may be ungrouped; destination binding waits for two successful results.
+- [x] Implement the shared service/repository contract and native handler plumbing in upstream/sub2api/backend. Use durable admission state, claim/finish ownership and account/credential/group checks; persist results and scheduler changes transactionally. Keep ordinary paths identical when admission is absent.
+- [x] Test one-success-one-failure, transport inconclusive, immediate enqueue, process lease recovery, subsequent 10-minute rounds, manual edits and duplicate imports. Use local fakes/DB only; no real upstream calls.
+- [x] Run only relevant backend tests and compilation, report exact commands and commit the backend branch.
 
 ## Task 2 — Minimal frontend integration
-- [ ] Extend frontend request types/API with optional admission and JSON group_ids.
-- [ ] Add failing Vitest cases to CreateAccountModal and data-import integration: checkbox gates a required temp selector; existing group_ids is unchanged; no new auth step; unselected/disabled admission preserves payload.
-- [ ] Add two controls before the native GroupSelector in CreateAccountModal; keep all current authorization UI and buttons. Pass the shared config through supported create paths without duplicate target UI. Scope to actual supported authorization platforms.
-- [ ] Extend ImportDataModal with the previously accepted optional detection and native destination group selector; JSON temp group may be empty.
-- [ ] Run targeted Vitest cases, vue-tsc/typecheck; commit frontend branch.
+- [x] Extend frontend request types/API with optional admission and JSON group_ids.
+- [x] Add failing Vitest cases to CreateAccountModal and data-import integration: checkbox gates a required temp selector; existing group_ids is unchanged; no new auth step; unselected/disabled admission preserves payload.
+- [x] Add two controls before the native GroupSelector in CreateAccountModal; keep all current authorization UI and buttons. Pass the shared config through supported create paths without duplicate target UI. Scope to actual supported authorization platforms.
+- [x] Extend ImportDataModal with the previously accepted optional detection and native destination group selector; JSON temp group may be empty.
+- [x] Run targeted Vitest cases, vue-tsc/typecheck; commit frontend branch.
 
 ## Task 3 — Integrate and verify
-- [ ] Review each worker diff against the spec, cherry-pick only feature commits to the isolated integration branch.
-- [ ] Check the frontend/backend request contract, atomic initial isolation, AND gate, existing schedulers and mutation paths.
-- [ ] Run affected package tests and frontend typecheck, avoiding repeated unchanged checks; fix only observed gaps.
-- [ ] Complete a focused independent review of concurrency/membership and minimal UI constraints, fix actionable findings and rerun affected checks.
-- [ ] Record candidate commit, tests, baseline dependency distinction and non-deployment status; preserve worktrees.
+- [x] Review each worker diff against the spec, cherry-pick only feature commits to the isolated integration branch.
+- [x] Check the frontend/backend request contract, atomic initial isolation, AND gate, existing schedulers and mutation paths.
+- [x] Run affected package tests and frontend typecheck, avoiding repeated unchanged checks; fix only observed gaps.
+- [x] Complete a focused independent review of concurrency/membership and minimal UI constraints, fix actionable findings and rerun affected checks.
+- [x] Record candidate commit, tests, baseline dependency distinction and non-deployment status; preserve worktrees.
