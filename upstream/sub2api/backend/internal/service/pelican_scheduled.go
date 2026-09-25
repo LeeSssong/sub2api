@@ -122,6 +122,7 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 	}
 	succeeded := false
 	for _, result := range results {
+		result.PelicanGroupIDs = plan.PelicanGroupIDs
 		result.QualityAction = qualityAction
 		if plan.PelicanConfig.Quality != nil {
 			result.QualityRoundID = until.Format(time.RFC3339Nano)
