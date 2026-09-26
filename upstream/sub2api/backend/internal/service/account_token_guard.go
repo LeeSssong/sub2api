@@ -478,8 +478,12 @@ func (s *AccountTokenGuardService) localRuntimeInfo() AccountTokenGuardRuntime {
 	return info
 }
 
+const accountTokenGuardCycleTimeout = 25 * time.Minute
+
 // RunCycle 执行一轮巡检；manual 仅用于日志措辞。
 func (s *AccountTokenGuardService) RunCycle(ctx context.Context, manual bool) (AccountTokenGuardStats, error) {
+	ctx, cancelRun := context.WithTimeout(ctx, accountTokenGuardCycleTimeout)
+	defer cancelRun()
 	if !s.runMu.TryLock() {
 		return s.currentStats(), errors.New("上一轮巡检仍在进行")
 	}
@@ -549,6 +553,9 @@ func (s *AccountTokenGuardService) RunCycle(ctx context.Context, manual bool) (A
 	states := make([]AccountTokenGuardState, 0, len(accounts))
 	existing := s.statesMap(ctx)
 	for index := range accounts {
+		if ctx.Err() != nil {
+			break
+		}
 		account := &accounts[index]
 		result := results[index]
 		state := AccountTokenGuardState{AccountID: account.ID, AccountName: account.Name, AccountStatus: account.Status, Schedulable: account.Schedulable}
@@ -578,7 +585,7 @@ func (s *AccountTokenGuardService) RunCycle(ctx context.Context, manual bool) (A
 					state.LastFixAction = "状态自愈"
 					state.LastFixResult = "恢复凭证守护自有隔离状态"
 					s.recordEvent(ctx, account, AccountTokenGuardEventStateFixed, state.LastFixResult, result.LatencyMS)
-					s.notify(cfg, "凭证守护：已恢复账号调度", fmt.Sprintf("%s(#%d) 已恢复守护自有隔离状态", account.Name, account.ID), cfg.NotifyOnFix)
+					s.notify(ctx, cfg, "凭证守护：已恢复账号调度", fmt.Sprintf("%s(#%d) 已恢复守护自有隔离状态", account.Name, account.ID), cfg.NotifyOnFix)
 				} else {
 					state.ProbeDetail += "；跳过恢复：非守护自有状态、账号已变更或仍有其他限制"
 				}
@@ -613,7 +620,7 @@ func (s *AccountTokenGuardService) RunCycle(ctx context.Context, manual bool) (A
 					state.LastFixAction = "自动重登"
 					state.LastFixResult = "失败: " + fixErr.Error()
 					s.recordEvent(ctx, account, AccountTokenGuardEventReloginFail, fixErr.Error(), 0)
-					s.notify(cfg, "凭证守护：自动重登失败", fmt.Sprintf("%s(#%d) 重登失败：%s", account.Name, account.ID, truncateGuardText(fixErr.Error(), 120)), cfg.NotifyOnFail)
+					s.notify(ctx, cfg, "凭证守护：自动重登失败", fmt.Sprintf("%s(#%d) 重登失败：%s", account.Name, account.ID, truncateGuardText(fixErr.Error(), 120)), cfg.NotifyOnFail)
 				} else {
 					stats.Repaired++
 					state.ProbeState = AccountTokenGuardProbeOK
@@ -627,7 +634,7 @@ func (s *AccountTokenGuardService) RunCycle(ctx context.Context, manual bool) (A
 						state.Schedulable = fresh.Schedulable
 					}
 					s.recordEvent(ctx, account, AccountTokenGuardEventReloginOK, action, 0)
-					s.notify(cfg, "凭证守护：已自动重登", fmt.Sprintf("%s(#%d) 已重登并更新凭据", account.Name, account.ID), cfg.NotifyOnFix)
+					s.notify(ctx, cfg, "凭证守护：已自动重登", fmt.Sprintf("%s(#%d) 已重登并更新凭据", account.Name, account.ID), cfg.NotifyOnFix)
 				}
 			}
 		default:
@@ -644,13 +651,13 @@ func (s *AccountTokenGuardService) RunCycle(ctx context.Context, manual bool) (A
 	message := fmt.Sprintf("巡检 %d 个账号：正常 %d，令牌失效 %d（已重登 %d），状态自愈 %d，临时异常 %d，失败 %d，耗时 %.1fs",
 		stats.Probed, stats.Healthy, stats.AuthFailed, stats.Repaired, stats.StateFixed, stats.Transient, stats.Failed, float64(stats.DurationMS)/1000)
 	if manual {
-		s.recordEvent(context.WithoutCancel(ctx), nil, AccountTokenGuardEventManual, message, 0)
+		s.recordEvent(ctx, nil, AccountTokenGuardEventManual, message, 0)
 	}
 	s.persistStates(ctx, states)
 	s.finishCycle(started, stats, message)
 	slog.Info("account_token_guard_cycle_done", "probed", stats.Probed, "healthy", stats.Healthy,
 		"auth_failed", stats.AuthFailed, "repaired", stats.Repaired, "state_fixed", stats.StateFixed)
-	return stats, nil
+	return stats, ctx.Err()
 }
 
 func (s *AccountTokenGuardService) currentStats() AccountTokenGuardStats {
@@ -677,24 +684,12 @@ func (s *AccountTokenGuardService) listAccounts(ctx context.Context, cfg Account
 		seen[account.ID] = true
 		out = append(out, account)
 	}
-	if len(cfg.GroupIDs) > 0 {
-		for _, groupID := range cfg.GroupIDs {
-			items, err := s.accounts.ListByGroup(ctx, groupID)
-			if err != nil {
-				return nil, err
-			}
-			for _, account := range items {
-				appendAccount(account)
-			}
-		}
-	} else {
-		items, err := s.accounts.ListByPlatform(ctx, PlatformOpenAI)
-		if err != nil {
-			return nil, err
-		}
-		for _, account := range items {
-			appendAccount(account)
-		}
+	items, err := s.listGuardCandidates(ctx, cfg.GroupIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, account := range items {
+		appendAccount(account)
 	}
 	states := s.statesMap(ctx)
 	sort.Slice(out, func(i, j int) bool {
@@ -1097,7 +1092,7 @@ func parseGuardNDJSONResult(raw []byte) (map[string]any, error) {
 	return result, nil
 }
 
-func (s *AccountTokenGuardService) notify(cfg AccountTokenGuardConfig, title, body string, enabled bool) {
+func (s *AccountTokenGuardService) notify(ctx context.Context, cfg AccountTokenGuardConfig, title, body string, enabled bool) {
 	if !enabled || strings.TrimSpace(cfg.BarkKey) == "" {
 		return
 	}
@@ -1109,7 +1104,7 @@ func (s *AccountTokenGuardService) notify(cfg AccountTokenGuardConfig, title, bo
 	if err != nil {
 		return
 	}
-	req, err := http.NewRequest(http.MethodPost, "https://api.day.app/push", bytes.NewReader(data))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.day.app/push", bytes.NewReader(data))
 	if err != nil {
 		return
 	}

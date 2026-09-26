@@ -1456,6 +1456,20 @@ func (r *accountRepository) ListOAuthRefreshCandidatePage(ctx context.Context, o
 	return page, nil
 }
 
+// ListTokenGuardCandidates deliberately includes error and disabled accounts:
+// guard-owned isolation must not remove an account from subsequent repair cycles.
+func (r *accountRepository) ListTokenGuardCandidates(ctx context.Context, groupIDs []int64) ([]service.Account, error) {
+	q := r.client.Account.Query().Where(dbaccount.DeletedAtIsNil(), dbaccount.PlatformEQ(service.PlatformOpenAI), dbaccount.TypeEQ(service.AccountTypeOAuth), dbaccount.ParentAccountIDIsNil())
+	if len(groupIDs) > 0 {
+		q = q.Where(dbaccount.HasAccountGroupsWith(dbaccountgroup.GroupIDIn(groupIDs...)))
+	}
+	accounts, err := q.Order(dbent.Asc(dbaccount.FieldID)).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return r.accountsToService(ctx, accounts)
+}
+
 func (r *accountRepository) ListByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
 	accounts, err := r.client.Account.Query().
 		Where(
