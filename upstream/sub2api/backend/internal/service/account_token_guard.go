@@ -44,6 +44,7 @@ const (
 
 // AccountTokenGuardReloginAccount 是重登所需凭据（邮箱 / 密码 / 2FA 密钥）。
 type AccountTokenGuardReloginAccount struct {
+	AccountID int64  `json:"account_id"`
 	Email     string `json:"email"`
 	Password  string `json:"password"`
 	MFASecret string `json:"mfa_secret"`
@@ -51,6 +52,7 @@ type AccountTokenGuardReloginAccount struct {
 
 // AccountTokenGuardConfig 是页面上的全部可配置项。
 type AccountTokenGuardConfig struct {
+	Mode                string                            `json:"mode"`
 	Enabled             bool                              `json:"enabled"`
 	GroupIDs            []int64                           `json:"group_ids"`
 	IntervalSeconds     int                               `json:"interval_seconds"`
@@ -121,12 +123,19 @@ type AccountTokenGuardRuntime struct {
 	Stats       AccountTokenGuardStats `json:"stats"`
 }
 
-// AccountTokenGuardStatus 是状态接口返回体。
+// AccountTokenGuardAvailableAccount lists eligible binding targets.
+type AccountTokenGuardAvailableAccount struct {
+	AccountID   int64  `json:"account_id"`
+	AccountName string `json:"account_name"`
+	Email       string `json:"email"`
+}
+
 type AccountTokenGuardStatus struct {
-	Config   AccountTokenGuardConfig  `json:"config"`
-	Accounts []AccountTokenGuardState `json:"accounts"`
-	Events   []AccountTokenGuardEvent `json:"events"`
-	Runtime  AccountTokenGuardRuntime `json:"runtime"`
+	AvailableAccounts []AccountTokenGuardAvailableAccount `json:"available_accounts"`
+	Config            AccountTokenGuardConfig             `json:"config"`
+	Accounts          []AccountTokenGuardState            `json:"accounts"`
+	Events            []AccountTokenGuardEvent            `json:"events"`
+	Runtime           AccountTokenGuardRuntime            `json:"runtime"`
 }
 
 // AccountTokenGuardRepository 持久化巡检状态与日志。
@@ -164,6 +173,7 @@ type AccountTokenGuardService struct {
 	admin        AdminService
 	invalidator  TokenCacheInvalidator
 	httpClient   *http.Client
+	nativeProbe  func(context.Context, *Account, string) AccountTokenGuardProbeResult
 	encryptor    SecretEncryptor
 
 	config atomic.Value
@@ -193,11 +203,14 @@ func NewAccountTokenGuardService(settings SettingRepository, repo AccountTokenGu
 }
 
 func defaultAccountTokenGuardConfig() AccountTokenGuardConfig {
-	return AccountTokenGuardConfig{IntervalSeconds: 300, ProbeModel: "gpt-6-astra", ProbeTimeoutSeconds: 240, ProbeConcurrency: 6, MaxProbePerCycle: 12, FailStreakThreshold: 1}
+	return AccountTokenGuardConfig{Mode: "native", IntervalSeconds: 300, ProbeModel: "gpt-6-astra", ProbeTimeoutSeconds: 240, ProbeConcurrency: 6, MaxProbePerCycle: 12, FailStreakThreshold: 1}
 }
 
 // ValidateAccountTokenGuardConfig 校验配置范围与 URL 合法性。
 func ValidateAccountTokenGuardConfig(c AccountTokenGuardConfig) error {
+	if c.Mode != "" && c.Mode != "native" && c.Mode != "external" {
+		return errors.New("不支持的凭证守护模式")
+	}
 	if c.IntervalSeconds < 30 || c.IntervalSeconds > 86400 {
 		return errors.New("巡检间隔需要在 30 到 86400 秒之间")
 	}
@@ -214,15 +227,19 @@ func ValidateAccountTokenGuardConfig(c AccountTokenGuardConfig) error {
 		return errors.New("连续失效阈值需要在 1 到 10 之间")
 	}
 	if c.Enabled {
-		if err := validateGuardHTTPURL(c.ProbeEndpoint, "probe_endpoint"); err != nil {
-			return err
+		if c.Mode != "native" {
+			if err := validateGuardHTTPURL(c.ProbeEndpoint, "probe_endpoint"); err != nil {
+				return err
+			}
 		}
 		if c.ProbeModel == "" {
 			return errors.New("启用守护时必须填写探活模型")
 		}
 		if c.AutoRelogin {
-			if err := validateGuardHTTPURL(c.ReloginEndpoint, "relogin_endpoint"); err != nil {
-				return err
+			if c.Mode != "native" {
+				if err := validateGuardHTTPURL(c.ReloginEndpoint, "relogin_endpoint"); err != nil {
+					return err
+				}
 			}
 			if len(c.ReloginAccounts) == 0 {
 				return errors.New("开启自动重登时必须至少配置一个重登账号")
@@ -268,6 +285,10 @@ func validateGuardHTTPURL(raw, field string) error {
 }
 
 func normalizeAccountTokenGuardConfig(c AccountTokenGuardConfig) AccountTokenGuardConfig {
+	c.Mode = strings.TrimSpace(c.Mode)
+	if c.Mode == "" {
+		c.Mode = "external"
+	}
 	c.ProbeEndpoint = strings.TrimRight(strings.TrimSpace(c.ProbeEndpoint), "/")
 	c.ReloginEndpoint = strings.TrimRight(strings.TrimSpace(c.ReloginEndpoint), "/")
 	c.ProbeModel = strings.TrimSpace(c.ProbeModel)
@@ -301,14 +322,9 @@ func normalizeAccountTokenGuardConfig(c AccountTokenGuardConfig) AccountTokenGua
 	sort.Slice(groups, func(i, j int) bool { return groups[i] < groups[j] })
 	c.GroupIDs = groups
 	accounts := make([]AccountTokenGuardReloginAccount, 0, len(c.ReloginAccounts))
-	seenMail := map[string]bool{}
 	for _, account := range c.ReloginAccounts {
 		account.Email = strings.ToLower(strings.TrimSpace(account.Email))
 		account.MFASecret = strings.TrimSpace(account.MFASecret)
-		if account.Email == "" || seenMail[account.Email] {
-			continue
-		}
-		seenMail[account.Email] = true
 		accounts = append(accounts, account)
 	}
 	sort.Slice(accounts, func(i, j int) bool { return accounts[i].Email < accounts[j].Email })
@@ -327,6 +343,7 @@ func (s *AccountTokenGuardService) GetConfig(ctx context.Context) (AccountTokenG
 		if decodeErr != nil {
 			return cfg, decodeErr
 		}
+		cfg.Mode = "external" // Existing configurations predate native mode.
 		if err := json.Unmarshal([]byte(plain), &cfg); err != nil {
 			return cfg, err
 		}
@@ -340,12 +357,10 @@ func (s *AccountTokenGuardService) GetConfig(ctx context.Context) (AccountTokenG
 }
 
 func (s *AccountTokenGuardService) SaveConfig(ctx context.Context, cfg AccountTokenGuardConfig) (AccountTokenGuardConfig, error) {
-	previous, err := s.GetConfig(ctx)
-	if err != nil {
+	cfg = normalizeAccountTokenGuardConfig(cfg)
+	if err := s.bindReloginAccounts(ctx, &cfg); err != nil {
 		return AccountTokenGuardConfig{}, err
 	}
-	cfg = restoreTokenGuardSecrets(cfg, previous)
-	cfg = normalizeAccountTokenGuardConfig(cfg)
 	if err := ValidateAccountTokenGuardConfig(cfg); err != nil {
 		return AccountTokenGuardConfig{}, err
 	}
@@ -441,7 +456,11 @@ func (s *AccountTokenGuardService) Status(ctx context.Context) (AccountTokenGuar
 	for index := range states {
 		states[index].NeedsRelogin = states[index].ProbeState == AccountTokenGuardProbeAuth
 	}
-	return AccountTokenGuardStatus{Config: publicTokenGuardConfig(cfg), Accounts: states, Events: events, Runtime: s.runtimeInfo()}, nil
+	available, err := s.availableAccounts(ctx, cfg)
+	if err != nil {
+		return AccountTokenGuardStatus{}, err
+	}
+	return AccountTokenGuardStatus{AvailableAccounts: available, Config: publicTokenGuardConfig(cfg), Accounts: states, Events: events, Runtime: s.runtimeInfo()}, nil
 }
 
 func (s *AccountTokenGuardService) localRuntimeInfo() AccountTokenGuardRuntime {
@@ -484,7 +503,7 @@ func (s *AccountTokenGuardService) RunCycle(ctx context.Context, manual bool) (A
 	if err != nil {
 		return s.currentStats(), err
 	}
-	if cfg.ProbeEndpoint == "" {
+	if cfg.Mode != "native" && cfg.ProbeEndpoint == "" {
 		return s.currentStats(), errors.New("请配置可信探活端点")
 	}
 	waveSize := cfg.ProbeConcurrency
@@ -586,7 +605,7 @@ func (s *AccountTokenGuardService) RunCycle(ctx context.Context, manual bool) (A
 					}
 				}
 			}
-			if state.FailStreak >= cfg.FailStreakThreshold && cfg.Enabled && cfg.AutoRelogin {
+			if state.FailStreak >= cfg.FailStreakThreshold && cfg.Enabled && cfg.AutoRelogin && (state.LastFixAt == nil || now.Sub(*state.LastFixAt) >= 15*time.Minute) {
 				action, fixErr := s.reloginAccount(ctx, cfg, account)
 				if fixErr != nil {
 					stats.Failed++
@@ -597,6 +616,8 @@ func (s *AccountTokenGuardService) RunCycle(ctx context.Context, manual bool) (A
 					s.notify(cfg, "凭证守护：自动重登失败", fmt.Sprintf("%s(#%d) 重登失败：%s", account.Name, account.ID, truncateGuardText(fixErr.Error(), 120)), cfg.NotifyOnFail)
 				} else {
 					stats.Repaired++
+					state.ProbeState = AccountTokenGuardProbeOK
+					state.ProbeDetail = "重登后复测成功"
 					state.FailStreak = 0
 					state.LastFixAt = &now
 					state.LastFixAction = "自动重登"
@@ -650,7 +671,7 @@ func (s *AccountTokenGuardService) listAccounts(ctx context.Context, cfg Account
 	seen := map[int64]bool{}
 	out := make([]Account, 0, 32)
 	appendAccount := func(account Account) {
-		if seen[account.ID] || !account.IsOAuth() || account.Platform != PlatformOpenAI || account.IsShadow() {
+		if seen[account.ID] || !guardAccountEligible(&account) {
 			return
 		}
 		seen[account.ID] = true
@@ -792,22 +813,33 @@ func (s *AccountTokenGuardService) ReloginAccount(ctx context.Context, accountID
 // Token writes preserve all unrelated settings. Restoration additionally requires
 // persisted ownership of the current account revision; legacy error text is insufficient.
 func (s *AccountTokenGuardService) reloginAccount(ctx context.Context, cfg AccountTokenGuardConfig, account *Account) (string, error) {
-	if !account.IsOAuth() || account.Platform != PlatformOpenAI || account.IsShadow() {
+	if !guardAccountEligible(account) {
 		return "", errors.New("账号不支持凭证守护")
 	}
 	writer, ok := s.repo.(AccountTokenGuardCredentialWriter)
 	if !ok {
 		return "", errors.New("凭证仓储不支持安全更新")
 	}
-	if err := validateGuardHTTPURL(cfg.ReloginEndpoint, "relogin_endpoint"); err != nil {
-		return "", err
+	if cfg.Mode != "native" {
+		if err := validateGuardHTTPURL(cfg.ReloginEndpoint, "relogin_endpoint"); err != nil {
+			return "", err
+		}
 	}
-	entry, ok := findGuardReloginAccount(cfg, account.Name)
+	entry, ok := findBoundGuardReloginAccount(cfg, account.ID)
 	if !ok {
 		return "", errors.New("缺少该账号的重登凭据，请在凭证守护页面补充")
 	}
-	credential, err := s.relogin(ctx, cfg, entry)
+	var credential map[string]any
+	var err error
+	if cfg.Mode == "native" {
+		credential, err = s.nativeRelogin(ctx, entry, account)
+	} else {
+		credential, err = s.relogin(ctx, cfg, entry)
+	}
 	if err != nil {
+		return "", err
+	}
+	if err := validateGuardCredentialIdentity(credential, entry, account); err != nil {
 		return "", err
 	}
 	// Provider responses cannot change account settings, proxy routing, or billing metadata.
@@ -828,27 +860,28 @@ func (s *AccountTokenGuardService) reloginAccount(ctx context.Context, cfg Accou
 		_ = s.invalidator.InvalidateToken(ctx, account)
 	}
 	fresh, readErr := s.accounts.GetByID(ctx, account.ID)
-	if readErr == nil && fresh != nil && s.recoverOwnedState(ctx, fresh, cfg) {
+	if readErr != nil || fresh == nil {
+		return "", errors.New("新凭据已写回，但无法读取账号进行复测")
+	}
+	if result := s.probe(ctx, cfg, fresh); result.State != AccountTokenGuardProbeOK {
+		return "", errors.New("新凭据已写回，但复测未通过；保留隔离状态")
+	}
+	if s.recoverOwnedState(ctx, fresh, cfg) {
 		return "重登并恢复凭证守护自有隔离状态", nil
 	}
 	return "重登并写回新凭据（保留非守护自有状态及其他限制）", nil
 }
 
-func findGuardReloginAccount(cfg AccountTokenGuardConfig, accountName string) (AccountTokenGuardReloginAccount, bool) {
-	name := strings.ToLower(strings.TrimSpace(accountName))
-	if name == "" {
-		return AccountTokenGuardReloginAccount{}, false
-	}
-	for _, entry := range cfg.ReloginAccounts {
-		if entry.Email == name {
-			return entry, true
-		}
-	}
-	return AccountTokenGuardReloginAccount{}, false
-}
-
 // probe 用账号当前的 access_token 调测活接口。
 func (s *AccountTokenGuardService) probe(ctx context.Context, cfg AccountTokenGuardConfig, account *Account) AccountTokenGuardProbeResult {
+	if cfg.Mode == "native" {
+		if s.nativeProbe == nil {
+			return AccountTokenGuardProbeResult{State: AccountTokenGuardProbeTransient, Detail: "原生探活服务未就绪"}
+		}
+		probeCtx, cancel := context.WithTimeout(ctx, time.Duration(cfg.ProbeTimeoutSeconds)*time.Second)
+		defer cancel()
+		return s.nativeProbe(probeCtx, account, cfg.ProbeModel)
+	}
 	token := strings.TrimSpace(account.GetCredential("access_token"))
 	if token == "" {
 		return AccountTokenGuardProbeResult{State: AccountTokenGuardProbeAuth, Detail: "账号没有 access_token"}

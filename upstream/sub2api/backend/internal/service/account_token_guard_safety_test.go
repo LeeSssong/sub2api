@@ -78,6 +78,7 @@ func TestTokenGuardCappedSamplesPreserveThresholdAndHistory(t *testing.T) {
 	}))
 	defer server.Close()
 	cfg := defaultAccountTokenGuardConfig()
+	cfg.Mode = "external"
 	cfg.Enabled = true
 	cfg.RestoreSchedulable = true
 	cfg.FailStreakThreshold = 2
@@ -113,32 +114,36 @@ func (tokenGuardTestEncryptor) Decrypt(s string) (string, error) {
 	b, e := base64.StdEncoding.DecodeString(s)
 	return string(b), e
 }
-func TestTokenGuardEncryptedConfigAndUnmatchedMasks(t *testing.T) {
+func TestTokenGuardPlaintextSaveAndLegacyEncryptedRead(t *testing.T) {
 	repo := &accountOpsSettingsStub{}
-	svc := NewAccountTokenGuardService(repo, nil, nil, nil, nil)
+	accounts := &tokenGuardTestAccounts{items: []Account{{ID: 1, Name: "a@example.com", Platform: PlatformOpenAI, Type: AccountTypeOAuth}}}
+	svc := NewAccountTokenGuardService(repo, nil, accounts, nil, nil)
 	svc.SetEncryptor(tokenGuardTestEncryptor{})
 	cfg := defaultAccountTokenGuardConfig()
-	cfg.ReloginAccounts = []AccountTokenGuardReloginAccount{{Email: "a@example.com", Password: "  padded secret  ", MFASecret: "mfa-secret"}}
+	cfg.ReloginAccounts = []AccountTokenGuardReloginAccount{{Email: "a@example.com", Password: "  padded secret  ", MFASecret: "JBSWY3DPEHPK3PXP"}}
 	cfg.BarkKey = "bark-secret"
 	cfg.ProbeHeaders = map[string]string{"Authorization": "private-header"}
 	public, err := svc.SaveConfig(context.Background(), cfg)
 	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(repo.raw, tokenGuardEncryptedPrefix))
-	require.NotContains(t, repo.raw, "secret")
-	require.NotContains(t, repo.raw, "private-header")
-	restarted := NewAccountTokenGuardService(repo, nil, nil, nil, nil)
+	require.False(t, strings.HasPrefix(repo.raw, tokenGuardEncryptedPrefix))
+	require.Contains(t, repo.raw, "padded secret")
+	require.Equal(t, "  padded secret  ", public.ReloginAccounts[0].Password)
+	require.Equal(t, int64(1), public.ReloginAccounts[0].AccountID)
+	plain := repo.raw
+	encrypted, err := (tokenGuardTestEncryptor{}).Encrypt(plain)
+	require.NoError(t, err)
+	repo.raw = tokenGuardEncryptedPrefix + encrypted
+	restarted := NewAccountTokenGuardService(repo, nil, accounts, nil, nil)
 	restarted.SetEncryptor(tokenGuardTestEncryptor{})
 	private, err := restarted.GetConfig(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, "  padded secret  ", private.ReloginAccounts[0].Password)
-	_, err = restarted.SaveConfig(context.Background(), public)
-	require.NoError(t, err)
-	public.ReloginAccounts[0].Email = "unknown@example.com"
-	_, err = restarted.SaveConfig(context.Background(), public)
-	require.Error(t, err)
-	withoutKey := NewAccountTokenGuardService(repo, nil, nil, nil, nil)
+	require.Equal(t, public, private)
+	withoutKey := NewAccountTokenGuardService(repo, nil, accounts, nil, nil)
 	_, err = withoutKey.GetConfig(context.Background())
 	require.Error(t, err)
+	_, err = restarted.SaveConfig(context.Background(), private)
+	require.NoError(t, err)
+	require.Equal(t, plain, repo.raw)
 }
 func TestTokenGuardNeverFollowsCredentialRedirect(t *testing.T) {
 	reached := false
@@ -150,6 +155,7 @@ func TestTokenGuardNeverFollowsCredentialRedirect(t *testing.T) {
 	defer redirect.Close()
 	svc := NewAccountTokenGuardService(nil, nil, nil, nil, nil)
 	cfg := defaultAccountTokenGuardConfig()
+	cfg.Mode = "external"
 	cfg.ProbeEndpoint = redirect.URL
 	cfg.ReloginEndpoint = redirect.URL
 	result := svc.probe(context.Background(), cfg, &Account{Credentials: map[string]any{"access_token": "private"}})
@@ -174,6 +180,7 @@ func TestTokenGuardProviderMessagesAreNotAuthenticationEvidence(t *testing.T) {
 		}))
 		svc := NewAccountTokenGuardService(nil, nil, nil, nil, nil)
 		cfg := defaultAccountTokenGuardConfig()
+		cfg.Mode = "external"
 		cfg.ProbeEndpoint = server.URL
 		result := svc.probe(context.Background(), cfg, &Account{Credentials: map[string]any{"access_token": "test-token"}})
 		require.Equal(t, AccountTokenGuardProbeTransient, result.State)
