@@ -2,6 +2,7 @@ package handler
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -59,4 +60,21 @@ func (h *PelicanShowcaseHandler) DeleteItem(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"deleted": true})
+}
+
+// Report is read-only and shares admin authentication, compliance and public visibility.
+func (h *PelicanShowcaseHandler) Report(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("group_id"), 10, 64)
+	model := c.Query("model_id")
+	window := c.DefaultQuery("window", "24h")
+	if err != nil || id <= 0 || window != "24h" || len(model) > 100 || strings.TrimSpace(model) != model {
+		response.BadRequest(c, "invalid report group, model or window")
+		return
+	}
+	view, err := h.showcase.Report(c.Request.Context(), id, model, time.Now())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, view)
 }

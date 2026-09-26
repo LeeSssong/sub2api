@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -99,7 +100,8 @@ func NewScheduledTestResultRepository(db *sql.DB) service.ScheduledTestResultRep
 func (r *scheduledTestResultRepository) Create(ctx context.Context, result *service.ScheduledTestResult) (*service.ScheduledTestResult, error) {
 	queryRow := r.db.QueryRowContext
 	var tx *sql.Tx
-	if service.IsPelicanDrawingResult(result) {
+	reportKind, _, _ := service.ClassifyPelicanReportResult(result)
+	if service.IsPelicanDrawingResult(result) || reportKind != "" {
 		var err error
 		tx, err = r.db.BeginTx(ctx, nil)
 		if err != nil {
@@ -133,8 +135,15 @@ func (r *scheduledTestResultRepository) Create(ctx context.Context, result *serv
 			return nil, err
 		}
 	}
+	out.ReportExecution = result.ReportExecution
+	out.PelicanGroupIDs = result.PelicanGroupIDs
 	if tx != nil {
-		if err := recordPelicanDrawingOutcome(ctx, tx, out, result.PelicanGroupIDs); err != nil {
+		if service.IsPelicanDrawingResult(out) {
+			if err := recordPelicanDrawingOutcome(ctx, tx, out, result.PelicanGroupIDs); err != nil {
+				return nil, err
+			}
+		}
+		if err := recordPelicanReportFact(ctx, tx, out, result.PelicanGroupIDs); err != nil {
 			return nil, err
 		}
 		if err := tx.Commit(); err != nil {
@@ -259,13 +268,37 @@ func (r *scheduledTestPlanRepository) ClaimPelican(ctx context.Context, plan *se
 	if !locked {
 		return false, nil
 	}
+	var sharedRoundID, pairFingerprint string
+	if plan.ReportExecution != nil && plan.PelicanConfig != nil && plan.PelicanConfig.ReportPairKey != "" && plan.ReportExecution.ScheduledFor != nil && plan.NextRunAt != nil && plan.ReportExecution.ScheduledFor.Equal(*plan.NextRunAt) {
+		rows, err := tx.QueryContext(ctx, `SELECT id, account_id, model_id, cron_expression, enabled, max_results, auto_recover, last_run_at, next_run_at, created_at, updated_at, pelican_config, running_until
+ FROM scheduled_test_plans WHERE account_id=$1 AND pelican_config->>'report_pair_key'=$2 ORDER BY id FOR UPDATE`, plan.AccountID, plan.PelicanConfig.ReportPairKey)
+		if err != nil {
+			return false, err
+		}
+		peers, err := scanPlans(rows)
+		_ = rows.Close()
+		if err != nil {
+			return false, err
+		}
+		pairFingerprint = service.PelicanReportPairFingerprint(plan, peers, plan.ReportExecution.Timezone)
+		sharedRoundID = service.PelicanReportPairIdentity(plan, peers, plan.ReportExecution.Timezone)
+		if sharedRoundID == "" && pairFingerprint != "" {
+			err = tx.QueryRowContext(ctx, `SELECT shared_round_id FROM pelican_report_pair_slots
+ WHERE account_id=$1 AND pair_key=$2 AND model_id=$3 AND cron_expression=$4 AND scheduled_for=$5 AND membership_fingerprint=$6 AND timezone=$7`, plan.AccountID, plan.PelicanConfig.ReportPairKey, plan.ModelID, plan.CronExpression, *plan.ReportExecution.ScheduledFor, pairFingerprint, plan.ReportExecution.Timezone).Scan(&sharedRoundID)
+			if errors.Is(err, sql.ErrNoRows) {
+				sharedRoundID = ""
+			} else if err != nil {
+				return false, err
+			}
+		}
+	}
 	result, err := tx.ExecContext(ctx, `UPDATE scheduled_test_plans
  SET running_until = $3, next_run_at = $4
  WHERE id = $1 AND enabled = true AND next_run_at <= $2
- AND (running_until IS NULL OR running_until < $2) AND updated_at = $5
+ AND (running_until IS NULL OR running_until < $2) AND updated_at = $5 AND next_run_at = $6
  AND EXISTS (SELECT 1 FROM accounts WHERE accounts.id = account_id AND deleted_at IS NULL)
  AND NOT EXISTS (SELECT 1 FROM scheduled_test_plans other WHERE other.account_id = scheduled_test_plans.account_id
- AND other.id <> scheduled_test_plans.id AND other.pelican_config IS NOT NULL AND other.running_until > $2)`, plan.ID, now, until, next, plan.UpdatedAt)
+ AND other.id <> scheduled_test_plans.id AND other.pelican_config IS NOT NULL AND other.running_until > $2)`, plan.ID, now, until, next, plan.UpdatedAt, plan.NextRunAt)
 	if err != nil {
 		return false, err
 	}
@@ -279,6 +312,14 @@ func (r *scheduledTestPlanRepository) ClaimPelican(ctx context.Context, plan *se
          FROM account_groups WHERE account_id = $1`, plan.AccountID).Scan(&groups); err != nil {
 			return false, err
 		}
+	}
+	if n == 1 && sharedRoundID != "" && plan.ReportExecution != nil && plan.PelicanConfig != nil && plan.PelicanConfig.ReportPairKey != "" && plan.ReportExecution.ScheduledFor != nil {
+		_, err := tx.ExecContext(ctx, `INSERT INTO pelican_report_pair_slots(account_id,pair_key,model_id,cron_expression,scheduled_for,shared_round_id,membership_fingerprint,timezone)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`, plan.AccountID, plan.PelicanConfig.ReportPairKey, plan.ModelID, plan.CronExpression, *plan.ReportExecution.ScheduledFor, sharedRoundID, pairFingerprint, plan.ReportExecution.Timezone)
+		if err != nil {
+			return false, err
+		}
+		plan.ReportExecution.SharedRoundID = sharedRoundID
 	}
 	if err := tx.Commit(); err != nil {
 		return false, err
