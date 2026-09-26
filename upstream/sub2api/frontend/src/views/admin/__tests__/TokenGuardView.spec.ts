@@ -7,23 +7,23 @@ vi.mock('@/components/admin/operations/SmartOpsNav.vue', () => ({ default: { tem
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/api/admin/accountTokenGuard', () => ({ getTokenGuardStatus: vi.fn(), saveTokenGuardConfig: vi.fn(), runTokenGuard: vi.fn(), reloginTokenGuardAccount: vi.fn() }))
 const config = {
-  enabled: false, group_ids: [], interval_seconds: 300, probe_endpoint: '', probe_model: 'gpt-6-astra',
-  probe_headers: { Authorization: '********' }, probe_timeout_seconds: 30, probe_concurrency: 1,
-  max_probe_per_cycle: 10, auto_relogin: false, relogin_endpoint: '', relogin_headers: { 'X-Key': '********' },
-  relogin_accounts: [{ email: 'owner@example.com', password: '********', mfa_secret: '********' }],
-  restore_schedulable: false, fail_streak_threshold: 3, bark_key: '********', notify_on_fix: false, notify_on_fail: false,
+  mode: 'native' as const, enabled: false, group_ids: [], interval_seconds: 300, probe_endpoint: '', probe_model: 'gpt-6-astra',
+  probe_headers: { Authorization: 'probe-key' }, probe_timeout_seconds: 30, probe_concurrency: 1,
+  max_probe_per_cycle: 10, auto_relogin: false, relogin_endpoint: '', relogin_headers: { 'X-Key': 'relogin-key' },
+  relogin_accounts: [{ account_id: 42, email: 'owner@example.com', password: ' original,password ', mfa_secret: 'JBSWY3DPEHPK3PXP' }],
+  restore_schedulable: false, fail_streak_threshold: 3, bark_key: 'bark-key', notify_on_fix: false, notify_on_fail: false,
 }
 beforeEach(() => {
   vi.resetAllMocks()
-  vi.mocked(getTokenGuardStatus).mockResolvedValue({ config, accounts: [], events: [], runtime: { running: false, last_run: null, last_message: '', stats: {} } } as any)
+  vi.mocked(getTokenGuardStatus).mockResolvedValue({ config: structuredClone(config), available_accounts: [{ account_id: 42, account_name: 'Renamed account', email: 'owner@example.com' }, { account_id: 43, account_name: 'Other', email: 'other@example.com' }], accounts: [], events: [], runtime: { running: false, last_run: null, last_message: '', stats: {} } } as any)
   vi.mocked(saveTokenGuardConfig).mockImplementation(async value => value)
 })
-describe('credential guard masked configuration', () => {
-  it('preserves masked fields on unrelated saves without automatically probing or logging in', async () => {
+describe('credential guard native configuration', () => {
+  it('preserves plaintext credentials and stable ID on unrelated save without running', async () => {
     const wrapper = mount(TokenGuardView); await flushPromises()
-    expect(wrapper.text()).toContain('tokenGuard.secretMaskHint')
-    expect((wrapper.vm as any).draft.probe_endpoint).toBe('')
-    expect((wrapper.vm as any).draft.relogin_endpoint).toBe('')
+    expect(wrapper.text()).toContain('tokenGuard.plaintextHint')
+    expect(wrapper.text()).not.toContain('tokenGuard.probeEndpoint')
+    expect(wrapper.find('input[type="password"]').exists()).toBe(false)
     expect((wrapper.vm as any).dirty).toBe(false)
     ;(wrapper.vm as any).draft.interval_seconds = 600
     await wrapper.get('form').trigger('submit'); await flushPromises()
@@ -32,11 +32,44 @@ describe('credential guard masked configuration', () => {
     expect(reloginTokenGuardAccount).not.toHaveBeenCalled()
     wrapper.unmount()
   })
-  it('allows replacing a masked password while retaining an unchanged MFA secret', async () => {
+  it('round trips passwords with whitespace and commas through editable inputs', async () => {
     const wrapper = mount(TokenGuardView); await flushPromises()
-    ;(wrapper.vm as any).reloginText = 'owner@example.com,replacement-password,********'
+    const row = wrapper.get('[data-testid="credential-row"]')
+    await row.findAll('input')[1].setValue('  changed,p,a,s,s  ')
     await wrapper.get('form').trigger('submit'); await flushPromises()
-    expect(saveTokenGuardConfig).toHaveBeenCalledWith(expect.objectContaining({ relogin_accounts: [{ email: 'owner@example.com', password: 'replacement-password', mfa_secret: '********' }] }))
+    expect(saveTokenGuardConfig).toHaveBeenCalledWith(expect.objectContaining({ relogin_accounts: [{ ...config.relogin_accounts[0], password: '  changed,p,a,s,s  ' }] }))
+    wrapper.unmount()
+  })
+  it('requires account binding and every credential, prefills email, and supports removal', async () => {
+    const wrapper = mount(TokenGuardView); await flushPromises()
+    await wrapper.get('[data-testid="add-credential"]').trigger('click')
+    await wrapper.get('form').trigger('submit'); await flushPromises()
+    expect(saveTokenGuardConfig).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('tokenGuard.credentialsRequired')
+    const row = wrapper.findAll('[data-testid="credential-row"]')[1]
+    await row.get('select').setValue(43)
+    expect((row.findAll('input')[0].element as HTMLInputElement).value).toBe('other@example.com')
+    await row.findAll('input')[1].setValue('password')
+    await wrapper.get('form').trigger('submit')
+    expect(saveTokenGuardConfig).not.toHaveBeenCalled()
+    await row.findAll('input')[2].setValue('JBSWY3DPEHPK3PXP')
+    await wrapper.get('form').trigger('submit'); await flushPromises()
+    expect(saveTokenGuardConfig).toHaveBeenCalledOnce()
+    await row.get('button').trigger('click')
+    expect(wrapper.findAll('[data-testid="credential-row"]')).toHaveLength(1)
+    wrapper.unmount()
+  })
+  it('requires explicit binding for legacy ID zero and retains external settings', async () => {
+    const wrapper = mount(TokenGuardView); await flushPromises()
+    ;(wrapper.vm as any).draft.relogin_accounts[0].account_id = 0
+    await wrapper.get('form').trigger('submit'); await flushPromises()
+    expect(saveTokenGuardConfig).not.toHaveBeenCalled()
+    await wrapper.get('[data-testid="guard-mode"]').setValue('external')
+    expect(wrapper.text()).toContain('tokenGuard.probeEndpoint')
+    expect(wrapper.text()).toContain('tokenGuard.reloginHeaders')
+    ;(wrapper.vm as any).draft.relogin_accounts[0].account_id = 42
+    await wrapper.get('form').trigger('submit'); await flushPromises()
+    expect(saveTokenGuardConfig).toHaveBeenCalledWith({ ...config, mode: 'external' })
     wrapper.unmount()
   })
 })

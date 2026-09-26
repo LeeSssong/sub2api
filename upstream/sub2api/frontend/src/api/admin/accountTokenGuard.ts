@@ -1,12 +1,14 @@
 import { apiClient } from '../client'
 
 export interface TokenGuardReloginAccount {
+  account_id: number
   email: string
   password: string
   mfa_secret: string
 }
 
 export interface TokenGuardConfig {
+  mode: 'native' | 'external'
   enabled: boolean
   group_ids: number[]
   interval_seconds: number
@@ -68,6 +70,7 @@ export interface TokenGuardStats {
 
 export interface TokenGuardStatus {
   config: TokenGuardConfig
+  available_accounts: { account_id: number; account_name: string; email: string }[]
   accounts: TokenGuardAccountState[]
   events: TokenGuardEvent[]
   runtime: {
