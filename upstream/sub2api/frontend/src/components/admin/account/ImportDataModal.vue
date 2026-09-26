@@ -7,6 +7,10 @@
     @close="handleClose"
   >
     <form id="import-data-form" class="space-y-4" @submit.prevent="handleImport">
+      <div v-if="authStore.isObserver" class="space-y-2">
+        <GroupSelector v-model="groupIDs" :groups="groups" />
+        <p class="input-hint">{{ t('admin.users.observerImportHint') }}</p>
+      </div>
       <div class="text-sm text-gray-600 dark:text-dark-300">
         {{ t('admin.accounts.dataImportHint') }}
       </div>
@@ -134,6 +138,8 @@ import GroupSelector from '@/components/common/GroupSelector.vue'
 import { buildAccountAdmission, getAccountAdmissionError, getAdmissionGroups } from '@/components/account/accountAdmission'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import type { Group } from '@/types'
 import type { AdminDataImportResult, AdminDataPayload, AdminGroup, AccountPlatform } from '@/types'
 
 interface Props {
@@ -151,6 +157,15 @@ const emit = defineEmits<Emits>()
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const authStore = useAuthStore()
+const groupIDs = ref<number[]>([])
+const groups = ref<Group[]>([])
+watch(() => props.show, async (show) => {
+  if (show && authStore.isObserver) {
+    groups.value = await adminAPI.groups.getAllIncludingInactive().catch(() => [])
+    groupIDs.value = groupIDs.value.filter(id => groups.value.some(group => group.id === id))
+  }
+})
 
 const admissionEnabled = ref(false)
 const admissionTestGroupId = ref<number | null>(null)
@@ -337,6 +352,10 @@ const handleImport = async () => {
     return
   }
 
+  if (authStore.isObserver && !groupIDs.value.length) {
+    appStore.showError(t('admin.users.observerImportHint'))
+    return
+  }
   importing.value = true
   try {
     const dataPayloads: AdminDataPayload[] = []
@@ -372,8 +391,9 @@ const handleImport = async () => {
 
     const res = await adminAPI.accounts.importData({
       data: dataPayload,
+      group_ids: admission ? targetGroupIds.value : authStore.isObserver ? groupIDs.value : undefined,
       skip_default_group_bind: true,
-      ...(admission ? { admission, group_ids: targetGroupIds.value } : {})
+      ...(admission ? { admission } : {})
     })
 
     result.value = res

@@ -333,7 +333,8 @@ func (s *RateLimitService) CheckErrorPolicy(ctx context.Context, account *Accoun
 func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte, requestedModel ...string) (shouldDisable bool) {
 	ctx = s.observeAccountOps(ctx, account, statusCode, headers, responseBody)
 	ctx = withTempUnschedulableModel(ctx, requestedModel)
-	if s.HandleOpenAIPermanentAuthFailure(ctx, account, statusCode, responseBody) {
+	bpsAuthPolicy := ctx.Value(excelBPSAuthPolicyKey{}) == true && statusCode == http.StatusUnauthorized
+	if !bpsAuthPolicy && s.HandleOpenAIPermanentAuthFailure(ctx, account, statusCode, responseBody) {
 		return true
 	}
 	// Team 联动熔断必须先于池模式/自定义错误码/临时不可调度的各类早退；
@@ -362,8 +363,10 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 		slog.Info("account_error_code_skipped", "account_id", account.ID, "status_code", statusCode)
 		return false
 	}
-	if handled, disable := s.handleDeterministicUpstreamFailure(ctx, account, statusCode, responseBody, firstRequestedModel(requestedModel)); handled {
-		return disable
+	if !bpsAuthPolicy {
+		if handled, disable := s.handleDeterministicUpstreamFailure(ctx, account, statusCode, responseBody, firstRequestedModel(requestedModel)); handled {
+			return disable
+		}
 	}
 
 	if statusCode == 529 {
@@ -440,6 +443,14 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 		authAccount := account
 		if resolved, rerr := resolveCredentialAccount(ctx, s.accountRepo, account); rerr == nil && resolved != nil {
 			authAccount = resolved
+		}
+		if bpsAuthPolicy && authAccount.Platform == PlatformOpenAI {
+			code := extractUpstreamErrorCode(responseBody)
+			if code == "token_invalidated" || code == "token_revoked" {
+				s.handleAuthError(ctx, authAccount, "Token revoked (401): "+code+"; reauthorization required")
+				shouldDisable = true
+				break
+			}
 		}
 		// OpenAI: {"detail":"Unauthorized"} 表示 token 完全无效（非标准 OpenAI 错误格式），直接标记 error
 		if authAccount.Platform == PlatformOpenAI && gjson.GetBytes(responseBody, "detail").String() == "Unauthorized" {

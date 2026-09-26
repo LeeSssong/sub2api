@@ -105,7 +105,10 @@ type Attempt struct {
 	UpstreamRequestID string            `json:"upstream_request_id,omitempty"`
 	Error             string            `json:"error,omitempty"`
 	Outcome           ForwardingOutcome `json:"outcome,omitempty"`
+	ErrorStage        string            `json:"error_stage,omitempty"`
 	ReadError         string            `json:"read_error,omitempty"`
+	ResponseTerminal  string            `json:"response_terminal,omitempty"`
+	LocalClose        bool              `json:"local_close,omitempty"`
 }
 
 type Part struct {
@@ -135,11 +138,12 @@ type Record struct {
 	Bytes               int64             `json:"bytes"`
 	Attempts            []Attempt         `json:"attempts"`
 	Parts               []Part            `json:"parts"`
-	ErrorCode           string            `json:"error_code,omitempty"`
-	Usage               map[string]int64  `json:"usage,omitempty"`
+	ClientOutcome       string            `json:"client_outcome,omitempty"`
 	FinalOutcome        ForwardingOutcome `json:"final_outcome,omitempty"`
 	ReadDiagnostics     []ReadDiagnostic  `json:"read_diagnostics,omitempty"`
 	ReadDiagnosticCount int64             `json:"read_diagnostic_count,omitempty"`
+	ErrorCode           string            `json:"error_code,omitempty"`
+	Usage               map[string]int64  `json:"usage,omitempty"`
 }
 
 // Store accepts metadata only. Payload bytes must never enter this interface.

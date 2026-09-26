@@ -367,6 +367,7 @@ type SystemSettings struct {
 
 	// 允许终端用户在用量页查看自己的失败请求
 	AllowUserViewErrorRequests  bool   `json:"allow_user_view_error_requests"`
+	UsageShowLongContextBadge   bool   `json:"usage_show_long_context_badge"`
 	RequestCaptureEnabled       bool   `json:"request_capture_enabled"`
 	RequestCaptureQuotaMiB      int64  `json:"request_capture_quota_mib"`
 	RequestCaptureRetentionDays int    `json:"request_capture_retention_days"`
@@ -376,6 +377,12 @@ type SystemSettings struct {
 	ExcelBPSImageBodyLimitMiB   int    `json:"excel_bps_image_body_limit_mib"`
 	ExcelBPSImageBudgetMiB      int    `json:"excel_bps_image_budget_mib"`
 	ExcelBPSImageMaxRequests    int    `json:"excel_bps_image_max_requests"`
+	ExcelBPSImageMaxImageMiB    int    `json:"excel_bps_image_max_image_mib"`
+	ExcelBPSImageMaxImages      int    `json:"excel_bps_image_max_images"`
+	ExcelBPSImageMaxTotalMiB    int    `json:"excel_bps_image_max_total_mib"`
+	ExcelBPSImageStorageMiB     int    `json:"excel_bps_image_storage_mib"`
+	ExcelBPSImageStorageEntries int    `json:"excel_bps_image_storage_entries"`
+	ExcelBPSImageTTLMinutes     int    `json:"excel_bps_image_ttl_minutes"`
 }
 
 type DefaultSubscriptionSetting struct {
@@ -470,6 +477,7 @@ type PublicSettings struct {
 	RiskControlEnabled bool `json:"risk_control_enabled"`
 
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
+	UsageShowLongContextBadge  bool `json:"usage_show_long_context_badge"`
 }
 
 type LoginAgreementDocument struct {

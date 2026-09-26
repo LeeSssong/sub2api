@@ -18,7 +18,7 @@ func (e *excelBPSAttachmentError) Error() string {
 	return fmt.Sprintf("excel BPS attachment returned HTTP %d", e.status)
 }
 
-func (s *OpenAIGatewayService) uploadExcelBPSAttachment(ctx context.Context, account *Account, token, accountID string, img basispoints.InlineAttachment) (string, error) {
+func (s *OpenAIGatewayService) uploadExcelBPSAttachment(ctx context.Context, account *Account, token, accountID, proxyURL string, img basispoints.InlineAttachment) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	ctx = WithHTTPUpstreamRedirectsDisabled(WithHTTPUpstreamProfile(ctx, HTTPUpstreamProfileLongStream))
@@ -39,10 +39,6 @@ func (s *OpenAIGatewayService) uploadExcelBPSAttachment(ctx context.Context, acc
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Accept-Encoding", "identity")
 	req.ContentLength = length
-	proxyURL := ""
-	if account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 	capture := requestcapture.FromContext(ctx)
 	attempt := capture.LastAttempt()
@@ -55,9 +51,7 @@ func (s *OpenAIGatewayService) uploadExcelBPSAttachment(ctx context.Context, acc
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-		if s.rateLimitService != nil && s.rateLimitService.HandleOpenAIPermanentAuthFailure(ctx, account, resp.StatusCode, raw) {
-			return "", &excelBPSAttachmentError{status: http.StatusServiceUnavailable}
-		}
+		s.handleExcelBPSUnauthorized(ctx, account, resp.StatusCode, resp.Header, raw)
 		status := resp.StatusCode
 		if status < 400 || status > 599 {
 			status = http.StatusBadGateway

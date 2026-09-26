@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/util/transportdiag"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
 )
@@ -88,6 +89,7 @@ type Session struct {
 	resultBuffer          []byte
 	resultSkip            bool
 	resultError           bool
+	clientOutcome         string
 	finalOutcome          ForwardingOutcome
 	readDiagnostics       []ReadDiagnostic
 	readDiagnosticCount   int64
@@ -226,22 +228,6 @@ func (s *Session) RecordForwardingOutcome(attempt int, outcome ForwardingOutcome
 	}
 }
 
-func readErrorClass(err error) string {
-	var timeout net.Error
-	var corrupt flate.CorruptInputError
-	switch {
-	case errors.Is(err, context.Canceled):
-		return "cancelled"
-	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &timeout) && timeout.Timeout():
-		return "timeout"
-	case errors.Is(err, io.ErrUnexpectedEOF):
-		return "unexpected_eof"
-	case errors.Is(err, gzip.ErrHeader), errors.Is(err, gzip.ErrChecksum), errors.Is(err, zlib.ErrHeader), errors.Is(err, zlib.ErrChecksum), errors.Is(err, zlib.ErrDictionary), errors.As(err, &corrupt):
-		return "decompression"
-	default:
-		return "other"
-	}
-}
 func (s *Session) recordReadDiagnostic(part Part, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -252,13 +238,9 @@ func (s *Session) recordReadDiagnostic(part Part, err error) {
 	if part.Stage == "upstream_request" {
 		direction = "upstream_request"
 	}
-	class := readErrorClass(err)
+	class := captureReadErrorClass(err)
 	s.readDiagnosticCount++
-	if part.Attempt > 0 && part.Attempt <= len(s.attempts) {
-		if s.attempts[part.Attempt-1].ReadError == "" {
-			s.attempts[part.Attempt-1].ReadError = class
-		}
-	} else {
+	if part.Attempt <= 0 || part.Attempt > len(s.attempts) {
 		s.unattributedReadError = true
 	}
 	for i := range s.readDiagnostics {
@@ -336,10 +318,7 @@ func (s *Session) ClientFrame(body []byte) {
 		s.attempts = nil
 		s.reason, s.errorCode = "", ""
 		s.resultError, s.resultSkip = false, false
-		s.finalOutcome = ""
-		s.readDiagnostics = nil
-		s.readDiagnosticCount = 0
-		s.unattributedReadError = false
+		s.clientOutcome = ""
 		s.resultBuffer = s.resultBuffer[:0]
 		s.usage = map[string]int64{}
 		for _, t := range s.candidates {
@@ -430,7 +409,8 @@ func (s *Session) AttemptResponse(n, status int, h http.Header, err error) {
 	}
 	// Transport errors may contain credentials or a signed URL. Preserve class only.
 	if err != nil {
-		a.Error = "transport_error"
+		a.Error = transportdiag.Classify(err)
+		a.ErrorStage = "transport"
 	}
 }
 func (s *Session) Finish(status int) {
@@ -459,6 +439,11 @@ type Stream struct {
 	diagnosticSkip  bool
 	diagnosticSniff bool
 	diagnosticSSE   bool
+	observer        *responseObserver
+	terminal        string
+	responseFailed  bool
+	sse             bool
+	expectsTerminal bool
 	charge          int64
 	lastFlush       time.Time
 	closed          bool
@@ -501,7 +486,7 @@ func (st *Stream) Write(p []byte) (int, error) {
 	if st.buffer == nil {
 		st.charge = ChunkSize
 		if strings.HasSuffix(st.part.Stage, "_response") {
-			st.charge += 16 << 10
+			st.charge += (16 << 10) + responseObserverCharge
 		}
 		if !st.s.m.reserve(st.charge) {
 			st.s.failCapture("buffer_limit")
@@ -510,9 +495,12 @@ func (st *Stream) Write(p []byte) (int, error) {
 		st.buffer = make([]byte, 0, ChunkSize)
 		if st.charge > ChunkSize {
 			st.diagnostic = make([]byte, 0, 16<<10)
+			st.observer = &responseObserver{framing: newBodyFraming(st.part.ContentType)}
 		}
 	}
 	if strings.HasSuffix(st.part.Stage, "_response") {
+		st.observer.write(p)
+		st.observeOutcomeLocked()
 		st.s.mu.Lock()
 		st.observeDiagnosticLocked(p)
 		st.s.mu.Unlock()
@@ -589,6 +577,11 @@ func (st *Stream) Close() error {
 		return nil
 	}
 	st.closed = true
+	if st.observer != nil {
+		st.observer.end()
+		st.observeOutcomeLocked()
+		st.observer = nil
+	}
 	st.s.mu.Lock()
 	if !st.diagnosticSkip {
 		st.s.parseResultLocked(st.diagnostic, st.part.Attempt)
@@ -609,10 +602,39 @@ func (st *Stream) discard() {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	st.closed = true
+	st.observer = nil
 	if st.buffer != nil {
 		st.s.m.buffer.Add(-st.charge)
 		st.buffer = nil
 		st.diagnostic = nil
+	}
+}
+
+// Called under st.mu. A terminal never clears a real failure from this or an
+// earlier attempt; it only distinguishes post-completion read/close noise.
+func (st *Stream) observeOutcomeLocked() {
+	st.terminal, st.responseFailed, st.sse = st.observer.terminal, st.observer.failed, st.observer.framing.sse
+	st.expectsTerminal = st.observer.expectsTerminal
+	st.s.mu.Lock()
+	defer st.s.mu.Unlock()
+	if st.s.closed || st.s.turnEnded {
+		return
+	}
+	if st.part.Stage == "client_response" {
+		if st.responseFailed {
+			st.s.clientOutcome = "failed"
+		} else if st.s.clientOutcome != "failed" && st.observer.successful() {
+			st.s.clientOutcome = "completed"
+		}
+	}
+	if st.responseFailed {
+		st.s.resultError = true
+		if st.s.errorCode == "" {
+			st.s.errorCode = "response_failed"
+		}
+	}
+	if st.part.Stage == "upstream_response" && st.part.Attempt > 0 && st.part.Attempt <= len(st.s.attempts) {
+		st.s.attempts[st.part.Attempt-1].ResponseTerminal = st.terminal
 	}
 }
 func (s *Session) failCapture(reason string) {
@@ -718,6 +740,7 @@ func (s *Session) snapshotLocked(r *Record) {
 		}
 	}
 	r.ErrorCode = s.errorCode
+	r.ClientOutcome = s.clientOutcome
 	r.Usage = map[string]int64{}
 	for k, v := range s.usage {
 		r.Usage[k] = v
@@ -967,6 +990,7 @@ func recordKey(task string, turn int) string { return fmt.Sprintf("%s:%d", task,
 func (m *Manager) finishRecord(r *recordState, t *runtimeTask, snapshot *Record) {
 	r.Meta, r.Turn = snapshot.Meta, snapshot.Turn
 	r.Status, r.IsError = snapshot.Status, snapshot.IsError
+	r.ClientOutcome = snapshot.ClientOutcome
 	r.Attempts, r.Usage, r.ErrorCode = snapshot.Attempts, snapshot.Usage, snapshot.ErrorCode
 	r.FinalOutcome = snapshot.FinalOutcome
 	r.ReadDiagnostics, r.ReadDiagnosticCount = snapshot.ReadDiagnostics, snapshot.ReadDiagnosticCount
@@ -1161,7 +1185,8 @@ func (m *Manager) finishTarget(s *Session, t *runtimeTask) {
 // WrapBody observes only bytes actually read and preserves the original Close.
 type observedBody struct {
 	io.ReadCloser
-	stream *Stream
+	stream  *Stream
+	closing atomic.Bool
 }
 
 func (b *observedBody) Read(p []byte) (int, error) {
@@ -1169,15 +1194,113 @@ func (b *observedBody) Read(p []byte) (int, error) {
 	if n > 0 {
 		_, _ = b.stream.Write(p[:n])
 	}
-	if err != nil && err != io.EOF {
-		b.stream.s.recordReadDiagnostic(b.stream.part, err)
-	}
-	if err == io.EOF {
+	if err != nil {
+		localClose := b.closing.Load()
+		if err != io.EOF {
+			if !localClose {
+				b.stream.s.recordReadDiagnostic(b.stream.part, err)
+			}
+		}
 		_ = b.stream.Close()
+		if err == io.EOF {
+			b.observeIncomplete("eof_before_terminal")
+		} else if !localClose {
+			b.observeReadError(readErrorClass(err))
+		}
 	}
 	return n, err
 }
-func (b *observedBody) Close() error { _ = b.stream.Close(); return b.ReadCloser.Close() }
+func (b *observedBody) Close() error {
+	b.closing.Store(true)
+	_ = b.stream.Close()
+	err := b.ReadCloser.Close()
+	b.observeIncomplete("closed_before_terminal")
+	return err
+}
+
+func (b *observedBody) observeIncomplete(reason string) {
+	b.stream.mu.Lock()
+	expectsTerminal, terminal := b.stream.expectsTerminal, b.stream.terminal
+	b.stream.mu.Unlock()
+	if b.stream.part.Stage == "upstream_response" && expectsTerminal && terminal == "" {
+		b.observeReadError(reason)
+	}
+}
+
+func (b *observedBody) observeReadError(class string) {
+	st := b.stream
+	st.mu.Lock()
+	outcome := responseObserver{terminal: st.terminal, failed: st.responseFailed}
+	success := outcome.successful()
+	st.mu.Unlock()
+	s := st.s
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.turnEnded {
+		return
+	}
+	if st.part.Attempt > 0 && st.part.Attempt <= len(s.attempts) {
+		a := &s.attempts[st.part.Attempt-1]
+		if a.ReadError == "" {
+			a.ReadError = class
+			if a.ErrorStage == "" {
+				a.ErrorStage = st.part.Stage
+			}
+			a.LocalClose = b.closing.Load()
+		}
+	}
+	if success {
+		return
+	}
+	code := "upstream_read_failed"
+	if st.part.Stage == "upstream_request" {
+		code = "upstream_request_read_failed"
+	}
+	s.resultError = true
+	if s.errorCode == "" {
+		s.errorCode = code
+	}
+	if s.reason == "" {
+		s.reason = code
+	}
+}
+
+// Persist allowlisted classes only: Error() can contain credentials or URLs.
+func captureReadErrorClass(err error) string {
+	var timeout net.Error
+	var corrupt flate.CorruptInputError
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "cancelled"
+	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &timeout) && timeout.Timeout():
+		return "timeout"
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		return "unexpected_eof"
+	case errors.Is(err, gzip.ErrHeader), errors.Is(err, gzip.ErrChecksum), errors.Is(err, zlib.ErrHeader), errors.Is(err, zlib.ErrChecksum), errors.Is(err, zlib.ErrDictionary), errors.As(err, &corrupt):
+		return "decompression"
+	default:
+		return "other"
+	}
+}
+
+// The upstream observer uses its own stable categories for attempt metadata.
+func readErrorClass(err error) string {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "context_canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline_exceeded"
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		return "unexpected_eof"
+	case errors.Is(err, http.ErrBodyReadAfterClose), errors.Is(err, net.ErrClosed), errors.Is(err, io.ErrClosedPipe):
+		return "body_closed"
+	}
+	var timeout net.Error
+	if errors.As(err, &timeout) && timeout.Timeout() {
+		return "timeout"
+	}
+	return "read_error"
+}
 func ObserveBody(body io.ReadCloser, stream *Stream) io.ReadCloser {
 	if body == nil || stream == nil || stream.s == nil {
 		return body
@@ -1189,6 +1312,7 @@ func (s *Session) ObserveHTTPRequest(req *http.Request, account int64) (int, fun
 	if s == nil {
 		return 0, func(*http.Response, error) {}
 	}
+	diagnostics := traceCaptureRequest(req)
 	n := s.BeginAttempt(account)
 	st := s.NewStream("upstream_request", n, 0, req.Header.Get("Content-Type"), req.Header)
 	st.part.URL = SafeURL(req.URL.String())
@@ -1203,6 +1327,13 @@ func (s *Session) ObserveHTTPRequest(req *http.Request, account int64) (int, fun
 			resp.Body = ObserveBody(resp.Body, s.NewStream("upstream_response", n, 0, h.Get("Content-Type"), h))
 		}
 		s.AttemptResponse(n, status, h, err)
+		if err != nil {
+			s.mu.Lock()
+			if n > 0 && n <= len(s.attempts) {
+				s.attempts[n-1].ErrorStage = diagnostics.stage()
+			}
+			s.mu.Unlock()
+		}
 	}
 }
 

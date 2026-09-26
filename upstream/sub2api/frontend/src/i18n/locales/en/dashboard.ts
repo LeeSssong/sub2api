@@ -700,6 +700,19 @@ export default {
 
   // Pelican showcase (user-facing gallery)
   pelicanShowcase: {
+    statistics: {
+      title: 'Pelican showcase statistics',
+      scope: '{group} statistics',
+      count: 'Tests',
+      shortCount: 'Tests',
+      rate: 'Success rate',
+      definition: 'Success rate is successful tests divided by all completed tests.',
+      noTests: 'No completed tests in this period.',
+      unavailable: 'Statistics are unavailable right now.',
+      partialCoverage: 'Statistics cover results since {time}.',
+      sinceEnabled: 'Since enabled',
+      last24Hours: 'Last 24 hours'
+    },
     title: 'Pelican Showcase',
     description: 'Each group answers the same drawing prompt on a schedule. Compare model quality by looking at the results.',
     allGroups: 'All groups',
@@ -727,19 +740,6 @@ export default {
     fitArtwork: 'Fit artwork',
     actualSize: '100%',
     previewSizing: 'Preview size',
-    statistics: {
-      title: 'Generation statistics',
-      scope: '{group} · Generation statistics',
-      count: 'Successful / Total',
-      shortCount: 'Success / Total',
-      rate: 'Generation success rate',
-      last24Hours: 'Last 24 hours',
-      sinceEnabled: 'Since collection started',
-      definition: 'Completed, recorded scheduled drawing tests only. Parallel generations count separately; manual and in-progress tests are excluded.',
-      noTests: 'No completed tests in this period. Displayed artwork may come from earlier tests.',
-      unavailable: 'Statistics are temporarily unavailable. Artwork is still available.',
-      partialCoverage: 'Collection started at {time}; a full 24-hour window is not yet available.',
-    },
     sandboxNote: 'Results run in an isolated sandbox without network access and cannot read your account.',
     remove: 'Remove from showcase',
     removeConfirm: 'Remove this result from the Pelican showcase? No user will see it any more. This cannot be undone.',

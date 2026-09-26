@@ -400,6 +400,7 @@ type UpdateSettingsRequest struct {
 	AuthSourceDingTalkPlatformQuotas map[string]*service.DefaultPlatformQuotaSetting `json:"auth_source_default_dingtalk_platform_quotas"`
 
 	AllowUserViewErrorRequests  *bool   `json:"allow_user_view_error_requests"`
+	UsageShowLongContextBadge   *bool   `json:"usage_show_long_context_badge"`
 	RequestCaptureEnabled       *bool   `json:"request_capture_enabled"`
 	RequestCaptureQuotaMiB      *int64  `json:"request_capture_quota_mib"`
 	RequestCaptureRetentionDays *int    `json:"request_capture_retention_days"`
@@ -409,6 +410,12 @@ type UpdateSettingsRequest struct {
 	ExcelBPSImageBodyLimitMiB   *int    `json:"excel_bps_image_body_limit_mib"`
 	ExcelBPSImageBudgetMiB      *int    `json:"excel_bps_image_budget_mib"`
 	ExcelBPSImageMaxRequests    *int    `json:"excel_bps_image_max_requests"`
+	ExcelBPSImageMaxImageMiB    *int    `json:"excel_bps_image_max_image_mib"`
+	ExcelBPSImageMaxImages      *int    `json:"excel_bps_image_max_images"`
+	ExcelBPSImageMaxTotalMiB    *int    `json:"excel_bps_image_max_total_mib"`
+	ExcelBPSImageStorageMiB     *int    `json:"excel_bps_image_storage_mib"`
+	ExcelBPSImageStorageEntries *int    `json:"excel_bps_image_storage_entries"`
+	ExcelBPSImageTTLMinutes     *int    `json:"excel_bps_image_ttl_minutes"`
 }
 
 // UpdateSettings 更新系统设置
@@ -541,6 +548,30 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	if req.RequestCaptureRetentionDays != nil && (*req.RequestCaptureRetentionDays < 1 || *req.RequestCaptureRetentionDays > 30) {
 		response.BadRequest(c, "Capture retention must be 1-30 days")
+		return
+	}
+	if req.ExcelBPSImageMaxImageMiB != nil && (*req.ExcelBPSImageMaxImageMiB < 1 || *req.ExcelBPSImageMaxImageMiB > 128) {
+		response.BadRequest(c, "Image relay max_image_mib must be 1-128")
+		return
+	}
+	if req.ExcelBPSImageMaxImages != nil && (*req.ExcelBPSImageMaxImages < 1 || *req.ExcelBPSImageMaxImages > 4096) {
+		response.BadRequest(c, "Image relay max_images must be 1-4096")
+		return
+	}
+	if req.ExcelBPSImageMaxTotalMiB != nil && (*req.ExcelBPSImageMaxTotalMiB < 1 || *req.ExcelBPSImageMaxTotalMiB > 128) {
+		response.BadRequest(c, "Image relay max_total_mib must be 1-128")
+		return
+	}
+	if req.ExcelBPSImageStorageMiB != nil && (*req.ExcelBPSImageStorageMiB < 1 || *req.ExcelBPSImageStorageMiB > 16384) {
+		response.BadRequest(c, "Image relay storage_mib must be 1-16384")
+		return
+	}
+	if req.ExcelBPSImageStorageEntries != nil && (*req.ExcelBPSImageStorageEntries < 1 || *req.ExcelBPSImageStorageEntries > 65536) {
+		response.BadRequest(c, "Image relay storage_entries must be 1-65536")
+		return
+	}
+	if req.ExcelBPSImageTTLMinutes != nil && (*req.ExcelBPSImageTTLMinutes < 1 || *req.ExcelBPSImageTTLMinutes > 1440) {
+		response.BadRequest(c, "Image relay ttl_minutes must be 1-1440")
 		return
 	}
 	if req.ExcelBPSImageBodyLimitMiB != nil && (*req.ExcelBPSImageBodyLimitMiB < 1 || *req.ExcelBPSImageBodyLimitMiB > 128) {
@@ -1789,6 +1820,42 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.ExcelBPSImageBudgetMiB
 		}(),
+		ExcelBPSImageMaxImageMiB: func() int {
+			if req.ExcelBPSImageMaxImageMiB != nil {
+				return *req.ExcelBPSImageMaxImageMiB
+			}
+			return previousSettings.ExcelBPSImageMaxImageMiB
+		}(),
+		ExcelBPSImageMaxImages: func() int {
+			if req.ExcelBPSImageMaxImages != nil {
+				return *req.ExcelBPSImageMaxImages
+			}
+			return previousSettings.ExcelBPSImageMaxImages
+		}(),
+		ExcelBPSImageMaxTotalMiB: func() int {
+			if req.ExcelBPSImageMaxTotalMiB != nil {
+				return *req.ExcelBPSImageMaxTotalMiB
+			}
+			return previousSettings.ExcelBPSImageMaxTotalMiB
+		}(),
+		ExcelBPSImageStorageMiB: func() int {
+			if req.ExcelBPSImageStorageMiB != nil {
+				return *req.ExcelBPSImageStorageMiB
+			}
+			return previousSettings.ExcelBPSImageStorageMiB
+		}(),
+		ExcelBPSImageStorageEntries: func() int {
+			if req.ExcelBPSImageStorageEntries != nil {
+				return *req.ExcelBPSImageStorageEntries
+			}
+			return previousSettings.ExcelBPSImageStorageEntries
+		}(),
+		ExcelBPSImageTTLMinutes: func() int {
+			if req.ExcelBPSImageTTLMinutes != nil {
+				return *req.ExcelBPSImageTTLMinutes
+			}
+			return previousSettings.ExcelBPSImageTTLMinutes
+		}(),
 		ExcelBPSImageMaxRequests: func() int {
 			if req.ExcelBPSImageMaxRequests != nil {
 				return *req.ExcelBPSImageMaxRequests
@@ -1800,6 +1867,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.AllowUserViewErrorRequests
 			}
 			return previousSettings.AllowUserViewErrorRequests
+		}(),
+		UsageShowLongContextBadge: func() bool {
+			if req.UsageShowLongContextBadge != nil {
+				return *req.UsageShowLongContextBadge
+			}
+			return previousSettings.UsageShowLongContextBadge
 		}(),
 		OpsMonitoringEnabled: func() bool {
 			if req.OpsMonitoringEnabled != nil {
@@ -1928,7 +2001,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			return next
 		}(),
 		OpenAICodexTicketStaticProxyURL: func() string {
-			if old := previousSettings.OpenAICodexTicketHarvestProxyURL; old != "" && old != "http://127.0.0.1:3101" {
+			if old := previousSettings.OpenAICodexTicketHarvestProxyURL; old != "" && old != "http://127.0.0.1:3101" && old != service.OpenAICodexTicketHarvestIPPoolURL {
 				return old
 			}
 			return previousSettings.OpenAICodexTicketStaticProxyURL
@@ -2647,15 +2720,23 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CyberSessionIdentityStrictEnabled: updatedSettings.CyberSessionIdentityStrictEnabled,
 		AccountSchedulingThresholds:       updatedSettings.AccountSchedulingThresholds,
 		AllowUserViewErrorRequests:        updatedSettings.AllowUserViewErrorRequests,
+		UsageShowLongContextBadge:         updatedSettings.UsageShowLongContextBadge,
 		RequestCaptureEnabled:             updatedSettings.RequestCaptureEnabled,
 		RequestCaptureQuotaMiB:            updatedSettings.RequestCaptureQuotaMiB,
 		RequestCaptureRetentionDays:       updatedSettings.RequestCaptureRetentionDays,
 		ExcelBPSImageMode:                 updatedSettings.ExcelBPSImageMode,
 		ExcelBPSImageRelayEnabled:         updatedSettings.ExcelBPSImageRelayEnabled,
-		ExcelBPSImageBaseURL:              updatedSettings.ExcelBPSImageBaseURL,
-		ExcelBPSImageBodyLimitMiB:         updatedSettings.ExcelBPSImageBodyLimitMiB,
-		ExcelBPSImageBudgetMiB:            updatedSettings.ExcelBPSImageBudgetMiB,
-		ExcelBPSImageMaxRequests:          updatedSettings.ExcelBPSImageMaxRequests,
+		ExcelBPSImageMaxImageMiB:          updatedSettings.ExcelBPSImageMaxImageMiB,
+		ExcelBPSImageMaxImages:            updatedSettings.ExcelBPSImageMaxImages,
+		ExcelBPSImageMaxTotalMiB:          updatedSettings.ExcelBPSImageMaxTotalMiB,
+		ExcelBPSImageStorageMiB:           updatedSettings.ExcelBPSImageStorageMiB,
+		ExcelBPSImageStorageEntries:       updatedSettings.ExcelBPSImageStorageEntries,
+		ExcelBPSImageTTLMinutes:           updatedSettings.ExcelBPSImageTTLMinutes,
+
+		ExcelBPSImageBaseURL:      updatedSettings.ExcelBPSImageBaseURL,
+		ExcelBPSImageBodyLimitMiB: updatedSettings.ExcelBPSImageBodyLimitMiB,
+		ExcelBPSImageBudgetMiB:    updatedSettings.ExcelBPSImageBudgetMiB,
+		ExcelBPSImageMaxRequests:  updatedSettings.ExcelBPSImageMaxRequests,
 	}
 	if fastPolicy, err := h.settingService.GetOpenAIFastPolicySettings(c.Request.Context()); err != nil {
 		slog.Error("openai_fast_policy_settings_get_failed", "error", err)

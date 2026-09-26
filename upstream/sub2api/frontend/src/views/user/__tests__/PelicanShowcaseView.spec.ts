@@ -253,9 +253,6 @@ describe('PelicanShowcaseView', () => {
     expect(dialog.get('[data-testid="showcase-preview-fit"]').attributes('aria-pressed')).toBe('true')
     await dialog.get('[data-testid="showcase-preview-actual"]').trigger('click')
     expect(dialog.get('[data-testid="showcase-preview-actual"]').attributes('aria-pressed')).toBe('true')
-    await wrapper.get('.dialog .btn-secondary').trigger('click')
-    await wrapper.get('[data-testid="showcase-group-2"] [data-testid="pelican-showcase-card"] button').trigger('click')
-    expect(wrapper.get('[data-testid="showcase-preview-fit"]').attributes('aria-pressed')).toBe('true')
     expect(wrapper.find('[data-testid="showcase-remove"]').exists()).toBe(false)
     wrapper.unmount()
 

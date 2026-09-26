@@ -705,6 +705,19 @@ export default {
 
   // Pelican showcase (user-facing gallery)
   pelicanShowcase: {
+    statistics: {
+      title: '鹈鹕测智统计',
+      scope: '{group} 统计',
+      count: '测试次数',
+      shortCount: '次数',
+      rate: '成功率',
+      definition: '成功率为成功测试次数除以已完成测试总次数。',
+      noTests: '此时段暂无已完成测试。',
+      unavailable: '暂时无法获取统计数据。',
+      partialCoverage: '统计覆盖 {time} 以来的结果。',
+      sinceEnabled: '自启用以来',
+      last24Hours: '近 24 小时'
+    },
     title: '鹈鹕测智',
     description: '各分组的模型定时完成同一道绘图题，直接看生成的作品，直观比较模型水平',
     allGroups: '全部分组',
@@ -732,19 +745,6 @@ export default {
     fitArtwork: '适应窗口',
     actualSize: '100%',
     previewSizing: '预览缩放',
-    statistics: {
-      title: '生成统计',
-      scope: '{group} · 生成统计',
-      count: '成功次数 / 总数',
-      shortCount: '成功 / 总数',
-      rate: '生成成功率',
-      last24Hours: '近 24 小时',
-      sinceEnabled: '自统计启用起',
-      definition: '仅统计已完成并记录的定时绘图测试；并行生成逐次计数，不含手动和进行中的测试。',
-      noTests: '统计时段内暂无已完成测试。展示作品可能来自更早的测试。',
-      unavailable: '统计暂不可用，作品仍可正常浏览。',
-      partialCoverage: '统计启用于 {time}，尚未覆盖完整 24 小时。',
-    },
     sandboxNote: '作品在隔离沙箱中运行，不能联网，也读取不到你的账号信息。',
     remove: '从展示中移除',
     removeConfirm: '确定把这张作品从鹈鹕测智中移除吗？移除后所有用户都看不到它，此操作不能撤销。',
