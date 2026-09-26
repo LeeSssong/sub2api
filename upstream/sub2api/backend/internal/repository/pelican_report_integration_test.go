@@ -110,6 +110,65 @@ func TestPelicanReportArtworkUsesExactResultAndExistingGalleryVisibility(t *test
 	require.Nil(t, got.Artwork)
 }
 
+func TestPelicanReportLatestFailureNeverSelectsSuccessfulSibling(t *testing.T) {
+	ctx, plan, groups := statisticsFixture(t)
+	t.Cleanup(func() {
+		_, _ = integrationDB.ExecContext(ctx, "DELETE FROM pelican_report_facts WHERE group_ids && $1::bigint[]", pq.Array(groups))
+	})
+	now := time.Now().UTC().Truncate(time.Microsecond).Add(-time.Minute)
+	repo := NewScheduledTestResultRepository(integrationDB)
+	gallery := NewPelicanShowcaseRepository(integrationDB).(*pelicanShowcaseRepository)
+	for i, status := range []string{"success", "failed", "success"} {
+		at := now.Add(time.Duration(i) * time.Second)
+		result, err := repo.Create(ctx, &service.ScheduledTestResult{PlanID: plan.ID, Status: status,
+			ResponseText: "<svg></svg>", PelicanConfig: &service.PelicanTestConfig{Prompt: "draw", ModelID: "model"},
+			PelicanGroupIDs: groups, ReportExecution: &service.PelicanReportExecutionMeta{ID: "latest-siblings", ExpectedCount: 3},
+			StartedAt: at.Add(-time.Second), FinishedAt: at})
+		require.NoError(t, err)
+		if status == "success" {
+			require.NoError(t, gallery.Publish(ctx, result, groups, 20))
+		}
+		got, err := gallery.ReadReport(ctx, groups[0], "model", groups, 20, time.Time{}, now.Add(-24*time.Hour), now.Add(time.Minute))
+		require.NoError(t, err)
+		if status == "failed" {
+			require.Nil(t, got.Artwork, "a newer failure must not reuse a successful sibling")
+		} else {
+			require.NotNil(t, got.Artwork)
+			require.Equal(t, result.ID, got.Artwork.SourceResultID)
+		}
+	}
+}
+
+func TestPelicanReportDefaultModelFollowsNewestPageGeneration(t *testing.T) {
+	ctx, plan, groups := statisticsFixture(t)
+	t.Cleanup(func() {
+		_, _ = integrationDB.ExecContext(ctx, "DELETE FROM pelican_report_facts WHERE group_ids && $1::bigint[]", pq.Array(groups))
+	})
+	now := time.Now().UTC().Truncate(time.Microsecond).Add(-time.Minute)
+	repo := NewScheduledTestResultRepository(integrationDB)
+	gallery := NewPelicanShowcaseRepository(integrationDB).(*pelicanShowcaseRepository)
+	var newestID int64
+	for i, model := range []string{"newest-generation", "older-slow-generation"} {
+		start, end := now.Add(-time.Second), now
+		if i == 1 {
+			start, end = now.Add(-time.Hour), now.Add(time.Second)
+		}
+		result, err := repo.Create(ctx, &service.ScheduledTestResult{PlanID: plan.ID, Status: "success", ResponseText: "<svg></svg>",
+			PelicanConfig: &service.PelicanTestConfig{Prompt: "draw", ModelID: model}, PelicanGroupIDs: groups,
+			ReportExecution: &service.PelicanReportExecutionMeta{ID: model, ExpectedCount: 1}, StartedAt: start, FinishedAt: end})
+		require.NoError(t, err)
+		require.NoError(t, gallery.Publish(ctx, result, groups, 20))
+		if i == 0 {
+			newestID = result.ID
+		}
+	}
+	got, err := gallery.ReadReport(ctx, groups[0], "", groups, 20, time.Time{}, now.Add(-24*time.Hour), now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Equal(t, "newest-generation", got.ModelID)
+	require.NotNil(t, got.Artwork)
+	require.Equal(t, newestID, got.Artwork.SourceResultID)
+}
+
 func TestPelicanReportPairClaimPreservesOriginalDueTime(t *testing.T) {
 	ctx, plan, groups := statisticsFixture(t)
 	t.Cleanup(func() {

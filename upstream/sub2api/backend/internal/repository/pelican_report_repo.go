@@ -67,7 +67,7 @@ func (r *pelicanShowcaseRepository) ReadReport(ctx context.Context, groupID int6
 		return nil, err
 	}
 	if model == "" {
-		err = tx.QueryRowContext(ctx, `SELECT model_id FROM pelican_report_facts WHERE $1=ANY(group_ids) AND observed_at >= $2 AND observed_at < $3 ORDER BY observed_at DESC,source_result_id DESC LIMIT 1`, groupID, to.Add(-48*time.Hour), to).Scan(&out.ModelID)
+		err = tx.QueryRowContext(ctx, `SELECT model_id FROM pelican_report_facts WHERE $1=ANY(group_ids) AND observed_at >= $2 AND observed_at < $3 ORDER BY (kind='pelican') DESC, CASE WHEN kind='pelican' THEN COALESCE(started_at,observed_at) ELSE observed_at END DESC,source_result_id DESC LIMIT 1`, groupID, to.Add(-48*time.Hour), to).Scan(&out.ModelID)
 		if errors.Is(err, sql.ErrNoRows) {
 			err = nil
 		}
@@ -98,12 +98,17 @@ func (r *pelicanShowcaseRepository) ReadReport(ctx context.Context, groupID int6
    WHERE $1=ANY(group_ids) AND model_id=$2 AND kind=k.kind AND observed_at >= $5 AND observed_at < $4
    ORDER BY observed_at DESC,source_result_id DESC LIMIT 1
   ) l
+ ), display_latest AS (
+  SELECT source_result_id FROM pelican_report_facts
+  WHERE $1=ANY(group_ids) AND model_id=$2 AND kind='pelican' AND observed_at >= $5 AND observed_at < $4
+  ORDER BY COALESCE(started_at,observed_at) DESC,source_result_id DESC LIMIT 1
  )
  SELECT f.source_result_id,f.kind,f.model_id,COALESCE(f.execution_id,''),COALESCE(f.shared_round_id,''),COALESCE(f.expected_count,0),f.scheduled_for,f.status,f.judgment,f.started_at,f.completed_at,f.observed_at
  FROM pelican_report_facts f
  WHERE $1=ANY(f.group_ids) AND f.model_id=$2 AND f.observed_at >= $5 AND f.observed_at < $4
  AND (f.source_result_id IN (SELECT source_result_id FROM recent)
  OR f.source_result_id IN (SELECT source_result_id FROM latest)
+ OR f.source_result_id IN (SELECT source_result_id FROM display_latest)
  OR f.execution_id IN (SELECT execution_id FROM latest WHERE execution_id IS NOT NULL))
  ORDER BY f.observed_at,f.source_result_id`, groupID, out.ModelID, from, to, to.Add(-48*time.Hour), service.PelicanReportHistoryLimit)
 		if err != nil {
@@ -122,12 +127,12 @@ func (r *pelicanShowcaseRepository) ReadReport(ctx context.Context, groupID int6
 		if err != nil {
 			return nil, err
 		}
-		if len(out.Facts) > 2*service.PelicanReportHistoryLimit+16 {
+		if len(out.Facts) > 2*service.PelicanReportHistoryLimit+17 {
 			return nil, fmt.Errorf("invalid report execution result count")
 		}
 		var latest *service.PelicanReportFact
 		for i := range out.Facts {
-			if out.Facts[i].Kind == "pelican" {
+			if out.Facts[i].Kind == "pelican" && out.Facts[i].NewerDrawing(latest) {
 				latest = &out.Facts[i]
 			}
 		}
@@ -136,10 +141,10 @@ func (r *pelicanShowcaseRepository) ReadReport(ctx context.Context, groupID int6
 			err = tx.QueryRowContext(ctx, `SELECT i.id,i.source_result_id,i.group_id,i.model_id,i.reasoning_effort,i.generated_at,i.response_text
  FROM pelican_showcase_items i JOIN pelican_report_facts f ON f.source_result_id=i.source_result_id
  WHERE i.group_id=$1 AND i.model_id=$2 AND f.kind='pelican' AND f.status='success' AND $1=ANY(f.group_ids)
- AND (f.source_result_id=$3 OR ($4<>'' AND f.execution_id=$4)) AND f.observed_at<$5
- AND ($6::timestamptz IS NULL OR i.generated_at >= $6)
- AND (SELECT COUNT(*) FROM pelican_showcase_items newer WHERE newer.group_id=i.group_id AND (newer.generated_at,newer.id)>(i.generated_at,i.id)) < $7
- ORDER BY f.observed_at DESC,i.id DESC LIMIT 1`, groupID, out.ModelID, latest.ResultID, latest.ExecutionID, to, nullableTime(since), maxItems).Scan(&art.ID, &art.SourceResultID, &art.GroupID, &art.ModelID, &art.ReasoningEffort, &art.GeneratedAt, &art.ResponseText)
+ AND f.source_result_id=$3 AND f.observed_at<$4
+ AND ($5::timestamptz IS NULL OR i.generated_at >= $5)
+ AND (SELECT COUNT(*) FROM pelican_showcase_items newer WHERE newer.group_id=i.group_id AND (newer.generated_at,newer.id)>(i.generated_at,i.id)) < $6
+ ORDER BY f.observed_at DESC,i.id DESC LIMIT 1`, groupID, out.ModelID, latest.ResultID, to, nullableTime(since), maxItems).Scan(&art.ID, &art.SourceResultID, &art.GroupID, &art.ModelID, &art.ReasoningEffort, &art.GeneratedAt, &art.ResponseText)
 			if err == nil {
 				out.Artwork = art
 			} else if !errors.Is(err, sql.ErrNoRows) {

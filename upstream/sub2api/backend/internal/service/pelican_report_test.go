@@ -33,6 +33,52 @@ func reportFact(id int64, kind, execution, status string, at time.Time, duration
 	started := at.Add(-time.Duration(duration) * time.Millisecond)
 	return PelicanReportFact{ResultID: id, Kind: kind, ModelID: "model-a", ExecutionID: execution, ExpectedCount: 1, Status: status, Judgment: "drawing", ObservedAt: at, StartedAt: &started, CompletedAt: &at}
 }
+
+func TestPelicanReportCurrentSelectsNewestCompletedIndividual(t *testing.T) {
+	now := time.Now().UTC()
+	older := reportFact(301, "pelican", "batch", "failed", now.Add(-2*time.Minute), 1000)
+	newer := reportFact(302, "pelican", "batch", "success", now.Add(-time.Minute), 2000)
+	older.ExpectedCount, newer.ExpectedCount = 3, 3
+	data := &PelicanReportData{Group: PelicanReportGroup{ID: 6}, ModelID: "model-a",
+		Facts: []PelicanReportFact{newer, older}, Artwork: &PelicanReportArtwork{ID: 9, SourceResultID: 302, GroupID: 6, ModelID: "model-a"}}
+	for _, failed := range []bool{false, true} {
+		if failed {
+			data.Facts[1].Status = "failed"
+		}
+		view := buildPelicanReport(data, now)
+		raw, err := json.Marshal(view)
+		require.NoError(t, err)
+		var decoded struct {
+			Current *struct {
+				Pelican *PelicanReportResult  `json:"pelican"`
+				Artwork *PelicanReportArtwork `json:"artwork"`
+			} `json:"current"`
+		}
+		require.NoError(t, json.Unmarshal(raw, &decoded))
+		require.NotNil(t, decoded.Current)
+		require.Equal(t, int64(302), decoded.Current.Pelican.ResultID)
+		require.Equal(t, int64(2000), *decoded.Current.Pelican.LatencyMs)
+		if failed {
+			require.Nil(t, decoded.Current.Artwork)
+		} else {
+			require.Equal(t, int64(302), decoded.Current.Artwork.SourceResultID)
+		}
+		require.Nil(t, view.Artwork, "legacy incomplete batch contract remains unchanged")
+	}
+}
+
+func TestPelicanReportCurrentFollowsArtworkGenerationOrder(t *testing.T) {
+	now := time.Now().UTC()
+	// An older, slower generation finishes last; the page still shows the newer start first.
+	newerStart := reportFact(402, "pelican", "newer-start", "success", now.Add(-2*time.Minute), 1000)
+	olderStart := reportFact(403, "pelican", "older-start", "success", now.Add(-time.Minute), 300000)
+	data := &PelicanReportData{Group: PelicanReportGroup{ID: 6}, ModelID: "model-a", Facts: []PelicanReportFact{newerStart, olderStart},
+		Artwork: &PelicanReportArtwork{ID: 12, SourceResultID: 402, GroupID: 6, ModelID: "model-a"}}
+	view := buildPelicanReport(data, now)
+	require.Equal(t, int64(402), view.Current.Pelican.ResultID)
+	require.Equal(t, int64(402), view.Current.Artwork.SourceResultID)
+	require.Equal(t, "older-start", *view.Latest.Pelican.ExecutionID, "legacy execution ordering is unchanged")
+}
 func TestPelicanReportCountsExactWindowAndActualDurations(t *testing.T) {
 	now := time.Date(2026, 9, 26, 8, 0, 0, 0, time.UTC)
 	rows := []PelicanReportFact{reportFact(1, "pelican", "e1", "success", now.Add(-time.Hour), 2000), reportFact(2, "pelican", "e1", "failed", now.Add(-time.Hour), 4000), reportFact(3, "candy", "c1", "ungraded", now.Add(-time.Minute), 3000), reportFact(4, "pelican", "old", "success", now.Add(-24*time.Hour-time.Nanosecond), 1000), reportFact(5, "pelican", "future", "success", now, 1000)}

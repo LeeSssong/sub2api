@@ -27,6 +27,23 @@ type PelicanReportFact struct {
 	ScheduledFor, StartedAt, CompletedAt                        *time.Time
 	ObservedAt                                                  time.Time
 }
+
+// NewerDrawing follows the page's generation time rather than completion order.
+// A source ID provides a stable tie-break for simultaneous generations.
+func (f PelicanReportFact) NewerDrawing(other *PelicanReportFact) bool {
+	if other == nil {
+		return true
+	}
+	at, previous := f.ObservedAt, other.ObservedAt
+	if f.StartedAt != nil {
+		at = *f.StartedAt
+	}
+	if other.StartedAt != nil {
+		previous = *other.StartedAt
+	}
+	return at.After(previous) || (at.Equal(previous) && f.ResultID > other.ResultID)
+}
+
 type PelicanReportGroup struct {
 	ID             int64    `json:"id"`
 	Name           string   `json:"name"`
@@ -100,6 +117,14 @@ type PelicanReportRound struct {
 	CandyExecutionID   string    `json:"candy_execution_id"`
 	PelicanExecutionID string    `json:"pelican_execution_id"`
 }
+
+// Current contains individual completed results, independently of batch completion.
+// Its artwork can only belong to the selected successful pelican result.
+type PelicanReportCurrent struct {
+	Candy   *PelicanReportResult  `json:"candy"`
+	Pelican *PelicanReportResult  `json:"pelican"`
+	Artwork *PelicanReportArtwork `json:"artwork"`
+}
 type PelicanReportView struct {
 	SchemaVersion int                `json:"schema_version"`
 	AsOf          time.Time          `json:"as_of"`
@@ -125,6 +150,7 @@ type PelicanReportView struct {
 	} `json:"latest"`
 	CurrentRound *PelicanReportRound   `json:"current_round"`
 	Artwork      *PelicanReportArtwork `json:"artwork"`
+	Current      PelicanReportCurrent  `json:"current"`
 }
 
 // Data is one repeatable-read snapshot without credentials, account identities or error bodies.
@@ -422,6 +448,25 @@ func buildPelicanReport(data *PelicanReportData, now time.Time) *PelicanReportVi
 	v.Latest.Candy = latestReportExecution(all["candy"])
 	v.Latest.Pelican = latestReportExecution(all["pelican"])
 	v.CurrentRound = pairedReportRound(v.Latest.Candy, v.Latest.Pelican)
+	if rows := all["candy"]; len(rows) > 0 {
+		r := publicReportResult(rows[len(rows)-1])
+		v.Current.Candy = &r
+	}
+	var drawing *PelicanReportFact
+	for i := range all["pelican"] {
+		if all["pelican"][i].NewerDrawing(drawing) {
+			drawing = &all["pelican"][i]
+		}
+	}
+	if drawing != nil {
+		r := publicReportResult(*drawing)
+		v.Current.Pelican = &r
+		if art := data.Artwork; r.Status == "success" && art != nil && art.SourceResultID == r.ResultID && art.GroupID == data.Group.ID && art.ModelID == data.ModelID {
+			copy := *art
+			copy.ExecutionID = r.ExecutionID
+			v.Current.Artwork = &copy
+		}
+	}
 	if p := v.Latest.Pelican; p != nil && p.Status == "success" && (p.ExpectedCount == nil || p.CompletedCount == *p.ExpectedCount) && data.Artwork != nil && data.Artwork.GroupID == data.Group.ID && data.Artwork.ModelID == data.ModelID {
 		for _, r := range p.Results {
 			if r.ResultID == data.Artwork.SourceResultID {
