@@ -18,12 +18,25 @@ import (
 )
 
 type bpsImageTestSettings struct {
-	enabled bool
-	err     error
+	enabled      bool
+	bodyLimitMiB int
+	budgetMiB    int
+	maxRequests  int
+	err          error
 }
 
 func (s bpsImageTestSettings) GetExcelBPSImageRelaySettings(context.Context) (service.ExcelBPSImageRelaySettings, error) {
-	return service.ExcelBPSImageRelaySettings{Enabled: s.enabled}, s.err
+	body, budget, requests := s.bodyLimitMiB, s.budgetMiB, s.maxRequests
+	if body == 0 {
+		body = 64
+	}
+	if budget == 0 {
+		budget = 512
+	}
+	if requests == 0 {
+		requests = 32
+	}
+	return service.ExcelBPSImageRelaySettings{Enabled: s.enabled, BodyLimitMiB: body, BudgetMiB: budget, MaxRequests: requests}, s.err
 }
 
 type bpsImageCountingBody struct {
