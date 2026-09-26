@@ -313,6 +313,16 @@ func (r *scheduledTestPlanRepository) ClaimPelican(ctx context.Context, plan *se
 			return false, err
 		}
 	}
+	if n == 1 && plan.PelicanConfig != nil && plan.PelicanConfig.Quality != nil {
+		var raw []byte
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE((SELECT state->'removed_models' FROM account_quality_states WHERE plan_id=$1),'{}'::jsonb)`, plan.ID).Scan(&raw); err != nil {
+			return false, err
+		}
+		plan.PelicanConfig.Quality.ProbeModelMapping = nil
+		if err := json.Unmarshal(raw, &plan.PelicanConfig.Quality.ProbeModelMapping); err != nil {
+			return false, err
+		}
+	}
 	if n == 1 && sharedRoundID != "" && plan.ReportExecution != nil && plan.PelicanConfig != nil && plan.PelicanConfig.ReportPairKey != "" && plan.ReportExecution.ScheduledFor != nil {
 		_, err := tx.ExecContext(ctx, `INSERT INTO pelican_report_pair_slots(account_id,pair_key,model_id,cron_expression,scheduled_for,shared_round_id,membership_fingerprint,timezone)
  VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`, plan.AccountID, plan.PelicanConfig.ReportPairKey, plan.ModelID, plan.CronExpression, *plan.ReportExecution.ScheduledFor, sharedRoundID, pairFingerprint, plan.ReportExecution.Timezone)

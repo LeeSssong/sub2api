@@ -2670,8 +2670,9 @@ export interface QualityJudgment {
 export interface QualityPolicy {
   judge?: QualityJudgeConfig
   expected_answer: string
-  action: 'remove_groups' | 'disable_scheduling'
+  action: 'remove_groups' | 'disable_scheduling' | 'remove_models'
   remove_group_ids: number[]
+  remove_model_ids?: string[]
   auto_restore: boolean
 }
 

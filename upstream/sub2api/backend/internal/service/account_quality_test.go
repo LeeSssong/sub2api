@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/stretchr/testify/require"
+	"strings"
 	"testing"
 	"time"
 )
@@ -75,4 +77,33 @@ func TestQualityRunnerAppliesCombinedOutcomeOnce(t *testing.T) {
 	require.Equal(t, []string{"failed"}, plans.outcomes)
 	require.Len(t, results.results, 2)
 	require.Equal(t, "groups_removed", results.results[0].QualityAction)
+}
+
+func TestQualityRemoveModelsPolicyValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		models []string
+		valid  bool
+	}{
+		{"multiple", []string{"model-a", "model-b"}, true},
+		{"none", nil, false}, {"blank", []string{" "}, false},
+		{"duplicate", []string{"model-a", "model-a"}, false},
+		{"wildcard", []string{"model-*"}, false},
+		{"whitespace", []string{" model-a"}, false},
+		{"too long", []string{strings.Repeat("a", 101)}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := pelicanPlan()
+			p.PelicanConfig.QuestionKind = "candy"
+			raw, err := json.Marshal(map[string]any{"expected_answer": "21", "action": "remove_models", "remove_model_ids": tc.models})
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(raw, &p.PelicanConfig.Quality))
+			_, err = nextPlanRun(p, time.Now())
+			if tc.valid {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
 }

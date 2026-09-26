@@ -3,16 +3,20 @@ package service
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 )
 
 // QualityPolicy is opt-in. Legacy connectivity/HTML tests never modify membership.
 type QualityPolicy struct {
-	Judge          *QualityJudgeConfig `json:"judge,omitempty"`
-	ExpectedAnswer string              `json:"expected_answer"`
-	Action         string              `json:"action"`
-	RemoveGroupIDs []int64             `json:"remove_group_ids"`
-	AutoRestore    bool                `json:"auto_restore"`
+	// ProbeModelMapping is hydrated from owned recovery state when claiming a run. Never accepted from API JSON.
+	ProbeModelMapping map[string]string   `json:"-"`
+	Judge             *QualityJudgeConfig `json:"judge,omitempty"`
+	ExpectedAnswer    string              `json:"expected_answer"`
+	Action            string              `json:"action"`
+	RemoveModelIDs    []string            `json:"remove_model_ids,omitempty"`
+	RemoveGroupIDs    []int64             `json:"remove_group_ids"`
+	AutoRestore       bool                `json:"auto_restore"`
 }
 
 func validateQualityPolicy(plan *ScheduledTestPlan) error {
@@ -39,8 +43,20 @@ func validateQualityPolicy(plan *ScheduledTestPlan) error {
 	} else if len(q.ExpectedAnswer) > 4000 {
 		return fmt.Errorf("expected answer must be 1–4000 bytes")
 	}
-	if q.Action != "remove_groups" && q.Action != "disable_scheduling" {
+	if q.Action != "remove_groups" && q.Action != "disable_scheduling" && q.Action != "remove_models" {
 		return fmt.Errorf("invalid quality action")
+	}
+	if q.Action == "remove_models" {
+		if len(q.RemoveModelIDs) == 0 || len(q.RemoveModelIDs) > 100 {
+			return fmt.Errorf("select 1–100 explicit models to remove")
+		}
+		seen := map[string]bool{}
+		for _, model := range q.RemoveModelIDs {
+			if model == "" || strings.TrimSpace(model) != model || len(model) > 100 || strings.ContainsAny(model, "*\\") || seen[model] {
+				return fmt.Errorf("invalid or duplicate model ID: use explicit model entries")
+			}
+			seen[model] = true
+		}
 	}
 	if q.Action == "remove_groups" && len(q.RemoveGroupIDs) == 0 {
 		return fmt.Errorf("select at least one group to remove")
@@ -95,4 +111,32 @@ func (s *ScheduledTestService) ListQualityHistory(ctx context.Context, beforeID 
 		page.NextCursor = items[99].ID
 	}
 	return page, nil
+}
+
+// Scoped to a single direct quality probe; never persisted or used by scheduling.
+type qualityProbeModelMappingKey struct{}
+
+func qualityProbeAccount(ctx context.Context, account *Account) *Account {
+	removed, _ := ctx.Value(qualityProbeModelMappingKey{}).(map[string]string)
+	if len(removed) == 0 {
+		return account
+	}
+	copy := *account
+	copy.Credentials = maps.Clone(account.Credentials)
+	if copy.Credentials == nil {
+		copy.Credentials = map[string]any{}
+	}
+	current, _ := account.Credentials["model_mapping"].(map[string]any)
+	mapping := maps.Clone(current)
+	if mapping == nil {
+		mapping = map[string]any{}
+	}
+	for model, target := range removed {
+		// A manual replacement remains authoritative even for quality probes.
+		if _, exists := mapping[model]; !exists {
+			mapping[model] = target
+		}
+	}
+	copy.Credentials["model_mapping"] = mapping
+	return &copy
 }

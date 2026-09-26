@@ -38,6 +38,9 @@ func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID
 		cfg = &copy
 
 	}
+	if cfg.Quality != nil && len(cfg.Quality.ProbeModelMapping) > 0 {
+		ctx = context.WithValue(ctx, qualityProbeModelMappingKey{}, cfg.Quality.ProbeModelMapping)
+	}
 	started := time.Now()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
