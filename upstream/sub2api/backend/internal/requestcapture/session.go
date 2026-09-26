@@ -1,9 +1,14 @@
 package requestcapture
 
 import (
+	"compress/flate"
+	"compress/gzip"
+	"compress/zlib"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -59,35 +64,39 @@ type recordState struct {
 	blocked bool
 }
 type Session struct {
-	frameMu         sync.Mutex
-	frameStreams    map[string]*Stream
-	m               *Manager
-	mu              sync.Mutex
-	meta            Meta
-	candidates      []*runtimeTask
-	matched         map[string]bool
-	inbound         []inputChunk
-	inboundBytes    int64
-	hasAccounts     bool
-	clientObserved  bool
-	reason          string
-	closed          bool
-	failed          bool
-	status          int
-	attempts        []Attempt
-	nextPart        int
-	turn            int
-	turnEnded       bool
-	usage           map[string]int64
-	errorCode       string
-	resultBuffer    []byte
-	resultSkip      bool
-	resultError     bool
-	done            atomic.Bool
-	pending         atomic.Int64
-	streams         map[*Stream]struct{}
-	finishedTargets map[string]bool
-	records         map[string]*recordState // Worker-owned, never accessed by forwarding goroutines.
+	frameMu               sync.Mutex
+	frameStreams          map[string]*Stream
+	m                     *Manager
+	mu                    sync.Mutex
+	meta                  Meta
+	candidates            []*runtimeTask
+	matched               map[string]bool
+	inbound               []inputChunk
+	inboundBytes          int64
+	hasAccounts           bool
+	clientObserved        bool
+	reason                string
+	closed                bool
+	failed                bool
+	status                int
+	attempts              []Attempt
+	nextPart              int
+	turn                  int
+	turnEnded             bool
+	usage                 map[string]int64
+	errorCode             string
+	resultBuffer          []byte
+	resultSkip            bool
+	resultError           bool
+	finalOutcome          ForwardingOutcome
+	readDiagnostics       []ReadDiagnostic
+	readDiagnosticCount   int64
+	unattributedReadError bool
+	done                  atomic.Bool
+	pending               atomic.Int64
+	streams               map[*Stream]struct{}
+	finishedTargets       map[string]bool
+	records               map[string]*recordState // Worker-owned, never accessed by forwarding goroutines.
 }
 
 func (m *Manager) Begin(meta Meta) *Session {
@@ -177,9 +186,94 @@ func (s *Session) MarkError(code string) {
 	defer s.mu.Unlock()
 	if !s.closed && !s.turnEnded {
 		s.resultError = true
+		if code == "client_write_failed" {
+			s.finalOutcome = OutcomeClientDisconnected
+		}
 		s.errorCode = bounded(code, 128)
 	}
 }
+
+// RecordForwardingOutcome must be called after the forwarder validates the terminal
+// event and completes client writes. Capture parsing is not evidence of success.
+// Recording success never removes errors from earlier attempts or client writes.
+func (s *Session) RecordForwardingOutcome(attempt int, outcome ForwardingOutcome) {
+	if s == nil {
+		return
+	}
+	switch outcome {
+	case OutcomeSuccess, OutcomeFailed, OutcomeIncomplete, OutcomeClientDisconnected:
+	default:
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.turnEnded {
+		return
+	}
+	if attempt > 0 && attempt <= len(s.attempts) {
+		a := &s.attempts[attempt-1]
+		if outcome != OutcomeClientDisconnected && (a.Outcome == OutcomeFailed || a.Outcome == OutcomeIncomplete || a.Outcome == OutcomeClientDisconnected) {
+			outcome = a.Outcome
+		} else {
+			a.Outcome = outcome
+		}
+	}
+	if (attempt == 0 || attempt == len(s.attempts)) && s.finalOutcome != OutcomeClientDisconnected {
+		s.finalOutcome = outcome
+	}
+	if outcome != OutcomeSuccess {
+		s.resultError = true
+	}
+}
+
+func readErrorClass(err error) string {
+	var timeout net.Error
+	var corrupt flate.CorruptInputError
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "cancelled"
+	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &timeout) && timeout.Timeout():
+		return "timeout"
+	case errors.Is(err, io.ErrUnexpectedEOF):
+		return "unexpected_eof"
+	case errors.Is(err, gzip.ErrHeader), errors.Is(err, gzip.ErrChecksum), errors.Is(err, zlib.ErrHeader), errors.Is(err, zlib.ErrChecksum), errors.Is(err, zlib.ErrDictionary), errors.As(err, &corrupt):
+		return "decompression"
+	default:
+		return "other"
+	}
+}
+func (s *Session) recordReadDiagnostic(part Part, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.turnEnded {
+		return
+	}
+	direction := "upstream_response"
+	if part.Stage == "upstream_request" {
+		direction = "upstream_request"
+	}
+	class := readErrorClass(err)
+	s.readDiagnosticCount++
+	if part.Attempt > 0 && part.Attempt <= len(s.attempts) {
+		if s.attempts[part.Attempt-1].ReadError == "" {
+			s.attempts[part.Attempt-1].ReadError = class
+		}
+	} else {
+		s.unattributedReadError = true
+	}
+	for i := range s.readDiagnostics {
+		d := &s.readDiagnostics[i]
+		if d.Attempt == part.Attempt && d.Direction == direction && d.Class == class {
+			d.Count++
+			return
+		}
+	}
+	// Bounded by the existing session reservation, even for repeated retries.
+	if len(s.readDiagnostics) < 16 {
+		s.readDiagnostics = append(s.readDiagnostics, ReadDiagnostic{Attempt: part.Attempt, Class: class, Direction: direction, CloseReason: "read_error", Count: 1})
+	}
+}
+
 func (s *Session) RequireClientInput() {
 	if s == nil {
 		return
@@ -242,6 +336,10 @@ func (s *Session) ClientFrame(body []byte) {
 		s.attempts = nil
 		s.reason, s.errorCode = "", ""
 		s.resultError, s.resultSkip = false, false
+		s.finalOutcome = ""
+		s.readDiagnostics = nil
+		s.readDiagnosticCount = 0
+		s.unattributedReadError = false
 		s.resultBuffer = s.resultBuffer[:0]
 		s.usage = map[string]int64{}
 		for _, t := range s.candidates {
@@ -274,6 +372,9 @@ func (s *Session) BeginAttempt(account int64) int {
 		return 0
 	}
 	n := len(s.attempts) + 1
+	if s.finalOutcome != OutcomeClientDisconnected {
+		s.finalOutcome = ""
+	}
 	s.attempts = append(s.attempts, Attempt{Number: n, AccountID: account, StartedAt: time.Now().UTC()})
 	s.bindAccountLocked(account)
 	return n
@@ -350,15 +451,17 @@ func (s *Session) releaseInputLocked() {
 }
 
 type Stream struct {
-	s              *Session
-	part           Part
-	mu             sync.Mutex
-	buffer         []byte
-	diagnostic     []byte
-	diagnosticSkip bool
-	charge         int64
-	lastFlush      time.Time
-	closed         bool
+	s               *Session
+	part            Part
+	mu              sync.Mutex
+	buffer          []byte
+	diagnostic      []byte
+	diagnosticSkip  bool
+	diagnosticSniff bool
+	diagnosticSSE   bool
+	charge          int64
+	lastFlush       time.Time
+	closed          bool
 }
 
 func (s *Session) NewStream(stage string, attempt, turn int, ct string, h http.Header) *Stream {
@@ -375,7 +478,7 @@ func (s *Session) NewStream(stage string, attempt, turn int, ct string, h http.H
 	if turn == 0 && s.meta.Protocol == "websocket" {
 		turn = s.turn
 	}
-	st := &Stream{s: s, part: Part{Name: fmt.Sprintf("%06d-%s.txt", n, stage), Stage: stage, Attempt: attempt, Turn: turn, ContentType: bounded(ct, 256), Headers: SafeHeaders(h)}, lastFlush: time.Now()}
+	st := &Stream{s: s, diagnosticSniff: ct == "", diagnosticSSE: strings.Contains(strings.ToLower(ct), "event-stream"), part: Part{Name: fmt.Sprintf("%06d-%s.txt", n, stage), Stage: stage, Attempt: attempt, Turn: turn, ContentType: bounded(ct, 256), Headers: SafeHeaders(h)}, lastFlush: time.Now()}
 	s.streams[st] = struct{}{}
 	return st
 }
@@ -411,22 +514,7 @@ func (st *Stream) Write(p []byte) (int, error) {
 	}
 	if strings.HasSuffix(st.part.Stage, "_response") {
 		st.s.mu.Lock()
-		if strings.Contains(strings.ToLower(st.part.ContentType), "event-stream") {
-			st.s.observeResultLocked(p, &st.diagnostic, &st.diagnosticSkip)
-		} else if !st.diagnosticSkip {
-			if len(st.diagnostic)+len(p) > 16<<10 {
-				st.diagnostic = st.diagnostic[:0]
-				st.diagnosticSkip = true
-				if st.s.reason == "" {
-					st.s.reason = "diagnostic_limit"
-				}
-			} else {
-				st.diagnostic = append(st.diagnostic, p...)
-				if gjson.ValidBytes(st.diagnostic) {
-					st.s.parseResultLocked(st.diagnostic)
-				}
-			}
-		}
+		st.observeDiagnosticLocked(p)
 		st.s.mu.Unlock()
 	}
 	for len(p) > 0 {
@@ -449,6 +537,48 @@ func (st *Stream) Write(p []byte) (int, error) {
 	}
 	return n, nil
 }
+
+// Called with both stream and session locked. The diagnostic budget is separate
+// from protocol validation in the forwarder and cannot establish business success.
+func (st *Stream) observeDiagnosticLocked(p []byte) {
+	if st.diagnosticSniff {
+		count := min(protocolPrefixLimit-len(st.diagnostic), len(p))
+		st.diagnostic = append(st.diagnostic, p[:count]...)
+		kind := protocolPrefix(st.diagnostic)
+		if kind == "" && len(st.diagnostic) < protocolPrefixLimit {
+			return
+		}
+		st.diagnosticSniff = false
+		st.diagnosticSSE = kind == "sse"
+		if kind != "sse" && kind != "json" {
+			st.diagnosticSkip = true
+			st.diagnostic = st.diagnostic[:0]
+			return
+		}
+		prefix := append([]byte(nil), st.diagnostic...)
+		st.diagnostic = st.diagnostic[:0]
+		st.observeDiagnosticLocked(prefix)
+		st.observeDiagnosticLocked(p[count:])
+		return
+	}
+	if st.diagnosticSSE {
+		st.s.observeResultLocked(p, &st.diagnostic, &st.diagnosticSkip, st.part.Attempt)
+	} else if !st.diagnosticSkip {
+		if len(st.diagnostic)+len(p) > 16<<10 {
+			st.diagnostic = st.diagnostic[:0]
+			st.diagnosticSkip = true
+			if st.s.reason == "" {
+				st.s.reason = "diagnostic_limit"
+			}
+		} else {
+			st.diagnostic = append(st.diagnostic, p...)
+			if gjson.ValidBytes(st.diagnostic) {
+				st.s.parseResultLocked(st.diagnostic, st.part.Attempt)
+			}
+		}
+	}
+}
+
 func (st *Stream) Close() error {
 	if st == nil || st.s == nil {
 		return nil
@@ -461,7 +591,7 @@ func (st *Stream) Close() error {
 	st.closed = true
 	st.s.mu.Lock()
 	if !st.diagnosticSkip {
-		st.s.parseResultLocked(st.diagnostic)
+		st.s.parseResultLocked(st.diagnostic, st.part.Attempt)
 	}
 	st.s.mu.Unlock()
 	st.s.send(st.part, st.buffer, true)
@@ -556,11 +686,35 @@ func (s *Session) snapshotLocked(r *Record) {
 	r.Meta = s.meta
 	r.Turn = s.turn
 	r.Status = s.status
-	r.IsError = s.status >= 400 || s.resultError
+	r.IsError = s.status >= 400 || s.resultError || s.unattributedReadError
+	r.FinalOutcome = s.finalOutcome
+	if r.FinalOutcome == "" && s.status >= 400 {
+		r.FinalOutcome = OutcomeFailed
+	}
+	r.ReadDiagnosticCount = s.readDiagnosticCount
+	r.ReadDiagnostics = append([]ReadDiagnostic(nil), s.readDiagnostics...)
+	for i := range r.ReadDiagnostics {
+		d := &r.ReadDiagnostics[i]
+		var outcome ForwardingOutcome
+		if d.Attempt > 0 && d.Attempt <= len(s.attempts) {
+			outcome = s.attempts[d.Attempt-1].Outcome
+		}
+		d.TerminalConfirmed = outcome == OutcomeSuccess || outcome == OutcomeFailed
+		if outcome != OutcomeSuccess {
+			r.IsError = true
+		}
+	}
 	r.Attempts = append([]Attempt(nil), s.attempts...)
 	for _, a := range s.attempts {
-		if a.Status >= 400 || a.Error != "" {
+		if a.Status >= 400 || a.Error != "" || (a.ReadError != "" && a.Outcome != OutcomeSuccess) {
 			r.IsError = true
+		}
+	}
+	if r.FinalOutcome == "" && len(s.attempts) > 0 {
+		last := s.attempts[len(s.attempts)-1]
+		r.FinalOutcome = last.Outcome
+		if r.FinalOutcome == "" && last.ReadError != "" {
+			r.FinalOutcome = OutcomeIncomplete
 		}
 	}
 	r.ErrorCode = s.errorCode
@@ -584,13 +738,13 @@ func (s *Session) ObserveResult(body []byte) {
 	if s.closed {
 		return
 	}
-	s.observeResultLocked(body, &s.resultBuffer, &s.resultSkip)
+	s.observeResultLocked(body, &s.resultBuffer, &s.resultSkip, 0)
 }
-func (s *Session) observeResultLocked(body []byte, buffer *[]byte, skip *bool) {
+func (s *Session) observeResultLocked(body []byte, buffer *[]byte, skip *bool, attempt int) {
 	for _, b := range body {
 		if b == '\n' {
 			if !*skip {
-				s.parseResultLocked(*buffer)
+				s.parseResultLocked(*buffer, attempt)
 			}
 			*buffer = (*buffer)[:0]
 			*skip = false
@@ -610,16 +764,25 @@ func (s *Session) observeResultLocked(body []byte, buffer *[]byte, skip *bool) {
 		*buffer = append(*buffer, b)
 	}
 	if len(*buffer) > 0 && gjson.ValidBytes(*buffer) {
-		s.parseResultLocked(*buffer)
+		s.parseResultLocked(*buffer, attempt)
 		*buffer = (*buffer)[:0]
 	}
 }
-func (s *Session) parseResultLocked(body []byte) {
+func (s *Session) parseResultLocked(body []byte, attempt int) {
+	markFailure := func(outcome ForwardingOutcome) {
+		s.resultError = true
+		if attempt > 0 && attempt <= len(s.attempts) {
+			s.attempts[attempt-1].Outcome = outcome
+		}
+	}
 	line := strings.TrimSpace(strings.TrimPrefix(string(body), "data:"))
 	if strings.HasPrefix(line, "event:") {
 		event := strings.TrimSpace(strings.TrimPrefix(line, "event:"))
 		if event == "error" || event == "response.failed" {
-			s.resultError = true
+			markFailure(OutcomeFailed)
+		}
+		if event == "response.incomplete" || event == "response.cancelled" || event == "response.canceled" {
+			markFailure(OutcomeIncomplete)
 		}
 		return
 	}
@@ -646,7 +809,10 @@ func (s *Session) parseResultLocked(body []byte) {
 		}
 	}
 	if hasError("error") || hasError("response.error") || event == "response.failed" || event == "error" || gjson.Get(line, "response.status").String() == "failed" {
-		s.resultError = true
+		markFailure(OutcomeFailed)
+	}
+	if event == "response.incomplete" || event == "response.cancelled" || event == "response.canceled" || gjson.Get(line, "response.status").String() == "incomplete" || gjson.Get(line, "status").String() == "incomplete" {
+		markFailure(OutcomeIncomplete)
 	}
 	for _, prefix := range []string{"error.", "response.error."} {
 		if code := gjson.Get(line, prefix+"code"); code.Exists() {
@@ -702,14 +868,18 @@ func (m *Manager) process(e event) {
 		}
 		part := r.parts[e.part.Name]
 		if part == nil {
-			if len(r.parts) >= 512 || !m.reserve(24<<10) {
+			filterCharge := int64(24 << 10)
+			if strings.HasPrefix(strings.ToLower(e.part.ContentType), "text/plain") {
+				filterCharge += plainJSONLimit
+			}
+			if len(r.parts) >= 512 || !m.reserve(filterCharge) {
 				r.Partial = true
 				r.Reason = "part_or_buffer_limit"
 				r.blocked = true
 				m.finishTarget(e.s, t)
 				continue
 			}
-			part = &partState{part: e.part, filter: newBodyFilter(e.part.ContentType, t.task.SaveMedia), charge: 24 << 10}
+			part = &partState{part: e.part, filter: newBodyFilter(e.part.ContentType, t.task.SaveMedia), charge: filterCharge}
 			r.parts[e.part.Name] = part
 		}
 		if part.ended {
@@ -798,6 +968,14 @@ func (m *Manager) finishRecord(r *recordState, t *runtimeTask, snapshot *Record)
 	r.Meta, r.Turn = snapshot.Meta, snapshot.Turn
 	r.Status, r.IsError = snapshot.Status, snapshot.IsError
 	r.Attempts, r.Usage, r.ErrorCode = snapshot.Attempts, snapshot.Usage, snapshot.ErrorCode
+	r.FinalOutcome = snapshot.FinalOutcome
+	r.ReadDiagnostics, r.ReadDiagnosticCount = snapshot.ReadDiagnostics, snapshot.ReadDiagnosticCount
+	if r.ReadDiagnosticCount > 0 {
+		m.mu.Lock()
+		t.task.ReadDiagnostics += r.ReadDiagnosticCount
+		t.dirty = true
+		m.mu.Unlock()
+	}
 	if snapshot.Partial && r.Reason == "" {
 		r.Partial, r.Reason = true, snapshot.Reason
 	}
@@ -992,8 +1170,7 @@ func (b *observedBody) Read(p []byte) (int, error) {
 		_, _ = b.stream.Write(p[:n])
 	}
 	if err != nil && err != io.EOF {
-		b.stream.s.MarkPartial("upstream_read_failed")
-		b.stream.s.MarkError("upstream_read_failed")
+		b.stream.s.recordReadDiagnostic(b.stream.part, err)
 	}
 	if err == io.EOF {
 		_ = b.stream.Close()
