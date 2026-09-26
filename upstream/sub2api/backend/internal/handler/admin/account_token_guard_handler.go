@@ -95,3 +95,13 @@ func (h *AccountTokenGuardHandler) Relogin(c *gin.Context) {
 	}
 	response.Success(c, gin.H{"account_id": accountID, "action": action})
 }
+
+func (h *AccountTokenGuardHandler) Source(c *gin.Context) {
+	data, err := h.svc.ExecutorSource(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	c.Header("Content-Disposition", `attachment; filename="token-guard-executor-source.tar.gz"`)
+	c.Data(http.StatusOK, "application/gzip", data)
+}

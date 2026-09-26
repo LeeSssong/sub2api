@@ -21,21 +21,22 @@ func TestTokenGuardFusionDefaultsNeedExplicitTrust(t *testing.T) {
 	}
 }
 
-func TestTokenGuardFusionMasksAndPreservesSecrets(t *testing.T) {
+func TestTokenGuardFusionDisplaysAndPreservesSecrets(t *testing.T) {
 	repo := &accountOpsSettingsStub{}
-	s := NewAccountTokenGuardService(repo, nil, nil, nil, nil)
+	accounts := &tokenGuardTestAccounts{items: []Account{{ID: 1, Name: "user@example.com", Platform: PlatformOpenAI, Type: AccountTypeOAuth}}}
+	s := NewAccountTokenGuardService(repo, nil, accounts, nil, nil)
 	cfg := defaultAccountTokenGuardConfig()
 	cfg.ProbeEndpoint = "https://trusted.example/probe"
 	cfg.ReloginEndpoint = "https://trusted.example/login"
 	cfg.ProbeHeaders = map[string]string{"Authorization": "Bearer private-probe"}
 	cfg.ReloginHeaders = map[string]string{"X-Api-Key": "private-login"}
 	cfg.BarkKey = "private-bark"
-	cfg.ReloginAccounts = []AccountTokenGuardReloginAccount{{Email: "user@example.com", Password: "private-password", MFASecret: "private-mfa"}}
+	cfg.ReloginAccounts = []AccountTokenGuardReloginAccount{{Email: "user@example.com", Password: "private-password", MFASecret: "JBSWY3DPEHPK3PXP"}}
 	saved, err := s.SaveConfig(context.Background(), cfg)
 	require.NoError(t, err)
-	require.Equal(t, "********", saved.BarkKey)
-	require.Equal(t, "********", saved.ProbeHeaders["Authorization"])
-	require.Equal(t, "********", saved.ReloginAccounts[0].Password)
+	require.Equal(t, "private-bark", saved.BarkKey)
+	require.Equal(t, "Bearer private-probe", saved.ProbeHeaders["Authorization"])
+	require.Equal(t, "private-password", saved.ReloginAccounts[0].Password)
 	saved.IntervalSeconds = 600
 	_, err = s.SaveConfig(context.Background(), saved)
 	require.NoError(t, err)
@@ -44,5 +45,5 @@ func TestTokenGuardFusionMasksAndPreservesSecrets(t *testing.T) {
 	require.Equal(t, "private-bark", internal.BarkKey)
 	require.Equal(t, "Bearer private-probe", internal.ProbeHeaders["Authorization"])
 	require.Equal(t, "private-password", internal.ReloginAccounts[0].Password)
-	require.Equal(t, "private-mfa", internal.ReloginAccounts[0].MFASecret)
+	require.Equal(t, "JBSWY3DPEHPK3PXP", internal.ReloginAccounts[0].MFASecret)
 }
