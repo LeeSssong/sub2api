@@ -517,6 +517,7 @@ type OpenAIGatewayService struct {
 	liveAttestationCipher         SecretEncryptor
 	excelBPSImagesMu              sync.Mutex
 	excelBPSImages                *basispoints.ImageRelay
+	excelBPSAttachments           basispoints.AttachmentCache
 	codexHarvestRunMu             sync.RWMutex
 	proxyRepo                     ProxyRepository
 

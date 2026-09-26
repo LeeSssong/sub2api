@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/requestcapture"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -481,6 +483,13 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		}
 	}
 
+	if clientAborted || clientDisconnected || ctx.Err() != nil {
+		recordOpenAIForwardingOutcome(c, requestcapture.OutcomeClientDisconnected)
+	} else if scanErr == nil && !terminal.IsTruncated(clientOutputStarted) {
+		recordOpenAIForwardingOutcome(c, requestcapture.OutcomeSuccess)
+	} else {
+		recordOpenAIForwardingOutcome(c, requestcapture.OutcomeIncomplete)
+	}
 	return resultWithUsage(), nil
 }
 
@@ -581,7 +590,28 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		c.Writer.Header().Set("Content-Type", "application/json")
 	}
 	c.Writer.WriteHeader(http.StatusOK)
-	_, _ = c.Writer.Write(respBody)
+	written, writeErr := c.Writer.Write(respBody)
+	if writeErr != nil || written != len(respBody) {
+		if writeErr == nil {
+			writeErr = io.ErrShortWrite
+		}
+		ObserveClientWriteFailure(c, writeErr)
+		recordOpenAIForwardingOutcome(c, requestcapture.OutcomeClientDisconnected)
+		return nil, writeErr
+	}
+	choices := gjson.GetBytes(respBody, "choices")
+	complete := choices.IsArray() && len(choices.Array()) > 0
+	for _, choice := range choices.Array() {
+		if strings.TrimSpace(choice.Get("finish_reason").String()) == "" {
+			complete = false
+			break
+		}
+	}
+	if complete {
+		recordOpenAIForwardingOutcome(c, requestcapture.OutcomeSuccess)
+	} else {
+		recordOpenAIForwardingOutcome(c, requestcapture.OutcomeIncomplete)
+	}
 
 	return &OpenAIForwardResult{
 		RequestID:                     requestID,

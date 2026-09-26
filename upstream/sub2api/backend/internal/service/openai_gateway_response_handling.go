@@ -18,6 +18,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	"github.com/Wei-Shaw/sub2api/internal/requestcapture"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -436,6 +437,13 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			return resultWithUsage(), fmt.Errorf("upstream response failed: %s", failedMessage)
 		}
 		logOpenAISuccessMissingUsage(ctx, c, account, resp, usage, terminalEventType, clientDisconnected)
+		if clientDisconnected || ctx.Err() != nil {
+			recordOpenAIForwardingOutcome(c, requestcapture.OutcomeClientDisconnected)
+		} else if terminalEventType == "response.completed" || terminalEventType == "response.done" {
+			recordOpenAIForwardingOutcome(c, requestcapture.OutcomeSuccess)
+		} else {
+			recordOpenAIForwardingOutcome(c, requestcapture.OutcomeIncomplete)
+		}
 		return resultWithUsage(), nil
 	}
 	terminalEventReady := func() bool {

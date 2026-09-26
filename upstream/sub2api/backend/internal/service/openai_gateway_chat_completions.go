@@ -14,6 +14,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/requestcapture"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -635,7 +636,16 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	// writeContentType 仅在头不存在时才设置，无法覆盖。这里显式 Set 强制改回 JSON，
 	// 否则下游"看头判流式"的中间层（如 new-api）会把本应聚合的 JSON 当成 SSE 处理。
 	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-	c.JSON(http.StatusOK, chatResp)
+	encodedChat, err := json.Marshal(chatResp)
+	if err != nil {
+		return nil, fmt.Errorf("encode chat completions response: %w", err)
+	}
+	c.Writer.WriteHeader(http.StatusOK)
+	if _, err := c.Writer.Write(encodedChat); err != nil {
+		ObserveClientWriteFailure(c, err)
+		recordOpenAIForwardingOutcome(c, requestcapture.OutcomeClientDisconnected)
+		return nil, err
+	}
 
 	result := &OpenAIForwardResult{
 		RequestID:                     requestID,
@@ -658,6 +668,11 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 				result.SearchCount = n
 			}
 		}
+	}
+	if strings.TrimSpace(finalResponse.Status) == "completed" {
+		recordOpenAIForwardingOutcome(c, requestcapture.OutcomeSuccess)
+	} else {
+		recordOpenAIForwardingOutcome(c, requestcapture.OutcomeIncomplete)
 	}
 	return result, nil
 }
@@ -1049,6 +1064,13 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			c.Writer.Flush()
 		}
 		logOpenAISuccessMissingUsage(c.Request.Context(), c, account, resp, &usage, terminalEventType, clientDisconnected)
+		if clientDisconnected || ctx.Err() != nil {
+			recordOpenAIForwardingOutcome(c, requestcapture.OutcomeClientDisconnected)
+		} else if terminalEventType == "response.completed" {
+			recordOpenAIForwardingOutcome(c, requestcapture.OutcomeSuccess)
+		} else {
+			recordOpenAIForwardingOutcome(c, requestcapture.OutcomeIncomplete)
+		}
 		return resultWithUsage(), nil
 	}
 

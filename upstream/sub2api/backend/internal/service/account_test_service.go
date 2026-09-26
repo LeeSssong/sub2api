@@ -153,6 +153,8 @@ type AccountTestService struct {
 	pluginManager             *PluginManager
 	probeCostRecorder         AccountProbeCostRecorder
 	openaiGatewayService      *OpenAIGatewayService
+	bpsProbeMu                sync.Mutex
+	bpsProbeAccounts          map[int64]struct{}
 	agentIdentityTaskMu       sync.Mutex
 	agentIdentityWS           agentIdentityWSConnectionInvalidator
 	// grokWSDialer is optional; realtime account tests use the default OpenAI-style
@@ -842,6 +844,9 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	ctx := c.Request.Context()
 	mode = normalizeAccountTestMode(mode)
 
+	if mode == AccountTestModeBPSTools {
+		return s.testExcelBPSToolRoundtrip(c, account, modelID)
+	}
 	// Excel/BPS accounts must use the same gateway path as user Responses
 	// requests. The legacy account-test probe hard-codes ChatGPT Codex and
 	// silently bypasses the account's protocol toggle, producing misleading
