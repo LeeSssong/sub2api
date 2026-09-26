@@ -15,9 +15,6 @@
           <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
             {{ pageTitle }}
           </h1>
-          <p v-if="pageDescription" class="text-xs text-gray-500 dark:text-dark-400">
-            {{ pageDescription }}
-          </p>
         </div>
       </div>
 
@@ -324,14 +321,6 @@ const pageTitle = computed(() => {
     return t(titleKey)
   }
   return (route.meta.title as string) || ''
-})
-
-const pageDescription = computed(() => {
-  const descKey = route.meta.descriptionKey as string
-  if (descKey) {
-    return t(descKey)
-  }
-  return (route.meta.description as string) || ''
 })
 
 function toggleMobileSidebar() {

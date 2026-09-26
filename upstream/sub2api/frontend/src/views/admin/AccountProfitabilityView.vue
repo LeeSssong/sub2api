@@ -7,7 +7,6 @@
       <header class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <h1 class="text-2xl font-semibold">{{ t('admin.accountProfitability.title') }}</h1>
-          <p class="text-sm text-gray-500">{{ t('admin.accountProfitability.description') }}</p>
         </div>
         <button class="btn btn-secondary shrink-0" data-test="financial-refresh" @click="refreshCurrentView">
           {{ t('common.refresh') }}

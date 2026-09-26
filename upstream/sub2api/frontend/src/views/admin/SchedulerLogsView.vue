@@ -70,7 +70,7 @@ onMounted(() => void load(true))
   <AppLayout>
     <main class="scheduler-log-page">
       <header class="scheduler-log-header">
-        <div><p class="scheduler-log-kicker">OpenAI / Codex</p><h1>{{ t('admin.schedulerLogs.title') }}</h1><p>{{ t('admin.schedulerLogs.description') }}</p></div>
+        <div><h1>{{ t('admin.schedulerLogs.title') }}</h1></div>
         <div class="scheduler-log-range" role="group" :aria-label="t('admin.schedulerLogs.range')">
           <button v-for="value in (['1h','24h','7d'] as SchedulerLogRange[])" :key="value" type="button" :class="{ active: range === value }" @click="selectRange(value)">{{ value === '1h' ? t('admin.schedulerLogs.oneHour') : value === '24h' ? t('admin.schedulerLogs.day') : t('admin.schedulerLogs.week') }}</button>
         </div>

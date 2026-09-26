@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
     <div class="user-page space-y-4">
-      <UserPageHeader title="我的订单" description="查看充值与订阅订单，并处理待支付或可退款订单" />
+      <UserPageHeader title="我的订单" />
       <!-- Filters -->
       <div class="card p-4">
         <div class="flex flex-wrap items-center gap-3">

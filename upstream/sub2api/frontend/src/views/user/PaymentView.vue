@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
     <div data-test="recharge-page" class="user-page max-w-[1180px]">
-      <UserPageHeader title="充值与兑换" description="为账户充值或兑换余额、并发及订阅权益" />
+      <UserPageHeader title="充值与兑换" />
       <UserRechargeNav
         active="recharge"
         :balance="Number(user?.balance || 0)"

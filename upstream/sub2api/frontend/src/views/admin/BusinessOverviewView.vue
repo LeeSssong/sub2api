@@ -4,8 +4,6 @@
       <header class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 class="text-2xl font-semibold">经营总览</h1>
-          <p class="text-sm text-gray-500">按用户实际扣费与上游实际成本查看站内经营结果。</p>
-          <p class="mt-1 text-xs text-gray-500">经营口径 CNY / ¥ · 站内额度 Q（内部记账额度，不是美元）</p>
         </div>
         <button class="btn btn-secondary" data-test="business-refresh" :disabled="loading" @click="loadReport">刷新</button>
       </header>
@@ -23,6 +21,8 @@
       <div v-if="loading && !report" class="text-sm text-gray-500" data-test="business-loading">加载中</div>
 
       <template v-if="report">
+
+        <p class="text-xs text-gray-500">经营口径 CNY / ¥ · 站内额度 Q（内部记账额度，不是美元）</p>
 
         <section data-test="business-results">
           <div class="mb-3 flex items-center justify-between"><h2 class="text-lg font-semibold">经营结果</h2><span class="text-xs text-gray-500">{{ report.currency }} · 用户实际扣费</span></div>

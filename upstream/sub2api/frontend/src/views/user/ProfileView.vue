@@ -4,7 +4,7 @@
       data-testid="profile-shell"
       class="user-page max-w-[1050px] space-y-6"
     >
-      <UserPageHeader title="个人资料" description="管理账户资料、登录安全与余额提醒" />
+      <UserPageHeader title="个人资料" />
       <ProfileInfoCard
         :user="user"
         :linuxdo-enabled="linuxdoOAuthEnabled"

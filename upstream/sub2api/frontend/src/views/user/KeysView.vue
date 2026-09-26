@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
     <div class="user-page user-keys-page">
-      <UserPageHeader title="我的密钥" description="创建、绑定和管理用于接入 AI 线路的 API 密钥" />
+      <UserPageHeader title="我的密钥" />
       <TablePageLayout continuous>
       <template #filters>
         <div class="flex flex-col gap-3">

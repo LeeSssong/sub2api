@@ -699,16 +699,7 @@ describe('admin account monitor view V3', () => {
       'max-[430px]:text-[23px]',
     ])
 
-    const descriptionClasses = wrapper.get('header p').classes()
-    expect(descriptionClasses).toEqual(expect.arrayContaining([
-      'mt-[7px]',
-      'max-[760px]:max-w-[272px]',
-    ]))
-    expect(descriptionClasses).not.toContain('mt-1')
-    expect(descriptionClasses).not.toContain('max-[760px]:max-w-[34ch]')
-    expect(descriptionClasses.filter((className) => className.startsWith('max-[760px]:max-w-'))).toEqual([
-      'max-[760px]:max-w-[272px]',
-    ])
+    expect(wrapper.find('header p').exists()).toBe(false)
   })
 
   it('keeps both tab variants pointer-clean with keyboard-only focus feedback and the selected teal underline', async () => {

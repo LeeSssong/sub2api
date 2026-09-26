@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
     <div class="user-page space-y-6">
-      <UserPageHeader title="使用记录" description="查看消费、Token、线路分布与请求明细" />
+      <UserPageHeader title="使用记录" />
       <UsageStatsCards :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
       <div v-if="statsLoadError" class="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
         <span>{{ t('usage.failedToLoad') }}</span>
