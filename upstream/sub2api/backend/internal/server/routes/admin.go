@@ -812,8 +812,11 @@ func registerScheduledTestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	admin.GET("/accounts/:id/scheduled-test-plans", h.Admin.ScheduledTest.ListByAccount)
 }
 
-// Admins browse the gallery through the user page; this only takes a snapshot down.
+// Machine readers use admin authentication but receive the same user-visible gallery.
+// Reuse the public handlers so visibility, retention and statistics rules stay identical.
 func registerPelicanShowcaseRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	admin.GET("/pelican-showcase", h.PelicanShowcase.List)
+	admin.GET("/pelican-showcase/items/:id", h.PelicanShowcase.GetItem)
 	admin.DELETE("/pelican-showcase/items/:id", h.PelicanShowcase.DeleteItem)
 }
 
