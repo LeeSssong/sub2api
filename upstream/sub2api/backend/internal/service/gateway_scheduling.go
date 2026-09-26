@@ -2651,6 +2651,12 @@ func (s *GatewayService) isModelSupportedByAccountInGroup(ctx context.Context, a
 
 // isModelSupportedByAccount 根据账户平台检查模型支持（无 context，用于非 Antigravity 平台）
 func (s *GatewayService) isModelSupportedByAccount(account *Account, requestedModel string) bool {
+	return IsNativeModelSupportedByAccount(account, requestedModel)
+}
+
+// IsNativeModelSupportedByAccount shares the gateway's native model resolution
+// with configuration validation. Keep alias/default handling identical to routing.
+func IsNativeModelSupportedByAccount(account *Account, requestedModel string) bool {
 	if account.Platform == PlatformAntigravity {
 		if strings.TrimSpace(requestedModel) == "" {
 			return true

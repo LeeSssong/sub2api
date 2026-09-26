@@ -46,10 +46,11 @@ type qualityGroup struct {
 	AllowedModels json.RawMessage `json:"allowed_models"`
 }
 type qualityState struct {
-	Action         string          `json:"action"`
-	AccountVersion time.Time       `json:"account_version"`
-	Removed        []qualityGroup  `json:"removed"`
-	Remaining      json.RawMessage `json:"remaining"`
+	Action         string            `json:"action"`
+	RemovedModels  map[string]string `json:"removed_models,omitempty"`
+	AccountVersion time.Time         `json:"account_version"`
+	Removed        []qualityGroup    `json:"removed"`
+	Remaining      json.RawMessage   `json:"remaining"`
 }
 
 // Lease/version checks, account mutation, ownership and scheduler invalidation
@@ -109,6 +110,19 @@ func (r *scheduledTestPlanRepository) ApplyQualityOutcome(ctx context.Context, p
 	case outcome == "failed":
 		state.Action = q.Action
 		switch q.Action {
+		case "remove_models":
+			account, readErr := qualityModelAccount(ctx, tx, plan.AccountID)
+			if readErr != nil {
+				return "", readErr
+			}
+			var ok bool
+			state.RemovedModels, ok = removeQualityModels(account, q.RemoveModelIDs)
+			if !ok {
+				return "model_removal_blocked", nil
+			}
+			err = writeQualityModels(ctx, tx, plan.AccountID, account)
+			changed = true
+			action = "models_removed"
 		case "disable_scheduling":
 			if schedulable {
 				_, err = tx.ExecContext(ctx, `UPDATE accounts SET schedulable=false, updated_at=clock_timestamp() WHERE id=$1`, plan.AccountID)
@@ -158,16 +172,25 @@ func (r *scheduledTestPlanRepository) ApplyQualityOutcome(ctx context.Context, p
 			}
 		}
 	case outcome == "passed" && state.Action != "" && q.AutoRestore:
-		// Restore only an unchanged revision and membership set owned by this rule.
+		// Account actions require unchanged revision/membership; model recovery patches only owned entries.
 		// Even a same-value manual disable advances the revision and must win.
 		var ownedGroups, currentGroups any
 		if json.Unmarshal(state.Remaining, &ownedGroups) != nil || json.Unmarshal(groups, &currentGroups) != nil {
 			return "restore_conflict", nil
 		}
-		if status != "active" || !recoveryEligible || !version.Equal(state.AccountVersion) || !reflect.DeepEqual(ownedGroups, currentGroups) {
+		if status != "active" || !recoveryEligible || (state.Action != "remove_models" && (!version.Equal(state.AccountVersion) || !reflect.DeepEqual(ownedGroups, currentGroups))) {
 			return "restore_conflict", nil
 		}
 		switch state.Action {
+		case "remove_models":
+			account, readErr := qualityModelAccount(ctx, tx, plan.AccountID)
+			if readErr != nil {
+				return "", readErr
+			}
+			if !restoreQualityModels(account, state.RemovedModels) {
+				return "restore_conflict", nil
+			}
+			err = writeQualityModels(ctx, tx, plan.AccountID, account)
 		case "disable_scheduling":
 			_, err = tx.ExecContext(ctx, `UPDATE accounts SET schedulable=true, updated_at=clock_timestamp() WHERE id=$1 AND (expires_at IS NULL OR expires_at>NOW())`, plan.AccountID)
 			if err == nil {
