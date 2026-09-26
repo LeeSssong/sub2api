@@ -2278,6 +2278,12 @@ export interface ApiKeyUsageTrendPoint {
 
 // ==================== Admin User Management ====================
 
+export interface ObserverSetupOptions {
+  create_dedicated_group: boolean
+  revoke_public_groups: boolean
+  grant_resources: boolean
+}
+
 export interface UpdateUserRequest {
   email?: string
   password?: string
@@ -2291,6 +2297,7 @@ export interface UpdateUserRequest {
   observer_group_ids?: number[] | null
   allowed_groups?: number[] | null
   restrict_public_groups?: boolean
+  observer_setup?: ObserverSetupOptions
   // 用户专属分组倍率配置 (group_id -> rate_multiplier | null)
   // null 表示删除该分组的专属倍率
   group_rates?: Record<number, number | null>
