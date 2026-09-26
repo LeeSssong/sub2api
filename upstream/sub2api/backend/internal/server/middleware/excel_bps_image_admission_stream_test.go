@@ -200,7 +200,7 @@ func TestExcelBPSImageAdmissionDecodeFailuresReleaseBothBudgets(t *testing.T) {
 }
 
 func TestExcelBPSImageAdmissionResizeRetainsAndReleasesActualWeight(t *testing.T) {
-	budget := &bpsImageAdmissionBudget{}
+	budget := &bpsImageAdmissionBudget{limitBytes: 512 << 20, maxRequests: 32}
 	lease, ok := budget.acquire(8 << 20)
 	require.True(t, ok)
 	require.True(t, lease.resize(32<<20))
@@ -216,6 +216,66 @@ func TestExcelBPSImageAdmissionResizeRetainsAndReleasesActualWeight(t *testing.T
 	other.release()
 	require.Zero(t, budget.bytes)
 	require.Zero(t, budget.requests)
+}
+
+func TestExcelBPSImageAdmissionConfiguredDecodedLimit(t *testing.T) {
+	for _, encoding := range []string{"gzip", "chunked"} {
+		t.Run(encoding, func(t *testing.T) {
+			decoded := []byte(strings.Repeat("a", (1<<20)+1))
+			wire := decoded
+			if encoding == "gzip" {
+				wire = bpsImageGzip(t, decoded)
+			}
+			r := bpsImageTestRouter(bpsImageTestSettings{enabled: true, bodyLimitMiB: 1}, func(c *gin.Context) {
+				c.Status(http.StatusNoContent)
+			})
+			req := httptest.NewRequest(http.MethodPost, "/responses", bytes.NewReader(wire))
+			if encoding == "gzip" {
+				req.Header.Set("Content-Encoding", encoding)
+			} else {
+				req.ContentLength = -1
+			}
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			require.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+			valid := httptest.NewRequest(http.MethodPost, "/responses", bytes.NewReader(bpsImageGzip(t, []byte(`{"input":"hello"}`))))
+			valid.Header.Set("Content-Encoding", "gzip")
+			w = httptest.NewRecorder()
+			r.ServeHTTP(w, valid)
+			require.Equal(t, http.StatusNoContent, w.Code, "body rejection must release both resource pools")
+		})
+	}
+}
+
+func TestExcelBPSImageAdmissionConfiguredBudgetRemainsHardLimit(t *testing.T) {
+	budget := &bpsImageAdmissionBudget{}
+	budget.configure(512<<20, 512)
+	var leases []*bpsImageAdmissionLease
+	for i := 0; i < 64; i++ {
+		lease, ok := budget.acquire(bpsImageBodyWeight(1))
+		require.True(t, ok)
+		leases = append(leases, lease)
+	}
+	_, ok := budget.acquire(bpsImageBodyWeight(1))
+	require.False(t, ok, "raising the slot cap must not raise the configured memory budget")
+	budget.configure(1024<<20, 2)
+	_, ok = budget.acquire(1)
+	require.False(t, ok, "a lower request cap applies to new requests immediately")
+	for _, lease := range leases {
+		lease.release()
+	}
+	first, ok := budget.acquire(400 << 20)
+	require.True(t, ok)
+	second, ok := budget.acquire(400 << 20)
+	require.True(t, ok)
+	_, ok = budget.acquire(1)
+	require.False(t, ok)
+	budget.configure(512<<20, 2)
+	require.True(t, first.resize(200<<20), "live budget reductions must still allow held bodies to shrink")
+	require.False(t, first.resize(201<<20), "held requests must not grow beyond the new limit")
+	first.release()
+	second.release()
+	require.Zero(t, budget.bytes)
 }
 
 func TestExcelBPSImageAdmissionAccountsDecodedBytesThroughStream(t *testing.T) {

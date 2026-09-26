@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	bpsImageMaxBodyBytes   = 64 << 20
-	bpsImageBudgetBytes    = 512 << 20
+	bpsImageMaxBodyBytes   = 128 << 20
+	bpsImageBudgetBytes    = service.DefaultExcelBPSImageBudgetMiB << 20
 	bpsImageBodyMultiplier = 8
 	bpsImageMinBodyBytes   = 1 << 20
-	bpsImageMaxRequests    = 32
+	bpsImageMaxRequests    = service.DefaultExcelBPSImageMaxRequests
 )
 
 type excelBPSImageSettingsReader interface {
@@ -25,12 +25,14 @@ type excelBPSImageSettingsReader interface {
 }
 
 // A budget accounts for request bodies and their processing copies, not RSS.
-// The independent preprocessing and retained-body pools are each capped at
-// 512 MiB (1 GiB combined). Never queue large bodies in either pool.
+// Preprocessing and retained-body pools each enforce the configured budget.
+// Their combined accounting is capped at twice that budget; never queue bodies.
 type bpsImageAdmissionBudget struct {
-	mu       sync.Mutex
-	bytes    int64
-	requests int
+	mu          sync.Mutex
+	bytes       int64
+	requests    int
+	limitBytes  int64
+	maxRequests int
 }
 
 type bpsImageAdmissionLease struct {
@@ -39,10 +41,29 @@ type bpsImageAdmissionLease struct {
 	released bool
 }
 
+func (b *bpsImageAdmissionBudget) configure(limitBytes int64, maxRequests int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.limitBytes, b.maxRequests = limitBytes, maxRequests
+}
+
+// Caller holds b.mu. A slot cap never silently increases the memory budget.
+func (b *bpsImageAdmissionBudget) limits() (int64, int) {
+	limitBytes, maxRequests := b.limitBytes, b.maxRequests
+	if limitBytes == 0 {
+		limitBytes = bpsImageBudgetBytes
+	}
+	if maxRequests == 0 {
+		maxRequests = bpsImageMaxRequests
+	}
+	return limitBytes, maxRequests
+}
+
 func (b *bpsImageAdmissionBudget) acquire(weight int64) (*bpsImageAdmissionLease, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if weight < 0 || b.requests >= bpsImageMaxRequests || weight > bpsImageBudgetBytes-b.bytes {
+	limitBytes, maxRequests := b.limits()
+	if weight < 0 || b.requests >= maxRequests || weight > limitBytes-b.bytes {
 		return nil, false
 	}
 	b.bytes += weight
@@ -54,7 +75,8 @@ func (l *bpsImageAdmissionLease) resize(weight int64) bool {
 	b := l.budget
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if l.released || weight < 0 || weight-l.weight > bpsImageBudgetBytes-b.bytes {
+	limitBytes, _ := b.limits()
+	if l.released || weight < 0 || (weight > l.weight && weight-l.weight > limitBytes-b.bytes) {
 		return false
 	}
 	b.bytes += weight - l.weight
@@ -87,10 +109,6 @@ func bpsImageBodyWeight(length int64) int64 {
 func ExcelBPSImageAdmission(settings excelBPSImageSettingsReader, configuredMax int64) gin.HandlerFunc {
 	budget := &bpsImageAdmissionBudget{}
 	preprocessing := &bpsImageAdmissionBudget{}
-	maxBody := int64(bpsImageMaxBodyBytes)
-	if configuredMax > 0 && configuredMax < maxBody {
-		maxBody = configuredMax
-	}
 	return func(c *gin.Context) {
 		if settings == nil || !bpsImageAdmissionRoute(c) {
 			c.Next()
@@ -110,6 +128,25 @@ func ExcelBPSImageAdmission(settings excelBPSImageSettingsReader, configuredMax 
 			c.Next()
 			return
 		}
+		bodyLimitMiB, budgetMiB, maxRequests := relay.BodyLimitMiB, relay.BudgetMiB, relay.MaxRequests
+		if bodyLimitMiB == 0 {
+			bodyLimitMiB = service.DefaultExcelBPSImageBodyLimitMiB
+		}
+		if budgetMiB == 0 {
+			budgetMiB = service.DefaultExcelBPSImageBudgetMiB
+		}
+		if maxRequests == 0 {
+			maxRequests = service.DefaultExcelBPSImageMaxRequests
+		}
+		maxBody := int64(bodyLimitMiB) << 20
+		if maxBody > bpsImageMaxBodyBytes {
+			maxBody = bpsImageMaxBodyBytes
+		}
+		if configuredMax > 0 && configuredMax < maxBody {
+			maxBody = configuredMax
+		}
+		budget.configure(int64(budgetMiB)<<20, maxRequests)
+		preprocessing.configure(int64(budgetMiB)<<20, maxRequests)
 		length := c.Request.ContentLength
 		if length > maxBody {
 			bpsImageAdmissionError(c, http.StatusRequestEntityTooLarge, "basispoints_image_body_too_large", "Request body exceeds the image relay ingress limit")
@@ -133,7 +170,7 @@ func ExcelBPSImageAdmission(settings excelBPSImageSettingsReader, configuredMax 
 		}
 		defer lease.release()
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, readLimit)
-		if needsPreprocessing && !bpsImagePreread(c, preprocessing, lease) {
+		if needsPreprocessing && !bpsImagePreread(c, preprocessing, lease, maxBody) {
 			return
 		}
 		c.Next()
@@ -144,8 +181,14 @@ func ExcelBPSImageAdmission(settings excelBPSImageSettingsReader, configuredMax 
 // unknown-length body can coexist with ordinary traffic, then releases its
 // worst-case reservation before an upstream stream starts. The decoded body
 // and its processing copies remain charged until the downstream handler exits.
-func bpsImagePreread(c *gin.Context, preprocessing *bpsImageAdmissionBudget, retained *bpsImageAdmissionLease) bool {
-	transient, acquired := preprocessing.acquire(bpsImageBudgetBytes)
+func bpsImagePreread(c *gin.Context, preprocessing *bpsImageAdmissionBudget, retained *bpsImageAdmissionLease, maxBody int64) bool {
+	// The shared decoder can materialize up to 64 MiB before returning. Reserve
+	// that bound even when this endpoint has a smaller decoded-body limit.
+	transientBytes := maxBody
+	if transientBytes < 64<<20 {
+		transientBytes = 64 << 20
+	}
+	transient, acquired := preprocessing.acquire(bpsImageBodyWeight(transientBytes))
 	if !acquired {
 		bpsImageAdmissionError(c, http.StatusServiceUnavailable, "basispoints_image_request_busy", "Request body preprocessing capacity is busy; retry later")
 		return false
@@ -161,6 +204,10 @@ func bpsImagePreread(c *gin.Context, preprocessing *bpsImageAdmissionBudget, ret
 		} else {
 			bpsImageAdmissionError(c, http.StatusBadRequest, "invalid_request_body", "Unable to read or decode request body")
 		}
+		return false
+	}
+	if int64(len(body)) > maxBody {
+		bpsImageAdmissionError(c, http.StatusRequestEntityTooLarge, "basispoints_image_body_too_large", "Decoded request body exceeds the image ingress limit")
 		return false
 	}
 	if !retained.resize(bpsImageBodyWeight(int64(len(body)))) {

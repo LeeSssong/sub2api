@@ -403,8 +403,12 @@ type UpdateSettingsRequest struct {
 	RequestCaptureEnabled       *bool   `json:"request_capture_enabled"`
 	RequestCaptureQuotaMiB      *int64  `json:"request_capture_quota_mib"`
 	RequestCaptureRetentionDays *int    `json:"request_capture_retention_days"`
+	ExcelBPSImageMode           *string `json:"excel_bps_image_mode"`
 	ExcelBPSImageRelayEnabled   *bool   `json:"excel_bps_image_relay_enabled"`
 	ExcelBPSImageBaseURL        *string `json:"excel_bps_image_base_url"`
+	ExcelBPSImageBodyLimitMiB   *int    `json:"excel_bps_image_body_limit_mib"`
+	ExcelBPSImageBudgetMiB      *int    `json:"excel_bps_image_budget_mib"`
+	ExcelBPSImageMaxRequests    *int    `json:"excel_bps_image_max_requests"`
 }
 
 // UpdateSettings 更新系统设置
@@ -537,6 +541,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	if req.RequestCaptureRetentionDays != nil && (*req.RequestCaptureRetentionDays < 1 || *req.RequestCaptureRetentionDays > 30) {
 		response.BadRequest(c, "Capture retention must be 1-30 days")
+		return
+	}
+	if req.ExcelBPSImageBodyLimitMiB != nil && (*req.ExcelBPSImageBodyLimitMiB < 1 || *req.ExcelBPSImageBodyLimitMiB > 128) {
+		response.BadRequest(c, "Image request body limit must be 1-128 MiB")
+		return
+	}
+	if req.ExcelBPSImageBudgetMiB != nil && (*req.ExcelBPSImageBudgetMiB < 512 || *req.ExcelBPSImageBudgetMiB > 2048) {
+		response.BadRequest(c, "Image request budget must be 512-2048 MiB")
+		return
+	}
+	if req.ExcelBPSImageMaxRequests != nil && (*req.ExcelBPSImageMaxRequests < 1 || *req.ExcelBPSImageMaxRequests > 512) {
+		response.BadRequest(c, "Image concurrent requests must be 1-512")
 		return
 	}
 	auditReq := settingsAuditRequest(req)
@@ -1743,6 +1759,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.RequestCaptureRetentionDays
 		}(),
+		ExcelBPSImageMode: func() string {
+			if req.ExcelBPSImageMode != nil {
+				return *req.ExcelBPSImageMode
+			}
+			return previousSettings.ExcelBPSImageMode
+		}(),
 		ExcelBPSImageRelayEnabled: func() bool {
 			if req.ExcelBPSImageRelayEnabled != nil {
 				return *req.ExcelBPSImageRelayEnabled
@@ -1754,6 +1776,24 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.ExcelBPSImageBaseURL
 			}
 			return previousSettings.ExcelBPSImageBaseURL
+		}(),
+		ExcelBPSImageBodyLimitMiB: func() int {
+			if req.ExcelBPSImageBodyLimitMiB != nil {
+				return *req.ExcelBPSImageBodyLimitMiB
+			}
+			return previousSettings.ExcelBPSImageBodyLimitMiB
+		}(),
+		ExcelBPSImageBudgetMiB: func() int {
+			if req.ExcelBPSImageBudgetMiB != nil {
+				return *req.ExcelBPSImageBudgetMiB
+			}
+			return previousSettings.ExcelBPSImageBudgetMiB
+		}(),
+		ExcelBPSImageMaxRequests: func() int {
+			if req.ExcelBPSImageMaxRequests != nil {
+				return *req.ExcelBPSImageMaxRequests
+			}
+			return previousSettings.ExcelBPSImageMaxRequests
 		}(),
 		AllowUserViewErrorRequests: func() bool {
 			if req.AllowUserViewErrorRequests != nil {
@@ -2610,8 +2650,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		RequestCaptureEnabled:             updatedSettings.RequestCaptureEnabled,
 		RequestCaptureQuotaMiB:            updatedSettings.RequestCaptureQuotaMiB,
 		RequestCaptureRetentionDays:       updatedSettings.RequestCaptureRetentionDays,
+		ExcelBPSImageMode:                 updatedSettings.ExcelBPSImageMode,
 		ExcelBPSImageRelayEnabled:         updatedSettings.ExcelBPSImageRelayEnabled,
 		ExcelBPSImageBaseURL:              updatedSettings.ExcelBPSImageBaseURL,
+		ExcelBPSImageBodyLimitMiB:         updatedSettings.ExcelBPSImageBodyLimitMiB,
+		ExcelBPSImageBudgetMiB:            updatedSettings.ExcelBPSImageBudgetMiB,
+		ExcelBPSImageMaxRequests:          updatedSettings.ExcelBPSImageMaxRequests,
 	}
 	if fastPolicy, err := h.settingService.GetOpenAIFastPolicySettings(c.Request.Context()); err != nil {
 		slog.Error("openai_fast_policy_settings_get_failed", "error", err)
