@@ -1409,8 +1409,8 @@ test_verified_production_maintenance_transition() {
 }
 
 test_pelican_report_maintenance_backup() {
-  local previous_hash=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
-  local report_hash=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+  local previous_hash=${TEST_ADDITIVE_OLD_HASH:-6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e}
+  local report_hash=${TEST_ADDITIVE_NEW_HASH:-3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43}
   setup_case pelican_report_maintenance_backup
   write_meminfo
   MIGRATIONS_HASH=$report_hash
@@ -1438,8 +1438,8 @@ test_pelican_report_maintenance_backup() {
 }
 
 test_pelican_report_backup_and_rollback_guards() {
-  local previous_hash=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
-  local report_hash=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+  local previous_hash=${TEST_ADDITIVE_OLD_HASH:-6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e}
+  local report_hash=${TEST_ADDITIVE_NEW_HASH:-3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43}
   local scenario
   for scenario in pelican_backup_validation_failure candidate_up_failure; do
     setup_case "$scenario"
@@ -3280,6 +3280,12 @@ case "${ONLY_TEST:-all}" in
 	maintenance-readiness) test_maintenance_pre_cutover_readiness_is_truthful ;;
 	maintenance-rollback-proofs) test_maintenance_rollback_proof_gates ;;
 	maintenance-approved-transition) test_verified_production_maintenance_transition ;;
+	maintenance-bps-observer)
+    TEST_ADDITIVE_OLD_HASH=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+    TEST_ADDITIVE_NEW_HASH=aa5034f8164b58fec94947353be441991f7b0baeac48b9f7ba62f55013aed5c9
+    test_pelican_report_maintenance_backup
+    test_pelican_report_backup_and_rollback_guards
+    ;;
 	maintenance-pelican-report) test_pelican_report_maintenance_backup ;;
 	maintenance-pelican-rollback) test_pelican_report_backup_and_rollback_guards ;;
 	maintenance-t03-r1-transition) test_t03_r1_maintenance_transition_allowlist ;;

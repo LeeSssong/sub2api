@@ -329,6 +329,9 @@ readonly MAINTENANCE_32_OLD_MIGRATIONS_HASH=dba4c4d272406097a3f39c27694f748c53fe
 readonly MAINTENANCE_32_NEW_MIGRATIONS_HASH=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b
 readonly PELICAN_REPORT_OLD_MIGRATIONS_HASH=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
 readonly PELICAN_REPORT_NEW_MIGRATIONS_HASH=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+# v2.8.18 adds only users.observer_group_ids; old application accepts the additive schema.
+readonly BPS_OBSERVER_OLD_MIGRATIONS_HASH=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+readonly BPS_OBSERVER_NEW_MIGRATIONS_HASH=aa5034f8164b58fec94947353be441991f7b0baeac48b9f7ba62f55013aed5c9
 
 while (($#)); do
   case "$1" in
@@ -396,7 +399,8 @@ approved_maintenance_transition() {
     || "$from_hash" == "$MAINTENANCE_30_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_30_NEW_MIGRATIONS_HASH" \
     || "$from_hash" == "$MAINTENANCE_31_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_31_NEW_MIGRATIONS_HASH" \
     || "$from_hash" == "$MAINTENANCE_32_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_32_NEW_MIGRATIONS_HASH" \
-    || "$from_hash" == "$PELICAN_REPORT_OLD_MIGRATIONS_HASH" && "$to_hash" == "$PELICAN_REPORT_NEW_MIGRATIONS_HASH" ]]
+    || "$from_hash" == "$PELICAN_REPORT_OLD_MIGRATIONS_HASH" && "$to_hash" == "$PELICAN_REPORT_NEW_MIGRATIONS_HASH" \
+    || "$from_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" && "$to_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ]]
 }
 preloaded_image=${RELEASE_PRELOADED_IMAGE:-false}
 [[ "$preloaded_image" == true || "$preloaded_image" == false ]] \
@@ -751,7 +755,7 @@ worker_update_started=false
 maintenance_transition=false
 online_migration_transition=false
 maintenance_stopped=false
-pelican_report_migration_started=false
+additive_migration_started=false
 maintenance_identity_refresh=false
 preserve_worker=${PRESERVE_WORKER:-false}
 [[ "$preserve_worker" == true || "$preserve_worker" == false ]] || fail 'PRESERVE_WORKER must be true or false'
@@ -1312,14 +1316,14 @@ restore_previous() {
   [[ "${migration_receipts_unknown:-false}" != true ]] || return 1
   local rollback_ok=true current_blue current_green previous_previous
   rollback_in_progress=true
-  if [[ "$pelican_report_migration_started" == true ]]; then
+  if [[ "$additive_migration_started" == true ]]; then
     # A failed candidate may have already committed the additive migration.
     # Keep the release checkpoint aligned with the real schema on rollback.
     rollback_migrations_hash=$(run_post_stop_command docker exec "$rollback_postgres_id" sh -c \
       'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' report-receipts \
       "$schema_receipt_sql") || return 1
-    [[ "$rollback_migrations_hash" == "$PELICAN_REPORT_OLD_MIGRATIONS_HASH" \
-        || "$rollback_migrations_hash" == "$PELICAN_REPORT_NEW_MIGRATIONS_HASH" ]] || return 1
+    [[ "$rollback_migrations_hash" == "$state_migrations_hash" \
+        || "$rollback_migrations_hash" == "$migrations_hash" ]] || return 1
   fi
   if [[ "$cutover_attempted" == true ]]; then
     if validate_upstream "$previous_upstream"; then
@@ -2036,7 +2040,9 @@ if [[ "$maintenance_transition" == true ]]; then
   arm_deadline_watchdog "$forward_remaining"
   [[ "$(date -u +%s)" -lt "$maintenance_deadline_epoch" ]] || fail 'maintenance unavailable window expired after stopping API and worker'
   if [[ "$state_migrations_hash" == "$PELICAN_REPORT_OLD_MIGRATIONS_HASH" \
-      && "$migrations_hash" == "$PELICAN_REPORT_NEW_MIGRATIONS_HASH" ]]; then
+      && "$migrations_hash" == "$PELICAN_REPORT_NEW_MIGRATIONS_HASH" \
+      || "$state_migrations_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" \
+      && "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ]]; then
     failure_reason=maintenance_backup_failed
     maintenance_backup="$record_root/$attempt_id.pre-migration.dump"
     run_post_stop_operation '
@@ -2052,7 +2058,7 @@ if [[ "$maintenance_transition" == true ]]; then
     [[ "$maintenance_backup_sha256" =~ ^[a-f0-9]{64}$ ]] || fail 'database backup checksum is invalid'
     trace_event 'maintenance backup verified'
     schema_receipt_sql="SELECT encode(sha256(string_agg(convert_to(filename,'UTF8') || decode('00','hex') || convert_to(checksum || chr(10),'UTF8'), ''::bytea ORDER BY filename)), 'hex') FROM schema_migrations"
-    pelican_report_migration_started=true
+    additive_migration_started=true
   fi
   trace_event 'maintenance start worker for migrations'
   if [[ "$preloaded_image" == false ]]; then
@@ -2063,7 +2069,7 @@ if [[ "$maintenance_transition" == true ]]; then
   wait_for_worker_healthy || fail 'maintenance worker did not become healthy before timeout'
   [[ "$(run_post_stop_command docker inspect "$(resolve_container_id sub2api-worker)" --format '{{.Image}}')" == "$candidate_worker_image_id" ]] \
     || fail 'maintenance worker image ID differs from candidate'
-  if [[ "$pelican_report_migration_started" == true ]]; then
+  if [[ "$additive_migration_started" == true ]]; then
     observed_schema_hash=$(run_post_stop_command docker exec "$postgres_id" sh -c \
       'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' report-receipts \
       "$schema_receipt_sql") || fail 'post-migration receipts unavailable'
