@@ -1,4 +1,5 @@
 export default {
+  "downloadSource": "Download relogin executor source (AGPL-3.0)",
   "title": "Credential Guard",
   "description": "Probe OpenAI OAuth access tokens and repair confirmed authentication failures with credentials bound to each account.",
   "enabled": "Enable credential guard",

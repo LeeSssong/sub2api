@@ -83,3 +83,8 @@ deploy/redis_data/
 .claude/
 issues/
 CLAUDE.md
+
+# Include executor provenance; exclude interpreter caches.
+!token-guard/UPSTREAM.md
+**/__pycache__/
+**/*.pyc

@@ -20,4 +20,7 @@ if [ "${1#-}" != "$1" ]; then
     set -- /app/sub2api "$@"
 fi
 
+if [ "$1" = "/app/sub2api" ] && [ -f /app/token-guard/supervise.py ]; then
+    exec /app/token-guard-venv/bin/python /app/token-guard/supervise.py "$@"
+fi
 exec "$@"

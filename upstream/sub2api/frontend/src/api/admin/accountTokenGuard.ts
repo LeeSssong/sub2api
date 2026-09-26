@@ -90,9 +90,13 @@ export async function saveTokenGuardConfig(config: TokenGuardConfig): Promise<To
 }
 
 export async function runTokenGuard(): Promise<TokenGuardStats> {
-  return (await apiClient.post('/admin/account-ops/token-guard/run')).data
+  return (await apiClient.post('/admin/account-ops/token-guard/run', undefined, { timeout: 26 * 60 * 1000 })).data
 }
 
 export async function reloginTokenGuardAccount(accountId: number): Promise<{ account_id: number; action: string }> {
-  return (await apiClient.post(`/admin/account-ops/token-guard/accounts/${accountId}/relogin`)).data
+  return (await apiClient.post(`/admin/account-ops/token-guard/accounts/${accountId}/relogin`, undefined, { timeout: 26 * 60 * 1000 })).data
+}
+
+export async function downloadTokenGuardSource(): Promise<Blob> {
+  return (await apiClient.get('/admin/account-ops/token-guard/source', { responseType: 'blob' })).data
 }

@@ -135,6 +135,7 @@ LABEL org.opencontainers.image.source="https://github.com/Wei-Shaw/sub2api"
 RUN apk add --no-cache \
     ca-certificates \
     python3 \
+    py3-pip \
     nodejs \
     curl \
     tzdata \
@@ -146,6 +147,12 @@ RUN apk add --no-cache \
     libldap \
     libedit \
     && rm -rf /var/cache/apk/*
+
+# Native credential guard executor, pinned dependencies and upstream sources.
+COPY token-guard /app/token-guard
+COPY Dockerfile deploy/docker-entrypoint.sh /app/token-guard/build/
+RUN python3 -m venv /app/token-guard-venv && \
+    /app/token-guard-venv/bin/pip install --no-cache-dir -r /app/token-guard/requirements.txt
 
 # Copy pg_dump and psql from the same postgres image used in docker-compose
 # This ensures version consistency between backup tools and the database server

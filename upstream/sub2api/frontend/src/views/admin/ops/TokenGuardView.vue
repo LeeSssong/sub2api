@@ -2,6 +2,7 @@
   <AppLayout>
     <div class="token-guard">
       <SmartOpsNav />
+      <button class="link-btn text-xs" @click="downloadSource">{{ t('tokenGuard.downloadSource') }}</button>
       <header class="ops-heading">
         <div>
           <p class="eyebrow">{{ t('accountOps.smartTitle') }}</p>
@@ -149,6 +150,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import SmartOpsNav from '@/components/admin/operations/SmartOpsNav.vue'
 import Icon from '@/components/icons/Icon.vue'
 import {
+  downloadTokenGuardSource,
   getTokenGuardStatus,
   reloginTokenGuardAccount,
   runTokenGuard,
@@ -228,6 +230,16 @@ function collect(): TokenGuardConfig {
 
 const probeClass = (state: string) => (state === 'ok' ? 'ok' : state === 'auth' ? 'danger' : '')
 const eventClass = (kind: string) => (kind === 'relogin_ok' || kind === 'state_fixed' || kind === 'probe_ok' ? 'ok' : kind === 'relogin_failed' || kind === 'state_failed' || kind === 'probe_auth' ? 'danger' : '')
+
+async function downloadSource() {
+  try {
+    const blob = await downloadTokenGuardSource()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'token-guard-source.tar.gz'; a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch (e) { error.value = message(e) }
+}
 
 async function load(silent = false) {
   if (loading.value || saving.value) return

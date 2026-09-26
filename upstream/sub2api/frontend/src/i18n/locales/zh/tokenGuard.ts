@@ -1,4 +1,5 @@
 export default {
+  "downloadSource": "下载重登执行器源码（AGPL-3.0）",
   "title": "凭证守护",
   "description": "探测 OpenAI OAuth 访问令牌，并使用按账号绑定的凭据修复已确认的认证失效。",
   "enabled": "启用凭证守护",
