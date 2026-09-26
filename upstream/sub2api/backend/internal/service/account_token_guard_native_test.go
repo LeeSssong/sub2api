@@ -194,3 +194,95 @@ func TestTokenGuardNativeReloginPostProbeAndCooldown(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, 3, calls, "lease rejection must not invoke executor")
 }
+
+// Ordinary scheduler queries may hide failed accounts. The guard must exclusively
+// use its all-status query for both credential binding and future probe cycles.
+type guardFullStatusAccounts struct{ *tokenGuardTestAccounts }
+
+func (a *guardFullStatusAccounts) ListByPlatform(context.Context, string) ([]Account, error) {
+	panic("scheduler-only listing used")
+}
+func (a *guardFullStatusAccounts) ListByGroup(context.Context, int64) ([]Account, error) {
+	panic("scheduler-only group listing used")
+}
+func TestTokenGuardErrorAccountsRemainBindableAndInScope(t *testing.T) {
+	account := guardNativeAccount()
+	account.Status = StatusError
+	account.GroupIDs = []int64{7}
+	other := guardNativeAccount()
+	other.ID = 2
+	other.GroupIDs = []int64{9}
+	accounts := &guardFullStatusAccounts{&tokenGuardTestAccounts{items: []Account{account, other}}}
+	repo := &tokenGuardTestRepo{states: map[int64]AccountTokenGuardState{}, acquired: true}
+	svc := NewAccountTokenGuardService(&accountOpsSettingsStub{}, repo, accounts, nil, nil)
+	cfg := defaultAccountTokenGuardConfig()
+	cfg.GroupIDs = []int64{7}
+	cfg.MaxProbePerCycle = 1
+	cfg.ReloginAccounts = []AccountTokenGuardReloginAccount{{AccountID: 1, Email: "user@example.com", Password: " password ", MFASecret: "JBSWY3DP EHPK3PXP"}}
+	saved, err := svc.SaveConfig(context.Background(), cfg)
+	require.NoError(t, err)
+	require.Equal(t, "JBSWY3DPEHPK3PXP", saved.ReloginAccounts[0].MFASecret)
+	available, err := svc.availableAccounts(context.Background(), saved)
+	require.NoError(t, err)
+	require.Len(t, available, 1)
+	require.Equal(t, int64(1), available[0].AccountID)
+	probed := 0
+	svc.nativeProbe = func(ctx context.Context, a *Account, _ string) AccountTokenGuardProbeResult {
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		require.LessOrEqual(t, time.Until(deadline), accountTokenGuardCycleTimeout)
+		require.Equal(t, StatusError, a.Status)
+		probed++
+		return AccountTokenGuardProbeResult{State: AccountTokenGuardProbeAuth}
+	}
+	_, err = svc.RunCycle(context.Background(), false)
+	require.NoError(t, err)
+	require.Equal(t, 1, probed)
+}
+func TestTokenGuardRejectsExecutorInvalidCredentialsOnSave(t *testing.T) {
+	a := guardNativeAccount()
+	a.Credentials = map[string]any{}
+	svc := NewAccountTokenGuardService(&accountOpsSettingsStub{}, nil, &tokenGuardTestAccounts{items: []Account{a}}, nil, nil)
+	for _, tc := range []struct{ email, secret string }{
+		{"user@example.com", "MY"}, {"user@localhost", "JBSWY3DPEHPK3PXP"}, {"user @example.com", "JBSWY3DPEHPK3PXP"},
+	} {
+		cfg := defaultAccountTokenGuardConfig()
+		cfg.ReloginAccounts = []AccountTokenGuardReloginAccount{{AccountID: 1, Email: tc.email, Password: "password", MFASecret: tc.secret}}
+		_, err := svc.SaveConfig(context.Background(), cfg)
+		require.Error(t, err)
+	}
+}
+
+type guardDeadlineRepo struct {
+	*tokenGuardTestRepo
+	deadline time.Time
+}
+
+func (r *guardDeadlineRepo) AcquireTokenGuardLease(ctx context.Context) (func(), bool, error) {
+	r.deadline, _ = ctx.Deadline()
+	return func() {}, true, nil
+}
+func TestTokenGuardWholeCycleDeadlineIncludesLeaseAndStopsRepairs(t *testing.T) {
+	account := guardNativeAccount()
+	accounts := &tokenGuardTestAccounts{items: []Account{account}}
+	repo := &guardDeadlineRepo{tokenGuardTestRepo: &tokenGuardTestRepo{states: map[int64]AccountTokenGuardState{}}}
+	cfg := defaultAccountTokenGuardConfig()
+	raw, _ := json.Marshal(cfg)
+	svc := NewAccountTokenGuardService(&accountOpsSettingsStub{raw: string(raw)}, repo, accounts, nil, nil)
+	svc.nativeProbe = func(ctx context.Context, _ *Account, _ string) AccountTokenGuardProbeResult {
+		<-ctx.Done()
+		return AccountTokenGuardProbeResult{State: AccountTokenGuardProbeTransient}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	_, err := svc.RunCycle(ctx, true)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.NotZero(t, repo.deadline)
+	require.True(t, repo.deadline.Before(time.Now().Add(time.Second)))
+	require.Empty(t, repo.states, "expired cycle must not start account mutations")
+	accounts.items = nil
+	_, err = svc.RunCycle(context.Background(), false)
+	require.NoError(t, err)
+	require.InDelta(t, (25 * time.Minute).Seconds(), time.Until(repo.deadline).Seconds(), 2, "default bound must include lease and all repair work")
+
+}

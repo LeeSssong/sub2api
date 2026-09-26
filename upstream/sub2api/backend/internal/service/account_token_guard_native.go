@@ -13,9 +13,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 func guardAccountEligible(a *Account) bool {
@@ -31,6 +34,7 @@ func (s *AccountTokenGuardService) availableAccounts(ctx context.Context, cfg Ac
 	for _, a := range accounts {
 		result = append(result, AccountTokenGuardAvailableAccount{AccountID: a.ID, AccountName: a.Name, Email: a.GetCredential("email")})
 	}
+	sort.Slice(result, func(i, j int) bool { return result[i].AccountID < result[j].AccountID })
 	return result, nil
 }
 
@@ -42,7 +46,7 @@ func (s *AccountTokenGuardService) bindReloginAccounts(ctx context.Context, cfg 
 	if s.accounts == nil {
 		return errors.New("账号仓储未就绪")
 	}
-	accounts, err := s.accounts.ListByPlatform(ctx, PlatformOpenAI)
+	accounts, err := s.listGuardCandidates(ctx, nil)
 	if err != nil {
 		return errors.New("无法读取可绑定账号")
 	}
@@ -52,12 +56,12 @@ func (s *AccountTokenGuardService) bindReloginAccounts(ctx context.Context, cfg 
 		if entry.AccountID < 0 {
 			return errors.New("账号 ID 不合法")
 		}
-		if entry.Password == "" || entry.Email == "" || !strings.Contains(entry.Email, "@") {
+		if entry.Password == "" || entry.Email == "" || (!guardReloginEmailPattern.MatchString(entry.Email) || strings.IndexFunc(entry.Email, unicode.IsSpace) >= 0) {
 			return errors.New("重登账号必须填写邮箱和密码")
 		}
-		secret := strings.ToUpper(strings.TrimSpace(entry.MFASecret))
+		secret := strings.ReplaceAll(strings.ToUpper(strings.TrimSpace(entry.MFASecret)), " ", "")
 		decoded, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(strings.TrimRight(secret, "="))
-		if err != nil || len(decoded) == 0 {
+		if err != nil || len(decoded) < 10 {
 			return errors.New("重登账号必须填写合法的 Base32 2FA 密钥")
 		}
 		entry.MFASecret = secret
@@ -326,4 +330,18 @@ func (s *AccountTokenGuardService) ExecutorSource(ctx context.Context) ([]byte, 
 		return nil, errors.New("读取执行器源码失败")
 	}
 	return data, nil
+}
+
+var guardReloginEmailPattern = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+
+type accountTokenGuardCandidateLister interface {
+	ListTokenGuardCandidates(context.Context, []int64) ([]Account, error)
+}
+
+func (s *AccountTokenGuardService) listGuardCandidates(ctx context.Context, groupIDs []int64) ([]Account, error) {
+	lister, ok := s.accounts.(accountTokenGuardCandidateLister)
+	if !ok {
+		return nil, errors.New("账号仓储不支持守护全状态查询")
+	}
+	return lister.ListTokenGuardCandidates(ctx, groupIDs)
 }

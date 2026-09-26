@@ -64,6 +64,22 @@ func (a *tokenGuardTestAccounts) GetByID(_ context.Context, id int64) (*Account,
 func (a *tokenGuardTestAccounts) ListByGroup(context.Context, int64) ([]Account, error) {
 	return a.items, nil
 }
+func (a *tokenGuardTestAccounts) ListTokenGuardCandidates(_ context.Context, groupIDs []int64) ([]Account, error) {
+	if len(groupIDs) == 0 {
+		return a.items, nil
+	}
+	out := []Account{}
+	for _, a := range a.items {
+		for _, groupID := range groupIDs {
+			for _, id := range a.GroupIDs {
+				if id == groupID {
+					out = append(out, a)
+				}
+			}
+		}
+	}
+	return out, nil
+}
 func (a *tokenGuardTestAccounts) ListByPlatform(context.Context, string) ([]Account, error) {
 	return a.items, nil
 }
