@@ -287,8 +287,9 @@ func (s *OpenAIGatewayService) latestOpenAITurnAccountForGroup(
 	}
 	// A new local block installed before its DB write must not be cleared by an
 	// older snapshot. Unlike the scheduler fast path, this is a pure read.
-	if raw, ok := s.openaiAccountRuntimeBlockUntil.Load(latest.ID); ok {
-		if until, valid := raw.(time.Time); valid && time.Now().Before(until) {
+	blockID := openAIRuntimeBlockAccountID(latest)
+	if raw, ok := s.openaiAccountRuntimeBlockUntil.Load(blockID); ok {
+		if until, valid := raw.(time.Time); valid && (until.IsZero() || time.Now().Before(until)) {
 			return nil, denyOpenAITurn("account_runtime_blocked")
 		}
 	}
