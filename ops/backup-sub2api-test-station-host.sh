@@ -98,9 +98,20 @@ postgres_container=$("${compose[@]}" ps -q test-station-postgres)
   sh -c 'pg_restore --list /tmp/sub2api-test-station-postgres.dump >/dev/null 2>&1; rc=$?; rm -f /tmp/sub2api-test-station-postgres.dump; exit $rc' \
   || fail 'PostgreSQL archive validation failed'
 
-"${compose[@]}" exec -T test-station-redis \
-  sh -c 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" SAVE >/dev/null' \
+redis_password=$("${compose[@]}" config --format json | python3 -c '
+import json, sys
+try:
+    command = json.load(sys.stdin)["services"]["test-station-redis"]["command"]
+    if len(command) != 3 or command[:2] != ["redis-server", "--requirepass"] or not command[2]:
+        raise ValueError("unexpected Redis command")
+    print(command[2])
+except (KeyError, TypeError, ValueError, IndexError):
+    sys.exit(1)
+') || fail 'Redis password unavailable from active Compose configuration'
+redis_save_output=$(REDISCLI_AUTH="$redis_password" "${compose[@]}" exec -T -e REDISCLI_AUTH test-station-redis redis-cli --raw SAVE) \
   || fail 'Redis SAVE failed'
+unset redis_password
+[[ "$redis_save_output" == OK ]] || fail 'Redis SAVE did not return OK'
 redis_container=$("${compose[@]}" ps -q test-station-redis)
 [[ -n "$redis_container" ]] || fail 'Redis container is missing'
 "$docker_bin" cp "$redis_container:/data/dump.rdb" "$partial/redis-dump.rdb" >/dev/null \

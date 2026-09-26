@@ -39,6 +39,13 @@ if [[ "${1:-}" == compose ]]; then
   [[ "${1:-}" == -f && "${2:-}" == "${ACTIVE_COMPOSE:?}" ]] || exit 63
   shift 2
   case "${1:-} ${2:-} ${3:-}" in
+    'config --format json')
+      if [[ "$mode" == redis-config-missing ]]; then
+        printf '%s\n' '{"services":{"test-station-redis":{"command":["redis-server"]}}}'
+      else
+        printf '%s\n' '{"services":{"test-station-redis":{"command":["redis-server","--requirepass","fixture-secret"]}}}'
+      fi
+      ;;
     'exec -T test-station-postgres')
       if [[ "$*" == *pg_dump* ]]; then
         [[ "$mode" != postgres-fail ]] || exit 41
@@ -51,9 +58,18 @@ if [[ "${1:-}" == compose ]]; then
         exit 64
       fi
       ;;
+    'exec -T -e')
+      if [[ "$*" == *' -e REDISCLI_AUTH test-station-redis redis-cli --raw SAVE'* ]]; then
+        [[ "${REDISCLI_AUTH:-}" == fixture-secret ]] || exit 47
+        [[ "$mode" != redis-save-fail ]] || exit 42
+        if [[ "$mode" == redis-auth-rejected ]]; then printf 'NOAUTH Authentication required.\n'; else printf 'OK\n'; fi
+      else
+        exit 65
+      fi
+      ;;
     'exec -T test-station-redis')
       if [[ "$*" == *'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" SAVE'* ]]; then
-        [[ "$mode" != redis-save-fail ]] || exit 42
+        exit 47
       elif [[ "$*" == *'redis-check-rdb /tmp/sub2api-test-station-redis.rdb'* ]]; then
         [[ "$mode" != redis-rdb-corrupt ]] || exit 46
       elif [[ "$*" == *'rm -f /tmp/sub2api-test-station-redis.rdb'* ]]; then
@@ -172,7 +188,7 @@ test_rejects_permissive_env_before_docker(){
 
 test_failures_never_promote(){
   local mode
-  for mode in postgres-fail postgres-empty pg-restore-fail redis-save-fail redis-copy-fail redis-empty redis-rdb-corrupt app-copy-fail app-corrupt checksum-fail; do
+  for mode in postgres-fail postgres-empty pg-restore-fail redis-save-fail redis-auth-rejected redis-config-missing redis-copy-fail redis-empty redis-rdb-corrupt app-copy-fail app-corrupt checksum-fail; do
     new_fixture "failure-$mode"
     if FAKE_DOCKER_MODE=$mode run_backup >/dev/null 2>&1; then fail "$mode returned success"; fi
     assert_no_promoted_set
