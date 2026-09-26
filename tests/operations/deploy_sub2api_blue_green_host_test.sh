@@ -1421,6 +1421,9 @@ test_pelican_report_maintenance_backup() {
   MAINTENANCE_MODE=true MAINTENANCE_FROM_HASH=$previous_hash \
     run_executor >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
     || fail "Pelican maintenance transition failed: $(cat "$CASE_DIR/stderr")"
+  "$REAL_JQ" -e '.result == "succeeded" and .downtime_required == false' \
+    "$CASE_DIR/stdout" >/dev/null \
+    || fail 'Pelican maintenance executor did not emit one valid JSON result'
   [[ -s "$CASE_DIR/records/$(basename "$(find "$CASE_DIR/records" -name '*.pre-migration.dump' | head -1)")" ]] \
     || fail 'post-stop database backup is missing'
   local stopped backup migrated

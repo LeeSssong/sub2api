@@ -2050,7 +2050,6 @@ if [[ "$maintenance_transition" == true ]]; then
       'sha256sum "$1" | awk '\''{print $1}'\''' "$maintenance_backup") \
       || fail 'database backup checksum failed'
     [[ "$maintenance_backup_sha256" =~ ^[a-f0-9]{64}$ ]] || fail 'database backup checksum is invalid'
-    printf 'maintenance_backup=%s sha256=%s\n' "$maintenance_backup" "$maintenance_backup_sha256"
     trace_event 'maintenance backup verified'
     schema_receipt_sql="SELECT encode(sha256(string_agg(convert_to(filename,'UTF8') || decode('00','hex') || convert_to(checksum || chr(10),'UTF8'), ''::bytea ORDER BY filename)), 'hex') FROM schema_migrations"
     pelican_report_migration_started=true
