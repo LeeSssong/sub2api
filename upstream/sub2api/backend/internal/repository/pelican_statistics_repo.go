@@ -31,7 +31,7 @@ func (r *scheduledTestResultRepository) MaintainPelicanStatistics(ctx context.Co
 			return err
 		}
 		if n < 1000 {
-			return nil
+			return r.prunePelicanReportFacts(ctx, cutoff)
 		}
 	}
 }

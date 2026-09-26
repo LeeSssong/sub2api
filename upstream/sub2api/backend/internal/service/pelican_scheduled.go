@@ -14,6 +14,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 const CandyPrompt = `在一个黑色的袋子里放有三种口味的糖果，每种糖果有两种不同的形状（圆形和五角星形，不同的形状靠手感可以分辨）。现已知不同口味的糖和不同形状的数量统计如下表。参赛者需要在活动前决定摸出的糖果数目，那么，最少取出多少个糖果才能保证手中同时拥有不同形状的苹果味和桃子味的糖？（同时手中有圆形苹果味匹配五角星桃子味糖果，或者有圆形桃子味匹配五角星苹果味糖果都满足要求）
@@ -68,6 +69,11 @@ func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID
 
 func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *ScheduledTestPlan) {
 	now := time.Now()
+	zone := now.Location().String()
+	if s.cfg != nil && s.cfg.Timezone != "" {
+		zone = s.cfg.Timezone
+	}
+	plan.ReportExecution = &PelicanReportExecutionMeta{ID: uuid.NewString(), ScheduledFor: plan.NextRunAt, ExpectedCount: plan.PelicanConfig.ParallelCount, Timezone: zone}
 	next, err := nextPlanRun(plan, now)
 	if err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "pelican plan=%d invalid config: %v", plan.ID, err)
@@ -91,9 +97,10 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
+			attemptStarted := time.Now()
 			result, err := s.runPelican(runCtx, plan.AccountID, plan.ModelID, plan.PelicanConfig)
-			if err != nil {
-				result = &ScheduledTestResult{Status: "failed", ErrorMessage: fmt.Sprint(err), StartedAt: now, FinishedAt: time.Now(), PelicanConfig: plan.PelicanConfig}
+			if err != nil || result == nil {
+				result = &ScheduledTestResult{Status: "failed", ErrorMessage: fmt.Sprint(err), StartedAt: attemptStarted, FinishedAt: time.Now(), PelicanConfig: plan.PelicanConfig}
 			}
 			if plan.PelicanConfig.Quality != nil && result.Status == "success" {
 				var judgment *QualityJudgment
@@ -123,6 +130,10 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 	succeeded := false
 	for _, result := range results {
 		result.PelicanGroupIDs = plan.PelicanGroupIDs
+		result.ReportExecution = plan.ReportExecution
+		snapshot := *plan.PelicanConfig
+		snapshot.ModelID = plan.ModelID
+		result.PelicanConfig = &snapshot
 		result.QualityAction = qualityAction
 		if plan.PelicanConfig.Quality != nil {
 			result.QualityRoundID = until.Format(time.RFC3339Nano)

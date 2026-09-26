@@ -100,6 +100,9 @@ func computeNextRun(cronExpr string, from time.Time) (time.Time, error) {
 
 func nextPlanRun(plan *ScheduledTestPlan, now time.Time) (time.Time, error) {
 	if cfg := plan.PelicanConfig; cfg != nil {
+		if len(cfg.ReportPairKey) > 64 || strings.TrimSpace(cfg.ReportPairKey) != cfg.ReportPairKey {
+			return time.Time{}, fmt.Errorf("report pair key must be at most 64 bytes without edge whitespace")
+		}
 		if strings.TrimSpace(cfg.Prompt) == "" || len(cfg.Prompt) > 32000 || strings.TrimSpace(plan.ModelID) == "" || len(plan.ModelID) > 100 {
 			return time.Time{}, fmt.Errorf("pelican prompt and model are required (maximum 32000/100 bytes)")
 		}

@@ -234,6 +234,9 @@ set -euo pipefail
 printf 'docker %s\n' "$*" >>"${FAKE_EVENT_LOG:?}"
 scenario=${FAKE_SCENARIO:-success}
 case "$*" in
+  *'exec postgres-id sh -c '*'pg_dump'*) printf 'fixture custom archive\n' ;;
+  *'exec -i postgres-id pg_restore -l'*) [[ "$scenario" != pelican_backup_validation_failure ]] ;;
+  *'exec postgres-id sh -c '*'report-receipts'*) printf '%s\n' "${FAKE_REPORT_RECEIPT_HASH:-${EXPECTED_MIGRATIONS_HASH:?}}" ;;
   exec\ blue-id\ sh\ -c\ *|exec\ green-id\ sh\ -c\ *)
     if [[ "$scenario" == drain_reverted && ! -f "${FAKE_EVENT_LOG}.drain-seen" ]]; then
       [[ ! -d "$(dirname "$RELEASE_STATE")/records/.blue-green.lock" ]] || exit 1
@@ -1403,6 +1406,63 @@ test_verified_production_maintenance_transition() {
     || fail "verified production maintenance transition failed: $(cat "$CASE_DIR/stderr")"
   grep -q 'maintenance stop api-worker' "$EVENT_LOG" \
     || fail 'verified production transition did not enter the bounded maintenance path'
+}
+
+test_pelican_report_maintenance_backup() {
+  local previous_hash=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
+  local report_hash=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+  setup_case pelican_report_maintenance_backup
+  write_meminfo
+  MIGRATIONS_HASH=$report_hash
+  "$REAL_JQ" --arg hash "$previous_hash" '.migrations_hash=$hash' \
+    "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"
+  chmod 0600 "$CASE_DIR/state.json"
+  MAINTENANCE_MODE=true MAINTENANCE_FROM_HASH=$previous_hash \
+    run_executor >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "Pelican maintenance transition failed: $(cat "$CASE_DIR/stderr")"
+  "$REAL_JQ" -e '.result == "succeeded" and .downtime_required == false' \
+    "$CASE_DIR/stdout" >/dev/null \
+    || fail 'Pelican maintenance executor did not emit one valid JSON result'
+  [[ -s "$CASE_DIR/records/$(basename "$(find "$CASE_DIR/records" -name '*.pre-migration.dump' | head -1)")" ]] \
+    || fail 'post-stop database backup is missing'
+  local stopped backup migrated
+  stopped=$(grep -n 'stop sub2api-blue sub2api-green sub2api-worker' "$EVENT_LOG" | head -1 | cut -d: -f1)
+  backup=$(grep -n 'pg_dump' "$EVENT_LOG" | head -1 | cut -d: -f1)
+  migrated=$(grep -n 'up --no-deps -d --force-recreate sub2api-worker' "$EVENT_LOG" | head -1 | cut -d: -f1)
+  [[ -n "$stopped" && -n "$backup" && -n "$migrated" \
+      && "$stopped" -lt "$backup" && "$backup" -lt "$migrated" ]] \
+    || fail 'Pelican backup was not between stop and migration'
+  [[ "$("$REAL_JQ" -r '.migrations_hash' "$CASE_DIR/state.json")" == "$report_hash" ]] \
+    || fail 'Pelican release state did not record the new migration hash'
+}
+
+test_pelican_report_backup_and_rollback_guards() {
+  local previous_hash=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
+  local report_hash=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+  local scenario
+  for scenario in pelican_backup_validation_failure candidate_up_failure; do
+    setup_case "$scenario"
+    write_meminfo
+    MIGRATIONS_HASH=$report_hash
+    "$REAL_JQ" --arg hash "$previous_hash" '.migrations_hash=$hash' \
+      "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+    mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"
+    chmod 0600 "$CASE_DIR/state.json"
+    MAINTENANCE_MODE=true MAINTENANCE_FROM_HASH=$previous_hash \
+      expect_failure "$scenario" run_executor FAKE_SCENARIO="$scenario"
+    grep -q 'up --no-deps -d sub2api-blue' "$EVENT_LOG" \
+      || fail "$scenario did not restore the previous API"
+    if [[ "$scenario" == pelican_backup_validation_failure ]]; then
+      ! grep -q 'maintenance start worker for migrations' "$EVENT_LOG" \
+        || fail 'migration started after an unverified backup'
+      [[ "$("$REAL_JQ" -r '.migrations_hash' "$CASE_DIR/state.json")" == "$previous_hash" ]] \
+        || fail 'backup failure changed the schema checkpoint'
+    else
+      [[ "$("$REAL_JQ" -r '.migrations_hash' "$CASE_DIR/state.json")" == "$report_hash" ]] \
+        || fail 'rollback lost the applied migration checkpoint'
+    fi
+  done
 }
 
 test_t03_r1_maintenance_transition_allowlist() {
@@ -3182,6 +3242,8 @@ case "${ONLY_TEST:-all}" in
 	maintenance)
 		test_authorized_maintenance_transition
 		test_verified_production_maintenance_transition
+		test_pelican_report_maintenance_backup
+		test_pelican_report_backup_and_rollback_guards
 		test_t03_r1_maintenance_transition_allowlist
 		test_t09_r1_maintenance_transition_allowlist
 		test_t12_maintenance_transition_allowlist
@@ -3218,6 +3280,8 @@ case "${ONLY_TEST:-all}" in
 	maintenance-readiness) test_maintenance_pre_cutover_readiness_is_truthful ;;
 	maintenance-rollback-proofs) test_maintenance_rollback_proof_gates ;;
 	maintenance-approved-transition) test_verified_production_maintenance_transition ;;
+	maintenance-pelican-report) test_pelican_report_maintenance_backup ;;
+	maintenance-pelican-rollback) test_pelican_report_backup_and_rollback_guards ;;
 	maintenance-t03-r1-transition) test_t03_r1_maintenance_transition_allowlist ;;
 	maintenance-t09-r1-transition) test_t09_r1_maintenance_transition_allowlist ;;
 	maintenance-t12-transition) test_t12_maintenance_transition_allowlist ;;

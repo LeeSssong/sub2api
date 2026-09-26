@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,6 +49,21 @@ type pelicanAdminReadRepo struct {
 	missingItem  bool
 	noStatistics bool
 	reads        int
+}
+
+func (r *pelicanAdminReadRepo) ReadReport(_ context.Context, groupID int64, model string, allowed []int64, _ int, _, _, _ time.Time) (*service.PelicanReportData, error) {
+	r.reads++
+	require.Equal(r.t, []int64{3, 9}, allowed)
+	if groupID == 9 {
+		return nil, nil
+	}
+	require.Equal(r.t, int64(3), groupID)
+	rate := 1.25
+	selected := model
+	if selected == "" {
+		selected = "public-model"
+	}
+	return &service.PelicanReportData{Group: service.PelicanReportGroup{ID: 3, Name: "Public gallery", Platform: "openai", RateMultiplier: &rate}, ModelID: selected, Facts: []service.PelicanReportFact{}}, nil
 }
 
 func (r *pelicanAdminReadRepo) ListGroups(_ context.Context, ids []int64) ([]*service.PelicanShowcaseGroup, error) {
@@ -210,6 +227,61 @@ func TestPelicanShowcaseAdminReadPreservesAdminComplianceGuard(t *testing.T) {
 	for _, path := range []string{"/api/v1/admin/pelican-showcase", "/api/v1/admin/pelican-showcase/items/7"} {
 		w := pelicanAdminReadRequest(router, path, "test-only-admin-key")
 		require.Equal(t, http.StatusLocked, w.Code)
+	}
+	require.Zero(t, repo.reads)
+}
+
+func TestPelicanReportAdminReadRequiresAdminAPIKey(t *testing.T) {
+	router, _, _ := newPelicanAdminReadRouter(t)
+	w := pelicanAdminReadRequest(router, "/api/v1/admin/pelican-reports/groups/3?window=24h", "")
+	require.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestPelicanReportAdminReadUsesAuthenticatedPublicProjection(t *testing.T) {
+	router, repo, _ := newPelicanAdminReadRouter(t)
+	w := pelicanAdminReadRequest(router, "/api/v1/admin/pelican-reports/groups/3?window=24h&model_id=public-model", "test-only-admin-key")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Contains(t, w.Body.String(), `"schema_version":2`)
+	require.Contains(t, w.Body.String(), `"name":"Public gallery"`)
+	require.Contains(t, w.Body.String(), `"rate_multiplier":1.25`)
+	require.NotContains(t, w.Body.String(), "account_id")
+	require.NotZero(t, repo.reads)
+}
+
+func TestPelicanReportAdminReadPreservesComplianceAndVisibility(t *testing.T) {
+	t.Run("compliance", func(t *testing.T) {
+		router, repo, settings := newPelicanAdminReadRouter(t)
+		delete(settings.values, "admin_compliance_acknowledgement:42")
+		w := pelicanAdminReadRequest(router, "/api/v1/admin/pelican-reports/groups/3", "test-only-admin-key")
+		require.Equal(t, http.StatusLocked, w.Code)
+		require.Zero(t, repo.reads)
+	})
+	t.Run("disabled", func(t *testing.T) {
+		router, repo, settings := newPelicanAdminReadRouter(t)
+		settings.values[service.SettingKeyPelicanShowcaseEnabled] = "false"
+		w := pelicanAdminReadRequest(router, "/api/v1/admin/pelican-reports/groups/3", "test-only-admin-key")
+		require.Equal(t, http.StatusNotFound, w.Code)
+		require.Zero(t, repo.reads)
+	})
+	t.Run("not-public", func(t *testing.T) {
+		router, repo, _ := newPelicanAdminReadRouter(t)
+		w := pelicanAdminReadRequest(router, "/api/v1/admin/pelican-reports/groups/4?group_ids=4", "test-only-admin-key")
+		require.Equal(t, http.StatusNotFound, w.Code)
+		require.Zero(t, repo.reads)
+	})
+	t.Run("inactive", func(t *testing.T) {
+		router, repo, _ := newPelicanAdminReadRouter(t)
+		w := pelicanAdminReadRequest(router, "/api/v1/admin/pelican-reports/groups/9", "test-only-admin-key")
+		require.Equal(t, http.StatusNotFound, w.Code)
+		require.Equal(t, 1, repo.reads)
+	})
+}
+
+func TestPelicanReportAdminReadRejectsBadInputs(t *testing.T) {
+	router, repo, _ := newPelicanAdminReadRouter(t)
+	for _, suffix := range []string{"invalid", "0", "-1", "3?window=48h", "3?window=", "3?model_id=" + strings.Repeat("x", 101), "3?model_id=" + url.QueryEscape(" model ")} {
+		w := pelicanAdminReadRequest(router, "/api/v1/admin/pelican-reports/groups/"+suffix, "test-only-admin-key")
+		require.Equal(t, http.StatusBadRequest, w.Code, suffix)
 	}
 	require.Zero(t, repo.reads)
 }

@@ -7,6 +7,7 @@ import (
 
 // PelicanTestConfig stores intelligence test inputs; a missing kind preserves legacy HTML plans.
 type PelicanTestConfig struct {
+	ReportPairKey   string         `json:"report_pair_key,omitempty"`
 	Quality         *QualityPolicy `json:"quality,omitempty"`
 	QuestionKind    string         `json:"question_kind,omitempty"`
 	Prompt          string         `json:"prompt"`
@@ -18,6 +19,7 @@ type PelicanTestConfig struct {
 
 // ScheduledTestPlan represents a scheduled test plan domain model.
 type ScheduledTestPlan struct {
+	ReportExecution *PelicanReportExecutionMeta `json:"-"`
 	// PelicanGroupIDs is the account membership captured atomically with the execution claim.
 	PelicanGroupIDs []int64            `json:"-"`
 	AccountName     string             `json:"account_name,omitempty"`
@@ -38,6 +40,7 @@ type ScheduledTestPlan struct {
 
 // ScheduledTestResult represents a single test execution result.
 type ScheduledTestResult struct {
+	ReportExecution *PelicanReportExecutionMeta `json:"-"`
 	// PelicanGroupIDs carries execution-start attribution into durable statistics.
 	PelicanGroupIDs []int64            `json:"-"`
 	QualityRoundID  string             `json:"quality_round_id,omitempty"`
