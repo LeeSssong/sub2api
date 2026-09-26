@@ -3,6 +3,9 @@ set -euo pipefail
 
 umask 077
 
+# v2.8.18 adds only users.observer_group_ids; old application accepts the additive schema.
+readonly BPS_OBSERVER_OLD_MIGRATIONS_HASH=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+readonly BPS_OBSERVER_NEW_MIGRATIONS_HASH=aa5034f8164b58fec94947353be441991f7b0baeac48b9f7ba62f55013aed5c9
 readonly FUSION_2813_OLD_MIGRATIONS_HASH=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b
 readonly FUSION_2813_NEW_MIGRATIONS_HASH=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
 readonly SEPTEMBER_26_OLD_MIGRATIONS_HASH=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
@@ -56,7 +59,8 @@ rollback_committed_release() {
   current_hash=$(jq -r '.migrations_hash' "$state")
   if [[ "$previous_hash" != "$current_hash" ]]; then
     if [[ ( "$previous_hash" == "$FUSION_2813_OLD_MIGRATIONS_HASH" && "$current_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ) \
-        || ( "$previous_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ) ]]; then
+        || ( "$previous_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ) \
+        || ( "$previous_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" && "$current_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ) ]]; then
       # Reviewed additive transitions keep old readers compatible with new schema.
       :
     else
@@ -329,9 +333,7 @@ readonly MAINTENANCE_32_OLD_MIGRATIONS_HASH=dba4c4d272406097a3f39c27694f748c53fe
 readonly MAINTENANCE_32_NEW_MIGRATIONS_HASH=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b
 readonly PELICAN_REPORT_OLD_MIGRATIONS_HASH=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
 readonly PELICAN_REPORT_NEW_MIGRATIONS_HASH=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
-# v2.8.18 adds only users.observer_group_ids; old application accepts the additive schema.
-readonly BPS_OBSERVER_OLD_MIGRATIONS_HASH=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
-readonly BPS_OBSERVER_NEW_MIGRATIONS_HASH=aa5034f8164b58fec94947353be441991f7b0baeac48b9f7ba62f55013aed5c9
+
 
 while (($#)); do
   case "$1" in
@@ -1755,7 +1757,8 @@ if [[ "$migrations_hash" != "$state_migrations_hash" ]]; then
       && "$online_migrations_from_hash" == "$state_migrations_hash" \
       && ( ( "$state_migrations_hash" == "$MAINTENANCE_32_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$MAINTENANCE_32_NEW_MIGRATIONS_HASH" ) ||
            ( "$state_migrations_hash" == "$FUSION_2813_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ) ||
-           ( "$state_migrations_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ) ) ]]; then
+           ( "$state_migrations_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ) ||
+           ( "$state_migrations_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ) ) ]]; then
     online_migration_transition=true
   elif [[ "$maintenance_authorized" == true \
       && "$maintenance_from_hash" == "$state_migrations_hash" ]] \
@@ -1782,6 +1785,10 @@ fi
 if [[ "$online_migration_transition" == true && "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ]]; then
   [[ "$drain_mode" == retain && "$preserve_worker" == false && "$preserve_detector" == true ]] \
     || gate september26_online_contract 'September 26 requires retain drain, new worker, and preserved detector' 300
+fi
+if [[ "$online_migration_transition" == true && "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ]]; then
+  [[ "$preserve_worker" == false && "$preserve_detector" == true ]] \
+    || gate bps_observer_online_contract 'BPS observer requires new worker and preserved detector' 300
 fi
 postgres_id=$(resolve_container_id postgres) || gate legacy_topology_bootstrap 'PostgreSQL container identity is not uniquely resolvable' 600
 redis_id=$(resolve_container_id redis) || gate legacy_topology_bootstrap 'Redis container identity is not uniquely resolvable' 600
@@ -1921,7 +1928,7 @@ jq -e --arg service "sub2api-$candidate_slot" --arg active_service "sub2api-$sta
 partial_path="$record_root/$attempt_id.partial"
 write_partial preflight_complete
 
-if [[ "$online_migration_transition" == true && ( "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ) ]]; then
+if [[ "$online_migration_transition" == true && ( "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ) ]]; then
   # Existing upgraded streams use the OLD proxy handler's cleanup policy.
   # Merely putting a delay in the incoming file cannot preserve them.
   "${compose_current[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ |
@@ -1942,6 +1949,22 @@ if [[ "$online_migration_transition" == true && ( "$migrations_hash" == "$FUSION
 fi
 
 if [[ "$online_migration_transition" == true ]]; then
+  if [[ "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ]]; then
+    failure_reason=online_backup_failed
+    maintenance_backup="$record_root/$attempt_id.pre-migration.dump"
+    run_post_stop_operation '
+      backup=$1 postgres=$2
+      docker exec "$postgres" sh -c '\''exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -Z 1'\'' >"$backup.tmp" &&
+        test -s "$backup.tmp" &&
+        docker exec -i "$postgres" pg_restore -l <"$backup.tmp" >/dev/null &&
+        chmod 0600 "$backup.tmp" && mv "$backup.tmp" "$backup"
+    ' "$maintenance_backup" "$postgres_id" || fail 'online database backup or archive validation failed'
+    maintenance_backup_sha256=$(run_post_stop_operation \
+      'sha256sum "$1" | awk '\''{print $1}'\''' "$maintenance_backup") \
+      || fail 'database backup checksum failed'
+    [[ "$maintenance_backup_sha256" =~ ^[a-f0-9]{64}$ ]] || fail 'database backup checksum is invalid'
+    trace_event 'online backup verified'
+  fi
   failure_reason=online_migration_failed
   if [[ "$preloaded_image" == false ]]; then
     run_post_stop_command "${compose_candidate[@]}" pull sub2api-worker >/dev/null

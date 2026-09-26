@@ -2767,6 +2767,46 @@ test_september26_online_transition() {
   done
 }
 
+test_bps_observer_online_transition() {
+  local old_hash=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+  local new_hash=aa5034f8164b58fec94947353be441991f7b0baeac48b9f7ba62f55013aed5c9
+  local scenario record previous line pattern
+  for scenario in drain_empty pelican_backup_validation_failure fusion_public_failure fusion_partial_migration wrong_target; do
+    setup_case "bps_observer_$scenario"
+    write_meminfo
+    MIGRATIONS_HASH=$new_hash
+    [[ "$scenario" != wrong_target ]] || MIGRATIONS_HASH=$(printf '%064d' 4)
+    "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+    mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+    if [[ "$scenario" == drain_empty ]]; then
+      ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash \
+        run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=$scenario >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+        || fail "BPS online release failed: $(cat "$CASE_DIR/stderr")"
+      previous=0
+      for pattern in 'pg_dump' 'pg_restore -l' ' -migrate-only' 'fusion-receipts' 'up --no-deps -d sub2api-green' 'caddy caddy reload' 'curl .*https://example.invalid/health' 'up --no-deps -d --force-recreate sub2api-worker' 'docker stop'; do
+        line=$(awk -v pattern="$pattern" -v after="$previous" 'NR > after && $0 ~ pattern { print NR; exit }' "$EVENT_LOG")
+        [[ -n "$line" && "$line" -gt "$previous" ]] || fail "BPS online ordering missing: $pattern"
+        previous=$line
+      done
+      ! grep -Eq 'maintenance stop api-worker|compose .* (stop|restart).*sub2api-blue|compose .* (up|pull|stop|restart).*model-detector' "$EVENT_LOG" || fail 'BPS online release interrupted active API or detector'
+      "$REAL_JQ" -e --arg hash "$new_hash" '.active_slot == "green" and .migrations_hash == $hash' "$CASE_DIR/state.json" >/dev/null || fail 'BPS online state is incomplete'
+      record=$(find "$CASE_DIR/records" -name '*.json' -print -quit)
+      ROLLBACK_RECORD=$record run_executor FAKE_SCENARIO=post_success_rollback >"$CASE_DIR/rollback.stdout" 2>"$CASE_DIR/rollback.stderr" || fail 'BPS reader rollback failed'
+      "$REAL_JQ" -e --arg hash "$new_hash" '.active_slot == "blue" and .migrations_hash == $hash' "$CASE_DIR/state.json" >/dev/null || fail 'BPS rollback lost expanded schema'
+    else
+      ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash \
+        expect_failure "bps_$scenario" run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=$scenario
+      if [[ "$scenario" == pelican_backup_validation_failure || "$scenario" == wrong_target ]]; then
+        ! grep -q ' -migrate-only' "$EVENT_LOG" || fail 'BPS migration ran after failed preflight'
+      elif [[ "$scenario" == fusion_public_failure ]]; then
+        "$REAL_JQ" -e --arg hash "$new_hash" '.active_slot == "blue" and .migrations_hash == $hash' "$CASE_DIR/state.json" >/dev/null || fail 'BPS automatic rollback lost expanded schema'
+      else
+        ! grep -q 'SUB2API_ACTIVE_UPSTREAM=sub2api-green:8080 caddy caddy reload' "$EVENT_LOG" || fail 'BPS incomplete migration cut over'
+      fi
+    fi
+  done
+}
+
 test_preserve_worker_and_drain() {
   setup_case drain_pending_blocks_next_release
   write_meminfo
@@ -3280,6 +3320,7 @@ case "${ONLY_TEST:-all}" in
 	maintenance-readiness) test_maintenance_pre_cutover_readiness_is_truthful ;;
 	maintenance-rollback-proofs) test_maintenance_rollback_proof_gates ;;
 	maintenance-approved-transition) test_verified_production_maintenance_transition ;;
+  bps-observer-online) test_bps_observer_online_transition ;;
 	maintenance-bps-observer)
     TEST_ADDITIVE_OLD_HASH=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
     TEST_ADDITIVE_NEW_HASH=aa5034f8164b58fec94947353be441991f7b0baeac48b9f7ba62f55013aed5c9

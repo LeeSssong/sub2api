@@ -400,6 +400,44 @@ test_fusion_controller_hash_and_retain() {
   grep -q -- '--drain-mode retain' "$CASE_DIR/ssh.log" || fail 'retain mode was not forwarded'
 }
 
+test_bps_observer_controller() {
+  local predecessor=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+  setup_case bps-observer-controller
+  cp "${MIGRATIONS_FIXTURE_ROOT:-$ROOT}"/upstream/sub2api/backend/migrations/*.sql "$CASE_DIR/repo/upstream/sub2api/backend/migrations/"
+  git -C "$CASE_DIR/repo" add .
+  git -C "$CASE_DIR/repo" commit -qm bps-observer-migrations
+  git -C "$CASE_DIR/repo" push -q origin main
+  write_evidence
+  CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH=$predecessor CONTROLLER_DRAIN_MODE=force \
+    run_controller RELEASE_PRESERVE_DETECTOR=true >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "BPS observer controller failed: $(cat "$CASE_DIR/stderr")"
+  grep -F -- "--online-migrations-from-hash $predecessor" "$CASE_DIR/ssh.log" >/dev/null || fail 'reviewed predecessor was not forwarded'
+  grep -F -- 'PRESERVE_DETECTOR=true' "$CASE_DIR/ssh.log" >/dev/null || fail 'detector preservation was not forwarded'
+  grep -F -- 'PRESERVE_WORKER=false' "$CASE_DIR/ssh.log" >/dev/null || fail 'new worker update was disabled'
+  grep -F -- '--drain-mode force' "$CASE_DIR/ssh.log" >/dev/null || fail 'retain mode was not forwarded'
+
+  local scenario drain keep_worker keep_detector
+  for scenario in preserved_worker detector_not_preserved; do
+    : >"$CASE_DIR/docker.log"
+    : >"$CASE_DIR/ssh.log"
+    drain=retain keep_worker=false keep_detector=true
+    case "$scenario" in
+      forced_drain) drain=force ;;
+      preserved_worker) keep_worker=true ;;
+      detector_not_preserved) keep_detector=false ;;
+    esac
+    CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH=$predecessor CONTROLLER_DRAIN_MODE=$drain \
+      expect_failure_before_transport "bps-observer_$scenario" run_controller RELEASE_PRESERVE_WORKER=$keep_worker RELEASE_PRESERVE_DETECTOR=$keep_detector
+  done
+  printf '\n-- unreviewed change\n' >>"$CASE_DIR/repo/upstream/sub2api/backend/migrations/001_init.sql"
+  git -C "$CASE_DIR/repo" add .
+  git -C "$CASE_DIR/repo" commit -qm changed-migration
+  git -C "$CASE_DIR/repo" push -q origin main
+  write_evidence
+  CONTROLLER_ONLINE_MIGRATIONS_FROM_HASH=$predecessor CONTROLLER_DRAIN_MODE=force \
+    expect_failure_before_transport bps-observer_wrong_target run_controller RELEASE_PRESERVE_DETECTOR=true
+}
+
 test_september26_controller_requires_exact_online_contract() {
   local predecessor=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
   setup_case september26-controller
@@ -625,6 +663,12 @@ test_rejects_unattested_build_context_before_transport() {
   [[ ! -s "$CASE_DIR/docker.log" ]] || fail 'untrusted build context invoked Docker'
   [[ ! -s "$CASE_DIR/ssh.log" ]] || fail 'untrusted build context invoked SSH'
 }
+
+if [[ "${ONLY_TEST:-}" == bps-observer-online ]]; then
+  test_bps_observer_controller
+  printf "PASS: BPS observer controller online contract\n"
+  exit
+fi
 
 if [[ "${ONLY_TEST:-}" == september26-online ]]; then
   test_september26_controller_requires_exact_online_contract
