@@ -40,21 +40,22 @@ func (c Config) Validate() error {
 }
 
 type Task struct {
-	ID         string     `json:"id"`
-	InstanceID string     `json:"instance_id"`
-	TargetType string     `json:"target_type"`
-	TargetID   int64      `json:"target_id"`
-	TargetName string     `json:"target_name"`
-	SaveMedia  bool       `json:"save_media"`
-	CreatedAt  time.Time  `json:"created_at"`
-	ExpiresAt  time.Time  `json:"expires_at"`
-	EndedAt    *time.Time `json:"ended_at,omitempty"`
-	Status     string     `json:"status"`
-	Reason     string     `json:"reason,omitempty"`
-	Requests   int64      `json:"requests"`
-	Partial    int64      `json:"partial"`
-	Skipped    int64      `json:"skipped"`
-	Bytes      int64      `json:"bytes"`
+	ID              string     `json:"id"`
+	InstanceID      string     `json:"instance_id"`
+	TargetType      string     `json:"target_type"`
+	TargetID        int64      `json:"target_id"`
+	TargetName      string     `json:"target_name"`
+	SaveMedia       bool       `json:"save_media"`
+	CreatedAt       time.Time  `json:"created_at"`
+	ExpiresAt       time.Time  `json:"expires_at"`
+	EndedAt         *time.Time `json:"ended_at,omitempty"`
+	Status          string     `json:"status"`
+	Reason          string     `json:"reason,omitempty"`
+	Requests        int64      `json:"requests"`
+	Partial         int64      `json:"partial"`
+	Skipped         int64      `json:"skipped"`
+	Bytes           int64      `json:"bytes"`
+	ReadDiagnostics int64      `json:"read_diagnostics,omitempty"`
 }
 
 type CreateTask struct {
@@ -76,13 +77,35 @@ type Meta struct {
 	Protocol        string `json:"protocol"`
 }
 
+// ForwardingOutcome is confirmed by the forwarder, independently of capture limits.
+type ForwardingOutcome string
+
+const (
+	OutcomeSuccess            ForwardingOutcome = "success"
+	OutcomeFailed             ForwardingOutcome = "failed"
+	OutcomeIncomplete         ForwardingOutcome = "incomplete"
+	OutcomeClientDisconnected ForwardingOutcome = "client_disconnected"
+)
+
+// ReadDiagnostic contains safe categories only, never the original error text.
+type ReadDiagnostic struct {
+	Attempt           int    `json:"attempt,omitempty"`
+	Class             string `json:"class"`
+	Direction         string `json:"direction"`
+	CloseReason       string `json:"close_reason"`
+	TerminalConfirmed bool   `json:"terminal_confirmed"`
+	Count             int64  `json:"count"`
+}
+
 type Attempt struct {
-	Number            int       `json:"number"`
-	AccountID         int64     `json:"account_id"`
-	StartedAt         time.Time `json:"started_at"`
-	Status            int       `json:"status,omitempty"`
-	UpstreamRequestID string    `json:"upstream_request_id,omitempty"`
-	Error             string    `json:"error,omitempty"`
+	Number            int               `json:"number"`
+	AccountID         int64             `json:"account_id"`
+	StartedAt         time.Time         `json:"started_at"`
+	Status            int               `json:"status,omitempty"`
+	UpstreamRequestID string            `json:"upstream_request_id,omitempty"`
+	Error             string            `json:"error,omitempty"`
+	Outcome           ForwardingOutcome `json:"outcome,omitempty"`
+	ReadError         string            `json:"read_error,omitempty"`
 }
 
 type Part struct {
@@ -103,17 +126,20 @@ type Record struct {
 	InstanceID string `json:"instance_id"`
 	Turn       int    `json:"turn,omitempty"`
 	Meta
-	CreatedAt  time.Time        `json:"created_at"`
-	FinishedAt *time.Time       `json:"finished_at,omitempty"`
-	Status     int              `json:"status"`
-	IsError    bool             `json:"is_error"`
-	Partial    bool             `json:"partial"`
-	Reason     string           `json:"reason,omitempty"`
-	Bytes      int64            `json:"bytes"`
-	Attempts   []Attempt        `json:"attempts"`
-	Parts      []Part           `json:"parts"`
-	ErrorCode  string           `json:"error_code,omitempty"`
-	Usage      map[string]int64 `json:"usage,omitempty"`
+	CreatedAt           time.Time         `json:"created_at"`
+	FinishedAt          *time.Time        `json:"finished_at,omitempty"`
+	Status              int               `json:"status"`
+	IsError             bool              `json:"is_error"`
+	Partial             bool              `json:"partial"`
+	Reason              string            `json:"reason,omitempty"`
+	Bytes               int64             `json:"bytes"`
+	Attempts            []Attempt         `json:"attempts"`
+	Parts               []Part            `json:"parts"`
+	ErrorCode           string            `json:"error_code,omitempty"`
+	Usage               map[string]int64  `json:"usage,omitempty"`
+	FinalOutcome        ForwardingOutcome `json:"final_outcome,omitempty"`
+	ReadDiagnostics     []ReadDiagnostic  `json:"read_diagnostics,omitempty"`
+	ReadDiagnosticCount int64             `json:"read_diagnostic_count,omitempty"`
 }
 
 // Store accepts metadata only. Payload bytes must never enter this interface.

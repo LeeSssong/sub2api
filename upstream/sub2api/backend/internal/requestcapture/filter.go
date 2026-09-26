@@ -309,7 +309,45 @@ func (f *jsonFilter) Write(p []byte) []byte {
 	return out.Bytes()
 }
 
+const protocolPrefixLimit = 512
+const plainJSONLimit = 16 << 10
+
+// protocolPrefix inspects only a bounded prefix; it never consumes business data.
+func protocolPrefix(p []byte) string {
+	p = bytes.TrimLeft(p, " \t\r\n")
+	if len(p) == 0 {
+		return ""
+	}
+	if p[0] == '{' || p[0] == '[' {
+		return "json"
+	}
+	for len(p) > 0 {
+		if p[0] == ':' {
+			_, rest, found := bytes.Cut(p, []byte{'\n'})
+			if !found {
+				return ""
+			}
+			p = bytes.TrimLeft(rest, " \t\r\n")
+			continue
+		}
+		for _, marker := range []string{"event:", "data:"} {
+			if bytes.HasPrefix(p, []byte(marker)) {
+				return "sse"
+			}
+			if bytes.HasPrefix([]byte(marker), p) {
+				return ""
+			}
+		}
+		return "unknown"
+	}
+	return ""
+}
+
 type bodyFilter struct {
+	sniff            bool
+	sniffBuffer      []byte
+	plainJSON        bool
+	plainBuffer      []byte
 	json             jsonFilter
 	sse, unsupported bool
 	linePrefix       []byte
@@ -331,11 +369,38 @@ type bodyFilter struct {
 func newBodyFilter(contentType string, media bool) *bodyFilter {
 	ct := strings.ToLower(contentType)
 	knownMedia := strings.HasPrefix(ct, "image/") || strings.HasPrefix(ct, "audio/") || strings.HasPrefix(ct, "video/") || strings.HasPrefix(ct, "application/octet-stream")
-	return &bodyFilter{knownMedia: knownMedia, contentType: bounded(contentType, 256), json: jsonFilter{media: media}, sse: strings.Contains(ct, "text/event-stream"), binary: media && (strings.HasPrefix(ct, "image/") || strings.HasPrefix(ct, "audio/") || strings.HasPrefix(ct, "video/") || strings.HasPrefix(ct, "application/octet-stream")), unsupported: ct != "" && !strings.Contains(ct, "json") && !strings.Contains(ct, "text/event-stream"), digest: sha256.New()}
+	return &bodyFilter{sniff: ct == "", plainJSON: strings.HasPrefix(ct, "text/plain"), knownMedia: knownMedia, contentType: bounded(contentType, 256), json: jsonFilter{media: media}, sse: strings.Contains(ct, "text/event-stream"), binary: media && (strings.HasPrefix(ct, "image/") || strings.HasPrefix(ct, "audio/") || strings.HasPrefix(ct, "video/") || strings.HasPrefix(ct, "application/octet-stream")), unsupported: ct != "" && !strings.Contains(ct, "json") && !strings.Contains(ct, "text/event-stream"), digest: sha256.New()}
 }
 func (f *bodyFilter) Write(p []byte) []byte {
 	f.bytes += int64(len(p))
 	_, _ = f.digest.Write(p)
+	if f.sniff {
+		count := min(protocolPrefixLimit-len(f.sniffBuffer), len(p))
+		f.sniffBuffer = append(f.sniffBuffer, p[:count]...)
+		kind := protocolPrefix(f.sniffBuffer)
+		if kind == "" && len(f.sniffBuffer) < protocolPrefixLimit {
+			return nil
+		}
+		f.sniff = false
+		f.sse = kind == "sse"
+		f.unsupported = kind != "sse" && kind != "json"
+		prefix := f.sniffBuffer
+		f.sniffBuffer = nil
+		out := f.writeKnown(prefix)
+		return append(out, f.writeKnown(p[count:])...)
+	}
+	if f.plainJSON {
+		if len(f.plainBuffer)+len(p) <= plainJSONLimit {
+			f.plainBuffer = append(f.plainBuffer, p...)
+		} else {
+			f.plainBuffer = nil
+			f.plainJSON = false
+		}
+		return nil
+	}
+	return f.writeKnown(p)
+}
+func (f *bodyFilter) writeKnown(p []byte) []byte {
 	if f.binary {
 		var out []byte
 		if !f.binaryStarted {
@@ -375,6 +440,8 @@ func (f *bodyFilter) Write(p []byte) []byte {
 					f.omitted = f.omitted || f.json.omitted
 					f.invalid = f.invalid || (f.json.started && !f.json.validator.complete()) || f.json.invalid
 					f.json = jsonFilter{media: f.json.media}
+				} else if strings.HasPrefix(prefix, ":") {
+					// Comments can contain arbitrary text. Discard them entirely.
 				} else if strings.HasPrefix(prefix, "event:") || strings.HasPrefix(prefix, "id:") || strings.HasPrefix(prefix, "retry:") {
 					field, v, _ := strings.Cut(prefix, ":")
 					v = strings.TrimSpace(v)
@@ -456,6 +523,26 @@ func safeEventName(s string) bool {
 	return true
 }
 func (f *bodyFilter) End() ([]byte, string) {
+	if f.sniff && f.bytes == 0 {
+		return nil, ""
+	}
+	if f.sniff {
+		f.sniff = false
+		f.sniffBuffer = nil
+		f.unsupported = true
+	}
+	var prefix []byte
+	if f.plainJSON {
+		if json.Valid(f.plainBuffer) {
+			trimmed := bytes.TrimSpace(f.plainBuffer)
+			if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
+				f.unsupported = false
+				prefix = f.json.Write(f.plainBuffer)
+			}
+		}
+		f.plainBuffer = nil
+		f.plainJSON = false
+	}
 	if f.binary {
 		out := []byte{}
 		if !f.binaryStarted {
@@ -473,12 +560,12 @@ func (f *bodyFilter) End() ([]byte, string) {
 		b, _ := json.Marshal(map[string]any{"omitted": reason, "content_type": f.contentType, "bytes": f.bytes, "sha256": hex.EncodeToString(f.digest.Sum(nil))})
 		return b, reason
 	}
-	var tail []byte
+	tail := prefix
 	if f.sse {
 		if f.lineStarted && !f.dataReady {
 			tail = f.sseData(nil, true)
 		}
-		if len(bytes.TrimSpace(f.linePrefix)) > 0 {
+		if pending := bytes.TrimSpace(f.linePrefix); len(pending) > 0 && pending[0] != ':' {
 			f.unsupportedSSE = true
 		}
 	}
