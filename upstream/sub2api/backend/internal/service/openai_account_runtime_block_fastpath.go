@@ -568,7 +568,8 @@ func (s *OpenAIGatewayService) clearOpenAIAccountRuntimeBlockIfUnchanged(account
 // scheduling Account as source of truth. When TempUnschedulableUntil,
 // RateLimitResetAt, and OverloadUntil are all inactive, a stale local account
 // block is dropped with generation+deadline CAS. Model-scoped transient blocks
-// are left alone. This is fail-open if a DB write failed or the snapshot has
+// and Excel BPS cooldowns (BPS-routed models only) are left alone. This is
+// fail-open if a DB write failed or the snapshot has
 // not caught up yet: empty cooldown fields drop a temporary local account block.
 // Deterministic authentication revocation is retained until explicit recovery.
 // requireCompact 必须与 Forward 的 /responses/compact 判定同源（两侧都来自
@@ -577,6 +578,9 @@ func (s *OpenAIGatewayService) clearOpenAIAccountRuntimeBlockIfUnchanged(account
 func (s *OpenAIGatewayService) isOpenAIAccountRequestRuntimeBlocked(account *Account, requestedModel string, requireCompact bool) bool {
 	if s == nil {
 		return false
+	}
+	if s.isExcelBPSCoolingDown(account, requestedModel) {
+		return true
 	}
 	outboundModel := s.openAICodexTicketOutboundModel(account, requestedModel, requireCompact)
 	if s.openAICodexTicketBlocksAccount(account, outboundModel) {
