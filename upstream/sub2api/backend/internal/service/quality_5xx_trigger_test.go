@@ -1,0 +1,151 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/require"
+)
+
+func TestQuality5xxSignalsFilterAndCoalesceAcrossReplicas(t *testing.T) {
+	r := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: r.Addr()})
+	defer client.Close()
+	trigger := &quality5xxTrigger{redis: client}
+	ctx := context.Background()
+	oauth := &Account{ID: 42, Type: AccountTypeOAuth}
+	trigger.Observe(ctx, oauth, 429)
+	trigger.Observe(ctx, &Account{ID: 43, Type: AccountTypeAPIKey}, 503)
+	trigger.Observe(ctx, &Account{ID: 44, Type: AccountTypeSetupToken}, 503)
+	trigger.Observe(context.WithValue(ctx, qualityProbeContextKey{}, true), oauth, 503)
+	require.EqualValues(t, 0, client.ZCard(ctx, quality5xxPendingKey).Val())
+	var wg sync.WaitGroup
+	for i := 0; i < 30; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); trigger.Observe(ctx, oauth, 502) }()
+	}
+	wg.Wait()
+	require.Equal(t, []string{"42"}, client.ZRange(ctx, quality5xxPendingKey, 0, -1).Val())
+	client.ZRem(ctx, quality5xxPendingKey, "42")
+	trigger.Observe(ctx, oauth, 500)
+	require.EqualValues(t, 0, client.ZCard(ctx, quality5xxPendingKey).Val())
+	r.FastForward(61 * time.Second)
+	trigger.Observe(ctx, oauth, 599)
+	require.EqualValues(t, 1, client.ZCard(ctx, quality5xxPendingKey).Val())
+}
+
+type qualityTriggerPlans struct {
+	pelicanPlanRepo
+	next     time.Time
+	outcomes int
+}
+
+func (r *qualityTriggerPlans) ClaimPelican(ctx context.Context, p *ScheduledTestPlan, now, until, next time.Time) (bool, error) {
+	r.next = next
+	return r.pelicanPlanRepo.ClaimPelican(ctx, p, now, until, next)
+}
+func (r *qualityTriggerPlans) ApplyQualityOutcome(context.Context, *ScheduledTestPlan, time.Time, string) (string, error) {
+	r.outcomes++
+	return "inconclusive", nil
+}
+
+func TestQuality5xxRunPreservesFutureScheduleAndUsesNormalResults(t *testing.T) {
+	future := time.Now().Add(time.Hour).Truncate(time.Microsecond)
+	plan := pelicanPlan()
+	plan.NextRunAt = &future
+	plan.TriggerSource = quality5xxSource
+	plan.PelicanConfig.QuestionKind = "candy"
+	plan.PelicanConfig.Quality = &QualityPolicy{TriggerOnUpstream5xx: true, ExpectedAnswer: "21", Action: "disable_scheduling"}
+	repo := &qualityTriggerPlans{}
+	results := &pelicanResults{}
+	runner := &ScheduledTestRunnerService{planRepo: repo, scheduledSvc: NewScheduledTestService(repo, results)}
+	runner.runPelican = func(ctx context.Context, _ int64, _ string, cfg *PelicanTestConfig) (*ScheduledTestResult, error) {
+		require.Equal(t, true, ctx.Value(qualityProbeContextKey{}))
+		return &ScheduledTestResult{Status: "failed", ErrorMessage: "upstream_503", PelicanConfig: cfg}, nil
+	}
+	runner.runOnePlan(context.Background(), plan)
+	require.Equal(t, future, repo.next)
+	require.Equal(t, 1, repo.outcomes)
+	require.Len(t, results.results, 2)
+	for _, r := range results.results {
+		require.Equal(t, quality5xxSource, r.PelicanConfig.TriggerSource)
+		require.Equal(t, "inconclusive", r.QualityAction)
+	}
+	require.True(t, repo.finished)
+}
+
+func (r *qualityTriggerPlans) FinishTriggeredQuality(ctx context.Context, p *ScheduledTestPlan, until, finished, next time.Time) error {
+	return r.FinishPelican(ctx, p.ID, until, finished)
+}
+
+func TestQuality5xxOnlyObservesActualHTTPFailures(t *testing.T) {
+	r := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: r.Addr()})
+	defer client.Close()
+	limiter := &RateLimitService{qualityTrigger: &quality5xxTrigger{redis: client}}
+	ctx := context.Background()
+	account := &Account{ID: 21, Type: AccountTypeOAuth}
+	limiter.observeQualityResponse(ctx, account, nil, errors.New("network"))
+	limiter.observeQualityResponse(ctx, account, &http.Response{StatusCode: 200}, nil)
+	limiter.observeQualityResponse(ctx, account, &http.Response{StatusCode: 502}, errors.New("transport error"))
+	require.Zero(t, client.ZCard(ctx, quality5xxPendingKey).Val())
+	limiter.observeQualityResponse(ctx, account, &http.Response{StatusCode: 503}, nil)
+	limiter.observeQualityResponse(ctx, account, &http.Response{StatusCode: 200}, nil)
+	require.Equal(t, []string{"21"}, client.ZRange(ctx, quality5xxPendingKey, 0, -1).Val(), "successful retry must not erase initial 503")
+}
+
+type qualityClaimFailureRepo struct {
+	ScheduledTestPlanRepository
+	plan   *ScheduledTestPlan
+	claims atomic.Int32
+}
+
+func (r *qualityClaimFailureRepo) ListByAccountID(context.Context, int64) ([]*ScheduledTestPlan, error) {
+	p := *r.plan
+	return []*ScheduledTestPlan{&p}, nil
+}
+func (r *qualityClaimFailureRepo) GetByID(context.Context, int64) (*ScheduledTestPlan, error) {
+	p := *r.plan
+	return &p, nil
+}
+func (r *qualityClaimFailureRepo) ClaimPelican(context.Context, *ScheduledTestPlan, time.Time, time.Time, time.Time) (bool, error) {
+	r.claims.Add(1)
+	return false, errors.New("database unavailable")
+}
+func TestQuality5xxWorkerRetainsSignalAfterClaimFailure(t *testing.T) {
+	r := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: r.Addr()})
+	defer client.Close()
+	plan := pelicanPlan()
+	future := time.Now().Add(time.Hour)
+	plan.NextRunAt = &future
+	plan.PelicanConfig.QuestionKind = "candy"
+	plan.PelicanConfig.Quality = &QualityPolicy{TriggerOnUpstream5xx: true, Action: "disable_scheduling", ExpectedAnswer: "21"}
+	repo := &qualityClaimFailureRepo{plan: plan}
+	runner := &ScheduledTestRunnerService{planRepo: repo, qualityTrigger: &quality5xxTrigger{redis: client}}
+	runner.qualityTrigger.Observe(context.Background(), &Account{ID: 42, Type: AccountTypeOAuth}, 503)
+	runner.startQualityTriggers()
+	defer func() { runner.triggerCancel(); runner.triggerWG.Wait() }()
+	require.Eventually(t, func() bool { return repo.claims.Load() > 0 }, 3*time.Second, 20*time.Millisecond)
+	require.Equal(t, []string{"42"}, client.ZRange(context.Background(), quality5xxPendingKey, 0, -1).Val())
+}
+
+func TestQuality5xxQueueHasIndependentShortTimeouts(t *testing.T) {
+	r := miniredis.RunT(t)
+	shared := redis.NewClient(&redis.Options{Addr: r.Addr(), ReadTimeout: 3 * time.Second, PoolSize: 50})
+	defer shared.Close()
+	trigger := newQuality5xxTrigger(shared)
+	defer trigger.redis.Close()
+	require.Equal(t, 3*time.Second, shared.Options().ReadTimeout)
+	require.Equal(t, 150*time.Millisecond, trigger.redis.Options().ReadTimeout)
+	require.True(t, trigger.redis.Options().ContextTimeoutEnabled)
+	trigger.Observe(context.Background(), &Account{ID: 5, Type: AccountTypeOAuth}, 500)
+	require.Equal(t, []string{"5"}, shared.ZRange(context.Background(), quality5xxPendingKey, 0, -1).Val())
+}

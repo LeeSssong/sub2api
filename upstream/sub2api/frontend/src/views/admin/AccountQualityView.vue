@@ -31,7 +31,7 @@
               <div class="rule-card-top"><label class="rule-checkbox"><input v-model="selectedRuleIds" type="checkbox" :value="plan.id" :disabled="busy || !!pending[plan.id]" :aria-label="t('qualityOps.selectRule', { account: name(plan), id: plan.id })" /></label><button class="rule-select" :aria-pressed="store.selectedPlanId === plan.id" @click="store.selectedPlanId = plan.id"><span class="account-avatar">{{ name(plan).slice(0, 1) }}</span><span class="min-w-0"><strong :title="name(plan)">{{ name(plan) }}</strong><span class="rule-meta">#{{ plan.account_id }}<span>·</span>{{ t('qualityOps.rule') }} {{ plan.id }}</span></span></button><button class="state-toggle" :class="plan.enabled ? 'state-enabled' : 'state-paused'" :disabled="busy || !!pending[plan.id]" :title="t(plan.enabled ? 'qualityOps.pause' : 'qualityOps.enable')" @click="toggle(plan)"><span />{{ t(plan.enabled ? 'qualityOps.activeShort' : 'qualityOps.paused') }}</button></div>
               <div class="rule-model"><code>{{ plan.model_id }}</code><span v-if="isProbePlan(plan)" class="probe-tag" data-testid="quality-probe-tag">{{ t('qualityOps.probeTag') }}</span><span v-if="running(plan)" class="running-label">{{ t('qualityOps.running') }}</span></div>
               <div class="rule-target" :title="planGroups(plan)"><Icon name="users" size="xs" /><span>{{ planGroups(plan) }}</span></div>
-              <div class="rule-schedule"><span>{{ t('qualityOps.nextRun') }}</span><time :datetime="plan.next_run_at || undefined">{{ plan.enabled ? date(plan.next_run_at) : '—' }}</time></div>
+              <span v-if="plan.pelican_config?.quality?.trigger_on_upstream_5xx" class="probe-tag">{{ t('qualityOps.trigger5xxShort') }}</span><div class="rule-schedule"><span>{{ t('qualityOps.nextRun') }}</span><time :datetime="plan.next_run_at || undefined">{{ plan.enabled ? date(plan.next_run_at) : '—' }}</time></div>
               <div v-if="!isProbePlan(plan) && !plan.pelican_config?.quality?.judge" class="rule-warning">{{ t('qualityOps.configureJudge') }}</div>
               <footer class="rule-actions"><button @click="history(plan)"><Icon name="document" size="xs" />{{ t('qualityOps.historyShort') }}</button><button :disabled="!!pending[plan.id]" @click="edit(plan)">{{ t('qualityOps.editShort') }}</button><button :disabled="!!pending[plan.id] || !plan.enabled || running(plan)" @click="run(plan)"><Icon name="play" size="xs" />{{ pending[plan.id] === 'run' ? t('qualityOps.submitting') : t('qualityOps.runShort') }}</button></footer>
             </article>
@@ -48,7 +48,7 @@
               <tr v-for="operation in filteredOperations" :key="operation.id" :class="{ 'selected-row': detailOperation?.id === operation.id && !!historyPlan }" :data-operation-id="operation.id">
                 <td class="time-cell" :data-label="t('qualityOps.time')"><strong>{{ clock(operation.started_at) }}</strong><span>{{ day(operation.started_at) }}</span></td>
                 <td class="account-cell"><button :title="operation.account_name" @click="store.selectedPlanId = operation.plan_id"><strong>{{ operation.account_name || `#${operation.account_id}` }}</strong></button><span>{{ t('qualityOps.rule') }} {{ operation.plan_id }}<span class="mx-1">·</span>#{{ operation.account_id }}</span></td>
-                <td :data-label="t('qualityOps.testResult')"><span class="test-count" :class="allPassed(operation) ? 'test-passed' : 'test-other'"><Icon :name="allPassed(operation) ? 'checkCircle' : 'exclamationCircle'" size="xs" />{{ operation.passed_count }} / {{ operation.total_count }}</span><span class="cell-secondary">{{ t(allPassed(operation) ? 'qualityOps.roundPassed' : 'qualityOps.roundNotPassed') }}</span></td>
+                <td :data-label="t('qualityOps.testResult')"><span class="test-count" :class="allPassed(operation) ? 'test-passed' : 'test-other'"><Icon :name="allPassed(operation) ? 'checkCircle' : 'exclamationCircle'" size="xs" />{{ operation.passed_count }} / {{ operation.total_count }}</span><span v-if="operation.pelican_config?.trigger_source === 'upstream_5xx'" class="probe-tag">{{ t('qualityOps.trigger5xxShort') }}</span><span class="cell-secondary">{{ t(allPassed(operation) ? 'qualityOps.roundPassed' : 'qualityOps.roundNotPassed') }}</span></td>
                 <td class="action-cell" :data-label="t('qualityOps.accountAction')"><button class="outcome-badge" :class="tone(operation.quality_action)" @click="operationDetails(operation)"><span />{{ operationLabel(operation) }}</button><span class="cell-secondary" :title="operationGroups(operation)">{{ operationGroups(operation) }}</span></td>
                 <td class="detail-cell"><button class="detail-button" :aria-label="t('qualityOps.openRound', { account: operation.account_name, time: date(operation.started_at) })" @click="operationDetails(operation)"><span>{{ t('qualityOps.details') }}</span><Icon name="arrowRight" size="sm" /></button></td>
               </tr>
@@ -156,6 +156,10 @@
           </div>
           <label class="flex items-center gap-2"><input v-model="form.pelican_config.quality.action" type="radio" value="disable_scheduling" />{{ t('qualityOps.disableScheduling') }}</label>
         </fieldset>
+<template v-if="!bulkEditing">
+        <label class="flex items-center gap-2"><input v-model="form.pelican_config.quality.trigger_on_upstream_5xx" data-testid="quality-trigger-5xx" type="checkbox" />{{ t('qualityOps.trigger5xx') }}</label>
+        <p class="text-sm text-gray-500">{{ t('qualityOps.trigger5xxHint') }}</p>
+</template>
         <template v-if="editsField('restore')"><label class="flex items-center gap-2"><input v-model="form.pelican_config.quality.auto_restore" type="checkbox" />{{ t('qualityOps.autoRestore') }}</label><p class="text-sm text-gray-500">{{ t('qualityOps.restoreHelp') }}</p></template>
         <label v-if="editsField('enabled')" class="flex items-center gap-2"><input v-model="form.enabled" type="checkbox" />{{ t('qualityOps.enabled') }}</label>
       </fieldset></form>
@@ -346,7 +350,7 @@ function resultTone(result: ScheduledTestResult) {
 function defaults() {
   return { model_id: 'gpt-6-astra', cron_expression: '*/30 * * * *', enabled: true, max_results: 100, auto_recover: false,
     pelican_config: { question_kind: 'candy' as 'candy' | typeof STATE_PROBE_QUESTION, prompt: CANDY_PROMPT, reasoning_effort: 'high', parallel_count: 1,
-      quality: { expected_answer: '21', action: 'remove_groups' as 'remove_groups' | 'disable_scheduling' | 'remove_models', remove_group_ids: [] as number[], remove_model_ids: [] as string[], auto_restore: false, judge: { group_id: 0, model_id: '', prompt: t('qualityOps.defaultJudgePrompt') } } } }
+      quality: { trigger_on_upstream_5xx: false, expected_answer: '21', action: 'remove_groups' as 'remove_groups' | 'disable_scheduling' | 'remove_models', remove_group_ids: [] as number[], remove_model_ids: [] as string[], auto_restore: false, judge: { group_id: 0, model_id: '', prompt: t('qualityOps.defaultJudgePrompt') } } } }
 }
 const form = ref(defaults())
 const isProbe = computed(() => form.value.pelican_config.question_kind === STATE_PROBE_QUESTION)
@@ -431,9 +435,9 @@ function selectQuestionKind() {
 // 探针规则不发题目、不走判题模型：提交前去掉题目、参考答案和判题配置，并行固定为 1。
 function payload() {
   if (!isProbe.value) return form.value
-  const { action, remove_group_ids, remove_model_ids, auto_restore } = form.value.pelican_config.quality
+  const { action, remove_group_ids, remove_model_ids, auto_restore, trigger_on_upstream_5xx } = form.value.pelican_config.quality
   return { ...form.value, pelican_config: { ...form.value.pelican_config, prompt: '', parallel_count: 1,
-    quality: { expected_answer: '', action, remove_group_ids: [...remove_group_ids], remove_model_ids: [...remove_model_ids], auto_restore } } }
+    quality: { expected_answer: '', action, remove_group_ids: [...remove_group_ids], remove_model_ids: [...remove_model_ids], auto_restore, trigger_on_upstream_5xx: !!trigger_on_upstream_5xx } } }
 }
 async function save() {
   if (busy.value || selectingAccounts.value) return

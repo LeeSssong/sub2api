@@ -755,9 +755,12 @@ func ProvideScheduledTestRunnerService(
 	rateLimitSvc *RateLimitService,
 	cfg *config.Config,
 	judge *QualityJudgeService,
+	rdb *redis.Client,
 ) *ScheduledTestRunnerService {
 	svc := NewScheduledTestRunnerService(planRepo, scheduledSvc, accountTestSvc, rateLimitSvc, cfg)
 	svc.judgeQuality = judge.Judge
+	svc.qualityTrigger = newQuality5xxTrigger(rdb)
+	rateLimitSvc.qualityTrigger = svc.qualityTrigger
 	if shouldStartSingleton(cfg) {
 		svc.Start()
 	}
@@ -1397,9 +1400,10 @@ func ProvideAccountOpsService(settings SettingRepository, repo AccountOpsReposit
 
 // ProvideAccountTokenGuardService 创建并启动「凭证守护」后台巡检（智能运维子页面）。
 func ProvideAccountTokenGuardService(settings SettingRepository, repo AccountTokenGuardRepository,
-	accounts AccountRepository, admin AdminService, invalidator TokenCacheInvalidator, cfg *config.Config, encryptor SecretEncryptor, rdb *redis.Client, test *AccountTestService) *AccountTokenGuardService {
+	accounts AccountRepository, admin AdminService, invalidator TokenCacheInvalidator, cfg *config.Config, encryptor SecretEncryptor, rdb *redis.Client, test *AccountTestService, email *EmailService) *AccountTokenGuardService {
 	svc := NewAccountTokenGuardService(settings, repo, accounts, admin, invalidator)
 	svc.SetEncryptor(encryptor)
+	svc.email = email
 	svc.nativeProbe = test.ProbeTokenGuardAccount
 	svc.runtimeRedis = rdb
 	if shouldStartSingleton(cfg) {

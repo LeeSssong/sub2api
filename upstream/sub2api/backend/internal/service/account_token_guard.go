@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/redis/go-redis/v9"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -79,6 +80,8 @@ type AccountTokenGuardConfig struct {
 	ReloginAccounts     []AccountTokenGuardReloginAccount `json:"relogin_accounts"`
 	RestoreSchedulable  bool                              `json:"restore_schedulable"`
 	FailStreakThreshold int                               `json:"fail_streak_threshold"`
+	EmailEnabled        bool                              `json:"email_enabled"`
+	EmailRecipient      string                            `json:"email_recipient"`
 	BarkKey             string                            `json:"bark_key"`
 	NotifyOnFix         bool                              `json:"notify_on_fix"`
 	NotifyOnFail        bool                              `json:"notify_on_fail"`
@@ -214,6 +217,7 @@ type AccountTokenGuardService struct {
 	admin        AdminService
 	invalidator  TokenCacheInvalidator
 	httpClient   *http.Client
+	email        accountOpsEmailSender
 	nativeProbe  func(context.Context, *Account, string) AccountTokenGuardProbeResult
 	encryptor    SecretEncryptor
 
@@ -254,6 +258,13 @@ func defaultAccountTokenGuardConfig() AccountTokenGuardConfig {
 
 // ValidateAccountTokenGuardConfig 校验配置范围与 URL 合法性。
 func ValidateAccountTokenGuardConfig(c AccountTokenGuardConfig) error {
+	mailConfig := defaultAccountOpsConfig()
+	mailConfig.Enabled = c.EmailEnabled
+	mailConfig.Recipient = c.EmailRecipient
+	if err := ValidateAccountOpsConfig(mailConfig); err != nil {
+		return fmt.Errorf("邮箱通知配置无效: %w", err)
+	}
+
 	if c.Mode != "" && c.Mode != "native" && c.Mode != "external" {
 		return errors.New("不支持的凭证守护模式")
 	}
@@ -339,6 +350,7 @@ func normalizeAccountTokenGuardConfig(c AccountTokenGuardConfig) AccountTokenGua
 	c.ReloginEndpoint = strings.TrimRight(strings.TrimSpace(c.ReloginEndpoint), "/")
 	c.ProbeModel = strings.TrimSpace(c.ProbeModel)
 	c.BarkKey = strings.TrimSpace(c.BarkKey)
+	c.EmailRecipient = strings.TrimSpace(c.EmailRecipient)
 	c.ProbeHeaders = normalizeGuardHeaders(c.ProbeHeaders)
 	c.ReloginHeaders = normalizeGuardHeaders(c.ReloginHeaders)
 	if c.ProbeConcurrency <= 0 {
@@ -1490,9 +1502,36 @@ func sanitizeGuardError(err error) string {
 }
 
 func (s *AccountTokenGuardService) notify(ctx context.Context, cfg AccountTokenGuardConfig, title, body string, enabled bool) {
-	if !enabled || strings.TrimSpace(cfg.BarkKey) == "" {
+	if !enabled {
 		return
 	}
+	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	var wg sync.WaitGroup
+	if cfg.EmailEnabled && cfg.EmailRecipient != "" && s.email != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.email.SendEmail(sendCtx, cfg.EmailRecipient, title, "<p>"+html.EscapeString(body)+"</p>"); err != nil {
+				slog.Warn("token guard email notification failed")
+			}
+		}()
+	}
+	if strings.TrimSpace(cfg.BarkKey) != "" {
+		wg.Add(1)
+		go func() { defer wg.Done(); s.notifyBark(sendCtx, cfg, title, body) }()
+	}
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	// SMTP has its own transport deadlines. A stalled sender must not hold up
+	// the guard cycle or delay the independently-started Bark request.
+	select {
+	case <-done:
+	case <-sendCtx.Done():
+	}
+}
+
+func (s *AccountTokenGuardService) notifyBark(ctx context.Context, cfg AccountTokenGuardConfig, title, body string) {
 	payload := map[string]any{
 		"device_key": cfg.BarkKey, "title": title, "body": truncateGuardText(body, 180),
 		"group": "codex", "level": "timeSensitive", "sound": "bell", "isArchive": 1,
@@ -1506,8 +1545,7 @@ func (s *AccountTokenGuardService) notify(ctx context.Context, cfg AccountTokenG
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	resp, err := client.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return
 	}

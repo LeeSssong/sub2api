@@ -241,7 +241,7 @@ describe('quality operations', () => {
     expect(wrapper.find('[role="alert"]').text()).toContain('qualityOps.selectGroups')
     vm.form.pelican_config.quality.remove_group_ids = [21]
     await vm.save()
-    expect(scheduledTests.create).toHaveBeenCalledWith(expect.objectContaining({ account_id: 1, auto_recover: false, pelican_config: expect.objectContaining({ quality: { expected_answer: '21', action: 'remove_groups', remove_group_ids: [21], remove_model_ids: [], auto_restore: false, judge: {group_id:21,model_id:'test-judge',prompt:'grade semantically'} } }) }))
+    expect(scheduledTests.create).toHaveBeenCalledWith(expect.objectContaining({ account_id: 1, auto_recover: false, pelican_config: expect.objectContaining({ quality: { trigger_on_upstream_5xx: false, expected_answer: '21', action: 'remove_groups', remove_group_ids: [21], remove_model_ids: [], auto_restore: false, judge: {group_id:21,model_id:'test-judge',prompt:'grade semantically'} } }) }))
     wrapper.unmount()
   })
   it('retries only accounts that were not created before a partial batch failure', async () => {
@@ -393,4 +393,16 @@ describe('quality operations', () => {
     wrapper.unmount()
   })
 
+})
+
+it('defaults 5xx triggers off and preserves opt-in for state probe rules', async () => {
+ const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
+ vm.newPlan(); await flushPromises()
+ expect((wrapper.get('[data-testid="quality-trigger-5xx"]').element as HTMLInputElement).checked).toBe(false)
+ await wrapper.get('[data-testid="quality-trigger-5xx"]').setValue(true)
+ await wrapper.get('[data-testid="quality-question-kind"]').setValue('state_probe')
+ vm.selectedAccounts = [1]; vm.form.pelican_config.quality.action = 'disable_scheduling'
+ await vm.save(); await flushPromises()
+ expect(scheduledTests.create).toHaveBeenCalledWith(expect.objectContaining({pelican_config:expect.objectContaining({quality:expect.objectContaining({trigger_on_upstream_5xx:true})})}))
+ wrapper.unmount()
 })

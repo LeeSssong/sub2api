@@ -27,6 +27,7 @@ const PelicanDeliveryContract = "所有账号使用相同交付约定：直接�
 var pelicanHTMLPattern = regexp.MustCompile(`(?i)<(?:!doctype\s+html|html|svg)[\s>]`)
 
 func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID int64, model string, cfg *PelicanTestConfig) (*ScheduledTestResult, error) {
+	ctx = context.WithValue(ctx, qualityProbeContextKey{}, true)
 	// 探针题型不下发题目，直接走门票探针。
 	if isOpenAICodexStateProbePlan(cfg) {
 		return s.runOpenAICodexStateProbeScheduled(ctx, accountID, model, cfg)
@@ -74,7 +75,7 @@ func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID
 	return &ScheduledTestResult{Status: status, ResponseText: output, ErrorMessage: message, LatencyMs: finished.Sub(started).Milliseconds(), StartedAt: started, FinishedAt: finished, PelicanConfig: &snapshot}, nil
 }
 
-func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *ScheduledTestPlan) {
+func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *ScheduledTestPlan) bool {
 	now := time.Now()
 	zone := now.Location().String()
 	if s.cfg != nil && s.cfg.Timezone != "" {
@@ -84,7 +85,11 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 	next, err := nextPlanRun(plan, now)
 	if err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "pelican plan=%d invalid config: %v", plan.ID, err)
-		return
+		return false
+	}
+	if plan.TriggerSource == quality5xxSource && plan.NextRunAt != nil && plan.NextRunAt.After(now) {
+		next = *plan.NextRunAt
+		plan.ReportExecution.ScheduledFor = &now
 	}
 	// Persisted lease prevents duplicate execution across ticks and server replicas.
 	// It also recovers automatically after a process crash.
@@ -94,8 +99,15 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 		logger.LegacyPrintf("service.scheduled_test_runner", "pelican plan=%d claim failed: %v", plan.ID, err)
 	}
 	if err != nil || !claimed {
-		return
+		return false
 	}
+	// Result-only metadata must not mutate the stored rule or shared plan config.
+	snapshot := *plan.PelicanConfig
+	snapshot.TriggerSource = plan.TriggerSource
+	if snapshot.TriggerSource == "" {
+		snapshot.TriggerSource = "scheduled"
+	}
+	plan.PelicanConfig = &snapshot
 	runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	results := make([]*ScheduledTestResult, plan.PelicanConfig.ParallelCount)
@@ -141,9 +153,21 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 	if succeeded && plan.AutoRecover && plan.PelicanConfig.Quality == nil && !isBuiltinCandyPlan(plan.PelicanConfig) && !isOpenAICodexStateProbePlan(plan.PelicanConfig) {
 		s.tryRecoverAccount(saveCtx, plan.AccountID, plan.ID)
 	}
-	if err := s.planRepo.FinishPelican(saveCtx, plan.ID, until, time.Now()); err != nil {
-		logger.LegacyPrintf("service.scheduled_test_runner", "pelican plan=%d finish failed: %v", plan.ID, err)
+	finished := time.Now()
+	if plan.TriggerSource == quality5xxSource {
+		following, nextErr := nextPlanRun(plan, finished)
+		if nextErr != nil {
+			return false
+		}
+		err = s.planRepo.FinishTriggeredQuality(saveCtx, plan, until, finished, following)
+	} else {
+		err = s.planRepo.FinishPelican(saveCtx, plan.ID, until, finished)
 	}
+	if err != nil {
+		logger.LegacyPrintf("service.scheduled_test_runner", "pelican plan=%d finish failed: %v", plan.ID, err)
+		return false
+	}
+	return true
 }
 
 // Each sample runs in its own goroutine, outside Gin recovery. Always return a
