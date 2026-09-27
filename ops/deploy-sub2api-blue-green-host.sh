@@ -1340,7 +1340,7 @@ while True:
             if int(running) == 0:
                 if holder.poll() is not None:
                     raise RuntimeError("worker drain lock was lost")
-                open(marker, "x").close()
+                open(marker, "a").close()
                 subprocess.run(["docker", "stop", "--time", "60", worker],
                                check=True, timeout=65, stdout=subprocess.DEVNULL)
                 observed = subprocess.check_output(
@@ -1349,11 +1349,6 @@ while True:
                 if observed != "false":
                     raise RuntimeError("old worker did not stop")
                 print("worker_schedule_drain=completed", flush=True)
-                try:
-                    import os
-                    os.unlink(marker)
-                except FileNotFoundError:
-                    pass
                 break
         if time.monotonic() >= deadline:
             raise RuntimeError("worker schedule drain timed out; active API retained")
@@ -1411,6 +1406,20 @@ restore_previous() {
         --env-file "$secret_env" --env-file "$rollback_env" -f "$base_compose")
       if [[ "$maintenance_stopped" == true ]]; then
         run_post_stop_command "${compose_rollback[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" "sub2api-$previous_slot" >/dev/null 2>&1 || rollback_ok=false
+      fi
+      if [[ "$maintenance_stopped" == false && "$online_migration_transition" == false ]]; then
+        local rollback_worker_id rollback_worker_running
+        rollback_worker_id=$("${compose_rollback[@]}" ps -a -q sub2api-worker) || return 1
+        rollback_worker_running=false
+        if [[ -n "$rollback_worker_id" ]]; then
+          [[ "$rollback_worker_id" != *$'\n'* && "$rollback_worker_id" != *' '* ]] || return 1
+          rollback_worker_running=$(docker inspect "$rollback_worker_id" --format '{{.State.Running}}') || return 1
+        fi
+        if [[ "$rollback_worker_running" == true ]]; then
+          stop_worker_after_schedule_drain "$rollback_postgres_id" "$rollback_worker_id" 90 || return 1
+        elif [[ "$rollback_worker_running" != false ]]; then
+          return 1
+        fi
       fi
       run_post_stop_command "${compose_rollback[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" --force-recreate sub2api-worker >/dev/null 2>&1 || rollback_ok=false
     fi
@@ -1615,6 +1624,12 @@ recover_partial() {
   state_persisted=$recovery_cutover
   persistence_started=$recovery_cutover
   worker_update_started=$recovery_worker
+  local recovery_attempt
+  recovery_attempt=$(jq -r .attempt_id "$existing")
+  [[ "$recovery_attempt" =~ ^[A-Za-z0-9._-]+$ ]] || fail 'invalid recovery attempt ID'
+  if [[ -e "$record_root/.$recovery_attempt.worker-stop" ]]; then
+    worker_update_started=true
+  fi
   failure_reason=interrupted_release_recovered
   partial_path=$existing
   if restore_previous; then
@@ -1954,7 +1969,8 @@ cp "$release_env" "$candidate_env"
 chmod 0600 "$candidate_env"
 candidate_blue=$state_blue_image
 candidate_green=$state_green_image
-candidate_worker=$state_worker_image
+candidate_worker=$requested_image
+[[ "$preserve_worker" == true ]] && candidate_worker=$state_worker_image
 candidate_blue_image_id=$state_blue_image_id
 candidate_green_image_id=$state_green_image_id
 candidate_worker_image_id=$requested_image_id

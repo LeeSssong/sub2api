@@ -5,7 +5,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
 EXECUTOR=${EXECUTOR_UNDER_TEST:-"$ROOT/ops/deploy-sub2api-blue-green-host.sh"}
 FIXTURE=$(mktemp -d "${TMPDIR:-/tmp}/sub2api-blue-green-host.XXXXXX")
 FIXTURE=$(cd "$FIXTURE" && pwd -P)
-trap 'rm -rf -- "$FIXTURE"' EXIT
+trap 'if [[ ${KEEP_FIXTURE:-false} == true ]]; then printf "fixture=%s\n" "$FIXTURE"; else rm -rf -- "$FIXTURE"; fi' EXIT
 
 monotonic_millis() {
   perl -MTime::HiRes=clock_gettime,CLOCK_MONOTONIC -e \
@@ -334,7 +334,7 @@ JSON
     printf 'blue-id\n'
     ;;
   *' ps -q sub2api-green') printf 'green-id\n' ;;
-	*' ps -q sub2api-worker')
+	*' ps -q sub2api-worker'|*' ps -a -q sub2api-worker')
 		if [[ "$scenario" == multiple_workers ]]; then printf 'worker-id\nworker-id-2\n'; else printf 'worker-id\n'; fi
 		;;
 	*' ps -q model-detector') printf 'detector-id\n' ;;
@@ -387,6 +387,15 @@ JSON
 		if [[ "$scenario" == worker_role_all ]]; then printf 'SERVER_PROCESS_ROLE=all\n'; else printf 'SERVER_PROCESS_ROLE=worker\n'; fi
 		;;
 	'inspect legacy-id --format {{range .Config.Env}}{{println .}}{{end}}') printf 'SERVER_PROCESS_ROLE=all\n' ;;
+  'exec -i postgres-id sh -c '* )
+    while IFS= read -r statement; do
+      case "$statement" in
+        'FROM scheduled_test_plans;') printf 'worker_guard|0|0\n' ;;
+        'ROLLBACK;') exit 0 ;;
+      esac
+    done
+    ;;
+  'inspect worker-id --format {{.State.Running}}') printf 'false\n' ;;
   *'fusion-receipts'*) if [[ "$scenario" == fusion_partial_migration || "$scenario" == september26_receipt_mismatch ]]; then printf '%064d\n' 7; else printf '%s\n' "${EXPECTED_MIGRATIONS_HASH:?}"; fi ;;
   *' -migrate-only') [[ "$scenario" != fusion_partial_migration ]] || exit 1 ;;
   *'exec -T postgres '*'schema_migrations'*) printf '%s\n' "${FAKE_ROLLBACK_SCHEMA_COMPAT:-t}" ;;
@@ -551,7 +560,11 @@ EOF
 
 run_executor() {
 	local executor_mode=${EXECUTOR_MODE:-production}
-  local expected_worker_image=$PREVIOUS_IMAGE
+  local expected_worker_image=$IMAGE
+  local executor_arg
+  for executor_arg in "$@"; do
+    [[ "$executor_arg" != PRESERVE_WORKER=true ]] || expected_worker_image=$PREVIOUS_IMAGE
+  done
   local requested_image=$IMAGE
   if [[ "${PRELOADED_MODE:-false}" == true ]]; then
     requested_image=${PRELOADED_REQUESTED_IMAGE:?}
@@ -2565,12 +2578,12 @@ test_success_order_and_atomic_records() {
     'docker compose .* up --no-deps -d sub2api-green' \
     'docker run --rm --network sub2api_default .*health' \
     'caddy caddy validate' \
+    'docker compose .* up --no-deps -d --force-recreate sub2api-worker' \
+    'docker inspect worker-id' \
     'caddy caddy reload' \
     'curl .*https://example.invalid/health' \
     'persist release-env' \
     'persist release-state' \
-    'docker compose .* up --no-deps -d --force-recreate sub2api-worker' \
-    'docker inspect worker-id' \
     'docker compose .* ps -q postgres' \
     'persist success-record'; do
     line=$(awk -v pattern="$pattern" -v after="$previous" 'NR > after && $0 ~ pattern { print NR; exit }' "$EVENT_LOG")
@@ -2990,6 +3003,16 @@ EOF
 }
 
 test_review_recovery_and_cleanup() {
+  setup_case marker_recovery
+  write_meminfo
+  write_review_partial "$CASE_DIR/records/interrupted-worker.partial" interrupted-worker false false false green sub2api-green:8080 "$IMAGE"
+  : >"$CASE_DIR/records/.interrupted-worker.worker-stop"
+  expect_failure marker_recovery run_executor
+  grep -q 'ps -a -q sub2api-worker' "$EVENT_LOG" || fail 'recovery did not inspect stopped worker'
+  grep -q 'up --no-deps -d --force-recreate sub2api-worker' "$EVENT_LOG" || fail 'worker marker did not recover stopped worker'
+  record=$(find "$CASE_DIR/records" -name '*.json' -print -quit)
+  "$REAL_JQ" -e '.state == "rolled_back" and .rolled_back == true' "$record" >/dev/null || fail 'worker marker recovery failed'
+
   setup_case crash_after_reload
   write_meminfo
   write_review_partial "$CASE_DIR/records/reload.partial" reload true false false green sub2api-green:8080 "$IMAGE"
@@ -3029,8 +3052,8 @@ test_review_recovery_and_cleanup() {
   expect_failure worker_rollback_failure run_executor FAKE_SCENARIO=worker_rollback_failure
   [[ -n "$(find "$CASE_DIR/records" -maxdepth 1 -name '*.partial' -print -quit)" ]] \
     || fail 'failed worker rollback discarded recovery checkpoint'
-  grep -q '^SUB2API_ACTIVE_SLOT=green$' "$CASE_DIR/release.env" \
-    || fail 'old release state was persisted before worker rollback verification'
+  grep -q '^SUB2API_ACTIVE_SLOT=blue$' "$CASE_DIR/release.env" \
+    || fail 'pre-cutover worker failure changed persisted active slot'
 
   setup_case committed_success_partial
   write_meminfo
