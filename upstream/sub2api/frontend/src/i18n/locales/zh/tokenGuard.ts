@@ -1,4 +1,8 @@
 export default {
+  "notifyOnAuth": "令牌失效通知",
+  "sharedRecipient": "留空复用账号运维的收件邮箱",
+  "authNotifyHint": "首次检测到认证失效时通知；连续失效不重复发送",
+
   "twoFA": {
   "title": "2FA 登录导入",
   "label": "邮箱、密码与 2FA 首次登录",

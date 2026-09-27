@@ -1,4 +1,8 @@
 export default {
+  "notifyOnAuth": "Token invalid notification",
+  "sharedRecipient": "Leave blank to use Account Operations recipient",
+  "authNotifyHint": "Notify on transition to authentication failure; repeated failures are suppressed",
+
   "twoFA": {
   "title": "2FA login and import",
   "label": "Initial login with email, password and 2FA",

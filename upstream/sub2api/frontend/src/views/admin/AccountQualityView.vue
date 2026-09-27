@@ -31,7 +31,7 @@
               <div class="rule-card-top"><label class="rule-checkbox"><input v-model="selectedRuleIds" type="checkbox" :value="plan.id" :disabled="busy || !!pending[plan.id]" :aria-label="t('qualityOps.selectRule', { account: name(plan), id: plan.id })" /></label><button class="rule-select" :aria-pressed="store.selectedPlanId === plan.id" @click="store.selectedPlanId = plan.id"><span class="account-avatar">{{ name(plan).slice(0, 1) }}</span><span class="min-w-0"><strong :title="name(plan)">{{ name(plan) }}</strong><span class="rule-meta">#{{ plan.account_id }}<span>·</span>{{ t('qualityOps.rule') }} {{ plan.id }}</span></span></button><button class="state-toggle" :class="plan.enabled ? 'state-enabled' : 'state-paused'" :disabled="busy || !!pending[plan.id]" :title="t(plan.enabled ? 'qualityOps.pause' : 'qualityOps.enable')" @click="toggle(plan)"><span />{{ t(plan.enabled ? 'qualityOps.activeShort' : 'qualityOps.paused') }}</button></div>
               <div class="rule-model"><code>{{ plan.model_id }}</code><span v-if="isProbePlan(plan)" class="probe-tag" data-testid="quality-probe-tag">{{ t('qualityOps.probeTag') }}</span><span v-if="running(plan)" class="running-label">{{ t('qualityOps.running') }}</span></div>
               <div class="rule-target" :title="planGroups(plan)"><Icon name="users" size="xs" /><span>{{ planGroups(plan) }}</span></div>
-              <div class="rule-schedule"><span>{{ t('qualityOps.nextRun') }}</span><time :datetime="plan.next_run_at || undefined">{{ plan.enabled ? date(plan.next_run_at) : '—' }}</time></div>
+              <span v-if="plan.pelican_config?.quality?.trigger_on_upstream_5xx" class="probe-tag">{{ t('qualityOps.trigger5xxShort') }}</span><div class="rule-schedule"><span>{{ t('qualityOps.nextRun') }}</span><time :datetime="plan.next_run_at || undefined">{{ plan.enabled ? date(plan.next_run_at) : '—' }}</time></div>
               <div v-if="!isProbePlan(plan) && !plan.pelican_config?.quality?.judge" class="rule-warning">{{ t('qualityOps.configureJudge') }}</div>
               <footer class="rule-actions"><button @click="history(plan)"><Icon name="document" size="xs" />{{ t('qualityOps.historyShort') }}</button><button :disabled="!!pending[plan.id]" @click="edit(plan)">{{ t('qualityOps.editShort') }}</button><button :disabled="!!pending[plan.id] || !plan.enabled || running(plan)" @click="run(plan)"><Icon name="play" size="xs" />{{ pending[plan.id] === 'run' ? t('qualityOps.submitting') : t('qualityOps.runShort') }}</button></footer>
             </article>
@@ -48,7 +48,7 @@
               <tr v-for="operation in filteredOperations" :key="operation.id" :class="{ 'selected-row': detailOperation?.id === operation.id && !!historyPlan }" :data-operation-id="operation.id">
                 <td class="time-cell" :data-label="t('qualityOps.time')"><strong>{{ clock(operation.started_at) }}</strong><span>{{ day(operation.started_at) }}</span></td>
                 <td class="account-cell"><button :title="operation.account_name" @click="store.selectedPlanId = operation.plan_id"><strong>{{ operation.account_name || `#${operation.account_id}` }}</strong></button><span>{{ t('qualityOps.rule') }} {{ operation.plan_id }}<span class="mx-1">·</span>#{{ operation.account_id }}</span></td>
-                <td :data-label="t('qualityOps.testResult')"><span class="test-count" :class="allPassed(operation) ? 'test-passed' : 'test-other'"><Icon :name="allPassed(operation) ? 'checkCircle' : 'exclamationCircle'" size="xs" />{{ operation.passed_count }} / {{ operation.total_count }}</span><span class="cell-secondary">{{ t(allPassed(operation) ? 'qualityOps.roundPassed' : 'qualityOps.roundNotPassed') }}</span></td>
+                <td :data-label="t('qualityOps.testResult')"><span class="test-count" :class="allPassed(operation) ? 'test-passed' : 'test-other'"><Icon :name="allPassed(operation) ? 'checkCircle' : 'exclamationCircle'" size="xs" />{{ operation.passed_count }} / {{ operation.total_count }}</span><span v-if="operation.pelican_config?.trigger_source === 'upstream_5xx'" class="probe-tag">{{ t('qualityOps.trigger5xxShort') }}</span><span class="cell-secondary">{{ t(allPassed(operation) ? 'qualityOps.roundPassed' : 'qualityOps.roundNotPassed') }}</span></td>
                 <td class="action-cell" :data-label="t('qualityOps.accountAction')"><button class="outcome-badge" :class="tone(operation.quality_action)" @click="operationDetails(operation)"><span />{{ operationLabel(operation) }}</button><span class="cell-secondary" :title="operationGroups(operation)">{{ operationGroups(operation) }}</span></td>
                 <td class="detail-cell"><button class="detail-button" :aria-label="t('qualityOps.openRound', { account: operation.account_name, time: date(operation.started_at) })" @click="operationDetails(operation)"><span>{{ t('qualityOps.details') }}</span><Icon name="arrowRight" size="sm" /></button></td>
               </tr>
@@ -144,8 +144,22 @@
           <div v-if="form.pelican_config.quality.action === 'remove_groups'" class="grid max-h-40 gap-2 overflow-auto pl-6 sm:grid-cols-2">
             <label v-for="group in groups" :key="group.id" class="flex items-center gap-2 text-sm"><input v-model="form.pelican_config.quality.remove_group_ids" type="checkbox" :value="group.id" />{{ group.name }} #{{ group.id }}</label>
           </div>
+          <label class="flex items-center gap-2"><input v-model="form.pelican_config.quality.action" type="radio" value="remove_models" />{{ t('qualityOps.removeModels') }}</label>
+          <div v-if="form.pelican_config.quality.action === 'remove_models'" class="space-y-2 pl-6">
+            <p class="text-sm text-gray-500">{{ t('qualityOps.removeModelsHelp') }}</p>
+            <p v-if="modelChoicesLoading" role="status">{{ t('qualityOps.loading') }}</p>
+            <p v-else-if="modelChoicesError" role="alert">{{ modelChoicesError }}</p>
+            <p v-else-if="!modelChoices.length" class="text-sm text-gray-500">{{ t('qualityOps.noExplicitModels') }}</p>
+            <div v-else class="grid max-h-40 gap-2 overflow-auto sm:grid-cols-2">
+              <label v-for="model in modelChoices" :key="model" class="flex items-center gap-2 text-sm"><input v-model="form.pelican_config.quality.remove_model_ids" type="checkbox" :value="model" :data-quality-model="model" />{{ model }}</label>
+            </div>
+          </div>
           <label class="flex items-center gap-2"><input v-model="form.pelican_config.quality.action" type="radio" value="disable_scheduling" />{{ t('qualityOps.disableScheduling') }}</label>
         </fieldset>
+<template v-if="!bulkEditing">
+        <label class="flex items-center gap-2"><input v-model="form.pelican_config.quality.trigger_on_upstream_5xx" data-testid="quality-trigger-5xx" type="checkbox" />{{ t('qualityOps.trigger5xx') }}</label>
+        <p class="text-sm text-gray-500">{{ t('qualityOps.trigger5xxHint') }}</p>
+</template>
         <template v-if="editsField('restore')"><label class="flex items-center gap-2"><input v-model="form.pelican_config.quality.auto_restore" type="checkbox" />{{ t('qualityOps.autoRestore') }}</label><p class="text-sm text-gray-500">{{ t('qualityOps.restoreHelp') }}</p></template>
         <label v-if="editsField('enabled')" class="flex items-center gap-2"><input v-model="form.enabled" type="checkbox" />{{ t('qualityOps.enabled') }}</label>
       </fieldset></form>
@@ -232,6 +246,9 @@ watch(showAccountPicker, (show) => { if (!show) invalidateAccountRequests() }, {
 const pending = ref<Record<number, string>>({}), deleteTarget = ref<ScheduledTestPlan | null>(null), deleting = ref(false)
 const discardPrompt = ref(false), initialForm = ref('')
 const judgeModels = ref<string[]>([])
+const modelChoices = ref<string[]>([]), modelChoicesLoading = ref(false), modelChoicesError = ref('')
+const accountModelLists = ref<string[][]>([])
+let modelChoicesRequest = 0
 let judgeModelsRequest = 0, accountRequest = 0, detailRequest = 0, answerRequest = 0
 let alive = true, poll: ReturnType<typeof setInterval> | undefined
 const historyPlan = ref<ScheduledTestPlan | null>(null), detailOperation = ref<QualityOperation | null>(null)
@@ -242,7 +259,7 @@ const loadedAnswers = new Map<number, ScheduledTestResult>()
 const identity = () => auth.user ? `${auth.user.id}:${auth.user.role}` : ''
 const refreshing = computed(() => store.rulesLoading || store.operationsLoading)
 const enabledCount = computed(() => plans.value.filter(p => p.enabled).length)
-const attentionActions = new Set(['restore_conflict', 'action_error'])
+const attentionActions = new Set(['restore_conflict', 'action_error', 'model_removal_blocked'])
 const attentionCount = computed(() => {
   const latest = new Map<number, QualityOperation>()
   for (const operation of operations.value) if (!latest.has(operation.plan_id)) latest.set(operation.plan_id, operation)
@@ -285,23 +302,26 @@ function day(value: string | undefined) { return value ? new Date(value).toLocal
 function running(plan: ScheduledTestPlan) { return !!plan.running_until && Date.parse(plan.running_until) > Date.now() }
 function allPassed(op: QualityOperation) { return op.total_count > 0 && op.passed_count === op.total_count }
 function planGroups(plan: ScheduledTestPlan) {
+  if (plan.pelican_config?.quality?.action === 'remove_models') return (plan.pelican_config.quality.remove_model_ids || []).join(' / ')
   return plan.pelican_config?.quality?.action === 'remove_groups'
     ? plan.pelican_config.quality.remove_group_ids.map(id => groupNames.value[id] || `#${id}`).join(' / ')
     : t('qualityOps.disableSchedulingShort')
 }
 function operationGroups(op: QualityOperation) {
+  if (op.pelican_config?.quality?.action === 'remove_models') return (op.pelican_config.quality.remove_model_ids || []).join(' / ')
   return op.pelican_config?.quality?.action === 'remove_groups'
     ? op.pelican_config.quality.remove_group_ids.map(id => groupNames.value[id] || `#${id}`).join(' / ')
     : t('qualityOps.disableSchedulingShort')
 }
 function actionLabel(action?: string) { const key = `qualityOps.outcomes.${action}`; return action && te(key) ? t(key) : '—' }
 function operationLabel(op: QualityOperation) {
+  if (op.quality_action === 'restored' && op.pelican_config?.quality?.action === 'remove_models') return t('qualityOps.modelsRestored')
   return op.quality_action === 'restored' && op.pelican_config?.quality?.action === 'remove_groups' ? t('qualityOps.groupsRestored') : actionLabel(op.quality_action)
 }
 function tone(action?: string) {
   if (attentionActions.has(action || '')) return 'tone-warning'
   if (['restored', 'passed'].includes(action || '')) return 'tone-success'
-  if (['groups_removed', 'scheduling_disabled', 'already_quarantined'].includes(action || '')) return 'tone-muted'
+  if (['groups_removed', 'models_removed', 'scheduling_disabled', 'already_quarantined'].includes(action || '')) return 'tone-muted'
   return 'tone-neutral'
 }
 function actionExplanation(action: string) {
@@ -330,7 +350,7 @@ function resultTone(result: ScheduledTestResult) {
 function defaults() {
   return { model_id: 'gpt-6-astra', cron_expression: '*/30 * * * *', enabled: true, max_results: 100, auto_recover: false,
     pelican_config: { question_kind: 'candy' as 'candy' | typeof STATE_PROBE_QUESTION, prompt: CANDY_PROMPT, reasoning_effort: 'high', parallel_count: 1,
-      quality: { expected_answer: '21', action: 'remove_groups' as 'remove_groups' | 'disable_scheduling', remove_group_ids: [] as number[], auto_restore: false, judge: { group_id: 0, model_id: '', prompt: t('qualityOps.defaultJudgePrompt') } } } }
+      quality: { trigger_on_upstream_5xx: false, expected_answer: '21', action: 'remove_groups' as 'remove_groups' | 'disable_scheduling' | 'remove_models', remove_group_ids: [] as number[], remove_model_ids: [] as string[], auto_restore: false, judge: { group_id: 0, model_id: '', prompt: t('qualityOps.defaultJudgePrompt') } } } }
 }
 const form = ref(defaults())
 const isProbe = computed(() => form.value.pelican_config.question_kind === STATE_PROBE_QUESTION)
@@ -385,6 +405,7 @@ function edit(plan: ScheduledTestPlan) {
   bulkEditing.value = false; bulkRuleIds.value = []; bulkFields.value = []; bulkProgress.value = ''
   closeDetails(); error.value = ''; editing.value = plan.id; selectedAccounts.value = []
   form.value = { ...defaults(), model_id: plan.model_id, cron_expression: plan.cron_expression, enabled: plan.enabled, max_results: plan.max_results, pelican_config: { ...defaults().pelican_config, ...JSON.parse(JSON.stringify(plan.pelican_config || {})) } }
+  form.value.pelican_config.quality.remove_model_ids ||= []
   form.value.pelican_config.quality.judge ||= defaults().pelican_config.quality.judge
   showForm.value = true; initialForm.value = formSnapshot(); void loadJudgeModels()
 }
@@ -414,9 +435,9 @@ function selectQuestionKind() {
 // 探针规则不发题目、不走判题模型：提交前去掉题目、参考答案和判题配置，并行固定为 1。
 function payload() {
   if (!isProbe.value) return form.value
-  const { action, remove_group_ids, auto_restore } = form.value.pelican_config.quality
+  const { action, remove_group_ids, remove_model_ids, auto_restore, trigger_on_upstream_5xx } = form.value.pelican_config.quality
   return { ...form.value, pelican_config: { ...form.value.pelican_config, prompt: '', parallel_count: 1,
-    quality: { expected_answer: '', action, remove_group_ids: [...remove_group_ids], auto_restore } } }
+    quality: { expected_answer: '', action, remove_group_ids: [...remove_group_ids], remove_model_ids: [...remove_model_ids], auto_restore, trigger_on_upstream_5xx: !!trigger_on_upstream_5xx } } }
 }
 async function save() {
   if (busy.value || selectingAccounts.value) return
@@ -428,6 +449,11 @@ async function save() {
     const judge = form.value.pelican_config.quality.judge
     if (!isProbe.value && (!judge.group_id || !judge.model_id.trim() || !judge.prompt.trim())) throw new Error(t('qualityOps.configureJudge'))
     if (form.value.pelican_config.quality.action === 'remove_groups' && !form.value.pelican_config.quality.remove_group_ids.length) throw new Error(t('qualityOps.selectGroups'))
+    if (form.value.pelican_config.quality.action === 'remove_models') {
+      if (!form.value.pelican_config.quality.remove_model_ids.length) throw new Error(t('qualityOps.selectModels'))
+      if (modelChoicesLoading.value || modelChoicesError.value) throw new Error(modelChoicesError.value || t('qualityOps.loading'))
+      if (accountModelLists.value.some(list => !list.some(model => !form.value.pelican_config.quality.remove_model_ids.includes(model)))) throw new Error(t('qualityOps.keepOneModel'))
+    }
     const body = payload()
     if (editing.value) { await scheduledTests.update(editing.value, body); changed = true }
     else {
@@ -522,6 +548,28 @@ async function loadJudgeModels() {
   try { const models = await groupsAPI.getModelAllowlistCandidates(id); if (alive && request === judgeModelsRequest) judgeModels.value = models }
   catch { if (alive && request === judgeModelsRequest) error.value = t('qualityOps.judgeModelsUnavailable') }
 }
+async function loadModelChoices() {
+  const request = ++modelChoicesRequest
+  modelChoices.value = []; accountModelLists.value = []; modelChoicesError.value = ''; modelChoicesLoading.value = false
+  if (!showForm.value || form.value.pelican_config.quality.action !== 'remove_models') return
+  const ids = bulkEditing.value ? [...new Set(plans.value.filter(p => bulkRuleIds.value.includes(p.id)).map(p => p.account_id))] : editing.value ? [plans.value.find(p => p.id === editing.value)?.account_id].filter((id): id is number => !!id) : [...selectedAccounts.value]
+  if (!ids.length) return
+  modelChoicesLoading.value = true
+  try {
+    const loaded = await Promise.all(ids.map(id => accountsAPI.getById(id)))
+    if (!alive || request !== modelChoicesRequest) return
+    const lists = loaded.map(account => Object.keys(account.credentials?.model_mapping || {}))
+    if (loaded.some((account, index) => !lists[index].length || lists[index].some(model => model.includes('*')) || (account.platform === 'openai' && (account.extra?.openai_passthrough ?? account.extra?.openai_oauth_passthrough)))) throw new Error(t('qualityOps.unsupportedModelConfig'))
+    accountModelLists.value = lists
+    const common = lists[0].filter(model => lists.every(list => list.includes(model)))
+    // Keep previously selected entries visible while the rule owns their removal.
+    const previous = bulkEditing.value ? plans.value.filter(p => bulkRuleIds.value.includes(p.id)).flatMap(p => p.pelican_config?.quality?.remove_model_ids || []) : editing.value ? (plans.value.find(p => p.id === editing.value)?.pelican_config?.quality?.remove_model_ids || []) : []
+    modelChoices.value = [...new Set([...common, ...previous])].sort()
+    form.value.pelican_config.quality.remove_model_ids = form.value.pelican_config.quality.remove_model_ids.filter(model => modelChoices.value.includes(model))
+  } catch (e) { if (alive && request === modelChoicesRequest) modelChoicesError.value = message(e) }
+  finally { if (request === modelChoicesRequest) modelChoicesLoading.value = false }
+}
+watch(() => [showForm.value, editing.value, bulkEditing.value, bulkRuleIds.value.join(','), selectedAccounts.value.join(','), form.value.pelican_config.quality.action], () => { void loadModelChoices() }, { flush: 'sync' })
 function closeDetails() { detailRequest++; answerRequest++; historyPlan.value = null; detailOperation.value = null; selectedResult.value = null; selectedResultId.value = null; results.value = []; detailsError.value = ''; detailsLoading.value = answerLoading.value = false; loadedAnswers.clear() }
 async function history(plan: ScheduledTestPlan) {
   closeDetails(); historyPlan.value = plan; detailsLoading.value = true
@@ -560,7 +608,7 @@ function retryDetails() {
   else if (historyPlan.value) void history(historyPlan.value)
 }
 function navigateOperation(offset: number) { const next = filteredOperations.value[operationIndex.value + offset]; if (next) void operationDetails(next) }
-watch(() => identity(), () => { error.value = notice.value = ''; closeDetails(); showForm.value = false; discardPrompt.value = false; deleteTarget.value = null; accounts.value = []; selectedRuleIds.value = []; bulkRuleIds.value = []; bulkEditing.value = false; accountRequest++; judgeModelsRequest++ })
+watch(() => identity(), () => { error.value = notice.value = ''; closeDetails(); showForm.value = false; discardPrompt.value = false; deleteTarget.value = null; accounts.value = []; selectedRuleIds.value = []; bulkRuleIds.value = []; bulkEditing.value = false; accountRequest++; judgeModelsRequest++; modelChoicesRequest++; modelChoices.value = []; accountModelLists.value = [] })
 onMounted(() => {
   void load()
   poll = setInterval(() => { if (document.visibilityState === 'visible' && !refreshing.value) { void store.refreshRules(); void store.refreshOperations() } }, 30_000)

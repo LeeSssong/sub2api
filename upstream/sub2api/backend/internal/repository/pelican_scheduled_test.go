@@ -23,7 +23,7 @@ func TestPelicanClaimUsesDatabaseLeaseAndSavedVersion(t *testing.T) {
 	query := `(?s)UPDATE scheduled_test_plans.*enabled = true.*running_until IS NULL.*updated_at = \$5.*next_run_at = \$6.*deleted_at IS NULL`
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT pg_try_advisory_xact_lock").WithArgs(plan.AccountID).WillReturnRows(sqlmock.NewRows([]string{"locked"}).AddRow(true))
-	mock.ExpectExec(query).WithArgs(plan.ID, now, until, next, plan.UpdatedAt, due).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(query).WithArgs(plan.ID, now, until, next, plan.UpdatedAt, due, false).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectQuery("SELECT COALESCE.*account_groups").WithArgs(plan.AccountID).WillReturnRows(sqlmock.NewRows([]string{"group_ids"}).AddRow("{3,7}"))
 	mock.ExpectCommit()
 	ok, err := repo.ClaimPelican(context.Background(), plan, now, until, next)
@@ -31,7 +31,7 @@ func TestPelicanClaimUsesDatabaseLeaseAndSavedVersion(t *testing.T) {
 	require.True(t, ok)
 	mock.ExpectBegin()
 	mock.ExpectQuery("SELECT pg_try_advisory_xact_lock").WithArgs(plan.AccountID).WillReturnRows(sqlmock.NewRows([]string{"locked"}).AddRow(true))
-	mock.ExpectExec(query).WithArgs(plan.ID, now, until, next, plan.UpdatedAt, due).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(query).WithArgs(plan.ID, now, until, next, plan.UpdatedAt, due, false).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectCommit()
 	ok, err = repo.ClaimPelican(context.Background(), plan, now, until, next)
 	require.NoError(t, err)

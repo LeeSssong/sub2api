@@ -85,6 +85,7 @@ export interface TokenGuardConfig {
   restore_schedulable: boolean
   fail_streak_threshold: number
   bark_key: string
+  notify_on_auth?: boolean
   notify_on_fix: boolean
   notify_on_fail: boolean
 }

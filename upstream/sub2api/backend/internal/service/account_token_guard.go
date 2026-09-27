@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/redis/go-redis/v9"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -79,7 +80,10 @@ type AccountTokenGuardConfig struct {
 	ReloginAccounts     []AccountTokenGuardReloginAccount `json:"relogin_accounts"`
 	RestoreSchedulable  bool                              `json:"restore_schedulable"`
 	FailStreakThreshold int                               `json:"fail_streak_threshold"`
+	EmailEnabled        bool                              `json:"email_enabled"`
+	EmailRecipient      string                            `json:"email_recipient"`
 	BarkKey             string                            `json:"bark_key"`
+	NotifyOnAuth        bool                              `json:"notify_on_auth"`
 	NotifyOnFix         bool                              `json:"notify_on_fix"`
 	NotifyOnFail        bool                              `json:"notify_on_fail"`
 }
@@ -214,6 +218,7 @@ type AccountTokenGuardService struct {
 	admin        AdminService
 	invalidator  TokenCacheInvalidator
 	httpClient   *http.Client
+	email        accountOpsEmailSender
 	nativeProbe  func(context.Context, *Account, string) AccountTokenGuardProbeResult
 	encryptor    SecretEncryptor
 
@@ -254,6 +259,13 @@ func defaultAccountTokenGuardConfig() AccountTokenGuardConfig {
 
 // ValidateAccountTokenGuardConfig 校验配置范围与 URL 合法性。
 func ValidateAccountTokenGuardConfig(c AccountTokenGuardConfig) error {
+	mailConfig := defaultAccountOpsConfig()
+	mailConfig.Enabled = c.EmailEnabled && c.EmailRecipient != ""
+	mailConfig.Recipient = c.EmailRecipient
+	if err := ValidateAccountOpsConfig(mailConfig); err != nil {
+		return fmt.Errorf("邮箱通知配置无效: %w", err)
+	}
+
 	if c.Mode != "" && c.Mode != "native" && c.Mode != "external" {
 		return errors.New("不支持的凭证守护模式")
 	}
@@ -339,6 +351,7 @@ func normalizeAccountTokenGuardConfig(c AccountTokenGuardConfig) AccountTokenGua
 	c.ReloginEndpoint = strings.TrimRight(strings.TrimSpace(c.ReloginEndpoint), "/")
 	c.ProbeModel = strings.TrimSpace(c.ProbeModel)
 	c.BarkKey = strings.TrimSpace(c.BarkKey)
+	c.EmailRecipient = strings.TrimSpace(c.EmailRecipient)
 	c.ProbeHeaders = normalizeGuardHeaders(c.ProbeHeaders)
 	c.ReloginHeaders = normalizeGuardHeaders(c.ReloginHeaders)
 	if c.ProbeConcurrency <= 0 {
@@ -409,6 +422,11 @@ func (s *AccountTokenGuardService) SaveConfig(ctx context.Context, cfg AccountTo
 	}
 	if err := ValidateAccountTokenGuardConfig(cfg); err != nil {
 		return AccountTokenGuardConfig{}, err
+	}
+	if cfg.EmailEnabled {
+		if _, err := s.guardEmailRecipient(ctx, cfg); err != nil {
+			return AccountTokenGuardConfig{}, err
+		}
 	}
 	raw, err := json.Marshal(cfg)
 	if err != nil {
@@ -732,6 +750,7 @@ func (s *AccountTokenGuardService) runCycle(ctx context.Context, manual bool, jo
 		if previous, ok := existing[account.ID]; ok {
 			state = previous
 		}
+		previousProbeState := state.ProbeState
 		state.ProbeState = result.State
 		state.ProbeDetail = result.Detail
 		state.LatencyMS = result.LatencyMS
@@ -763,6 +782,9 @@ func (s *AccountTokenGuardService) runCycle(ctx context.Context, manual bool, jo
 
 		case AccountTokenGuardProbeAuth:
 			stats.AuthFailed++
+			if previousProbeState != AccountTokenGuardProbeAuth {
+				s.notify(cycleCtx, cfg, "凭证守护：令牌失效", fmt.Sprintf("%s(#%d) 检测到认证失效，请检查重登结果或账号凭据", account.Name, account.ID), cfg.NotifyOnAuth)
+			}
 			state.FailStreak++
 			s.recordEvent(cycleCtx, account, AccountTokenGuardEventProbeAuth, result.Detail, result.LatencyMS)
 			if state.FailStreak >= cfg.FailStreakThreshold && cfg.Enabled && cfg.RestoreSchedulable {
@@ -1489,10 +1511,65 @@ func sanitizeGuardError(err error) string {
 	return truncateGuardText(err.Error(), 160)
 }
 
+// Empty override follows Account Operations so one address can serve both pages.
+func (s *AccountTokenGuardService) guardEmailRecipient(ctx context.Context, cfg AccountTokenGuardConfig) (string, error) {
+	recipient := strings.TrimSpace(cfg.EmailRecipient)
+	if recipient == "" && s.settings != nil {
+		raw, err := s.settings.GetValue(ctx, accountOpsSettingsKey)
+		if err != nil {
+			return "", errors.New("请先在账号运维配置收件邮箱")
+		}
+		var shared AccountOpsConfig
+		if json.Unmarshal([]byte(raw), &shared) != nil {
+			return "", errors.New("账号运维邮箱配置无法读取")
+		}
+		recipient = strings.TrimSpace(shared.Recipient)
+	}
+	check := defaultAccountOpsConfig()
+	check.Enabled = true
+	check.Recipient = recipient
+	if ValidateAccountOpsConfig(check) != nil {
+		return "", errors.New("请配置有效收件邮箱，或在账号运维设置共享邮箱")
+	}
+	return recipient, nil
+}
+
 func (s *AccountTokenGuardService) notify(ctx context.Context, cfg AccountTokenGuardConfig, title, body string, enabled bool) {
-	if !enabled || strings.TrimSpace(cfg.BarkKey) == "" {
+	if !enabled {
 		return
 	}
+	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	var wg sync.WaitGroup
+	if cfg.EmailEnabled && s.email != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			recipient, err := s.guardEmailRecipient(sendCtx, cfg)
+			if err != nil {
+				slog.Warn("token guard email recipient unavailable")
+				return
+			}
+			if err := s.email.SendEmail(sendCtx, recipient, title, "<p>"+html.EscapeString(body)+"</p>"); err != nil {
+				slog.Warn("token guard email notification failed")
+			}
+		}()
+	}
+	if strings.TrimSpace(cfg.BarkKey) != "" {
+		wg.Add(1)
+		go func() { defer wg.Done(); s.notifyBark(sendCtx, cfg, title, body) }()
+	}
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	// SMTP has its own transport deadlines. A stalled sender must not hold up
+	// the guard cycle or delay the independently-started Bark request.
+	select {
+	case <-done:
+	case <-sendCtx.Done():
+	}
+}
+
+func (s *AccountTokenGuardService) notifyBark(ctx context.Context, cfg AccountTokenGuardConfig, title, body string) {
 	payload := map[string]any{
 		"device_key": cfg.BarkKey, "title": title, "body": truncateGuardText(body, 180),
 		"group": "codex", "level": "timeSensitive", "sound": "bell", "isArchive": 1,
@@ -1506,8 +1583,7 @@ func (s *AccountTokenGuardService) notify(ctx context.Context, cfg AccountTokenG
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	resp, err := client.Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return
 	}

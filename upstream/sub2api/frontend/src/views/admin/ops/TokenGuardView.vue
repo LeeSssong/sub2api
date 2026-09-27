@@ -94,11 +94,14 @@
               <button type="button" class="btn btn-secondary mt-3" data-testid="add-credential" @click="draft.relogin_accounts.push({ account_id: 0, email: '', password: '', mfa_secret: '' })">{{ t('tokenGuard.addAccount') }}</button>
               <p v-if="credentialError" role="alert" class="field-hint text-red-600">{{ credentialError }}</p>
 
+              <label class="kind-option"><input v-model="draft.email_enabled" data-testid="guard-email-enabled" type="checkbox" /><span><strong>{{ t('tokenGuard.emailEnabled') }}</strong><small>{{ t('tokenGuard.emailHint') }}</small></span></label>
+              <label v-if="draft.email_enabled" class="field-label">{{ t('tokenGuard.emailRecipient') }}<input v-model.trim="draft.email_recipient" data-testid="guard-email-recipient" type="email" maxlength="254" autocomplete="email" class="input w-full" :placeholder="t('tokenGuard.sharedRecipient')" /></label>
               <div class="grid-2">
                 <label class="field-label">{{ t('tokenGuard.barkKey') }}<input v-model.trim="draft.bark_key" type="text" autocomplete="off" class="input w-full" placeholder="留空则不推送" /></label>
                 <div>
-                  <label class="kind-option"><input v-model="draft.notify_on_fix" type="checkbox" /><span><strong>{{ t('tokenGuard.notifyOnFix') }}</strong><small>Bark</small></span></label>
-                  <label class="kind-option"><input v-model="draft.notify_on_fail" type="checkbox" /><span><strong>{{ t('tokenGuard.notifyOnFail') }}</strong><small>Bark</small></span></label>
+                  <label class="kind-option"><input v-model="draft.notify_on_auth" data-testid="guard-notify-auth" type="checkbox" /><span><strong>{{ t('tokenGuard.notifyOnAuth') }}</strong><small>{{ t('tokenGuard.authNotifyHint') }}</small></span></label>
+                  <label class="kind-option"><input v-model="draft.notify_on_fix" type="checkbox" /><span><strong>{{ t('tokenGuard.notifyOnFix') }}</strong><small>{{ t('tokenGuard.enabledChannels') }}</small></span></label>
+                  <label class="kind-option"><input v-model="draft.notify_on_fail" type="checkbox" /><span><strong>{{ t('tokenGuard.notifyOnFail') }}</strong><small>{{ t('tokenGuard.enabledChannels') }}</small></span></label>
                 </div>
               </div>
 

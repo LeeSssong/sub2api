@@ -63,3 +63,17 @@ describe('quality rule partial updates', () => {
     expect(() => buildQualityRulePatch(plan(), input, [])).toThrow('qualityOps.selectBulkFields')
   })
 })
+
+
+describe('combined model removal and trigger settings', () => {
+  it('copies selected models instead of retaining another rule’s removal targets', () => {
+    const source = draft(); source.pelican_config.quality.action = 'remove_models'
+    source.pelican_config.quality.remove_model_ids = ['new-model']
+    const target = plan(); target.pelican_config!.quality!.remove_model_ids = ['old-model']
+    expect(buildQualityRulePatch(target, source, ['action']).pelican_config!.quality).toMatchObject({
+      action: 'remove_models', remove_model_ids: ['new-model'], remove_group_ids: [],
+    })
+    source.pelican_config.quality.remove_model_ids = []
+    expect(() => buildQualityRulePatch(target, source, ['action'])).toThrow('qualityOps.selectModels')
+  })
+})
