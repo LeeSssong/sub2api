@@ -1,0 +1,86 @@
+{
+  "observedAt": "2026-09-27T09:26:46.934Z",
+  "method": "390x844 authenticated hydration timings; structural counts and HTTP status only",
+  "samples": [
+    {
+      "seconds": 1,
+      "landed": "/admin/usage",
+      "mainPresent": false,
+      "mainFirstChildTag": null,
+      "mainFirstChildClass": null,
+      "detailTabCount": 0,
+      "tableCount": 0,
+      "mobileFieldCount": 0,
+      "desktopTableWrapperCount": 0,
+      "tbodyRowCount": 0,
+      "costIconCount": 0,
+      "spinnerCount": 0
+    },
+    {
+      "seconds": 5,
+      "landed": "/admin/usage",
+      "mainPresent": true,
+      "mainFirstChildTag": "DIV",
+      "mainFirstChildClass": "space-y-6",
+      "detailTabCount": 4,
+      "tableCount": 0,
+      "mobileFieldCount": 0,
+      "desktopTableWrapperCount": 0,
+      "tbodyRowCount": 0,
+      "costIconCount": 0,
+      "spinnerCount": 0
+    },
+    {
+      "seconds": 15,
+      "landed": "/admin/usage",
+      "mainPresent": true,
+      "mainFirstChildTag": "DIV",
+      "mainFirstChildClass": "space-y-6",
+      "detailTabCount": 4,
+      "tableCount": 0,
+      "mobileFieldCount": 0,
+      "desktopTableWrapperCount": 0,
+      "tbodyRowCount": 0,
+      "costIconCount": 0,
+      "spinnerCount": 0
+    }
+  ],
+  "networkFailures": [
+    {
+      "status": "network-failed",
+      "resourceType": "xhr"
+    },
+    {
+      "status": "network-failed",
+      "resourceType": "xhr"
+    },
+    {
+      "status": "network-failed",
+      "resourceType": "xhr"
+    },
+    {
+      "status": "network-failed",
+      "resourceType": "xhr"
+    },
+    {
+      "status": "network-failed",
+      "resourceType": "xhr"
+    },
+    {
+      "status": "network-failed",
+      "resourceType": "xhr"
+    },
+    {
+      "status": "network-failed",
+      "resourceType": "xhr"
+    },
+    {
+      "status": "network-failed",
+      "resourceType": "xhr"
+    },
+    {
+      "status": "network-failed",
+      "resourceType": "xhr"
+    }
+  ]
+}

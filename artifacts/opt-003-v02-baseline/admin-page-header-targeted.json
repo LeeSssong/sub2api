@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-09-27T08:53:16.182Z",
+  "method": "admin session; initial route states, structure only; no text, screenshots or business mutation",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/promo-codes",
+      "landed": "/admin/promo-codes",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/promo-codes",
+      "landed": "/admin/promo-codes",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "observedAt": "2026-09-27T06:57:37.514Z",
+  "method": "admin session; first visible cost editor only; no save or account identifiers recorded",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "landed": "/admin/accounts/monitor",
+      "cardCount": 113,
+      "emptyState": false,
+      "visibleEditors": 0,
+      "visibleUpstreamEditors": 113,
+      "guideBlocked": false,
+      "previewKind": "effective-cost-preview",
+      "suffix": "×",
+      "matchesGlobalLabel": false
+    },
+    {
+      "viewport": "1280x900",
+      "landed": "/admin/operations/account-profitability",
+      "cardCount": 0,
+      "emptyState": false,
+      "visibleEditors": 0,
+      "previewKind": null,
+      "suffix": null,
+      "matchesGlobalLabel": null
+    },
+    {
+      "viewport": "390x844",
+      "landed": "/admin/accounts/monitor",
+      "cardCount": 113,
+      "emptyState": false,
+      "visibleEditors": 0,
+      "visibleUpstreamEditors": 113,
+      "guideBlocked": false,
+      "previewKind": "effective-cost-preview",
+      "suffix": "×",
+      "matchesGlobalLabel": false
+    },
+    {
+      "viewport": "390x844",
+      "landed": "/admin/operations/account-profitability",
+      "cardCount": 0,
+      "emptyState": false,
+      "visibleEditors": 0,
+      "previewKind": null,
+      "suffix": null,
+      "matchesGlobalLabel": null
+    }
+  ]
+}

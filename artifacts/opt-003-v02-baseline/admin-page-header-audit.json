@@ -1,0 +1,1006 @@
+{
+  "observedAt": "2026-09-27T08:47:44.989Z",
+  "method": "admin session; initial route states, structure only; no text, screenshots or business mutation",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/dashboard",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 289,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/ops",
+      "landed": "/admin/ops",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 56,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/operations/account-profitability",
+      "landed": "/admin/operations/account-profitability",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 52,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/operations/business-overview",
+      "landed": "/admin/operations/business-overview",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 56,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 247,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 372,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 521,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 947,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/audit-logs",
+      "landed": "/admin/audit-logs",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/users",
+      "landed": "/admin/users",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/groups",
+      "landed": "/admin/groups",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/channels",
+      "landed": "/admin/channels/pricing",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/channels/pricing",
+      "landed": "/admin/channels/pricing",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/channels/monitor",
+      "landed": "/admin/channels/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 56,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/monitor",
+      "landed": "/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H2",
+          "id": "codexradar-title",
+          "distanceFromMainTop": 87,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/subscriptions",
+      "landed": "/admin/subscriptions",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/accounts",
+      "landed": "/admin/accounts",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/accounts/monitor",
+      "landed": "/admin/accounts/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 68,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/announcements",
+      "landed": "/admin/announcements",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/proxies",
+      "landed": "/admin/proxies",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/redeem",
+      "landed": "/admin/redeem",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/promo-codes",
+      "landed": "/admin/promo-codes",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/scheduler-logs",
+      "landed": "/admin/scheduler-logs",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 32,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/settings",
+      "landed": "/admin/settings",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/risk-control",
+      "landed": "/admin/risk-control",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 37,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 217,
+          "nextParagraph": true,
+          "precedingParagraph": false,
+          "parentParagraphCount": 1
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 217,
+          "nextParagraph": true,
+          "precedingParagraph": false,
+          "parentParagraphCount": 1
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 604,
+          "nextParagraph": true,
+          "precedingParagraph": false,
+          "parentParagraphCount": 1
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/prompt-audit",
+      "landed": "/admin/prompt-audit",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 52,
+          "nextParagraph": false,
+          "precedingParagraph": true,
+          "parentParagraphCount": 1
+        },
+        {
+          "tag": "H2",
+          "id": "prompt-events-title",
+          "distanceFromMainTop": 193,
+          "nextParagraph": true,
+          "precedingParagraph": false,
+          "parentParagraphCount": 1
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/usage",
+      "landed": "/admin/usage",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/affiliates/invites",
+      "landed": "/admin/affiliates/invites",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/affiliates/rebates",
+      "landed": "/admin/affiliates/rebates",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/affiliates/transfers",
+      "landed": "/admin/affiliates/transfers",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/orders/dashboard",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 289,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/orders",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 289,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/orders/plans",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 289,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/dashboard",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 509,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/ops",
+      "landed": "/admin/ops",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 40,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/operations/account-profitability",
+      "landed": "/admin/operations/account-profitability",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 32,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/operations/business-overview",
+      "landed": "/admin/operations/business-overview",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 32,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 251,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 449,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 699,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 1125,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/audit-logs",
+      "landed": "/admin/audit-logs",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/users",
+      "landed": "/admin/users",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/groups",
+      "landed": "/admin/groups",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/channels",
+      "landed": "/admin/channels/pricing",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/channels/pricing",
+      "landed": "/admin/channels/pricing",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/channels/monitor",
+      "landed": "/admin/channels/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 36,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/monitor",
+      "landed": "/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H2",
+          "id": "codexradar-title",
+          "distanceFromMainTop": 65,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/subscriptions",
+      "landed": "/admin/subscriptions",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/accounts",
+      "landed": "/admin/accounts",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/accounts/monitor",
+      "landed": "/admin/accounts/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 38,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/announcements",
+      "landed": "/admin/announcements",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/proxies",
+      "landed": "/admin/proxies",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/redeem",
+      "landed": "/admin/redeem",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/promo-codes",
+      "landed": "/admin/promo-codes",
+      "appHeaderPresent": false,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": false,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/scheduler-logs",
+      "landed": "/admin/scheduler-logs",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 16,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/settings",
+      "landed": "/admin/settings",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/risk-control",
+      "landed": "/admin/risk-control",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 16,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 507,
+          "nextParagraph": true,
+          "precedingParagraph": false,
+          "parentParagraphCount": 1
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 1074,
+          "nextParagraph": true,
+          "precedingParagraph": false,
+          "parentParagraphCount": 1
+        },
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 1325,
+          "nextParagraph": true,
+          "precedingParagraph": false,
+          "parentParagraphCount": 1
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/prompt-audit",
+      "landed": "/admin/prompt-audit",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H1",
+          "id": null,
+          "distanceFromMainTop": 36,
+          "nextParagraph": false,
+          "precedingParagraph": true,
+          "parentParagraphCount": 1
+        },
+        {
+          "tag": "H2",
+          "id": "prompt-events-title",
+          "distanceFromMainTop": 177,
+          "nextParagraph": true,
+          "precedingParagraph": false,
+          "parentParagraphCount": 1
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/usage",
+      "landed": "/admin/usage",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/affiliates/invites",
+      "landed": "/admin/affiliates/invites",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/affiliates/rebates",
+      "landed": "/admin/affiliates/rebates",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/affiliates/transfers",
+      "landed": "/admin/affiliates/transfers",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/orders/dashboard",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 509,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/orders",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 509,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/orders/plans",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "headings": [
+        {
+          "tag": "H2",
+          "id": null,
+          "distanceFromMainTop": 509,
+          "nextParagraph": false,
+          "precedingParagraph": false,
+          "parentParagraphCount": 0
+        }
+      ],
+      "horizontalOverflow": false
+    }
+  ]
+}

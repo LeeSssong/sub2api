@@ -1,0 +1,1186 @@
+{
+  "observedAt": "2026-09-26T19:57:20.181Z",
+  "routes": [
+    {
+      "viewport": "1280x900",
+      "requested": "/batch-image",
+      "observed": {
+        "path": "/batch-image",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/affiliate",
+      "observed": {
+        "path": "/affiliate",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/available-channels",
+      "observed": {
+        "path": "/available-channels",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/subscriptions",
+      "observed": {
+        "path": "/subscriptions",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/key-usage",
+      "observed": {
+        "path": "/key-usage",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white",
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/model-plaza",
+      "observed": {
+        "path": "/model-plaza",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/dashboard",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/ops",
+      "observed": {
+        "path": "/admin/ops",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/operations/account-profitability",
+      "observed": {
+        "path": "/admin/operations/account-profitability",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "text-2xl font-semibold",
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/operations/business-overview",
+      "observed": {
+        "path": "/admin/operations/business-overview",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "text-2xl font-semibold",
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/audit-logs",
+      "observed": {
+        "path": "/admin/audit-logs",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/users",
+      "observed": {
+        "path": "/admin/users",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/groups",
+      "observed": {
+        "path": "/admin/groups",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/channels",
+      "observed": {
+        "path": "/admin/channels/pricing",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/channels/pricing",
+      "observed": {
+        "path": "/admin/channels/pricing",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/channels/monitor",
+      "observed": {
+        "path": "/admin/channels/monitor",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/monitor",
+      "observed": {
+        "path": "/monitor",
+        "titlePresent": true,
+        "titleTag": "H2",
+        "titleClass": "text-xl font-black tracking-tight text-gray-950 dark:text-white sm:text-2xl",
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/subscriptions",
+      "observed": {
+        "path": "/admin/subscriptions",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/accounts",
+      "observed": {
+        "path": "/admin/accounts",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/accounts/monitor",
+      "observed": {
+        "path": "/admin/accounts/monitor",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/announcements",
+      "observed": {
+        "path": "/admin/announcements",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/proxies",
+      "observed": {
+        "path": "/admin/proxies",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/redeem",
+      "observed": {
+        "path": "/admin/redeem",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/promo-codes",
+      "observed": {
+        "path": "/admin/promo-codes",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/scheduler-logs",
+      "observed": {
+        "path": "/admin/scheduler-logs",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "",
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/settings",
+      "observed": {
+        "path": "/admin/settings",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/risk-control",
+      "observed": {
+        "path": "/admin/risk-control",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/prompt-audit",
+      "observed": {
+        "path": "/admin/prompt-audit",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "mt-1 text-2xl font-semibold tracking-tight text-gray-950 dark:text-white",
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/usage",
+      "observed": {
+        "path": "/admin/usage",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/affiliates/invites",
+      "observed": {
+        "path": "/admin/affiliates/invites",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/affiliates/rebates",
+      "observed": {
+        "path": "/admin/affiliates/rebates",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/affiliates/transfers",
+      "observed": {
+        "path": "/admin/affiliates/transfers",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/orders/dashboard",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/orders",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/orders/plans",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/home",
+      "observed": {
+        "path": "/home",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "hero-title",
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/login",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/register",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/forgot-password",
+      "observed": {
+        "path": "/forgot-password",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "text-gradient mb-2 text-3xl font-bold",
+        "titleDescriptionCandidates": [
+          {
+            "length": 39,
+            "className": "text-sm text-gray-500 dark:text-dark-400"
+          }
+        ],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/reset-password",
+      "observed": {
+        "path": "/reset-password",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "text-gradient mb-2 text-3xl font-bold",
+        "titleDescriptionCandidates": [
+          {
+            "length": 39,
+            "className": "text-sm text-gray-500 dark:text-dark-400"
+          }
+        ],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/batch-image",
+      "observed": {
+        "path": "/batch-image",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/affiliate",
+      "observed": {
+        "path": "/affiliate",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/available-channels",
+      "observed": {
+        "path": "/available-channels",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/subscriptions",
+      "observed": {
+        "path": "/subscriptions",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/key-usage",
+      "observed": {
+        "path": "/key-usage",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white",
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/model-plaza",
+      "observed": {
+        "path": "/model-plaza",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/dashboard",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/ops",
+      "observed": {
+        "path": "/admin/ops",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/operations/account-profitability",
+      "observed": {
+        "path": "/admin/operations/account-profitability",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "text-2xl font-semibold",
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/operations/business-overview",
+      "observed": {
+        "path": "/admin/operations/business-overview",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "text-2xl font-semibold",
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/audit-logs",
+      "observed": {
+        "path": "/admin/audit-logs",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/users",
+      "observed": {
+        "path": "/admin/users",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/groups",
+      "observed": {
+        "path": "/admin/groups",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/channels",
+      "observed": {
+        "path": "/admin/channels",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/channels/pricing",
+      "observed": {
+        "path": "/admin/channels/pricing",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/channels/monitor",
+      "observed": {
+        "path": "/admin/channels/monitor",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/monitor",
+      "observed": {
+        "path": "/monitor",
+        "titlePresent": true,
+        "titleTag": "H2",
+        "titleClass": "text-xl font-black tracking-tight text-gray-950 dark:text-white sm:text-2xl",
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/subscriptions",
+      "observed": {
+        "path": "/admin/subscriptions",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/accounts",
+      "observed": {
+        "path": "/admin/accounts",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/accounts/monitor",
+      "observed": {
+        "path": "/admin/accounts/monitor",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/announcements",
+      "observed": {
+        "path": "/admin/announcements",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/proxies",
+      "observed": {
+        "path": "/admin/proxies",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/redeem",
+      "observed": {
+        "path": "/admin/redeem",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/promo-codes",
+      "observed": {
+        "path": "/admin/promo-codes",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/scheduler-logs",
+      "observed": {
+        "path": "/admin/scheduler-logs",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/settings",
+      "observed": {
+        "path": "/admin/settings",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/risk-control",
+      "observed": {
+        "path": "/admin/risk-control",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/prompt-audit",
+      "observed": {
+        "path": "/admin/prompt-audit",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/usage",
+      "observed": {
+        "path": "/admin/usage",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/affiliates/invites",
+      "observed": {
+        "path": "/admin/affiliates/invites",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/affiliates/rebates",
+      "observed": {
+        "path": "/admin/affiliates/rebates",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/affiliates/transfers",
+      "observed": {
+        "path": "/admin/affiliates/transfers",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/orders/dashboard",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/orders",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/orders/plans",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/home",
+      "observed": {
+        "path": "/home",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "hero-title",
+        "titleDescriptionCandidates": [
+          {
+            "length": 39,
+            "className": ""
+          }
+        ],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/login",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/register",
+      "observed": {
+        "path": "/admin/dashboard",
+        "titlePresent": false,
+        "titleTag": null,
+        "titleClass": null,
+        "titleDescriptionCandidates": [],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/forgot-password",
+      "observed": {
+        "path": "/forgot-password",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "text-gradient mb-2 text-3xl font-bold",
+        "titleDescriptionCandidates": [
+          {
+            "length": 39,
+            "className": "text-sm text-gray-500 dark:text-dark-400"
+          }
+        ],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/reset-password",
+      "observed": {
+        "path": "/reset-password",
+        "titlePresent": true,
+        "titleTag": "H1",
+        "titleClass": "text-gradient mb-2 text-3xl font-bold",
+        "titleDescriptionCandidates": [
+          {
+            "length": 39,
+            "className": "text-sm text-gray-500 dark:text-dark-400"
+          }
+        ],
+        "horizontalOverflow": false,
+        "dialogCount": 0
+      }
+    }
+  ],
+  "interactions": [
+    {
+      "viewport": "1280x900",
+      "page": "ai",
+      "prototype": {
+        "name": "route-detail",
+        "available": true,
+        "dialogCount": 1,
+        "route": "/"
+      },
+      "testStation": {
+        "name": "route-detail",
+        "available": true,
+        "dialogCount": 2,
+        "route": "/dashboard"
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "page": "keys",
+      "prototype": {
+        "name": "create-modal",
+        "available": true,
+        "dialogCount": 1,
+        "route": "/"
+      },
+      "testStation": {
+        "name": "create-modal",
+        "available": true,
+        "dialogCount": 1,
+        "route": "/keys"
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "page": "recharge",
+      "prototype": {
+        "rechargeTab": true
+      },
+      "testStation": {
+        "rechargeTab": false,
+        "orderLinkCount": 0
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "page": "profile",
+      "prototype": {
+        "name": "support-modal",
+        "available": true,
+        "dialogCount": 1,
+        "route": "/"
+      },
+      "testStation": {
+        "name": "support-modal",
+        "available": false
+      }
+    },
+    {
+      "viewport": "390x844",
+      "page": "ai",
+      "prototype": {
+        "name": "route-detail",
+        "available": true,
+        "dialogCount": 1,
+        "route": "/"
+      },
+      "testStation": {
+        "name": "route-detail",
+        "available": true,
+        "dialogCount": 2,
+        "route": "/dashboard"
+      }
+    },
+    {
+      "viewport": "390x844",
+      "page": "keys",
+      "prototype": {
+        "name": "create-modal",
+        "available": true,
+        "dialogCount": 1,
+        "route": "/"
+      },
+      "testStation": {
+        "name": "create-modal",
+        "available": true,
+        "dialogCount": 1,
+        "route": "/keys"
+      }
+    },
+    {
+      "viewport": "390x844",
+      "page": "recharge",
+      "prototype": {
+        "rechargeTab": true
+      },
+      "testStation": {
+        "rechargeTab": false,
+        "orderLinkCount": 0
+      }
+    },
+    {
+      "viewport": "390x844",
+      "page": "profile",
+      "prototype": {
+        "name": "support-modal",
+        "available": true,
+        "dialogCount": 1,
+        "route": "/"
+      },
+      "testStation": {
+        "name": "support-modal",
+        "available": false
+      }
+    }
+  ]
+}

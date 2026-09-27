@@ -1,0 +1,116 @@
+{
+  "observedAt": "2026-09-27T08:26:05.696Z",
+  "method": "fresh anonymous context for each route; structural metadata only; no form submission or page text",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "requested": "/home",
+      "landed": "/home",
+      "authCardPresent": false,
+      "formHeadingVisible": false,
+      "formHeadingNextParagraph": false,
+      "brandSubtitleVisible": false,
+      "registrationDisabledNotice": false,
+      "pageHorizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/login",
+      "landed": "/login",
+      "authCardPresent": true,
+      "formHeadingVisible": true,
+      "formHeadingNextParagraph": true,
+      "brandSubtitleVisible": true,
+      "registrationDisabledNotice": false,
+      "pageHorizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/register",
+      "landed": "/register",
+      "authCardPresent": true,
+      "formHeadingVisible": true,
+      "formHeadingNextParagraph": true,
+      "brandSubtitleVisible": true,
+      "registrationDisabledNotice": false,
+      "pageHorizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/forgot-password",
+      "landed": "/forgot-password",
+      "authCardPresent": true,
+      "formHeadingVisible": true,
+      "formHeadingNextParagraph": true,
+      "brandSubtitleVisible": true,
+      "registrationDisabledNotice": false,
+      "pageHorizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/reset-password",
+      "landed": "/reset-password",
+      "authCardPresent": true,
+      "formHeadingVisible": true,
+      "formHeadingNextParagraph": true,
+      "brandSubtitleVisible": true,
+      "registrationDisabledNotice": true,
+      "pageHorizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/home",
+      "landed": "/home",
+      "authCardPresent": false,
+      "formHeadingVisible": false,
+      "formHeadingNextParagraph": false,
+      "brandSubtitleVisible": false,
+      "registrationDisabledNotice": false,
+      "pageHorizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/login",
+      "landed": "/login",
+      "authCardPresent": true,
+      "formHeadingVisible": true,
+      "formHeadingNextParagraph": true,
+      "brandSubtitleVisible": true,
+      "registrationDisabledNotice": false,
+      "pageHorizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/register",
+      "landed": "/register",
+      "authCardPresent": true,
+      "formHeadingVisible": true,
+      "formHeadingNextParagraph": true,
+      "brandSubtitleVisible": true,
+      "registrationDisabledNotice": false,
+      "pageHorizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/forgot-password",
+      "landed": "/forgot-password",
+      "authCardPresent": true,
+      "formHeadingVisible": true,
+      "formHeadingNextParagraph": true,
+      "brandSubtitleVisible": true,
+      "registrationDisabledNotice": false,
+      "pageHorizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/reset-password",
+      "landed": "/reset-password",
+      "authCardPresent": true,
+      "formHeadingVisible": true,
+      "formHeadingNextParagraph": true,
+      "brandSubtitleVisible": true,
+      "registrationDisabledNotice": true,
+      "pageHorizontalOverflow": false
+    }
+  ]
+}

@@ -1,0 +1,152 @@
+{
+  "observedAt": "2026-09-27T09:52:04.695Z",
+  "method": "admin GET request outcome and rendered row counts; no URLs, params, response items or text",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "landed": "/admin/usage",
+      "tabCount": 4,
+      "desktopCostTriggerCount": 0,
+      "mobileFieldCount": 0,
+      "mobileCostTriggerCount": 0,
+      "requestCategories": [
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "usage-list",
+        "usage-stats",
+        "other",
+        "other",
+        "other"
+      ],
+      "usageListResponses": [
+        {
+          "category": "usage-list",
+          "status": 200,
+          "itemCount": 0,
+          "totalPresent": true
+        }
+      ],
+      "failedRequests": [
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "landed": "/admin/usage",
+      "tabCount": 4,
+      "desktopCostTriggerCount": 0,
+      "mobileFieldCount": 0,
+      "mobileCostTriggerCount": 0,
+      "requestCategories": [
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "other",
+        "usage-list",
+        "usage-stats",
+        "other",
+        "other",
+        "other"
+      ],
+      "usageListResponses": [
+        {
+          "category": "usage-list",
+          "status": 200,
+          "itemCount": 0,
+          "totalPresent": true
+        }
+      ],
+      "failedRequests": [
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        },
+        {
+          "category": "other",
+          "reason": "net::ERR_ABORTED"
+        }
+      ]
+    }
+  ]
+}
