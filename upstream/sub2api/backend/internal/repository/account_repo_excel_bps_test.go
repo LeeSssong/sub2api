@@ -75,7 +75,7 @@ func TestBulkUpdateExcelBPSExtra(t *testing.T) {
 			expression := "COALESCE(extra, '{}'::jsonb) || $1::jsonb"
 			switch tt.name {
 			case "disabled removes all BPS settings":
-				expression = "(" + expression + ") - 'openai_excel_bps' - 'openai_excel_bps_models' - 'openai_excel_bps_cache_creation_as_input' - 'openai_excel_bps_auto_disable_on_403' - 'openai_excel_bps_auto_move_on_403' - 'openai_excel_bps_403_target_group_id' - 'openai_excel_bps_mihomo'"
+				expression = "(" + expression + ") - 'openai_excel_bps' - 'openai_excel_bps_recovery' - 'openai_excel_bps_shadow_recovery' - 'openai_excel_bps_fallback_models' - 'openai_excel_bps_models' - 'openai_excel_bps_cache_creation_as_input' - 'openai_excel_bps_auto_disable_on_403' - 'openai_excel_bps_auto_move_on_403' - 'openai_excel_bps_403_target_group_id' - 'openai_excel_bps_mihomo'"
 			case "auto move false removes policy and destination":
 				expression = "(" + expression + ") - 'openai_excel_bps_auto_move_on_403' - 'openai_excel_bps_403_target_group_id'"
 			default:

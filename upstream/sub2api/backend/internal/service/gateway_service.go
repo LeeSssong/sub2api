@@ -1480,7 +1480,8 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		// Passthrough routing accepts models independently of model_mapping. A stale
 		// mapping on any eligible passthrough account therefore cannot define the
 		// public whitelist; return nil so the handler uses its default model set.
-		if platform == PlatformOpenAI && acc.IsOpenAIPassthroughEnabled() {
+		_, fallback := acc.excelBPSFallbackMapping()
+		if platform == PlatformOpenAI && acc.IsOpenAIPassthroughEnabled() && !fallback {
 			if s.modelsListCache != nil {
 				s.modelsListCache.Set(cacheKey, []string(nil), s.modelsListCacheTTL)
 				modelsListCacheStoreTotal.Add(1)
@@ -1489,6 +1490,9 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		}
 
 		mapping := acc.GetModelMapping()
+		if fallback {
+			hasAnyMapping = true
+		}
 		if len(mapping) > 0 {
 			hasAnyMapping = true
 			for model := range mapping {
@@ -1502,7 +1506,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 			}
 		}
 		// 没有映射的账号默认支持全部模型；在本分组被限制时改为公布限制清单里的具体模型名。
-		if len(mapping) == 0 {
+		if len(mapping) == 0 && !fallback {
 			for _, model := range groupAllowedConcreteModels(&acc, groupID) {
 				if platform != "" && acc.Platform != platform && !mixedListingModelAllowed(platform, model) {
 					continue

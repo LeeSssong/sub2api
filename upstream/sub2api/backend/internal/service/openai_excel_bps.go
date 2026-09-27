@@ -35,7 +35,7 @@ var excelBPSCatalog basispoints.CatalogCache
 type excelBPSAuthPolicyKey struct{}
 
 func (s *OpenAIGatewayService) handleExcelBPSUnauthorized(ctx context.Context, account *Account, status int, headers http.Header, raw []byte) {
-	if status != http.StatusUnauthorized || s.rateLimitService == nil {
+	if isExcelBPSShadowProbe(ctx) || status != http.StatusUnauthorized || s.rateLimitService == nil {
 		return
 	}
 	fields := map[string]string{"message": "Excel BPS authentication failed"}
@@ -54,6 +54,9 @@ func (s *OpenAIGatewayService) handleExcelBPSUnauthorized(ctx context.Context, a
 }
 
 func (s *OpenAIGatewayService) moveExcelBPSOn403(ctx context.Context, account *Account) bool {
+	if isExcelBPSShadowProbe(ctx) || account.IsExcelBPSShadowRecoveryEnabled() {
+		return false
+	}
 	target, enabled := account.ExcelBPS403GroupTarget()
 	if !enabled {
 		return false
@@ -76,25 +79,28 @@ func (s *OpenAIGatewayService) moveExcelBPSOn403(ctx context.Context, account *A
 }
 
 func (s *OpenAIGatewayService) disableExcelBPSOn403(ctx context.Context, account *Account) bool {
-	if !account.IsExcelBPSAutoDisableOn403Enabled() {
+	return s.degradeExcelBPS(ctx, account, http.StatusForbidden)
+}
+func (s *OpenAIGatewayService) degradeExcelBPS(ctx context.Context, account *Account, status int) bool {
+	if isExcelBPSShadowProbe(ctx) || !IsExcelBPSDegradationStatus(status) || !account.IsExcelBPSEnabled() {
 		return false
 	}
-	repo, ok := s.accountRepo.(AccountExcelBPSRepository)
+	repo, ok := s.accountRepo.(AccountExcelBPSRecoveryRepository)
 	if !ok {
 		return false
 	}
 	stateCtx, cancel := openAIAccountStateContext(ctx)
 	defer cancel()
-	changed, err := repo.DisableExcelBPSOn403(stateCtx, account)
+	changed, err := repo.DegradeExcelBPS(stateCtx, account, status)
 	if err != nil {
-		// Do not log upstream bodies, credentials or database query arguments.
-		logger.LegacyPrintf("service.openai_excel_bps", "auto-disable failed: account_id=%d error_type=%T", account.ID, err)
-		return false
-	}
-	if changed {
-		logger.LegacyPrintf("service.openai_excel_bps", "automatically disabled Excel BPS after upstream HTTP 403: account_id=%d", account.ID)
+		logger.LegacyPrintf("service.openai_excel_bps", "degradation failed: account_id=%d error_type=%T", account.ID, err)
 	}
 	return changed
+}
+func (s *OpenAIGatewayService) updateExcelBPSUsage(ctx context.Context, accountID int64, headers http.Header) {
+	if !isExcelBPSShadowProbe(ctx) {
+		s.UpdateCodexUsageSnapshotFromHeaders(ctx, accountID, headers)
+	}
 }
 
 func (s *OpenAIGatewayService) excelBPSImageRelay(ctx context.Context) (*basispoints.ImageRelay, error) {
@@ -316,7 +322,15 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 		}
 		return fail(400, "basispoints_request_invalid", err.Error())
 	}
-	token, _, err := s.GetAccessToken(ctx, account)
+	var token string
+	if isExcelBPSShadowProbe(ctx) {
+		token = account.GetOpenAIAccessToken()
+		if token == "" {
+			err = errors.New("missing probe credential")
+		}
+	} else {
+		token, _, err = s.GetAccessToken(ctx, account)
+	}
 	if err != nil {
 		if isExcelBPSClientCancellation(c, err) {
 			return clientCanceled()
@@ -489,6 +503,11 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 			s.handleExcelBPSUnauthorized(ctx, account, resp.StatusCode, resp.Header, raw)
 			return fail(resp.StatusCode, "basispoints_upstream_error", "Excel BPS authentication failed; request was not replayed")
 		}
+		moved := false
+		if resp.StatusCode == http.StatusForbidden && gjson.GetBytes(raw, "error.code").String() != "basispoints_model_access_changed" {
+			moved = s.moveExcelBPSOn403(ctx, account)
+		}
+		disabled := s.degradeExcelBPS(ctx, account, resp.StatusCode)
 		code := gjson.GetBytes(raw, "error.code").String()
 		if code == "basispoints_model_access_changed" {
 			return fail(resp.StatusCode, code, "This model is not available on the account's Excel BPS endpoint")
@@ -499,24 +518,17 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 			errorCode = "invalid_encrypted_content"
 			message = "Excel BPS could not verify encrypted conversation state; resend the original plaintext history or start a new conversation"
 		}
-		if resp.StatusCode == http.StatusForbidden {
-			// Apply group routing before the independent protocol switch is disabled.
-			moved := s.moveExcelBPSOn403(ctx, account)
-			disabled := s.disableExcelBPSOn403(ctx, account)
-			switch {
-			case moved && disabled:
-				message = "Excel BPS rejected this request; Excel BPS was automatically disabled and account groups were updated; request was not replayed"
-			case disabled:
-				message = "Excel BPS rejected this request; Excel BPS was automatically disabled for this account; request was not replayed"
-			case moved:
-				message = "Excel BPS rejected this request; account groups were automatically updated; request was not replayed"
-			}
+		if disabled {
+			message = "Excel BPS was automatically disabled for this account; request was not replayed"
+		}
+		if moved {
+			message += "; account groups were updated"
 		}
 		return fail(resp.StatusCode, errorCode, message)
 	}
 	// BPS and Codex share quota. Refresh at the HTTP boundary even if the client
 	// disconnects or a later stream/protocol error prevents normal completion.
-	s.UpdateCodexUsageSnapshotFromHeaders(ctx, account.ID, resp.Header)
+	s.updateExcelBPSUsage(ctx, account.ID, resp.Header)
 	converted := bridge.StreamWithRepairs(requestCtx, resp.Body, func(repairCtx context.Context, failed map[string]any, validation error) (map[string]any, error) {
 		correctedBody, err := basispoints.BuildToolRepairRequest(upstreamBody, failed, validation)
 		if err != nil {
@@ -546,11 +558,11 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 			s.handleExcelBPSUnauthorized(repairCtx, account, repairResp.StatusCode, repairResp.Header, raw)
 			if repairResp.StatusCode == http.StatusForbidden && gjson.GetBytes(raw, "error.code").String() != "basispoints_model_access_changed" {
 				s.moveExcelBPSOn403(repairCtx, account)
-				s.disableExcelBPSOn403(repairCtx, account)
 			}
+			s.degradeExcelBPS(repairCtx, account, repairResp.StatusCode)
 			return nil, fmt.Errorf("excel BPS correction returned HTTP %d", repairResp.StatusCode)
 		}
-		s.UpdateCodexUsageSnapshotFromHeaders(repairCtx, account.ID, repairResp.Header)
+		s.updateExcelBPSUsage(repairCtx, account.ID, repairResp.Header)
 		upstreamBody = correctedBody
 		return basispoints.ReadToolRepairResponse(repairResp.Body)
 	}, func(repairCtx context.Context) (io.ReadCloser, error) {
@@ -575,11 +587,11 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 			s.handleExcelBPSUnauthorized(repairCtx, account, repaired.StatusCode, repaired.Header, raw)
 			if repaired.StatusCode == http.StatusForbidden && gjson.GetBytes(raw, "error.code").String() != "basispoints_model_access_changed" {
 				s.moveExcelBPSOn403(repairCtx, account)
-				s.disableExcelBPSOn403(repairCtx, account)
 			}
+			s.degradeExcelBPS(repairCtx, account, repaired.StatusCode)
 			return nil, fmt.Errorf("excel BPS tool correction returned HTTP %d", repaired.StatusCode)
 		}
-		s.UpdateCodexUsageSnapshotFromHeaders(repairCtx, account.ID, repaired.Header)
+		s.updateExcelBPSUsage(repairCtx, account.ID, repaired.Header)
 		return repaired.Body, nil
 	})
 	defer func() { _ = converted.Close() }()

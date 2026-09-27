@@ -151,6 +151,7 @@ func createAccountRecord(ctx context.Context, client *dbent.Client, account *ser
 		return service.ErrAccountNilInput
 	}
 
+	account.Extra = service.MergeExcelBPSRecoveryExtra(account.Extra, nil)
 	builder := client.Account.Create().
 		SetName(account.Name).
 		SetNillableNotes(account.Notes).
@@ -808,6 +809,7 @@ func lockAndMergeAccountProbeExtra(
 		extra[service.AccountAdmissionBlockedKey] = gate
 	}
 	extra = service.MergeExcelBPS403Marker(extra, currentExtra)
+	extra = service.MergeExcelBPSRecoveryExtra(extra, currentExtra)
 	for _, key := range []string{
 		service.UpstreamBillingProbeEnabledExtraKey,
 		service.UpstreamBillingRateSyncEnabledExtraKey,
@@ -2988,6 +2990,8 @@ func (r *accountRepository) AutoPauseExpiredAccounts(ctx context.Context, now ti
 
 func (r *accountRepository) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
 	updates = stripCodexFingerprintSeedFromExtraUpdate(updates)
+	updates = copyJSONMap(updates)
+	delete(updates, service.ExcelBPSRecoveryKey)
 	if len(updates) == 0 {
 		return nil
 	}
@@ -3017,6 +3021,9 @@ func (r *accountRepository) UpdateExtra(ctx context.Context, id int64, updates m
 		}
 	}
 	extraExpression := "COALESCE(extra, '{}'::jsonb) || $1::jsonb"
+	if value, ok := updates["openai_excel_bps"].(bool); ok && !value {
+		extraExpression = "(" + extraExpression + ") - 'openai_excel_bps_recovery' - 'openai_excel_bps_shadow_recovery' - 'openai_excel_bps_fallback_models'"
+	}
 	if clearProbeSnapshot {
 		extraExpression = "(" + extraExpression + ") - 'upstream_billing_probe'"
 	}
@@ -3519,6 +3526,8 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 				" AND "+ollamaCloudBaseURLMatchesSQL(credentialPlaceholder+"::jsonb ->> 'base_url'")+")")
 	}
 
+	updates.Extra = copyJSONMap(updates.Extra)
+	delete(updates.Extra, service.ExcelBPSRecoveryKey)
 	if len(updates.Extra) > 0 || len(ollamaGroupIdentityChanges) > 0 || ollamaProxyIdentityChanged != "" || updates.EnsureCodexFingerprintSeed {
 		extraExpression := "COALESCE(extra, '{}'::jsonb)"
 		if len(updates.Extra) > 0 {
@@ -3530,7 +3539,7 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 			args = append(args, payload)
 			idx++
 			if enabled, exists := updates.Extra["openai_excel_bps"].(bool); exists && !enabled {
-				extraExpression = "(" + extraExpression + ") - 'openai_excel_bps' - 'openai_excel_bps_models' - 'openai_excel_bps_cache_creation_as_input' - 'openai_excel_bps_auto_disable_on_403' - 'openai_excel_bps_auto_move_on_403' - 'openai_excel_bps_403_target_group_id' - 'openai_excel_bps_mihomo'"
+				extraExpression = "(" + extraExpression + ") - 'openai_excel_bps' - 'openai_excel_bps_recovery' - 'openai_excel_bps_shadow_recovery' - 'openai_excel_bps_fallback_models' - 'openai_excel_bps_models' - 'openai_excel_bps_cache_creation_as_input' - 'openai_excel_bps_auto_disable_on_403' - 'openai_excel_bps_auto_move_on_403' - 'openai_excel_bps_403_target_group_id' - 'openai_excel_bps_mihomo'"
 			} else {
 				// Turning the protocol back on acknowledges an automatic 403 shutdown.
 				if enabled {

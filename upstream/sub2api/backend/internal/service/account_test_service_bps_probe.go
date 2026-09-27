@@ -3,13 +3,16 @@ package service
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/gin-gonic/gin"
@@ -127,6 +130,11 @@ func bpsProbeUserMessage(text string) map[string]any {
 }
 
 func (s *AccountTestService) runExcelBPSProbeStep(c *gin.Context, account *Account, model, session string, input any, tools []any) (bpsAccountProbeResponse, error) {
+	if check, ok := c.Request.Context().Value(excelBPSShadowProbeCheckKey{}).(func(context.Context) error); ok {
+		if err := check(c.Request.Context()); err != nil {
+			return bpsAccountProbeResponse{}, err
+		}
+	}
 	body := map[string]any{"model": model, "stream": true, "store": false, "input": input,
 		"reasoning": map[string]any{"effort": "low"}}
 	if tools != nil {
@@ -141,7 +149,12 @@ func (s *AccountTestService) runExcelBPSProbeStep(c *gin.Context, account *Accou
 	probeCtx.Request = c.Request.Clone(c.Request.Context())
 	probeCtx.Request.Header.Set("Session-Id", session)
 	probeCtx.Set(bpsAccountProbeRequiredContextKey, true)
-	result, err := s.openaiGatewayService.Forward(probeCtx, probeCtx, account, raw)
+	var result *OpenAIForwardResult
+	if isExcelBPSShadowProbe(c.Request.Context()) {
+		result, err = s.openaiGatewayService.forwardExcelBPS(c.Request.Context(), probeCtx, account, raw, time.Now())
+	} else {
+		result, err = s.openaiGatewayService.Forward(probeCtx, probeCtx, account, raw)
+	}
 	if err != nil {
 		return bpsAccountProbeResponse{}, fmt.Errorf("bps forwarding failed: %w", err)
 	}
@@ -247,4 +260,40 @@ func bpsProbeExactCall(response bpsAccountProbeResponse, nonce string) (string, 
 		callID = item.CallID
 	}
 	return callID, callID != ""
+}
+
+// RunExcelBPSRecoveryProbe only uses an ephemeral account copy and the native
+// BPS gateway. It never creates a schedulable account, billing row or ticket.
+func (s *AccountTestService) RunExcelBPSRecoveryProbe(ctx context.Context, account *Account) error {
+	shadow := *account
+	shadow.Extra = maps.Clone(account.Extra)
+	delete(shadow.Extra, ExcelBPSRecoveryKey)
+	shadow.Credentials = maps.Clone(account.Credentials)
+	model := openai.DefaultTestModel
+	if raw, exists := shadow.Extra["openai_excel_bps_models"]; exists {
+		listJSON, _ := json.Marshal(raw)
+		var models []string
+		if json.Unmarshal(listJSON, &models) != nil || len(models) == 0 {
+			return errors.New("no BPS probe model configured")
+		}
+		model = models[0]
+	}
+	// Configured BPS model names are upstream identities, not business aliases.
+	shadow.Credentials["model_mapping"] = map[string]any{model: model}
+	if s.accountRepo != nil {
+		ctx = context.WithValue(ctx, excelBPSShadowProbeCheckKey{}, func(checkCtx context.Context) error {
+			current, err := s.accountRepo.GetByID(checkCtx, account.ID)
+			if err != nil {
+				return errors.New("BPS recovery account unavailable")
+			}
+			if !ExcelBPSRecoverySnapshotMatches(account, current) {
+				return errors.New("BPS recovery account changed")
+			}
+			return nil
+		})
+	}
+	recorder := httptest.NewRecorder()
+	probe, _ := gin.CreateTestContext(recorder)
+	probe.Request = httptest.NewRequest(http.MethodPost, "/internal/bps-recovery", nil).WithContext(context.WithValue(ctx, excelBPSShadowProbeKey{}, true))
+	return s.testExcelBPSToolRoundtrip(probe, &shadow, model)
 }

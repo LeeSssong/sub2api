@@ -22,9 +22,11 @@ type ScheduledTestRunnerService struct {
 	judgeQuality   func(context.Context, int64, *PelicanTestConfig, string) *QualityJudgment
 	runPelican     func(context.Context, int64, string, *PelicanTestConfig) (*ScheduledTestResult, error)
 
-	cron      *cron.Cron
-	startOnce sync.Once
-	stopOnce  sync.Once
+	bpsRecoveryMu     sync.Mutex
+	bpsRecoveryCancel context.CancelFunc
+	cron              *cron.Cron
+	startOnce         sync.Once
+	stopOnce          sync.Once
 }
 
 // NewScheduledTestRunnerService creates a new runner.
@@ -69,6 +71,9 @@ func (s *ScheduledTestRunnerService) Start() {
 			logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] not started (invalid schedule): %v", err)
 			return
 		}
+		recoveryCtx, recoveryCancel := context.WithCancel(context.Background())
+		s.bpsRecoveryCancel = recoveryCancel
+		_, _ = c.AddFunc("* * * * *", func() { s.runExcelBPSRecovery(recoveryCtx) })
 		s.cron = c
 		s.cron.Start()
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] started (tick=every minute)")
@@ -81,6 +86,9 @@ func (s *ScheduledTestRunnerService) Stop() {
 		return
 	}
 	s.stopOnce.Do(func() {
+		if s.bpsRecoveryCancel != nil {
+			s.bpsRecoveryCancel()
+		}
 		if s.cron != nil {
 			ctx := s.cron.Stop()
 			select {

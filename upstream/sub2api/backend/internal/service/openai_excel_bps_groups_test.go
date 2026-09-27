@@ -105,7 +105,7 @@ func TestExcelBPS403GroupActionTrigger(t *testing.T) {
 				if triggered {
 					want = append(want, "move")
 				}
-				if tc.status == 403 && tc.disabled && !tc.modelError {
+				if IsExcelBPSDegradationStatus(tc.status) {
 					want = append(want, "disable")
 				}
 				require.Equal(t, want, actions)

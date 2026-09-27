@@ -1068,6 +1068,7 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"openai_passthrough",
 		"openai_oauth_passthrough",
 		"openai_excel_bps",
+		service.ExcelBPSShadowRecoveryKey, service.ExcelBPSFallbackModelsKey, service.ExcelBPSRecoveryKey,
 		"openai_excel_bps_auto_disable_on_403",
 		service.ExcelBPSAutoMoveOn403Key,
 		service.ExcelBPS403TargetGroupIDKey,

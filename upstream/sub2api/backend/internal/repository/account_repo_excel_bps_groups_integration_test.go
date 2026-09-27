@@ -169,7 +169,7 @@ func TestExcelBPS403MoveRecordSurvivesAccountEdits(t *testing.T) {
 }
 
 func TestMoveExcelBPSOn403HonorsCurrentSettings(t *testing.T) {
-	for _, kind := range []string{"opt-in withdrawn", "protocol disabled", "target changed", "target missing", "credentials replaced", "groups edited", "account deleted", "type changed", "destination deleted", "destination incompatible"} {
+	for _, kind := range []string{"fallback active", "shadow enabled", "opt-in withdrawn", "protocol disabled", "target changed", "target missing", "credentials replaced", "groups edited", "account deleted", "type changed", "destination deleted", "destination incompatible"} {
 		t.Run(kind, func(t *testing.T) {
 			tx := testEntTx(t)
 			ctx := dbent.NewTxContext(context.Background(), tx)
@@ -185,6 +185,8 @@ func TestMoveExcelBPSOn403HonorsCurrentSettings(t *testing.T) {
 			before, err := repo.GetByID(ctx, account.ID)
 			require.NoError(t, err)
 			queries := map[string]string{
+				"fallback active":          `UPDATE accounts SET extra=extra || '{"openai_excel_bps_recovery":{"active":true}}' WHERE id=$1`,
+				"shadow enabled":           `UPDATE accounts SET extra=extra || '{"openai_excel_bps_shadow_recovery":true}' WHERE id=$1`,
 				"opt-in withdrawn":         "UPDATE accounts SET extra = extra || '{\"openai_excel_bps_auto_move_on_403\":false}' WHERE id = $1",
 				"protocol disabled":        "UPDATE accounts SET extra = extra || '{\"openai_excel_bps\":false}' WHERE id = $1",
 				"target changed":           "UPDATE accounts SET extra = extra || '{\"openai_excel_bps_403_target_group_id\":0}' WHERE id = $1",

@@ -331,6 +331,9 @@ func (s *adminServiceImpl) DuplicateAccount(ctx context.Context, id int64, actor
 		SkipDefaultGroupBind:  true,
 		SkipMixedChannelCheck: true,
 	}
+	if err := ValidateExcelBPSRecoveryExtra(input.Extra, nil); err != nil {
+		return nil, err
+	}
 	accountExtra, err := normalizeOpenAILongContextBillingExtra(input.Platform, input.Extra)
 	if err != nil {
 		return nil, fmt.Errorf("normalize duplicate account extra: %w", err)
@@ -530,6 +533,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	if err := ValidateObserverGroupBindings(ctx, input.GroupIDs); err != nil {
 		return nil, err
 	}
+	if err := ValidateExcelBPSRecoveryExtra(input.Extra, nil); err != nil {
+		return nil, err
+	}
 	accountExtra, err := normalizeOpenAILongContextBillingExtra(input.Platform, input.Extra)
 	if err != nil {
 		return nil, err
@@ -650,6 +656,11 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		return nil, err
 	}
 	originalAccountType := account.Type
+	if input.Extra != nil {
+		if err := ValidateExcelBPSRecoveryExtra(input.Extra, account.Extra); err != nil {
+			return nil, err
+		}
+	}
 	var normalizedExtra map[string]any
 	if input.Extra != nil {
 		normalizedExtra, err = normalizeOpenAILongContextBillingUpdateExtra(account, input)
@@ -1095,6 +1106,18 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 // UpdateAccountExtra 仅对 Extra JSONB 做 key 级合并，避免覆盖其它运行态键
 // （如 model_rate_limits / passive_usage_* 等）。
 func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
+	updates = maps.Clone(updates)
+	delete(updates, ExcelBPSRecoveryKey)
+	_, fallbackChanged := updates[ExcelBPSFallbackModelsKey]
+	if _, shadow := updates[ExcelBPSShadowRecoveryKey]; shadow || fallbackChanged {
+		a, err := s.accountRepo.GetByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if err := ValidateExcelBPSRecoveryExtra(updates, a.Extra); err != nil {
+			return err
+		}
+	}
 	_, moveChanged := updates[ExcelBPSAutoMoveOn403Key]
 	_, targetChanged := updates[ExcelBPS403TargetGroupIDKey]
 	if moveChanged || targetChanged {
@@ -1140,6 +1163,7 @@ func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, upd
 // It merges credentials/extra keys instead of overwriting the whole object.
 func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUpdateAccountsInput) (*BulkUpdateAccountsResult, error) {
 	input.Extra = maps.Clone(input.Extra)
+	delete(input.Extra, ExcelBPSRecoveryKey)
 	// Managed probe/session state may only enter through dedicated typed endpoints.
 	input.Extra = MergeOpenAICodexTicketExtra(input.Extra, nil)
 	input.Extra = sanitizedCodexFingerprintExtraUpdates(input.Extra)
@@ -1206,12 +1230,21 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 
 	// 预取所有目标账号，供凭据守卫/代理守卫/混合渠道检查共用，避免多次 DB 查询。
 	var cachedTargets []*Account
-	if len(input.Credentials) > 0 || input.ProxyID != nil || needMixedChannelCheck || hasLongContextBillingUpdate || input.ProbeEnabled != nil || input.ActiveProbeEnabled != nil || input.RateMultiplier != nil {
+	_, shadowRecoveryChanged := input.Extra[ExcelBPSShadowRecoveryKey]
+	_, fallbackModelsChanged := input.Extra[ExcelBPSFallbackModelsKey]
+	if openAISettings.any() || shadowRecoveryChanged || fallbackModelsChanged || len(input.Credentials) > 0 || input.ProxyID != nil || needMixedChannelCheck || hasLongContextBillingUpdate || input.ProbeEnabled != nil || input.ActiveProbeEnabled != nil || input.RateMultiplier != nil {
 		loaded, err := s.accountRepo.GetByIDs(ctx, input.AccountIDs)
 		if err != nil {
 			return nil, err
 		}
 		cachedTargets = loaded
+	}
+	for _, account := range cachedTargets {
+		if account != nil {
+			if err := ValidateExcelBPSRecoveryExtra(input.Extra, account.Extra); err != nil {
+				return nil, err
+			}
+		}
 	}
 	targetsByID := make(map[int64]*Account, len(cachedTargets))
 	for _, account := range cachedTargets {
