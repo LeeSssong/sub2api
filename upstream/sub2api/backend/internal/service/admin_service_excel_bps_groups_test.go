@@ -84,3 +84,20 @@ func TestAdminExcelBPS403GroupPartialUpdateKeepsExplicitTarget(t *testing.T) {
 		require.NotContains(t, account.Extra, ExcelBPSAutoMoveOn403Key, "validation cannot mutate shared account data")
 	}
 }
+
+func TestAdminExcelBPSRecoveryFullUpdateKeepsOmittedFallbackWhitelist(t *testing.T) {
+	for _, shadow := range []bool{true, false} {
+		t.Run(map[bool]string{true: "recovering", false: "paused recovery"}[shadow], func(t *testing.T) {
+			account := excelAccount()
+			account.Extra[ExcelBPSShadowRecoveryKey] = true
+			account.Extra[ExcelBPSFallbackModelsKey] = []string{"normal-only"}
+			account.Extra[ExcelBPSRecoveryKey] = map[string]any{"active": true}
+			repo := &adminExcelBPSGroupRepo{accountRepoStubForBulkUpdate: accountRepoStubForBulkUpdate{getByIDAccounts: map[int64]*Account{account.ID: account}, getByIDsAccounts: []*Account{account}}}
+			svc := &adminServiceImpl{accountRepo: repo}
+			_, err := svc.UpdateAccount(context.Background(), account.ID, &UpdateAccountInput{Extra: map[string]any{"openai_excel_bps": true, ExcelBPSShadowRecoveryKey: shadow}})
+			require.NoError(t, err)
+			require.Len(t, repo.updatedAccounts, 1)
+			require.Equal(t, []string{"normal-only"}, repo.updatedAccounts[0].Extra[ExcelBPSFallbackModelsKey])
+		})
+	}
+}

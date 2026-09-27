@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -73,6 +74,10 @@ func (r *accountRepository) DegradeExcelBPS(ctx context.Context, a *service.Acco
 	stateJSON, _ := json.Marshal(state)
 	recoveryJSON, _ := json.Marshal(a.Extra[service.ExcelBPSRecoveryKey])
 	return r.excelBPSRecoveryWrite(ctx, func(ctx context.Context, client *dbent.Client) ([]int64, error) {
+		matches, err := lockExcelBPSProxyTransport(ctx, client, a)
+		if err != nil || !matches {
+			return nil, err
+		}
 		result, err := client.ExecContext(ctx, `UPDATE accounts SET extra=CASE WHEN extra->'openai_excel_bps_shadow_recovery'='true'::jsonb
    THEN extra || jsonb_build_object('openai_excel_bps_recovery',$4::jsonb)
    ELSE extra || jsonb_build_object('openai_excel_bps',false,'openai_excel_bps_last_disabled_status',$5::int,'openai_excel_bps_last_disabled_at',$6::text)
@@ -165,6 +170,10 @@ func (r *accountRepository) FinishExcelBPSRecovery(ctx context.Context, a *servi
 		return false, fmt.Errorf("marshal BPS recovery: %w", err)
 	}
 	return r.excelBPSRecoveryWrite(ctx, func(ctx context.Context, client *dbent.Client) ([]int64, error) {
+		matches, err := lockExcelBPSProxyTransport(ctx, client, a)
+		if err != nil || !matches {
+			return nil, err
+		}
 		result, err := client.ExecContext(ctx, `UPDATE accounts SET extra=jsonb_set(extra,'{openai_excel_bps_recovery}',$4::jsonb),updated_at=GREATEST(clock_timestamp(),updated_at+interval '1 microsecond')
    WHERE id=$1 AND credentials=$2::jsonb AND `+excelBPSConfigSQL+`=$3::jsonb AND extra->'openai_excel_bps_recovery'=$5::jsonb
     AND `+excelBPSNormalSQL+` AND extra->'openai_excel_bps'='true'::jsonb AND extra->'openai_excel_bps_shadow_recovery'='true'::jsonb
@@ -178,4 +187,40 @@ func (r *accountRepository) FinishExcelBPSRecovery(ctx context.Context, a *servi
 		}
 		return []int64{a.ID}, err
 	})
+}
+
+// Lock the referenced row before the account transition so a same-ID transport
+// edit cannot commit between comparison and restore/degradation. Metadata-only
+// proxy updates do not invalidate the snapshot.
+func lockExcelBPSProxyTransport(ctx context.Context, client *dbent.Client, a *service.Account) (bool, error) {
+	if a.ProxyID == nil {
+		return true, nil
+	}
+	if a.Proxy == nil || a.Proxy.ID != *a.ProxyID {
+		return false, nil
+	}
+	rows, err := client.QueryContext(ctx, `SELECT protocol,host,port,COALESCE(username,''),COALESCE(password,''),status,expires_at,fallback_mode,backup_proxy_id FROM proxies WHERE id=$1 AND deleted_at IS NULL FOR SHARE`, *a.ProxyID)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return false, rows.Err()
+	}
+	current := service.Proxy{ID: *a.ProxyID}
+	var expires sql.NullTime
+	var backup sql.NullInt64
+	if err = rows.Scan(&current.Protocol, &current.Host, &current.Port, &current.Username, &current.Password, &current.Status, &expires, &current.FallbackMode, &backup); err != nil {
+		return false, err
+	}
+	if expires.Valid {
+		current.ExpiresAt = &expires.Time
+	}
+	if backup.Valid {
+		current.BackupProxyID = &backup.Int64
+	}
+	if err = rows.Err(); err != nil {
+		return false, err
+	}
+	return service.ExcelBPSProxyTransportFingerprint(a.Proxy) == service.ExcelBPSProxyTransportFingerprint(&current), nil
 }

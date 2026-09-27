@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -91,7 +92,7 @@ func (a *Account) excelBPSFallbackMapping() (map[string]string, bool) {
 // MergeExcelBPSRecoveryExtra runs under the account row lock. Runtime state is
 // never accepted from an admin payload; turning desired BPS off cancels it.
 func MergeExcelBPSRecoveryExtra(extra, current map[string]any) map[string]any {
-	extra = maps.Clone(extra)
+	extra = preserveExcelBPSFallbackModels(extra, current)
 	delete(extra, ExcelBPSRecoveryKey)
 	if extra["openai_excel_bps"] != true {
 		delete(extra, ExcelBPSShadowRecoveryKey)
@@ -106,6 +107,20 @@ func MergeExcelBPSRecoveryExtra(extra, current map[string]any) map[string]any {
 		}
 	}
 	return extra
+}
+
+// A full extra replacement may omit unchanged UI fields. Preserve the saved
+// fallback whitelist, including while recovery is paused; patches stay patches.
+func preserveExcelBPSFallbackModels(extra, current map[string]any) map[string]any {
+	result := maps.Clone(extra)
+	if result["openai_excel_bps"] == true {
+		if _, supplied := result[ExcelBPSFallbackModelsKey]; !supplied {
+			if saved, exists := current[ExcelBPSFallbackModelsKey]; exists {
+				result[ExcelBPSFallbackModelsKey] = saved
+			}
+		}
+	}
+	return result
 }
 
 func ValidateExcelBPSRecoveryExtra(extra, current map[string]any) error {
@@ -171,10 +186,24 @@ func ExcelBPSRecoverySnapshotMatches(a, b *Account) bool {
 				extra[key] = value
 			}
 		}
-		raw, _ := json.Marshal([]any{a.Credentials, extra, a.ProxyID})
+		raw, _ := json.Marshal([]any{a.Credentials, extra, a.ProxyID, ExcelBPSProxyTransportFingerprint(a.Proxy)})
 		return string(raw)
 	}
 	return snapshot(a) == snapshot(b)
 }
 
 type excelBPSShadowProbeCheckKey struct{}
+
+// ExcelBPSProxyTransportFingerprint deliberately excludes labels, warning
+// preferences and observation timestamps. Never log the source credentials.
+func ExcelBPSProxyTransportFingerprint(p *Proxy) string {
+	if p == nil {
+		return ""
+	}
+	var expiry any
+	if p.ExpiresAt != nil {
+		expiry = p.ExpiresAt.UTC()
+	}
+	raw, _ := json.Marshal([]any{p.ID, p.Protocol, p.Host, p.Port, p.Username, p.Password, p.Status, expiry, p.FallbackMode, p.BackupProxyID})
+	return fmt.Sprintf("%x", sha256.Sum256(raw))
+}

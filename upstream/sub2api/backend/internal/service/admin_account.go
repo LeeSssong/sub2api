@@ -657,6 +657,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	}
 	originalAccountType := account.Type
 	if input.Extra != nil {
+		replacement := *input
+		replacement.Extra = preserveExcelBPSFallbackModels(input.Extra, account.Extra)
+		input = &replacement
 		if err := ValidateExcelBPSRecoveryExtra(input.Extra, account.Extra); err != nil {
 			return nil, err
 		}

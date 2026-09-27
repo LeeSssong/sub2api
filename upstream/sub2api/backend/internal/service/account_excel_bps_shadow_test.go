@@ -43,3 +43,20 @@ func TestExcelBPSRecoveryModelsListIgnoresPassthrough(t *testing.T) {
 	require.NoError(t, err)
 	require.JSONEq(t, `{"object":"list","data":[{"id":"gpt-6-sol"}]}`, string(projected))
 }
+
+func TestExcelBPSRecoverySnapshotRejectsSameProxyIDTransportEdit(t *testing.T) {
+	id := int64(10)
+	a := &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, ProxyID: &id, Proxy: &Proxy{ID: id, Protocol: "http", Host: "before", Port: 8080, Username: "user", Password: "before", Status: StatusActive}, Extra: map[string]any{"openai_excel_bps": true, ExcelBPSShadowRecoveryKey: true}}
+	b := *a
+	proxy := *a.Proxy
+	b.Proxy = &proxy
+	require.True(t, ExcelBPSRecoverySnapshotMatches(a, &b))
+	proxy.Name = "display rename"
+	proxy.UpdatedAt = time.Now()
+	require.True(t, ExcelBPSRecoverySnapshotMatches(a, &b))
+	proxy.Host = "after"
+	require.False(t, ExcelBPSRecoverySnapshotMatches(a, &b))
+	proxy.Host = a.Proxy.Host
+	proxy.Password = "after"
+	require.False(t, ExcelBPSRecoverySnapshotMatches(a, &b))
+}

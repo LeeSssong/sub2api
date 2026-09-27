@@ -192,3 +192,82 @@ func TestExcelBPSRecoveryAdminPreservationAndLegacyDegrade(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, a.Extra, service.ExcelBPSRecoveryKey)
 }
+
+func TestExcelBPSRecoverySameProxyTransportGuard(t *testing.T) {
+	for _, phase := range []string{"degrade", "finish"} {
+		for _, edit := range []string{"unchanged", "metadata", "host", "password"} {
+			t.Run(phase+"/"+edit, func(t *testing.T) {
+				ctx := context.Background()
+				repo := newAccountRepositoryWithSQL(integrationEntClient, integrationDB, nil)
+				proxy := mustCreateProxy(t, integrationEntClient, &service.Proxy{Name: "recovery-proxy", Protocol: "http", Host: "before.invalid", Port: 8080, Username: "test-user", Password: "test-before", Status: service.StatusActive})
+				defer integrationDB.Exec("DELETE FROM proxies WHERE id=$1", proxy.ID)
+				input := newExcelBPSAutoDisableAccount()
+				input.ProxyID = &proxy.ID
+				input.Extra[service.ExcelBPSShadowRecoveryKey] = true
+				input.Extra[service.ExcelBPSFallbackModelsKey] = []string{"normal"}
+				a := mustCreateAccount(t, integrationEntClient, input)
+				defer integrationDB.Exec("DELETE FROM accounts WHERE id=$1", a.ID)
+				a, err := repo.GetByID(ctx, a.ID)
+				require.NoError(t, err)
+				now := time.Now().Add(6 * time.Minute)
+				if phase == "finish" {
+					changed, err := repo.DegradeExcelBPS(ctx, a, 503)
+					require.NoError(t, err)
+					require.True(t, changed)
+					claims, err := repo.ClaimDueExcelBPSRecoveries(ctx, now, 3)
+					require.NoError(t, err)
+					require.Len(t, claims, 1)
+					a = claims[0]
+				}
+				queries := map[string]string{"metadata": "name='renamed',updated_at=NOW()", "host": "host='after.invalid',updated_at=NOW()", "password": "password='test-after',updated_at=NOW()"}
+				if edit != "unchanged" {
+					_, err = integrationDB.Exec("UPDATE proxies SET "+queries[edit]+" WHERE id=$1", proxy.ID)
+					require.NoError(t, err)
+				}
+				var changed bool
+				if phase == "finish" {
+					changed, err = repo.FinishExcelBPSRecovery(ctx, a, true, now)
+				} else {
+					changed, err = repo.DegradeExcelBPS(ctx, a, 503)
+				}
+				require.NoError(t, err)
+				require.Equal(t, edit == "unchanged" || edit == "metadata", changed)
+			})
+		}
+	}
+}
+
+func TestExcelBPSRecoveryWhitelistReplacementAndPatch(t *testing.T) {
+	ctx := context.Background()
+	repo := newAccountRepositoryWithSQL(integrationEntClient, integrationDB, nil)
+	input := newExcelBPSAutoDisableAccount()
+	input.Extra[service.ExcelBPSShadowRecoveryKey] = true
+	input.Extra[service.ExcelBPSFallbackModelsKey] = []string{"normal-only"}
+	a := mustCreateAccount(t, integrationEntClient, input)
+	defer integrationDB.Exec("DELETE FROM accounts WHERE id=$1", a.ID)
+	changed, err := repo.DegradeExcelBPS(ctx, a, 503)
+	require.NoError(t, err)
+	require.True(t, changed)
+	a, err = repo.GetByID(ctx, a.ID)
+	require.NoError(t, err)
+	a.Extra = map[string]any{"openai_excel_bps": true, service.ExcelBPSShadowRecoveryKey: true}
+	require.NoError(t, repo.Update(ctx, a))
+	a, err = repo.GetByID(ctx, a.ID)
+	require.NoError(t, err)
+	require.True(t, a.IsExcelBPSDegraded())
+	require.True(t, a.IsModelSupported("normal-only"))
+	require.False(t, a.IsModelSupported("unlisted"))
+	_, err = repo.BulkUpdate(ctx, []int64{a.ID}, service.AccountBulkUpdate{Extra: map[string]any{service.ExcelBPSShadowRecoveryKey: false}})
+	require.NoError(t, err)
+	a, err = repo.GetByID(ctx, a.ID)
+	require.NoError(t, err)
+	require.True(t, a.IsExcelBPSDegraded())
+	require.False(t, a.IsExcelBPSShadowRecoveryEnabled())
+	require.True(t, a.IsModelSupported("normal-only"))
+	require.False(t, a.IsModelSupported("unlisted"))
+	require.NoError(t, repo.UpdateExtra(ctx, a.ID, map[string]any{"openai_excel_bps_ignore_images": true}))
+	a, err = repo.GetByID(ctx, a.ID)
+	require.NoError(t, err)
+	require.True(t, a.IsModelSupported("normal-only"))
+	require.False(t, a.IsModelSupported("unlisted"))
+}
