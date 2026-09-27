@@ -51,6 +51,10 @@ export function buildQualityRulePatch(
   if (fields.includes('action')) {
     config.quality.action = source.quality.action
     config.quality.remove_group_ids = source.quality.action === 'remove_groups' ? [...source.quality.remove_group_ids] : []
+    if (source.quality.action === 'remove_models') {
+      config.quality.remove_model_ids = [...(source.quality.remove_model_ids || [])]
+      if (!config.quality.remove_model_ids.length) throw new Error('qualityOps.selectModels')
+    } else delete config.quality.remove_model_ids
     if (config.quality.action === 'remove_groups' && !config.quality.remove_group_ids.length) throw new Error('qualityOps.selectGroups')
   }
   if (fields.includes('restore')) config.quality.auto_restore = source.quality.auto_restore

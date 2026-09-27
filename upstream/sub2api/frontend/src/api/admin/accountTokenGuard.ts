@@ -87,6 +87,7 @@ export interface TokenGuardConfig {
   email_enabled?: boolean
   email_recipient?: string
   bark_key: string
+  notify_on_auth?: boolean
   notify_on_fix: boolean
   notify_on_fail: boolean
 }

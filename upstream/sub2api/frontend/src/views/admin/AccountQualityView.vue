@@ -552,7 +552,7 @@ async function loadModelChoices() {
   const request = ++modelChoicesRequest
   modelChoices.value = []; accountModelLists.value = []; modelChoicesError.value = ''; modelChoicesLoading.value = false
   if (!showForm.value || form.value.pelican_config.quality.action !== 'remove_models') return
-  const ids = editing.value ? [plans.value.find(p => p.id === editing.value)?.account_id].filter((id): id is number => !!id) : [...selectedAccounts.value]
+  const ids = bulkEditing.value ? [...new Set(plans.value.filter(p => bulkRuleIds.value.includes(p.id)).map(p => p.account_id))] : editing.value ? [plans.value.find(p => p.id === editing.value)?.account_id].filter((id): id is number => !!id) : [...selectedAccounts.value]
   if (!ids.length) return
   modelChoicesLoading.value = true
   try {
@@ -563,13 +563,13 @@ async function loadModelChoices() {
     accountModelLists.value = lists
     const common = lists[0].filter(model => lists.every(list => list.includes(model)))
     // Keep previously selected entries visible while the rule owns their removal.
-    const previous = editing.value ? (plans.value.find(p => p.id === editing.value)?.pelican_config?.quality?.remove_model_ids || []) : []
+    const previous = bulkEditing.value ? plans.value.filter(p => bulkRuleIds.value.includes(p.id)).flatMap(p => p.pelican_config?.quality?.remove_model_ids || []) : editing.value ? (plans.value.find(p => p.id === editing.value)?.pelican_config?.quality?.remove_model_ids || []) : []
     modelChoices.value = [...new Set([...common, ...previous])].sort()
     form.value.pelican_config.quality.remove_model_ids = form.value.pelican_config.quality.remove_model_ids.filter(model => modelChoices.value.includes(model))
   } catch (e) { if (alive && request === modelChoicesRequest) modelChoicesError.value = message(e) }
   finally { if (request === modelChoicesRequest) modelChoicesLoading.value = false }
 }
-watch(() => [showForm.value, editing.value, selectedAccounts.value.join(','), form.value.pelican_config.quality.action], () => { void loadModelChoices() }, { flush: 'sync' })
+watch(() => [showForm.value, editing.value, bulkEditing.value, bulkRuleIds.value.join(','), selectedAccounts.value.join(','), form.value.pelican_config.quality.action], () => { void loadModelChoices() }, { flush: 'sync' })
 function closeDetails() { detailRequest++; answerRequest++; historyPlan.value = null; detailOperation.value = null; selectedResult.value = null; selectedResultId.value = null; results.value = []; detailsError.value = ''; detailsLoading.value = answerLoading.value = false; loadedAnswers.clear() }
 async function history(plan: ScheduledTestPlan) {
   closeDetails(); historyPlan.value = plan; detailsLoading.value = true

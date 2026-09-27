@@ -1303,6 +1303,70 @@ public_acceptance() {
   ' "$base_url" "$gateway_header" || return 1
 }
 
+# Keep the current API serving while retiring the singleton worker. The table
+# lock closes the race between an idle check and the old worker's next claim.
+stop_worker_after_schedule_drain() {
+  python3 - "$1" "$2" "$3" "$record_root/.$attempt_id.worker-stop" <<'PY_WORKER_DRAIN'
+import selectors
+import subprocess
+import sys
+import time
+
+postgres, worker, wait_seconds, marker = sys.argv[1:]
+deadline = time.monotonic() + float(wait_seconds)
+command = ["docker", "exec", "-i", postgres, "sh", "-c",
+           'exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+sql = """BEGIN;
+SET LOCAL lock_timeout='2s';
+SET LOCAL idle_in_transaction_session_timeout='75s';
+LOCK TABLE scheduled_test_plans IN SHARE MODE;
+SELECT 'worker_guard|' || count(*) FILTER (WHERE pelican_config IS NULL)
+  || '|' || count(*) FILTER (WHERE running_until IS NOT NULL)
+FROM scheduled_test_plans;
+"""
+while True:
+    holder = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, text=True, bufsize=1)
+    try:
+        holder.stdin.write(sql)
+        holder.stdin.flush()
+        with selectors.DefaultSelector() as selector:
+            selector.register(holder.stdout, selectors.EVENT_READ)
+            line = holder.stdout.readline().strip() if selector.select(5) else ""
+        if line.startswith("worker_guard|"):
+            _, ordinary, running = line.split("|")
+            if int(ordinary):
+                raise RuntimeError("ordinary scheduled plans lack drain leases; worker left running")
+            if int(running) == 0:
+                if holder.poll() is not None:
+                    raise RuntimeError("worker drain lock was lost")
+                open(marker, "x").close()
+                subprocess.run(["docker", "stop", "--time", "60", worker],
+                               check=True, timeout=65, stdout=subprocess.DEVNULL)
+                observed = subprocess.check_output(
+                    ["docker", "inspect", worker, "--format", "{{.State.Running}}"],
+                    text=True, timeout=5).strip()
+                if observed != "false":
+                    raise RuntimeError("old worker did not stop")
+                print("worker_schedule_drain=completed", flush=True)
+                try:
+                    import os
+                    os.unlink(marker)
+                except FileNotFoundError:
+                    pass
+                break
+        if time.monotonic() >= deadline:
+            raise RuntimeError("worker schedule drain timed out; active API retained")
+    finally:
+        try:
+            holder.communicate("ROLLBACK;\n", timeout=5)
+        except (subprocess.TimeoutExpired, BrokenPipeError):
+            holder.kill()
+            holder.communicate()
+    time.sleep(min(1, max(0, deadline - time.monotonic())))
+PY_WORKER_DRAIN
+}
+
 worker_logs_are_acceptable() {
   # Compose prefixes each line with the container name; avoid treating an
   # unrelated "Request failed" message as a worker startup failure.
@@ -1318,6 +1382,9 @@ restore_previous() {
   [[ "${migration_receipts_unknown:-false}" != true ]] || return 1
   local rollback_ok=true current_blue current_green previous_previous
   rollback_in_progress=true
+  if [[ -e "$record_root/.$attempt_id.worker-stop" ]]; then
+    worker_update_started=true
+  fi
   if [[ "$additive_migration_started" == true ]]; then
     # A failed candidate may have already committed the additive migration.
     # Keep the release checkpoint aligned with the real schema on rollback.
@@ -2169,6 +2236,21 @@ failure_reason=caddy_validate_failed
 run_caddy_config_command "$candidate_upstream" validate >/dev/null
 write_partial caddy_validated
 
+if [[ "$preserve_worker" == false && "$maintenance_transition" == false && "$online_migration_transition" == false ]]; then
+  failure_reason=worker_drain_failed
+  write_partial worker_updating
+  stop_worker_after_schedule_drain "$postgres_id" "$(resolve_container_id sub2api-worker)" 90 \
+    || fail 'worker could not be safely drained; API cutover canceled'
+  failure_reason=worker_update_failed
+  run_post_stop_command "${compose_candidate[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" --force-recreate sub2api-worker >/dev/null
+  wait_for_worker_healthy || fail 'worker did not become healthy before timeout'
+  worker_logs_are_acceptable || fail 'worker logs contain a startup failure'
+  worker_runtime_image_id=$(run_post_stop_command docker inspect "$(resolve_container_id sub2api-worker)" --format '{{.Image}}')
+  [[ "$worker_runtime_image_id" == "$candidate_worker_image_id" ]] || fail 'updated worker image ID differs from candidate'
+  rm -f "$record_root/.$attempt_id.worker-stop"
+  write_partial worker_accepted
+fi
+
 failure_reason=caddy_reload_failed
 cutover_attempted=true
 write_partial cutover_attempted
@@ -2198,7 +2280,7 @@ write_partial state_persisted
 [[ "$(live_caddy_upstream)" == "$candidate_upstream" ]] || fail 'persisted route does not match live Caddy upstream'
 
 failure_reason=worker_update_failed
-if [[ "$preserve_worker" == false ]]; then
+if [[ "$preserve_worker" == false && ( "$maintenance_transition" == true || "$online_migration_transition" == true ) ]]; then
   worker_update_started=true
   write_partial worker_updating
   if [[ "$online_migration_transition" == true ]]; then

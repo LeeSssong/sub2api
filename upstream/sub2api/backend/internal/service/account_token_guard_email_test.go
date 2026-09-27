@@ -31,7 +31,7 @@ func TestTokenGuardEmailValidationAndRoundTrip(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`{"email_enabled":true,"email_recipient":"bad\r\nBcc:x@example.com"}`), &cfg))
 	require.Error(t, ValidateAccountTokenGuardConfig(cfg))
 	require.NoError(t, json.Unmarshal([]byte(`{"email_enabled":true,"email_recipient":""}`), &cfg))
-	require.Error(t, ValidateAccountTokenGuardConfig(cfg))
+	require.NoError(t, ValidateAccountTokenGuardConfig(cfg))
 	require.NoError(t, json.Unmarshal([]byte(`{"email_enabled":true,"email_recipient":"ops@example.com"}`), &cfg))
 	svc := NewAccountTokenGuardService(&accountOpsSettingsStub{}, nil, nil, nil, nil)
 	saved, err := svc.SaveConfig(context.Background(), cfg)
@@ -91,4 +91,52 @@ func TestTokenGuardEmailDoesNotDelayBark(t *testing.T) {
 	defer cancel()
 	svc.notify(ctx, cfg, "repair", "account repaired", true)
 	require.NoError(t, ctx.Err(), "Bark should unblock slow SMTP immediately")
+}
+
+func TestTokenGuardEmailInheritsAccountOpsRecipient(t *testing.T) {
+	mail := &guardMailCapture{}
+	svc := NewAccountTokenGuardService(&accountOpsSettingsStub{raw: `{"recipient":"shared@example.com"}`}, nil, nil, nil, nil)
+	svc.email = mail
+	cfg := defaultAccountTokenGuardConfig()
+	cfg.EmailEnabled = true
+	svc.notify(context.Background(), cfg, "repaired", "account repaired", true)
+	require.Equal(t, "shared@example.com", mail.to)
+}
+
+func TestTokenGuardEmailAuthTransitionIsNotRepeated(t *testing.T) {
+	repo := &tokenGuardTestRepo{states: map[int64]AccountTokenGuardState{}, acquired: true}
+	account := guardNativeAccount()
+	account.Status = StatusActive
+	account.Schedulable = true
+	accounts := &tokenGuardTestAccounts{items: []Account{account}}
+	svc := NewAccountTokenGuardService(&accountOpsSettingsStub{}, repo, accounts, nil, nil)
+	mail := &guardMailCapture{}
+	svc.email = mail
+	cfg := defaultAccountTokenGuardConfig()
+	cfg.Enabled = true
+	cfg.EmailEnabled = true
+	cfg.EmailRecipient = "ops@example.com"
+	require.NoError(t, json.Unmarshal([]byte(`{"notify_on_auth":true}`), &cfg))
+	encoded, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	svc.settings.(*accountOpsSettingsStub).raw = string(encoded)
+	svc.config.Store(cfg)
+	probeState := AccountTokenGuardProbeAuth
+	svc.nativeProbe = func(context.Context, *Account, string) AccountTokenGuardProbeResult {
+		return AccountTokenGuardProbeResult{State: probeState}
+	}
+	_, err = svc.runCycle(context.Background(), true, "")
+	require.NoError(t, err)
+	require.Equal(t, 1, mail.calls)
+	_, err = svc.runCycle(context.Background(), true, "")
+	require.NoError(t, err)
+	require.Equal(t, 1, mail.calls)
+	probeState = AccountTokenGuardProbeOK
+	_, err = svc.runCycle(context.Background(), true, "")
+	require.NoError(t, err)
+	require.Equal(t, 1, mail.calls)
+	probeState = AccountTokenGuardProbeAuth
+	_, err = svc.runCycle(context.Background(), true, "")
+	require.NoError(t, err)
+	require.Equal(t, 2, mail.calls)
 }

@@ -149,3 +149,12 @@ func TestQuality5xxQueueHasIndependentShortTimeouts(t *testing.T) {
 	trigger.Observe(context.Background(), &Account{ID: 5, Type: AccountTypeOAuth}, 500)
 	require.Equal(t, []string{"5"}, shared.ZRange(context.Background(), quality5xxPendingKey, 0, -1).Val())
 }
+
+func TestQuality5xxKeepsSignalWhileAnExistingLeaseCouldBeInterrupted(t *testing.T) {
+	plan := pelicanPlan()
+	until := time.Now().Add(time.Minute)
+	plan.RunningUntil = &until
+	plan.PelicanConfig.Quality = &QualityPolicy{TriggerOnUpstream5xx: true}
+	runner := &ScheduledTestRunnerService{planRepo: &qualityClaimFailureRepo{plan: plan}}
+	require.Error(t, runner.runQualityTriggeredAccount(context.Background(), plan.AccountID))
+}

@@ -83,6 +83,7 @@ type AccountTokenGuardConfig struct {
 	EmailEnabled        bool                              `json:"email_enabled"`
 	EmailRecipient      string                            `json:"email_recipient"`
 	BarkKey             string                            `json:"bark_key"`
+	NotifyOnAuth        bool                              `json:"notify_on_auth"`
 	NotifyOnFix         bool                              `json:"notify_on_fix"`
 	NotifyOnFail        bool                              `json:"notify_on_fail"`
 }
@@ -259,7 +260,7 @@ func defaultAccountTokenGuardConfig() AccountTokenGuardConfig {
 // ValidateAccountTokenGuardConfig 校验配置范围与 URL 合法性。
 func ValidateAccountTokenGuardConfig(c AccountTokenGuardConfig) error {
 	mailConfig := defaultAccountOpsConfig()
-	mailConfig.Enabled = c.EmailEnabled
+	mailConfig.Enabled = c.EmailEnabled && c.EmailRecipient != ""
 	mailConfig.Recipient = c.EmailRecipient
 	if err := ValidateAccountOpsConfig(mailConfig); err != nil {
 		return fmt.Errorf("邮箱通知配置无效: %w", err)
@@ -421,6 +422,11 @@ func (s *AccountTokenGuardService) SaveConfig(ctx context.Context, cfg AccountTo
 	}
 	if err := ValidateAccountTokenGuardConfig(cfg); err != nil {
 		return AccountTokenGuardConfig{}, err
+	}
+	if cfg.EmailEnabled {
+		if _, err := s.guardEmailRecipient(ctx, cfg); err != nil {
+			return AccountTokenGuardConfig{}, err
+		}
 	}
 	raw, err := json.Marshal(cfg)
 	if err != nil {
@@ -744,6 +750,7 @@ func (s *AccountTokenGuardService) runCycle(ctx context.Context, manual bool, jo
 		if previous, ok := existing[account.ID]; ok {
 			state = previous
 		}
+		previousProbeState := state.ProbeState
 		state.ProbeState = result.State
 		state.ProbeDetail = result.Detail
 		state.LatencyMS = result.LatencyMS
@@ -775,6 +782,9 @@ func (s *AccountTokenGuardService) runCycle(ctx context.Context, manual bool, jo
 
 		case AccountTokenGuardProbeAuth:
 			stats.AuthFailed++
+			if previousProbeState != AccountTokenGuardProbeAuth {
+				s.notify(cycleCtx, cfg, "凭证守护：令牌失效", fmt.Sprintf("%s(#%d) 检测到认证失效，请检查重登结果或账号凭据", account.Name, account.ID), cfg.NotifyOnAuth)
+			}
 			state.FailStreak++
 			s.recordEvent(cycleCtx, account, AccountTokenGuardEventProbeAuth, result.Detail, result.LatencyMS)
 			if state.FailStreak >= cfg.FailStreakThreshold && cfg.Enabled && cfg.RestoreSchedulable {
@@ -1501,6 +1511,29 @@ func sanitizeGuardError(err error) string {
 	return truncateGuardText(err.Error(), 160)
 }
 
+// Empty override follows Account Operations so one address can serve both pages.
+func (s *AccountTokenGuardService) guardEmailRecipient(ctx context.Context, cfg AccountTokenGuardConfig) (string, error) {
+	recipient := strings.TrimSpace(cfg.EmailRecipient)
+	if recipient == "" && s.settings != nil {
+		raw, err := s.settings.GetValue(ctx, accountOpsSettingsKey)
+		if err != nil {
+			return "", errors.New("请先在账号运维配置收件邮箱")
+		}
+		var shared AccountOpsConfig
+		if json.Unmarshal([]byte(raw), &shared) != nil {
+			return "", errors.New("账号运维邮箱配置无法读取")
+		}
+		recipient = strings.TrimSpace(shared.Recipient)
+	}
+	check := defaultAccountOpsConfig()
+	check.Enabled = true
+	check.Recipient = recipient
+	if ValidateAccountOpsConfig(check) != nil {
+		return "", errors.New("请配置有效收件邮箱，或在账号运维设置共享邮箱")
+	}
+	return recipient, nil
+}
+
 func (s *AccountTokenGuardService) notify(ctx context.Context, cfg AccountTokenGuardConfig, title, body string, enabled bool) {
 	if !enabled {
 		return
@@ -1508,11 +1541,16 @@ func (s *AccountTokenGuardService) notify(ctx context.Context, cfg AccountTokenG
 	sendCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	var wg sync.WaitGroup
-	if cfg.EmailEnabled && cfg.EmailRecipient != "" && s.email != nil {
+	if cfg.EmailEnabled && s.email != nil {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := s.email.SendEmail(sendCtx, cfg.EmailRecipient, title, "<p>"+html.EscapeString(body)+"</p>"); err != nil {
+			recipient, err := s.guardEmailRecipient(sendCtx, cfg)
+			if err != nil {
+				slog.Warn("token guard email recipient unavailable")
+				return
+			}
+			if err := s.email.SendEmail(sendCtx, recipient, title, "<p>"+html.EscapeString(body)+"</p>"); err != nil {
 				slog.Warn("token guard email notification failed")
 			}
 		}()

@@ -133,7 +133,7 @@ func (s *ScheduledTestRunnerService) runQualityTriggeredAccount(ctx context.Cont
 		}
 		plan.TriggerSource = quality5xxSource
 		if plan.RunningUntil != nil && plan.RunningUntil.After(time.Now()) {
-			continue
+			return fmt.Errorf("quality plan %d is still running", plan.ID)
 		}
 		if plan.LastRunAt != nil && plan.LastRunAt.After(time.Now().Add(-time.Minute)) {
 			continue
@@ -149,7 +149,7 @@ func (s *ScheduledTestRunnerService) runQualityTriggeredAccount(ctx context.Cont
 				continue
 			}
 			if current.RunningUntil != nil && current.RunningUntil.After(time.Now()) {
-				continue
+				return fmt.Errorf("quality plan %d is still running", plan.ID)
 			}
 			if current.LastRunAt != nil && current.LastRunAt.After(time.Now().Add(-time.Minute)) {
 				continue
