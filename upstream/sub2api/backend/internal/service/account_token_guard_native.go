@@ -187,11 +187,7 @@ func (s *AccountTokenGuardService) nativeRelogin(ctx context.Context, entry Acco
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("原生重登执行器 HTTP %d", resp.StatusCode)
 	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-	if err != nil {
-		return nil, errors.New("原生重登响应读取失败")
-	}
-	result, err := parseGuardNDJSONResult(raw)
+	result, _, err := readGuardResult(reqCtx, resp.Body, 8<<20, 10*time.Minute)
 	if err != nil {
 		return nil, errors.New("原生重登响应无效")
 	}
