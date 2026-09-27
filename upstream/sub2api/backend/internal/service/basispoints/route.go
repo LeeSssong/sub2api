@@ -41,7 +41,6 @@ func NativeFallbackReason(body []byte) string {
 			return fallback
 		}
 	}
-	choice := gjson.GetBytes(body, "tool_choice")
 	if choice.Type == gjson.String && choice.String() == "required" {
 		return "tool_choice"
 	}
