@@ -58,6 +58,7 @@ export function installPelicanMeasurement(target: Window & typeof globalThis, ch
   let offsetY = 0
   let innerScale = 1
   let authorZoom = 1
+  let baselineRootWidth = 0
   let originalTranslate = ['0px', '0px']
   let resizeObserver: ResizeObserver | undefined
   let mutationObserver: MutationObserver | undefined
@@ -106,9 +107,16 @@ export function installPelicanMeasurement(target: Window & typeof globalThis, ch
     if (disposed || !doc.body || sent >= 120) return
     const elements = prepareElements()
     const root = doc.documentElement
-    // Body scroll metrics remain in authored CSS pixels under root zoom; DOMRects
-    // are painted pixels and need the inverse of only our own reduction. Root
-    // scroll metrics have a viewport-sized floor and would create a feedback loop.
+    // WebKit can report DOMRects in layout pixels even after CSS zoom paints the
+    // page smaller. Use the root's observed change instead of assuming that its
+    // rect includes our zoom; otherwise each pass enlarges the reported canvas.
+    const currentRootWidth = root.getBoundingClientRect().width
+    const rectScale = baselineRootWidth > 0 && currentRootWidth > 0
+      ? currentRootWidth / baselineRootWidth
+      : innerScale
+    // Body scroll metrics remain in authored CSS pixels under root zoom. DOMRects
+    // need the inverse of the zoom they actually reflect. Root scroll metrics
+    // have a viewport-sized floor and would create a feedback loop.
     let width = Math.max(viewport.width, doc.body.scrollWidth * authorZoom)
     let height = Math.max(viewport.height, doc.body.scrollHeight * authorZoom)
     let left = 0
@@ -120,10 +128,10 @@ export function installPelicanMeasurement(target: Window & typeof globalThis, ch
       const svg = element.closest('svg')
       if (svg && svg !== element) continue
       const rect = element.getBoundingClientRect()
-      left = Math.min(left, (rect.left + target.scrollX) / innerScale - offsetX)
-      top = Math.min(top, (rect.top + target.scrollY) / innerScale - offsetY)
-      width = Math.max(width, (rect.right + target.scrollX) / innerScale - offsetX)
-      height = Math.max(height, (rect.bottom + target.scrollY) / innerScale - offsetY)
+      left = Math.min(left, (rect.left + target.scrollX) / rectScale - offsetX)
+      top = Math.min(top, (rect.top + target.scrollY) / rectScale - offsetY)
+      width = Math.max(width, (rect.right + target.scrollX) / rectScale - offsetX)
+      height = Math.max(height, (rect.bottom + target.scrollY) / rectScale - offsetY)
     }
     const nextX = Math.min(limit, Math.max(offsetX, Math.ceil(-left)))
     const nextY = Math.min(limit, Math.max(offsetY, Math.ceil(-top)))
@@ -175,6 +183,7 @@ export function installPelicanMeasurement(target: Window & typeof globalThis, ch
     // height:100% document while the measurement zoom settles.
     root.style.setProperty('width', `${width}px`, 'important')
     root.style.setProperty('height', `${height}px`, 'important')
+    baselineRootWidth = root.getBoundingClientRect().width
     if (target.ResizeObserver) resizeObserver = new target.ResizeObserver(schedule)
     if (target.MutationObserver) {
       mutationObserver = new target.MutationObserver(schedule)
