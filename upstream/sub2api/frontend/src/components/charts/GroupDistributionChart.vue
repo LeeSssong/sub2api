@@ -2,7 +2,7 @@
   <div class="card p-4">
     <div class="mb-4 flex items-center justify-between gap-3">
       <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
-        {{ t('admin.dashboard.groupDistribution') }}
+        {{ title || t('admin.dashboard.groupDistribution') }}
       </h3>
       <div
         v-if="showMetricToggle"
@@ -126,6 +126,7 @@ type DistributionMetric = 'tokens' | 'actual_cost'
 
 const props = withDefaults(defineProps<{
   groupStats: GroupStat[]
+  title?: string
   loading?: boolean
   metric?: DistributionMetric
   showMetricToggle?: boolean

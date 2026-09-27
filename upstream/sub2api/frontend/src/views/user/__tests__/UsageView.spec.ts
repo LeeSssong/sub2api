@@ -50,10 +50,14 @@ const messages: Record<string, string> = {
   'admin.usage.allGroups': 'All groups',
   'admin.usage.allModels': 'All models',
   'usage.allApiKeys': 'All API Keys',
+  'usage.statGranularity': 'Statistics granularity',
   'usage.errors.allKeys': 'All API Keys',
   'usage.tabs.usage': 'Usage records',
+  'usage.requestDetails': 'Request Details',
   'usage.tabs.errors': 'Error records',
   'usage.apiKeyFilter': 'API Key',
+  'usage.lineFilter': 'Line',
+  'usage.allLines': 'All lines',
   'usage.model': 'Model',
   'usage.type': 'Type',
   'usage.ws': 'WS',
@@ -106,14 +110,15 @@ vi.mock('vue-i18n', async () => {
 
 const simpleStub = { template: '<div><slot /></div>' }
 const chartStub = { template: '<div />' }
+const StatsStub = { name: 'UsageStatsCards', props: { userOverview: Boolean, strikeStandardCost: Boolean }, template: '<div />' }
 const SelectStub = {
-  props: { brand: Boolean, options: Array, modelValue: [String, Number, Boolean] },
+  props: { brand: Boolean, options: Array, modelValue: [String, Number, Boolean], placeholder: String },
   emits: ['update:modelValue', 'change'],
   template: '<div class="select-stub" :data-brand="brand ? \'yes\' : \'no\'" />',
 }
 const UsageTableStub = {
   name: 'UsageTable',
-  props: ['data', 'columns', 'showAccountBilling', 'showUpstreamEndpoint'],
+  props: { data: null, columns: null, showAccountBilling: Boolean, showUpstreamEndpoint: Boolean, flat: Boolean },
   emits: ['detailClick'],
   template: '<button data-testid="user-usage-detail-action" @click="$emit(\'detailClick\', 42)">Details</button>',
 }
@@ -164,7 +169,7 @@ function mountUsageView() {
         Select: SelectStub,
         DateRangePicker: true,
         Icon: true,
-        UsageStatsCards: chartStub,
+        UsageStatsCards: StatsStub,
         UsageTable: UsageTableStub,
         UsageDetailDialog: UsageDetailDialogStub,
         UserErrorRequestsTable: chartStub,
@@ -228,6 +233,40 @@ describe('user UsageView', () => {
     const selects = wrapper.findAll('.select-stub')
     expect(selects.length).toBeGreaterThan(1)
     expect(selects.every(select => select.attributes('data-brand') === 'yes')).toBe(true)
+  })
+
+  it('groups the overview, analysis, and records as continuous prototype workspaces', () => {
+    const wrapper = mountUsageView()
+    const overview = wrapper.find('.usage-overview')
+    const analysis = wrapper.find('.usage-analysis-grid')
+    const records = wrapper.find('.usage-records')
+
+    expect(overview.exists()).toBe(true)
+    expect(overview.find('.usage-time-toolbar').exists()).toBe(true)
+    expect(overview.find('.usage-stats').exists()).toBe(true)
+    expect(analysis.findAll('.usage-chart')).toHaveLength(4)
+    expect(records.findAll('.select-stub').length).toBeGreaterThan(0)
+    expect(records.find('h2').text()).toBe('Request Details')
+    expect(records.findComponent(UsageTableStub).props('flat')).toBe(true)
+    expect(overview.find('.usage-time-toolbar').text()).toContain('Statistics granularity')
+    expect(overview.find('.usage-time-toolbar').text()).not.toContain('Granularity:')
+    expect(overview.findComponent({ name: 'UsageStatsCards' }).props('userOverview')).toBe(true)
+    expect(overview.findComponent({ name: 'UsageStatsCards' }).props('strikeStandardCost')).toBe(false)
+  })
+
+  it('shows only the four prototype filters and the prototype toolbar actions', () => {
+    const wrapper = mountUsageView()
+    const primary = wrapper.get('[data-testid="usage-primary-filters"]')
+    expect(primary.findAll('label').map(label => label.text())).toEqual(['API Key', 'Model', 'Line', 'Billing mode'])
+    expect(primary.findAllComponents(Select).map(select => select.props('placeholder'))).toEqual([
+      'All API Keys', 'All models', 'All lines', 'All billing modes',
+    ])
+    const toolbar = wrapper.get('[data-testid="usage-filter-actions"]')
+    expect(toolbar.findAll('button').map(button => button.text().trim()).filter(Boolean)).toEqual([
+      'Refresh', 'Reset', 'Columns', 'Export CSV',
+    ])
+    expect(toolbar.find('[data-testid="usage-export"]').classes()).toContain('usage-export')
+    wrapper.unmount()
   })
 
   afterEach(() => {

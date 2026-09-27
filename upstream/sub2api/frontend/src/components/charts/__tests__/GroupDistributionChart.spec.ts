@@ -54,6 +54,11 @@ describe('GroupDistributionChart', () => {
     },
   ]
 
+  it('uses a page-specific title when one is supplied', () => {
+    const wrapper = mount(GroupDistributionChart, { props: { groupStats: [], title: 'Line Usage Distribution' } })
+    expect(wrapper.find('h3').text()).toBe('Line Usage Distribution')
+  })
+
   it('uses total_tokens and token ordering by default', () => {
     const wrapper = mount(GroupDistributionChart, {
       props: {
