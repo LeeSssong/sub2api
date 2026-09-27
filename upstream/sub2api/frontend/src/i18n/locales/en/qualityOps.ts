@@ -6,6 +6,10 @@ export default {
   "noExplicitModels": "Select accounts with explicit model lists. Batch rules show models common to all selected accounts.",
   "selectModels": "Select at least one model to remove",
   "modelsRestored": "Selected models restored",
+  "trigger5xx": "Test immediately when an OAuth account returns 5xx",
+  "trigger5xxShort": "5xx trigger",
+  "trigger5xxHint": "Applies only to this rule’s OAuth account. Runs in the background using the existing history and actions. Coalesces with running or due tests, with a 60-second cooldown. Keeps the cron schedule and excludes probe errors.",
+
   "conflictChecks": "Which checks can prevent restoration?",
   "title": "Quality operations",
   "description": "Test account answers on a schedule, then remove selected groups or models, or disable scheduling on a wrong answer. One rule per account.",

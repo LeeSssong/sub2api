@@ -26,6 +26,11 @@ export default {
     "importFailed": "Logged in, import failed; retry import"
   }
 },
+  "emailEnabled": "Email notifications",
+  "emailRecipient": "Recipient email",
+  "emailHint": "Uses the same email service and site SMTP as Account Operations. Can be combined with Bark.",
+  "enabledChannels": "Send to configured Bark and enabled email",
+
   "downloadSource": "Download relogin executor source (AGPL-3.0)",
   "title": "Credential Guard",
   "description": "Probe OpenAI OAuth access tokens and repair confirmed authentication failures with credentials bound to each account.",

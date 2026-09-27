@@ -7,6 +7,7 @@ import (
 
 // PelicanTestConfig stores intelligence test inputs; a missing kind preserves legacy HTML plans.
 type PelicanTestConfig struct {
+	TriggerSource   string         `json:"trigger_source,omitempty"`
 	ReportPairKey   string         `json:"report_pair_key,omitempty"`
 	Quality         *QualityPolicy `json:"quality,omitempty"`
 	QuestionKind    string         `json:"question_kind,omitempty"`
@@ -19,6 +20,7 @@ type PelicanTestConfig struct {
 
 // ScheduledTestPlan represents a scheduled test plan domain model.
 type ScheduledTestPlan struct {
+	TriggerSource   string                      `json:"-"`
 	ReportExecution *PelicanReportExecutionMeta `json:"-"`
 	// PelicanGroupIDs is the account membership captured atomically with the execution claim.
 	PelicanGroupIDs []int64            `json:"-"`
@@ -60,6 +62,7 @@ type ScheduledTestResult struct {
 
 // ScheduledTestPlanRepository defines the data access interface for test plans.
 type ScheduledTestPlanRepository interface {
+	FinishTriggeredQuality(context.Context, *ScheduledTestPlan, time.Time, time.Time, time.Time) error
 	ListQualityPlans(context.Context) ([]*ScheduledTestPlan, error)
 	ApplyQualityOutcome(context.Context, *ScheduledTestPlan, time.Time, string) (string, error)
 	TriggerQuality(context.Context, int64) error

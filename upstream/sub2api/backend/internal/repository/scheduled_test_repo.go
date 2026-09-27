@@ -294,11 +294,15 @@ func (r *scheduledTestPlanRepository) ClaimPelican(ctx context.Context, plan *se
 	}
 	result, err := tx.ExecContext(ctx, `UPDATE scheduled_test_plans
  SET running_until = $3, next_run_at = $4
- WHERE id = $1 AND enabled = true AND next_run_at <= $2
+ WHERE id = $1 AND enabled = true
+ AND (next_run_at <= $2 OR ($7 AND pelican_config->'quality'->>'trigger_on_upstream_5xx'='true'))
+ AND (NOT $7 OR (pelican_config->'quality'->>'trigger_on_upstream_5xx'='true'
+   AND EXISTS (SELECT 1 FROM accounts WHERE accounts.id=account_id AND type='oauth')
+   AND (last_run_at IS NULL OR last_run_at < $2 - interval '60 seconds')))
  AND (running_until IS NULL OR running_until < $2) AND updated_at = $5 AND next_run_at = $6
  AND EXISTS (SELECT 1 FROM accounts WHERE accounts.id = account_id AND deleted_at IS NULL)
  AND NOT EXISTS (SELECT 1 FROM scheduled_test_plans other WHERE other.account_id = scheduled_test_plans.account_id
- AND other.id <> scheduled_test_plans.id AND other.pelican_config IS NOT NULL AND other.running_until > $2)`, plan.ID, now, until, next, plan.UpdatedAt, plan.NextRunAt)
+ AND other.id <> scheduled_test_plans.id AND other.pelican_config IS NOT NULL AND other.running_until > $2)`, plan.ID, now, until, next, plan.UpdatedAt, plan.NextRunAt, plan.TriggerSource == "upstream_5xx")
 	if err != nil {
 		return false, err
 	}
@@ -420,4 +424,13 @@ func marshalQualityJudgment(judgment *service.QualityJudgment) any {
 	}
 	data, _ := json.Marshal(judgment)
 	return string(data)
+}
+
+// An event can begin before the cron time and finish after it. Consume that due
+// occurrence once, but never overwrite an administrator's concurrent edit.
+func (r *scheduledTestPlanRepository) FinishTriggeredQuality(ctx context.Context, plan *service.ScheduledTestPlan, until, finished, next time.Time) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE scheduled_test_plans SET running_until=NULL,last_run_at=$3,
+ next_run_at=CASE WHEN updated_at=$4 AND next_run_at=$5 AND next_run_at<=$3 THEN $6 ELSE next_run_at END
+ WHERE id=$1 AND running_until=$2`, plan.ID, until, finished, plan.UpdatedAt, plan.NextRunAt, next)
+	return err
 }

@@ -2668,6 +2668,7 @@ export interface QualityJudgment {
   model_id?: string
 }
 export interface QualityPolicy {
+  trigger_on_upstream_5xx?: boolean
   judge?: QualityJudgeConfig
   expected_answer: string
   action: 'remove_groups' | 'disable_scheduling' | 'remove_models'
@@ -2677,6 +2678,7 @@ export interface QualityPolicy {
 }
 
 export interface PelicanTestConfig {
+  trigger_source?: string
   quality?: QualityPolicy
   question_kind?: 'candy' | 'pelican' | 'state_probe'
   prompt: string

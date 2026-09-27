@@ -84,6 +84,8 @@ export interface TokenGuardConfig {
   relogin_accounts: TokenGuardReloginAccount[]
   restore_schedulable: boolean
   fail_streak_threshold: number
+  email_enabled?: boolean
+  email_recipient?: string
   bark_key: string
   notify_on_auth?: boolean
   notify_on_fix: boolean

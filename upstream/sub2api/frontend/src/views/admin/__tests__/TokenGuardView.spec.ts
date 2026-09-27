@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { groupsAPI } from '@/api/admin/groups'
 import TokenGuardView from '../ops/TokenGuardView.vue'
 import { getTokenGuardStatus, saveTokenGuardConfig, runTokenGuard, reloginTokenGuardAccount } from '@/api/admin/accountTokenGuard'
+vi.mock('@/api/admin/groups', () => ({ default: {getAll: vi.fn().mockResolvedValue([])}, groupsAPI: {getAll: vi.fn().mockResolvedValue([])}, getAll: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<main><slot /></main>' } }))
 vi.mock('@/components/admin/operations/SmartOpsNav.vue', () => ({ default: { template: '<nav />' } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -15,6 +17,7 @@ const config = {
 }
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.mocked(groupsAPI.getAll).mockResolvedValue([])
   vi.mocked(getTokenGuardStatus).mockResolvedValue({ config: structuredClone(config), available_accounts: [{ account_id: 42, account_name: 'Renamed account', email: 'owner@example.com' }, { account_id: 43, account_name: 'Other', email: 'other@example.com' }], accounts: [], events: [], runtime: { running: false, last_run: null, last_message: '', stats: {} } } as any)
   vi.mocked(saveTokenGuardConfig).mockImplementation(async value => value)
 })
@@ -72,4 +75,15 @@ describe('credential guard native configuration', () => {
     expect(saveTokenGuardConfig).toHaveBeenCalledWith({ ...config, mode: 'external' })
     wrapper.unmount()
   })
+})
+
+it('saves email notifications without requiring a Bark key', async () => {
+ const wrapper = mount(TokenGuardView); await flushPromises()
+ await wrapper.get('[data-testid="guard-email-enabled"]').setValue(true)
+ await wrapper.get('[data-testid="guard-email-recipient"]').setValue('ops@example.com')
+ ;(wrapper.vm as any).draft.bark_key = ''
+ await wrapper.get('form').trigger('submit'); await flushPromises()
+ expect(saveTokenGuardConfig).toHaveBeenCalledWith(expect.objectContaining({email_enabled: true, email_recipient: 'ops@example.com', bark_key: ''}))
+ expect(runTokenGuard).not.toHaveBeenCalled()
+ wrapper.unmount()
 })

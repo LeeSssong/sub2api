@@ -131,6 +131,7 @@ func runtimeProxyErrorAttribution(account *Account, err error) (*int64, string) 
 // Keep plugin routing inside each attempt, including a preselected healthy
 // egress. No request is sent to both a plugin and the native transport.
 func (s *OpenAIGatewayService) doOpenAIProxyAttempt(req *http.Request, account *Account, target runtimeProxyEgress) (resp *http.Response, err error) {
+	defer func() { s.rateLimitService.observeQualityResponse(req.Context(), account, resp, err) }()
 	req, timingTrace := requesttiming.StartAttempt(req, account.ID, target.proxyID)
 	defer func() { timingTrace.Response(resp, err) }()
 	defer func() {

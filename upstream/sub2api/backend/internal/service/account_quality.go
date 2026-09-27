@@ -10,13 +10,14 @@ import (
 // QualityPolicy is opt-in. Legacy connectivity/HTML tests never modify membership.
 type QualityPolicy struct {
 	// ProbeModelMapping is hydrated from owned recovery state when claiming a run. Never accepted from API JSON.
-	ProbeModelMapping map[string]string   `json:"-"`
-	Judge             *QualityJudgeConfig `json:"judge,omitempty"`
-	ExpectedAnswer    string              `json:"expected_answer"`
-	Action            string              `json:"action"`
-	RemoveModelIDs    []string            `json:"remove_model_ids,omitempty"`
-	RemoveGroupIDs    []int64             `json:"remove_group_ids"`
-	AutoRestore       bool                `json:"auto_restore"`
+	ProbeModelMapping    map[string]string   `json:"-"`
+	Judge                *QualityJudgeConfig `json:"judge,omitempty"`
+	ExpectedAnswer       string              `json:"expected_answer"`
+	Action               string              `json:"action"`
+	RemoveModelIDs       []string            `json:"remove_model_ids,omitempty"`
+	RemoveGroupIDs       []int64             `json:"remove_group_ids"`
+	AutoRestore          bool                `json:"auto_restore"`
+	TriggerOnUpstream5xx bool                `json:"trigger_on_upstream_5xx"`
 }
 
 func validateQualityPolicy(plan *ScheduledTestPlan) error {

@@ -6,6 +6,10 @@ export default {
   "noExplicitModels": "请先选择账户，并配置明确的模型支持列表。批量规则仅列出共同模型。",
   "selectModels": "请选择至少一个需要移出的模型",
   "modelsRestored": "已恢复指定模型",
+  "trigger5xx": "OAuth 账号返回 5xx 时立即检测",
+  "trigger5xxShort": "5xx 触发",
+  "trigger5xxHint": "仅对本规则的 OAuth 账号生效。后台立即发起检测，复用现有记录与处置；与进行中或同时到期的检测合并，连续错误冷却 60 秒。保留定时计划，检测本身不再次触发。",
+
   "conflictChecks": "哪些检查会阻止自动恢复？",
   "title": "质量运维",
   "description": "定时检测账户回答质量，答错后移出指定分组、模型或关闭调度。每个账户只配置一条规则。",
