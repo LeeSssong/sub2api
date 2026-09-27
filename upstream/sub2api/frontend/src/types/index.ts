@@ -1737,6 +1737,8 @@ export interface AdminDataImportResult {
 }
 
 export interface CodexSessionImportRequest {
+  /** Skip matching accounts without replacing their credentials or settings. */
+  skip_existing?: boolean
   admission?: AccountAdmissionConfig
   content?: string
   contents?: string[]
