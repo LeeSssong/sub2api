@@ -542,10 +542,13 @@ func TestVisibleMethodEnabledSettingControlsCheckoutAndOrderRouting(t *testing.T
 	tests := []struct {
 		name           string
 		enabledSetting *string
+		enabledTypes   string
 		wantVisible    bool
 		wantResolved   bool
 	}{
-		{name: "explicit false disables method", enabledSetting: ptr("false"), wantVisible: false, wantResolved: false},
+		{name: "explicit false disables method without current selection", enabledSetting: ptr("false"), wantVisible: false, wantResolved: false},
+		{name: "current alipay selection overrides stale hidden false", enabledSetting: ptr("false"), enabledTypes: "alipay", wantVisible: true, wantResolved: true},
+		{name: "other current selection does not override false", enabledSetting: ptr("false"), enabledTypes: "wxpay", wantVisible: false, wantResolved: false},
 		{name: "explicit true enables method", enabledSetting: ptr("true"), wantVisible: true, wantResolved: true},
 		{name: "missing setting preserves legacy behavior", enabledSetting: nil, wantVisible: true, wantResolved: true},
 	}
@@ -564,7 +567,8 @@ func TestVisibleMethodEnabledSettingControlsCheckoutAndOrderRouting(t *testing.T
 			require.NoError(t, err)
 
 			values := map[string]string{
-				SettingPaymentVisibleMethodAlipaySource: VisibleMethodSourceOfficialAlipay,
+				SettingPaymentVisibleMethodAlipaySource: "",
+				SettingEnabledPaymentTypes:              tt.enabledTypes,
 			}
 			if tt.enabledSetting != nil {
 				values[SettingPaymentVisibleMethodAlipayEnabled] = *tt.enabledSetting
