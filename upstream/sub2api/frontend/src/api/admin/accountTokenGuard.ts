@@ -7,7 +7,9 @@ export interface TokenGuardReloginAccount {
   mfa_secret: string
 }
 
-export function parseTokenGuardReloginText(raw: string): TokenGuardReloginAccount[] {
+export type TokenGuardReloginTextEntry = Pick<TokenGuardReloginAccount, 'email' | 'password' | 'mfa_secret'>
+
+export function parseTokenGuardReloginText(raw: string): TokenGuardReloginTextEntry[] {
   return raw
     .split(/\r?\n/)
     .map(line => line.trim())
@@ -21,7 +23,7 @@ export function parseTokenGuardReloginText(raw: string): TokenGuardReloginAccoun
     .filter(item => item.email && item.password)
 }
 
-export function formatTokenGuardReloginText(accounts: TokenGuardReloginAccount[] | undefined): string {
+export function formatTokenGuardReloginText(accounts: TokenGuardReloginTextEntry[] | undefined): string {
   return (accounts ?? [])
     .map(item => `${item.email}----${item.password}----${item.mfa_secret}`)
     .join('\n')

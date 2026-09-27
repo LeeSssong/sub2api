@@ -175,7 +175,6 @@ import {
 const { t } = useI18n()
 const remote = ref<TokenGuardStatus | null>(null)
 const draft = ref<TokenGuardConfig | null>(null)
-const groupIdsText = ref('')
 const probeHeadersText = ref('')
 const reloginHeadersText = ref('')
 const loading = ref(false), saving = ref(false), running = ref(false), reloginBusy = ref(0)
@@ -235,7 +234,6 @@ const date = (value: string) => {
   return Number.isNaN(parsed.getTime()) ? value : `${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
 }
 const message = (e: unknown) => (e as { message?: string })?.message || t('qualityOps.error')
-const parseGroupIds = (raw: string) => raw.split(/[,\s;]+/).map(value => Number(value.trim())).filter(value => Number.isFinite(value) && value > 0)
 const parseHeaders = (raw: string) => raw.split(/\r?\n/).reduce<Record<string, string>>((acc, line) => {
   const index = line.indexOf(':')
   if (index > 0) {
@@ -259,7 +257,7 @@ function normalize(config: TokenGuardConfig): TokenGuardConfig {
 
 function collect(): TokenGuardConfig {
   const base = draft.value!
-  return normalize({ ...base, group_ids: parseGroupIds(groupIdsText.value), relogin_accounts: base.relogin_accounts,
+  return normalize({ ...base, group_ids: base.group_ids, relogin_accounts: base.relogin_accounts,
     probe_headers: parseHeaders(probeHeadersText.value), relogin_headers: parseHeaders(reloginHeadersText.value) })
 }
 
@@ -287,7 +285,6 @@ async function load(silent = false) {
     remote.value = status
     if (!preserveDraft) {
       draft.value = normalize(status.config)
-      groupIdsText.value = groupTextOf(status.config)
       probeHeadersText.value = headersTextOf(status.config.probe_headers)
       reloginHeadersText.value = headersTextOf(status.config.relogin_headers)
     }
@@ -318,7 +315,6 @@ async function save() {
     const saved = await saveTokenGuardConfig(collect())
     if (!alive) return
     draft.value = normalize(saved)
-    groupIdsText.value = groupTextOf(saved)
     probeHeadersText.value = headersTextOf(saved.probe_headers)
     reloginHeadersText.value = headersTextOf(saved.relogin_headers)
     if (remote.value) remote.value = { ...remote.value, config: saved }
