@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-09-27T08:38:23.688Z",
+  "method": "fresh anonymous context; delayed route guard recheck; no text or form submission",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "requested": "/purchase",
+      "landed": "/login",
+      "authHeadingPresent": true,
+      "mainPresent": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/purchase",
+      "landed": "/login",
+      "authHeadingPresent": true,
+      "mainPresent": false
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "observedAt": "2026-09-27T09:16:49.298Z",
+  "method": "admin session; current page only; hover without actions; suffix metadata only",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "triggerCount": 0,
+      "landed": "/admin/usage",
+      "mainPresent": true,
+      "mainChildCount": 1,
+      "appHeaderPresent": true,
+      "tabCount": 0,
+      "busyCount": 0,
+      "tableCount": 2,
+      "tbodyRowCount": 2,
+      "genericCostIconCount": 0,
+      "costValueCount": 0,
+      "multiplierValueCount": 0,
+      "formattedCount": 0,
+      "unavailableCount": 0,
+      "invalidCount": 0,
+      "horizontalOverflow": false,
+      "pageErrorNames": []
+    },
+    {
+      "viewport": "390x844",
+      "triggerCount": 0,
+      "landed": "/admin/usage",
+      "mainPresent": true,
+      "mainChildCount": 1,
+      "appHeaderPresent": true,
+      "tabCount": 0,
+      "busyCount": 0,
+      "tableCount": 0,
+      "tbodyRowCount": 0,
+      "genericCostIconCount": 0,
+      "costValueCount": 0,
+      "multiplierValueCount": 0,
+      "formattedCount": 0,
+      "unavailableCount": 0,
+      "invalidCount": 0,
+      "horizontalOverflow": false,
+      "pageErrorNames": []
+    }
+  ]
+}

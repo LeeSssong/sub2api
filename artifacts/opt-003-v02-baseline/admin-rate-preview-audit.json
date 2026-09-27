@@ -1,0 +1,24 @@
+{
+  "observedAt": "2026-09-27T06:40:35.522Z",
+  "method": "open first group modal only; no apply or save",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "path": "/admin/groups",
+      "groupTriggerCount": 10,
+      "inspectedCount": 1,
+      "entryCount": 0,
+      "previewValueHasSuffix": null,
+      "loadingUnresolved": false
+    },
+    {
+      "viewport": "390x844",
+      "path": "/admin/groups",
+      "groupTriggerCount": 10,
+      "inspectedCount": 1,
+      "entryCount": 0,
+      "previewValueHasSuffix": null,
+      "loadingUnresolved": false
+    }
+  ]
+}

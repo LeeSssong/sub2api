@@ -1,0 +1,346 @@
+{
+  "observedAt": "2026-09-26T19:25:10.773Z",
+  "prototypeHashes": {
+    "index.html": "182cbf34a7339b462693d4d2b0c61acddbc3495a01c378dbb20069f61da459fa",
+    "styles.css": "210a0d0bbaaf81c801558f47a4225c16de4910fd0623aecf790c6373cd1f99d0",
+    "app.mjs": "91a11b226d3adf5aa56e448e352829563c9090e4bc6c3a082a4bede014513442",
+    "pages.mjs": "6b5d1f7219d375464318a8b259f71a4aee2c1b99a5ceb37d58ba5ac5e6f1dd84",
+    "dialogs.mjs": "29019521e38f0605ab94cefc7b63737caf595bdf2cc84aefa75cce2cdf68588a",
+    "ui.mjs": "20fc53d4e81546fdad49159324d23f1e48a5a25e615153a2745f9462bc552975",
+    "model.mjs": "35201fa57af2b04a04d45f204dbc353dc83b6907abe3e42abd1028b3c22519b9",
+    "key-columns.mjs": "dad5bfd83014680033f2a6434f99593a2a99535ec28a8a8b7d2bbd99859fac0f",
+    "server.mjs": "5851369e05f27c61996263d175d2d2c0aec11eedc5e16d892b9d2e6578b50cb2"
+  },
+  "results": [
+    {
+      "page": "ai",
+      "viewport": "1280x900",
+      "prototype": {
+        "path": "/#ai",
+        "title": "请选择你的 AI 工具",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "我的 AI 线路"
+        ],
+        "alertCount": 0,
+        "rateLabels": [
+          "1.0x倍率",
+          "0.8x倍率"
+        ],
+        "horizontalOverflow": false,
+        "width": 1280
+      },
+      "testStation": {
+        "path": "/dashboard",
+        "title": "请选择你的 AI 工具",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "我的 AI 线路"
+        ],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 1280
+      }
+    },
+    {
+      "page": "usage",
+      "viewport": "1280x900",
+      "prototype": {
+        "path": "/#usage",
+        "title": "使用记录",
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 1280
+      },
+      "testStation": {
+        "path": "/usage",
+        "title": "使用记录",
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 1280
+      }
+    },
+    {
+      "page": "keys",
+      "viewport": "1280x900",
+      "prototype": {
+        "path": "/#keys",
+        "title": "我的密钥",
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [
+          "1.0x倍率",
+          "0.8x倍率"
+        ],
+        "horizontalOverflow": false,
+        "width": 1280
+      },
+      "testStation": {
+        "path": "/keys",
+        "title": "我的密钥",
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 1280
+      }
+    },
+    {
+      "page": "recharge",
+      "viewport": "1280x900",
+      "prototype": {
+        "path": "/#recharge",
+        "title": "充值与兑换",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "账户权益"
+        ],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 1280
+      },
+      "testStation": {
+        "path": "/redeem",
+        "title": "充值与兑换",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "账户权益",
+          "最近活动"
+        ],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 1280
+      }
+    },
+    {
+      "page": "orders",
+      "viewport": "1280x900",
+      "prototype": {
+        "path": "/#orders",
+        "title": "我的订单",
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 1280
+      },
+      "testStation": {
+        "path": "/admin/dashboard",
+        "title": null,
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 1280
+      }
+    },
+    {
+      "page": "profile",
+      "viewport": "1280x900",
+      "prototype": {
+        "path": "/#profile",
+        "title": "个人资料",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "账户信息与权益"
+        ],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 1280
+      },
+      "testStation": {
+        "path": "/profile",
+        "title": "个人资料",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "修改密码",
+          "双因素认证 (2FA)",
+          "Passkey"
+        ],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 1280
+      }
+    },
+    {
+      "page": "ai",
+      "viewport": "390x844",
+      "prototype": {
+        "path": "/#ai",
+        "title": "请选择你的 AI 工具",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "我的 AI 线路"
+        ],
+        "alertCount": 0,
+        "rateLabels": [
+          "1.0x倍率",
+          "0.8x倍率"
+        ],
+        "horizontalOverflow": false,
+        "width": 390
+      },
+      "testStation": {
+        "path": "/dashboard",
+        "title": "请选择你的 AI 工具",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "我的 AI 线路"
+        ],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 390
+      }
+    },
+    {
+      "page": "usage",
+      "viewport": "390x844",
+      "prototype": {
+        "path": "/#usage",
+        "title": "使用记录",
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 390
+      },
+      "testStation": {
+        "path": "/usage",
+        "title": "使用记录",
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 390
+      }
+    },
+    {
+      "page": "keys",
+      "viewport": "390x844",
+      "prototype": {
+        "path": "/#keys",
+        "title": "我的密钥",
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [
+          "1.0x倍率",
+          "0.8x倍率"
+        ],
+        "horizontalOverflow": false,
+        "width": 390
+      },
+      "testStation": {
+        "path": "/keys",
+        "title": "我的密钥",
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 390
+      }
+    },
+    {
+      "page": "recharge",
+      "viewport": "390x844",
+      "prototype": {
+        "path": "/#recharge",
+        "title": "充值与兑换",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "账户权益"
+        ],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 390
+      },
+      "testStation": {
+        "path": "/redeem",
+        "title": "充值与兑换",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "账户权益",
+          "最近活动"
+        ],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 390
+      }
+    },
+    {
+      "page": "orders",
+      "viewport": "390x844",
+      "prototype": {
+        "path": "/#orders",
+        "title": "我的订单",
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 390
+      },
+      "testStation": {
+        "path": "/admin/dashboard",
+        "title": null,
+        "pageHeaderDescription": null,
+        "sectionTitles": [],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 390
+      }
+    },
+    {
+      "page": "profile",
+      "viewport": "390x844",
+      "prototype": {
+        "path": "/#profile",
+        "title": "个人资料",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "账户信息与权益"
+        ],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 390
+      },
+      "testStation": {
+        "path": "/profile",
+        "title": "个人资料",
+        "pageHeaderDescription": null,
+        "sectionTitles": [
+          "修改密码",
+          "双因素认证 (2FA)",
+          "Passkey"
+        ],
+        "alertCount": 0,
+        "rateLabels": [],
+        "horizontalOverflow": false,
+        "width": 390
+      }
+    }
+  ]
+}

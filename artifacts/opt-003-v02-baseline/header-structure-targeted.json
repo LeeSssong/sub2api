@@ -1,0 +1,42 @@
+{
+  "observedAt": "2026-09-27T06:18:01.462Z",
+  "method": "admin session; structural metadata only, no page text or screenshots",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "requested": "/key-usage",
+      "landed": "/key-usage",
+      "appHeaderPresent": false,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/key-usage",
+      "landed": "/key-usage",
+      "appHeaderPresent": false,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    }
+  ]
+}

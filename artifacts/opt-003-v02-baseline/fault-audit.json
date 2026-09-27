@@ -1,0 +1,102 @@
+{
+  "observedAt": "2026-09-26T20:02:20.891Z",
+  "method": "browser-local GET abort; no server-side fault",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "scenario": "usage-stats",
+      "blocked": 1,
+      "view": {
+        "path": "/usage",
+        "alertCount": 1,
+        "retryButtonCount": 2,
+        "visibleEmptyStateCount": 4,
+        "horizontalOverflow": false
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "scenario": "usage-chart",
+      "blocked": 1,
+      "view": {
+        "path": "/usage",
+        "alertCount": 1,
+        "retryButtonCount": 2,
+        "visibleEmptyStateCount": 3,
+        "horizontalOverflow": false
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "scenario": "usage-list",
+      "blocked": 1,
+      "view": {
+        "path": "/usage",
+        "alertCount": 1,
+        "retryButtonCount": 2,
+        "visibleEmptyStateCount": 4,
+        "horizontalOverflow": false
+      }
+    },
+    {
+      "viewport": "1280x900",
+      "scenario": "keys-list",
+      "blocked": 2,
+      "view": {
+        "path": "/keys",
+        "alertCount": 1,
+        "retryButtonCount": 1,
+        "visibleEmptyStateCount": 0,
+        "horizontalOverflow": false
+      }
+    },
+    {
+      "viewport": "390x844",
+      "scenario": "usage-stats",
+      "blocked": 1,
+      "view": {
+        "path": "/usage",
+        "alertCount": 1,
+        "retryButtonCount": 2,
+        "visibleEmptyStateCount": 4,
+        "horizontalOverflow": false
+      }
+    },
+    {
+      "viewport": "390x844",
+      "scenario": "usage-chart",
+      "blocked": 1,
+      "view": {
+        "path": "/usage",
+        "alertCount": 1,
+        "retryButtonCount": 2,
+        "visibleEmptyStateCount": 3,
+        "horizontalOverflow": false
+      }
+    },
+    {
+      "viewport": "390x844",
+      "scenario": "usage-list",
+      "blocked": 1,
+      "view": {
+        "path": "/usage",
+        "alertCount": 1,
+        "retryButtonCount": 2,
+        "visibleEmptyStateCount": 4,
+        "horizontalOverflow": false
+      }
+    },
+    {
+      "viewport": "390x844",
+      "scenario": "keys-list",
+      "blocked": 2,
+      "view": {
+        "path": "/keys",
+        "alertCount": 1,
+        "retryButtonCount": 1,
+        "visibleEmptyStateCount": 0,
+        "horizontalOverflow": false
+      }
+    }
+  ]
+}
