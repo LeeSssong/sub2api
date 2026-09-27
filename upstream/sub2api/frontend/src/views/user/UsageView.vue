@@ -2,34 +2,36 @@
   <AppLayout>
     <div class="user-page space-y-6">
       <UserPageHeader title="使用记录" />
-      <UsageStatsCards :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
-      <div v-if="statsLoadError" class="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
-        <span>{{ t('usage.failedToLoad') }}</span>
-        <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadStats">{{ t('common.refresh') }}</button>
-      </div>
-
-      <div class="space-y-4">
-        <div class="card p-4">
-          <div class="flex flex-wrap items-center gap-4">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
+      <section class="usage-overview" aria-label="用量概览">
+        <div class="usage-time-toolbar">
+          <div class="usage-time-controls">
+            <div class="usage-time-control">
+              <span>{{ t('usage.timeRange') }}</span>
               <DateRangePicker
                 v-model:start-date="startDate"
                 v-model:end-date="endDate"
                 @change="onDateRangeChange"
               />
             </div>
-            <div class="ml-auto flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
-              <div class="w-28">
+            <div class="usage-time-control">
+              <span>{{ t('usage.statGranularity') }}</span>
+              <div class="usage-granularity">
                 <Select v-model="granularity" :options="granularityOptions" brand @change="loadChartData" />
               </div>
             </div>
           </div>
         </div>
+        <UsageStatsCards class="usage-stats" :stats="usageStats" :show-account-cost="false" user-overview />
+        <div v-if="statsLoadError" class="flex items-center justify-between gap-3 border-t border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
+          <span>{{ t('usage.failedToLoad') }}</span>
+          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadStats">{{ t('common.refresh') }}</button>
+        </div>
+      </section>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <section class="usage-analysis" aria-label="使用分析">
+        <div class="usage-analysis-grid">
           <ModelDistributionChart
+            class="usage-chart"
             v-if="!modelStatsLoadError || modelStatsLoaded"
             data-testid="usage-model-chart"
             v-model:metric="modelDistributionMetric"
@@ -43,7 +45,9 @@
             :end-date="endDate"
           />
           <GroupDistributionChart
+            class="usage-chart"
             v-if="!chartsLoadError || chartsLoaded"
+            :title="t('usage.lineDistribution')"
             v-model:metric="groupDistributionMetric"
             :group-stats="groupStats"
             :loading="chartsLoading"
@@ -53,10 +57,8 @@
             :start-date="startDate"
             :end-date="endDate"
           />
-        </div>
-
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <EndpointDistributionChart
+            class="usage-chart"
             v-if="!statsLoadError || usageStats"
             v-model:source="endpointDistributionSource"
             v-model:metric="endpointDistributionMetric"
@@ -71,22 +73,30 @@
             :start-date="startDate"
             :end-date="endDate"
           />
-          <TokenUsageTrend v-if="!chartsLoadError || chartsLoaded" :trend-data="trendData" :loading="chartsLoading" />
+          <TokenUsageTrend v-if="!chartsLoadError || chartsLoaded" class="usage-chart" :trend-data="trendData" :loading="chartsLoading" />
         </div>
         <div v-if="chartsLoadError || modelStatsLoadError" data-testid="usage-charts-error" class="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
           <span>{{ t('usage.failedToLoad') }}</span>
           <button type="button" class="btn btn-secondary px-3 py-1.5" @click="retryFailedCharts">{{ t('common.refresh') }}</button>
         </div>
-      </div>
+      </section>
 
-      <div class="card p-6">
-        <div class="flex flex-wrap items-end justify-between gap-4">
-          <div v-if="activeTab === 'errors'" class="flex flex-1 flex-wrap items-end gap-4">
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
+      <section class="usage-records" aria-label="请求记录">
+        <div v-if="errorViewEnabled" class="flex gap-2 border-b border-gray-200 px-5 dark:border-dark-700">
+          <button class="tab" :class="{ 'tab-active': activeTab === 'usage' }" @click="activeTab = 'usage'">
+            {{ t('usage.tabs.usage') }}
+          </button>
+          <button class="tab" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrors">
+            {{ t('usage.tabs.errors') }}
+          </button>
+        </div>
+        <div class="usage-records-controls">
+          <div v-if="activeTab === 'errors'" class="usage-filter-grid">
+            <div>
               <label class="input-label">{{ t('usage.errors.keyName') }}</label>
               <Select v-model="errorFilter.api_key_id" :options="errorKeyOptions" brand @change="applyErrorFilters" />
             </div>
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
+            <div>
               <label class="input-label">{{ t('usage.errors.model') }}</label>
               <Select
                 v-model="errorFilter.model"
@@ -99,43 +109,30 @@
                 @change="applyErrorFilters"
               />
             </div>
-            <div class="w-full sm:w-auto sm:min-w-[200px]">
+            <div>
               <label class="input-label">{{ t('usage.errors.category') }}</label>
               <Select v-model="errorFilter.category" :options="errorCategoryOptions" brand @change="applyErrorFilters" />
             </div>
           </div>
-          <div v-else class="flex flex-1 flex-wrap items-end gap-4">
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
+          <div v-else class="usage-filter-grid" data-testid="usage-primary-filters">
+            <div>
               <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
-              <Select v-model="filters.api_key_id" :options="apiKeyOptions" brand @change="applyFilters" />
+              <Select v-model="filters.api_key_id" :options="apiKeyOptions" :placeholder="t('usage.allApiKeys')" brand @change="applyFilters" />
             </div>
-            <div class="w-full sm:w-auto sm:min-w-[220px]">
+            <div>
               <label class="input-label">{{ t('usage.model') }}</label>
-              <Select v-model="filters.model" :options="modelOptions" searchable brand @change="applyFilters" />
+              <Select v-model="filters.model" :options="modelOptions" :placeholder="t('admin.usage.allModels')" searchable brand @change="applyFilters" />
             </div>
-            <div class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('admin.usage.group') }}</label>
-              <Select v-model="filters.group_id" :options="groupOptions" searchable brand @change="applyFilters" />
+            <div>
+              <label class="input-label">{{ t('usage.lineFilter') }}</label>
+              <Select v-model="filters.group_id" :options="groupOptions" :placeholder="t('usage.allLines')" searchable brand @change="applyFilters" />
             </div>
-            <div class="w-full sm:w-auto sm:min-w-[180px]">
-              <label class="input-label">{{ t('usage.type') }}</label>
-              <Select v-model="filters.request_type" :options="requestTypeOptions" brand @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[180px]">
-              <label class="input-label">{{ t('usage.compactionFilter') }}</label>
-              <Select v-model="filters.native_compaction_v2" :options="compactionOptions" brand @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('admin.usage.billingType') }}</label>
-              <Select v-model="filters.billing_type" :options="billingTypeOptions" brand @change="applyFilters" />
-            </div>
-            <div class="w-full sm:w-auto sm:min-w-[200px]">
+            <div>
               <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
-              <Select v-model="filters.billing_mode" :options="billingModeOptions" brand @change="applyFilters" />
+              <Select v-model="filters.billing_mode" :options="billingModeOptions" :placeholder="t('admin.usage.allBillingModes')" brand @change="applyFilters" />
             </div>
           </div>
-
-          <div class="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
+          <div class="usage-filter-actions" data-testid="usage-filter-actions">
             <button type="button" @click="refreshData" :disabled="activeTab === 'errors' ? errorLoading : loading" class="btn btn-secondary">
               {{ t('common.refresh') }}
             </button>
@@ -170,29 +167,21 @@
                 </button>
               </div>
             </div>
-            <button v-if="activeTab !== 'errors'" type="button" @click="exportToCSV" :disabled="exporting" class="btn btn-primary">
+            <button v-if="activeTab !== 'errors'" type="button" data-testid="usage-export" @click="exportToCSV" :disabled="exporting" class="btn btn-primary usage-export">
               {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
             </button>
           </div>
         </div>
-      </div>
-
-      <div v-if="errorViewEnabled" class="flex gap-2 border-b border-gray-200 dark:border-dark-700">
-        <button class="tab" :class="{ 'tab-active': activeTab === 'usage' }" @click="activeTab = 'usage'">
-          {{ t('usage.tabs.usage') }}
-        </button>
-        <button class="tab" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrors">
-          {{ t('usage.tabs.errors') }}
-        </button>
-      </div>
 
       <template v-if="activeTab === 'usage'">
+        <h2 class="usage-records-heading">{{ t('usage.requestDetails') }}</h2>
         <div v-if="logsLoadError" data-testid="usage-logs-error" class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
           <span>{{ t('usage.failedToLoad') }}</span>
           <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadLogs">{{ t('common.refresh') }}</button>
         </div>
         <UsageTable
           v-if="!logsLoadError || logsLoaded"
+          flat
           :data="usageLogs"
           :loading="loading"
           :columns="visibleColumns"
@@ -235,6 +224,7 @@
         @ipGeoBatchFailed="handleIpGeoBatchFailed"
       />
       </template>
+      </section>
 
       <UsageDetailDialog
         v-model:show="showUsageDetail"
@@ -412,22 +402,6 @@ const granularityOptions = computed<SelectOption[]>(() => [
   { value: 'day', label: t('admin.dashboard.day') },
   { value: 'hour', label: t('admin.dashboard.hour') },
 ])
-const requestTypeOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('admin.usage.allTypes') },
-  { value: 'ws_v2', label: t('usage.ws') },
-  { value: 'live', label: t('usage.live') },
-  { value: 'stream', label: t('usage.stream') },
-  { value: 'sync', label: t('usage.sync') },
-])
-const compactionOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('usage.allCompactionTypes') },
-  { value: true, label: t('usage.compactionOnly') },
-])
-const billingTypeOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('admin.usage.allBillingTypes') },
-  { value: 0, label: t('admin.usage.billingTypeBalance') },
-  { value: 1, label: t('admin.usage.billingTypeSubscription') },
-])
 const billingModeOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allBillingModes') },
   { value: 'token', label: t('admin.usage.billingModeToken') },
@@ -445,7 +419,7 @@ const apiKeyOptions = computed<SelectOption[]>(() => [
   ...apiKeys.value.map((key) => ({ value: key.id, label: key.name })),
 ])
 const groupOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('admin.usage.allGroups') },
+  { value: null, label: t('usage.allLines') },
   ...groups.value.map((group) => ({ value: group.id, label: group.name })),
 ])
 const modelOptions = computed<SelectOption[]>(() => [
@@ -962,3 +936,289 @@ watch(endpointDistributionSource, () => {
   // Endpoint source switching is handled by the chart component using already loaded stats.
 })
 </script>
+
+<style scoped>
+.usage-overview,
+.usage-analysis,
+.usage-records {
+  border: 1px solid var(--color-border, rgba(56, 112, 135, .38));
+  border-radius: 14px;
+  background: var(--color-surface, rgba(7, 25, 39, .76));
+}
+
+.usage-time-toolbar {
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(56, 112, 135, .28);
+}
+
+.usage-time-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px 20px;
+}
+
+.usage-time-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  color: var(--xq-muted);
+  font-size: 12px;
+}
+
+.usage-granularity {
+  min-width: 90px;
+}
+
+.usage-time-toolbar :deep(.date-picker-trigger),
+.usage-time-toolbar :deep(.select-trigger-brand) {
+  width: auto;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--xq-line) !important;
+  border-radius: 7px;
+  background: var(--xq-raised) !important;
+  color: var(--xq-core);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.usage-time-toolbar :deep(.select-trigger-brand) {
+  width: 100%;
+}
+
+.usage-time-toolbar :deep(.date-picker-icon) {
+  display: none;
+}
+
+.usage-time-toolbar :deep(.date-picker-dropdown) {
+  right: 0;
+  left: auto;
+}
+
+.usage-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+}
+
+.usage-stats :deep(> .card) {
+  display: block;
+  position: relative;
+  min-width: 0;
+  padding: 20px;
+  border: 0;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none;
+}
+
+.usage-stats :deep(> .card:not(:first-child)) {
+  border-left: 0;
+}
+
+.usage-stats :deep(> .card:not(:first-child)::before) {
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 0;
+  width: 1px;
+  background: rgba(56, 112, 135, .28);
+  content: '';
+}
+
+.usage-stats :deep(> .card > div:first-child) {
+  display: none;
+}
+
+.usage-stats :deep(> .card p.text-xl) {
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-stats :deep(> .card:nth-child(3) p.text-xl) {
+  color: var(--xq-text);
+}
+
+.usage-stats :deep(> .card:nth-child(2) svg.h-3\.5) {
+  color: var(--xq-accent);
+}
+
+.usage-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.usage-analysis-grid :deep(> .usage-chart) {
+  min-width: 0;
+  min-height: 264px;
+  margin: 0;
+  padding: 20px;
+  border: 0;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none;
+}
+
+.usage-analysis-grid :deep(> .usage-chart:nth-child(odd)) {
+  border-right: 1px solid rgba(56, 112, 135, .28);
+}
+
+.usage-analysis-grid :deep(> .usage-chart:nth-child(-n+2)) {
+  border-bottom: 1px solid rgba(56, 112, 135, .28);
+}
+
+.usage-records-controls {
+  padding: 20px;
+  border-bottom: 1px solid rgba(56, 112, 135, .28);
+}
+
+.usage-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.usage-filter-grid > div {
+  min-width: 0;
+}
+
+.usage-filter-grid .input-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.usage-filter-grid :deep(.select-trigger-brand) {
+  min-height: 40px;
+  padding: 0 12px;
+  border-color: var(--xq-border) !important;
+  border-radius: 8px;
+  background: var(--xq-depth) !important;
+  color: var(--xq-text);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.usage-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.usage-filter-actions .btn {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-color: var(--xq-line) !important;
+  border-radius: 7px !important;
+  background: var(--xq-raised) !important;
+  color: var(--xq-secondary) !important;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.usage-filter-actions .btn:hover:not(:disabled) {
+  border-color: var(--xq-border) !important;
+  background: #143047 !important;
+  color: var(--xq-text) !important;
+}
+
+.usage-filter-actions .usage-export {
+  margin-left: auto;
+}
+
+.usage-records-heading {
+  padding: 16px 20px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.usage-records :deep(.space-y-3 > .p-12) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+@media (max-width: 1050px) {
+  .usage-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .usage-stats :deep(> .card:nth-child(3)::before) {
+    display: none;
+  }
+
+  .usage-stats :deep(> .card:nth-child(-n+2)) {
+    border-bottom: 1px solid rgba(56, 112, 135, .28);
+  }
+
+  .usage-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-analysis-grid :deep(> .usage-chart) {
+    min-height: 0;
+  }
+
+  .usage-analysis-grid :deep(> .usage-chart > .h-48) {
+    height: 144px;
+  }
+
+  .usage-analysis-grid :deep(> .usage-chart:nth-child(odd)) {
+    border-right: 0;
+  }
+
+  .usage-analysis-grid :deep(> .usage-chart:not(:last-child)) {
+    border-bottom: 1px solid rgba(56, 112, 135, .28);
+  }
+
+  .usage-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .usage-time-toolbar,
+  .usage-records-controls {
+    padding: 12px 14px;
+  }
+
+  .usage-time-controls {
+    gap: 8px;
+  }
+
+  .usage-records-heading {
+    padding: 14px 14px 0;
+  }
+
+  .usage-stats :deep(> .card) {
+    padding: 14px;
+  }
+
+  .usage-stats :deep(> .card:not(:first-child)::before) {
+    top: 14px;
+    bottom: 14px;
+  }
+
+  .usage-stats :deep(> .card p.text-xl) {
+    font-size: 24px;
+  }
+
+  .usage-analysis-grid :deep(> .usage-chart) {
+    padding: 16px 14px;
+  }
+
+  .usage-filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

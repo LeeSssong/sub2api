@@ -16,12 +16,12 @@
         <p class="text-xs font-medium text-gray-500">{{ t('usage.totalTokens') }}</p>
         <p class="text-xl font-bold">{{ stats ? formatTokens(stats.total_tokens ?? 0) : '—' }}</p>
         <p class="flex flex-wrap items-center gap-x-1 text-xs text-gray-500">
-          <span>{{ t('usage.in') }}: {{ stats ? formatTokens(stats.total_input_tokens ?? 0) : '—' }}</span>
-          <span>/</span>
-          <span>{{ t('usage.out') }}: {{ stats ? formatTokens(stats.total_output_tokens ?? 0) : '—' }}</span>
-          <span>/</span>
+          <span>{{ t('usage.in') }}{{ userOverview ? ' ' : ': ' }}{{ stats ? formatTokens(stats.total_input_tokens ?? 0) : '—' }}</span>
+          <span>{{ userOverview ? '·' : '/' }}</span>
+          <span>{{ t('usage.out') }}{{ userOverview ? ' ' : ': ' }}{{ stats ? formatTokens(stats.total_output_tokens ?? 0) : '—' }}</span>
+          <span>{{ userOverview ? '·' : '/' }}</span>
           <span class="group relative inline-flex cursor-help items-center gap-0.5" tabindex="0">
-            <span>{{ cacheLabel() }}: {{ stats ? formatTokens(stats.total_cache_tokens ?? 0) : '—' }}</span>
+            <span>{{ cacheLabel() }}{{ userOverview ? ' ' : ': ' }}{{ stats ? formatTokens(stats.total_cache_tokens ?? 0) : '—' }}</span>
             <svg
               class="h-3.5 w-3.5 text-gray-400"
               fill="none"
@@ -83,7 +83,11 @@
       <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30 text-purple-600">
         <Icon name="clock" size="md" />
       </div>
-      <div><p class="text-xs font-medium text-gray-500">{{ t('usage.avgDuration') }}</p><p class="text-xl font-bold">{{ stats ? formatDuration(stats.average_duration_ms ?? 0) : '—' }}</p></div>
+      <div>
+        <p class="text-xs font-medium text-gray-500">{{ t('usage.avgDuration') }}</p>
+        <p class="text-xl font-bold">{{ stats && (!userOverview || stats.total_requests > 0) ? formatDuration(stats.average_duration_ms ?? 0) : '—' }}</p>
+        <p v-if="userOverview" class="text-xs text-gray-400">{{ t('usage.inSelectedRange') }}</p>
+      </div>
     </div>
   </div>
 </template>
@@ -100,9 +104,11 @@ const props = withDefaults(defineProps<{
   stats: (AdminUsageStatsResponse | UsageStatsResponse) | null
   showAccountCost?: boolean
   strikeStandardCost?: boolean
+  userOverview?: boolean
 }>(), {
   showAccountCost: true,
   strikeStandardCost: false,
+  userOverview: false,
 })
 
 const { t } = useI18n()
