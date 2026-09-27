@@ -40,6 +40,7 @@ class DrainTest(unittest.TestCase):
             (root / 'helper.py').write_text(HELPER)
             env = dict(os.environ, PATH=folder + os.pathsep + os.environ['PATH'], DRAIN_TEST_ROOT=folder, DRAIN_TEST_MODE=mode)
             result = subprocess.run(['python3', str(root / 'helper.py'), 'postgres', 'worker', '0.1', str(root / 'marker')], env=env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.stdout, '', 'drain diagnostics must not corrupt release JSON')
             return result.returncode, (root / 'stopped').exists(), (root / 'marker').exists(), (root / 'locked').exists()
 
     def test_idle_stop_holds_lock_and_retains_recovery_marker(self):

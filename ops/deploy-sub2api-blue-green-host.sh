@@ -1348,7 +1348,7 @@ while True:
                     text=True, timeout=5).strip()
                 if observed != "false":
                     raise RuntimeError("old worker did not stop")
-                print("worker_schedule_drain=completed", flush=True)
+                print("worker_schedule_drain=completed", file=sys.stderr, flush=True)
                 break
         if time.monotonic() >= deadline:
             raise RuntimeError("worker schedule drain timed out; active API retained")
