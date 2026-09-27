@@ -21,6 +21,10 @@ type PelicanReportExecutionMeta struct {
 	ExpectedCount               int
 }
 type PelicanReportFact struct {
+	ResultPruned bool
+	// Derived from retained native results; never included in historical statistics.
+	HasOutput                                                   bool
+	CandyEvaluated                                              bool
 	ResultID                                                    int64
 	Kind, ModelID, ExecutionID, SharedRoundID, Status, Judgment string
 	ExpectedCount                                               int
@@ -51,6 +55,7 @@ type PelicanReportGroup struct {
 	RateMultiplier *float64 `json:"rate_multiplier"`
 }
 type PelicanReportResult struct {
+	HasOutput     *bool      `json:"has_output,omitempty"`
 	ResultID      int64      `json:"result_id"`
 	ExecutionID   *string    `json:"execution_id"`
 	SharedRoundID *string    `json:"shared_round_id"`
@@ -118,8 +123,8 @@ type PelicanReportRound struct {
 	PelicanExecutionID string    `json:"pelican_execution_id"`
 }
 
-// Current contains individual completed results, independently of batch completion.
-// Its artwork can only belong to the selected successful pelican result.
+// Current contains the latest evaluable candy answer and latest drawing attempt,
+// independently of batch completion. Artwork belongs only to that drawing attempt.
 type PelicanReportCurrent struct {
 	Candy   *PelicanReportResult  `json:"candy"`
 	Pelican *PelicanReportResult  `json:"pelican"`
@@ -448,9 +453,16 @@ func buildPelicanReport(data *PelicanReportData, now time.Time) *PelicanReportVi
 	v.Latest.Candy = latestReportExecution(all["candy"])
 	v.Latest.Pelican = latestReportExecution(all["pelican"])
 	v.CurrentRound = pairedReportRound(v.Latest.Candy, v.Latest.Pelican)
-	if rows := all["candy"]; len(rows) > 0 {
-		r := publicReportResult(rows[len(rows)-1])
-		v.Current.Candy = &r
+	for _, f := range all["candy"] {
+		// Failed facts alone cannot distinguish a wrong answer from transport.
+		// If native history was pruned, do not resurrect an older passing grade.
+		if f.ResultPruned && f.Status == "failed" {
+			v.Current.Candy = nil
+		}
+		if f.Judgment == "builtin_candy" && (f.Status == "success" || f.CandyEvaluated) {
+			r := publicReportResult(f)
+			v.Current.Candy = &r
+		}
 	}
 	var drawing *PelicanReportFact
 	for i := range all["pelican"] {
@@ -460,6 +472,8 @@ func buildPelicanReport(data *PelicanReportData, now time.Time) *PelicanReportVi
 	}
 	if drawing != nil {
 		r := publicReportResult(*drawing)
+		hasOutput := drawing.HasOutput
+		r.HasOutput = &hasOutput
 		v.Current.Pelican = &r
 		if art := data.Artwork; r.Status == "success" && art != nil && art.SourceResultID == r.ResultID && art.GroupID == data.Group.ID && art.ModelID == data.ModelID {
 			copy := *art

@@ -31,7 +31,7 @@ func TestPelicanReportCandyRequiresActualGrading(t *testing.T) {
 }
 func reportFact(id int64, kind, execution, status string, at time.Time, duration int64) PelicanReportFact {
 	started := at.Add(-time.Duration(duration) * time.Millisecond)
-	return PelicanReportFact{ResultID: id, Kind: kind, ModelID: "model-a", ExecutionID: execution, ExpectedCount: 1, Status: status, Judgment: "drawing", ObservedAt: at, StartedAt: &started, CompletedAt: &at}
+	return PelicanReportFact{HasOutput: status == "success", ResultID: id, Kind: kind, ModelID: "model-a", ExecutionID: execution, ExpectedCount: 1, Status: status, Judgment: "drawing", ObservedAt: at, StartedAt: &started, CompletedAt: &at}
 }
 
 func TestPelicanReportCurrentSelectsNewestCompletedIndividual(t *testing.T) {
@@ -267,4 +267,56 @@ func TestPelicanReportBoundsHistoryWithoutLosingStatistics(t *testing.T) {
 	require.Equal(t, int64(10001), limited.Statistics.Pelican.TotalCount)
 	require.Equal(t, int64(10001), limited.HistoryMeta.Pelican.TotalCount)
 	require.Len(t, limited.History.Pelican, 240)
+}
+
+func TestPelicanReportCurrentCandyIgnoresUnavailableAttempts(t *testing.T) {
+	now := time.Now().UTC()
+	answered := reportFact(1, "candy", "answered", "success", now.Add(-time.Hour), 1000)
+	answered.Judgment = "builtin_candy"
+	unavailable := reportFact(2, "candy", "maintenance", "failed", now.Add(-time.Minute), 20)
+	unavailable.Judgment = "builtin_candy"
+	data := &PelicanReportData{ModelID: "model-a", Facts: []PelicanReportFact{answered, unavailable}}
+	view := buildPelicanReport(data, now)
+	require.NotNil(t, view.Current.Candy)
+	require.Equal(t, int64(1), view.Current.Candy.ResultID)
+	require.Equal(t, "success", view.Current.Candy.Status)
+	require.Equal(t, "failed", view.Latest.Candy.Status)
+	require.Equal(t, int64(1), view.Statistics.Candy.FailureCount)
+	data.Facts = []PelicanReportFact{unavailable}
+	require.Nil(t, buildPelicanReport(data, now).Current.Candy)
+}
+
+func TestPelicanReportCurrentCandyKeepsLatestWrongAnswer(t *testing.T) {
+	now := time.Now().UTC()
+	passed := reportFact(1, "candy", "pass", "success", now.Add(-time.Hour), 1000)
+	wrong := reportFact(2, "candy", "wrong", "failed", now.Add(-time.Minute), 1000)
+	transport := reportFact(3, "candy", "timeout", "failed", now.Add(-time.Second), 20)
+	passed.Judgment, wrong.Judgment, transport.Judgment = "builtin_candy", "builtin_candy", "builtin_candy"
+	wrong.CandyEvaluated = true
+	view := buildPelicanReport(&PelicanReportData{ModelID: "model-a", Facts: []PelicanReportFact{passed, wrong, transport}}, now)
+	require.Equal(t, int64(2), view.Current.Candy.ResultID)
+	require.Equal(t, "failed", view.Current.Candy.Status)
+}
+
+func TestPelicanReportCurrentPelicanExposesOutputWithoutChangingHistory(t *testing.T) {
+	now := time.Now().UTC()
+	for _, hasOutput := range []bool{false, true} {
+		f := reportFact(5, "pelican", "latest", "failed", now.Add(-time.Minute), 1000)
+		f.HasOutput = hasOutput
+		view := buildPelicanReport(&PelicanReportData{ModelID: "model-a", Facts: []PelicanReportFact{f}}, now)
+		require.NotNil(t, view.Current.Pelican.HasOutput)
+		require.Equal(t, hasOutput, *view.Current.Pelican.HasOutput)
+		require.Nil(t, view.History.Pelican[0].HasOutput)
+		require.Equal(t, "failed", view.History.Pelican[0].Status)
+	}
+}
+
+func TestPelicanReportCannotResurrectPassAfterPrunedUnknownCandyFailure(t *testing.T) {
+	now := time.Now().UTC()
+	pass := reportFact(1, "candy", "pass", "success", now.Add(-time.Hour), 1000)
+	missing := reportFact(2, "candy", "missing", "failed", now.Add(-time.Minute), 1000)
+	pass.Judgment, missing.Judgment = "builtin_candy", "builtin_candy"
+	missing.ResultPruned = true
+	view := buildPelicanReport(&PelicanReportData{ModelID: "model-a", Facts: []PelicanReportFact{pass, missing}}, now)
+	require.Nil(t, view.Current.Candy, "a deleted failure must not be guessed to be a transport error")
 }

@@ -98,17 +98,27 @@ func (r *pelicanShowcaseRepository) ReadReport(ctx context.Context, groupID int6
    WHERE $1=ANY(group_ids) AND model_id=$2 AND kind=k.kind AND observed_at >= $5 AND observed_at < $4
    ORDER BY observed_at DESC,source_result_id DESC LIMIT 1
   ) l
+ ), evaluated_candy AS (
+  SELECT f.source_result_id FROM pelican_report_facts f
+  LEFT JOIN scheduled_test_results r ON r.id=f.source_result_id
+  WHERE $1=ANY(f.group_ids) AND f.model_id=$2 AND f.kind='candy' AND f.judgment='builtin_candy'
+  AND f.observed_at >= $5 AND f.observed_at < $4
+  AND (f.status='success' OR r.id IS NULL OR (r.error_message LIKE 'answer_mismatch:%' AND r.response_text ~ '[^[:space:]]'))
+  ORDER BY f.observed_at DESC,f.source_result_id DESC LIMIT 1
  ), display_latest AS (
   SELECT source_result_id FROM pelican_report_facts
   WHERE $1=ANY(group_ids) AND model_id=$2 AND kind='pelican' AND observed_at >= $5 AND observed_at < $4
   ORDER BY COALESCE(started_at,observed_at) DESC,source_result_id DESC LIMIT 1
  )
- SELECT f.source_result_id,f.kind,f.model_id,COALESCE(f.execution_id,''),COALESCE(f.shared_round_id,''),COALESCE(f.expected_count,0),f.scheduled_for,f.status,f.judgment,f.started_at,f.completed_at,f.observed_at
- FROM pelican_report_facts f
+ SELECT f.source_result_id,f.kind,f.model_id,COALESCE(f.execution_id,''),COALESCE(f.shared_round_id,''),COALESCE(f.expected_count,0),f.scheduled_for,f.status,f.judgment,f.started_at,f.completed_at,f.observed_at,
+ COALESCE(r.response_text ~ '[^[:space:]]',f.status='success'),
+ COALESCE(r.error_message LIKE 'answer_mismatch:%' AND r.response_text ~ '[^[:space:]]',false), r.id IS NULL
+ FROM pelican_report_facts f LEFT JOIN scheduled_test_results r ON r.id=f.source_result_id
  WHERE $1=ANY(f.group_ids) AND f.model_id=$2 AND f.observed_at >= $5 AND f.observed_at < $4
  AND (f.source_result_id IN (SELECT source_result_id FROM recent)
  OR f.source_result_id IN (SELECT source_result_id FROM latest)
  OR f.source_result_id IN (SELECT source_result_id FROM display_latest)
+ OR f.source_result_id IN (SELECT source_result_id FROM evaluated_candy)
  OR f.execution_id IN (SELECT execution_id FROM latest WHERE execution_id IS NOT NULL))
  ORDER BY f.observed_at,f.source_result_id`, groupID, out.ModelID, from, to, to.Add(-48*time.Hour), service.PelicanReportHistoryLimit)
 		if err != nil {
@@ -116,7 +126,7 @@ func (r *pelicanShowcaseRepository) ReadReport(ctx context.Context, groupID int6
 		}
 		for rows.Next() {
 			var f service.PelicanReportFact
-			if err = rows.Scan(&f.ResultID, &f.Kind, &f.ModelID, &f.ExecutionID, &f.SharedRoundID, &f.ExpectedCount, &f.ScheduledFor, &f.Status, &f.Judgment, &f.StartedAt, &f.CompletedAt, &f.ObservedAt); err != nil {
+			if err = rows.Scan(&f.ResultID, &f.Kind, &f.ModelID, &f.ExecutionID, &f.SharedRoundID, &f.ExpectedCount, &f.ScheduledFor, &f.Status, &f.Judgment, &f.StartedAt, &f.CompletedAt, &f.ObservedAt, &f.HasOutput, &f.CandyEvaluated, &f.ResultPruned); err != nil {
 				_ = rows.Close()
 				return nil, err
 			}
@@ -127,7 +137,7 @@ func (r *pelicanShowcaseRepository) ReadReport(ctx context.Context, groupID int6
 		if err != nil {
 			return nil, err
 		}
-		if len(out.Facts) > 2*service.PelicanReportHistoryLimit+17 {
+		if len(out.Facts) > 2*service.PelicanReportHistoryLimit+18 {
 			return nil, fmt.Errorf("invalid report execution result count")
 		}
 		var latest *service.PelicanReportFact

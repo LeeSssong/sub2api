@@ -309,3 +309,50 @@ func TestPelicanReportLargeWindowKeepsAllCountsAndBoundsHistory(t *testing.T) {
 	require.Equal(t, baseID+1, got.Facts[0].ResultID)
 	require.Equal(t, got.Facts[0].ExecutionID, got.Facts[len(got.Facts)-1].ExecutionID)
 }
+
+func TestPelicanReportRetainsEvaluatedCandyOutsideBoundedHistory(t *testing.T) {
+	ctx, plan, groups := statisticsFixture(t)
+	t.Cleanup(func() {
+		_, _ = integrationDB.ExecContext(ctx, "DELETE FROM pelican_report_facts WHERE group_ids && $1::bigint[]", pq.Array(groups))
+	})
+	repo := NewScheduledTestResultRepository(integrationDB)
+	gallery := NewPelicanShowcaseRepository(integrationDB).(*pelicanShowcaseRepository)
+	now := time.Now().UTC().Truncate(time.Microsecond).Add(-time.Hour)
+	save := func(kind, status, output, message string, at time.Time) *service.ScheduledTestResult {
+		prompt := "draw"
+		if kind == "candy" {
+			prompt = service.CandyPrompt
+		}
+		result, err := repo.Create(ctx, &service.ScheduledTestResult{PlanID: plan.ID, Status: status, ResponseText: output, ErrorMessage: message,
+			PelicanConfig: &service.PelicanTestConfig{Prompt: prompt, QuestionKind: kind, ModelID: "model"}, PelicanGroupIDs: groups,
+			ReportExecution: &service.PelicanReportExecutionMeta{ID: at.Format(time.RFC3339Nano) + kind, ExpectedCount: 1}, StartedAt: at.Add(-time.Second), FinishedAt: at})
+		require.NoError(t, err)
+		return result
+	}
+	wrong := save("candy", "failed", "27", "answer_mismatch: expected 21", now)
+	for i := 1; i <= 241; i++ {
+		save("candy", "failed", "", "API returned 503: maintenance", now.Add(time.Duration(i)*time.Second))
+	}
+	blank := save("pelican", "failed", " \n\t ", "API returned 503: maintenance", now)
+	text := save("pelican", "failed", "Sorry, I cannot draw", "Model did not return HTML or SVG", now.Add(time.Second))
+	got, err := gallery.ReadReport(ctx, groups[0], "model", groups, 20, time.Time{}, now.Add(-24*time.Hour), now.Add(time.Hour))
+	require.NoError(t, err)
+	found := false
+	for _, f := range got.Facts {
+		switch f.ResultID {
+		case wrong.ID:
+			found = true
+			require.True(t, f.CandyEvaluated)
+			require.True(t, f.HasOutput)
+		case blank.ID:
+			require.False(t, f.HasOutput)
+		case text.ID:
+			require.True(t, f.HasOutput)
+		default:
+			require.False(t, f.CandyEvaluated)
+			require.False(t, f.HasOutput)
+		}
+	}
+	require.True(t, found, "latest actual answer must survive the 240-row timeline bound")
+	require.Equal(t, int64(242), got.Statistics.Candy.TotalCount)
+}

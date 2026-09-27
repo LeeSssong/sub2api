@@ -1,0 +1,24 @@
+{
+  "listing": {
+    "enabled": true,
+    "max_items": 20,
+    "retention_days": 0,
+    "stats": {"success_count": 3, "total_count": 4, "success_rate": 75.0},
+    "stats_window": {
+      "from": "2026-09-25T01:00:00Z",
+      "to": "2026-09-26T01:00:00Z",
+      "coverage_started_at": "2026-09-24T01:00:00Z",
+      "complete": true
+    },
+    "groups": [{
+      "id": 7,
+      "name": "【示例数据】离线自测",
+      "platform": "openai",
+      "stats": {"success_count": 3, "total_count": 4, "success_rate": 75.0},
+      "items": [{"id": 12, "group_id": 7, "model_id": "example-model", "reasoning_effort": "high", "latency_ms": 1200, "generated_at": "2026-09-26T00:58:00Z"}]
+    }]
+  },
+  "items": {
+    "12": {"id": 12, "group_id": 7, "model_id": "example-model", "reasoning_effort": "high", "latency_ms": 1200, "generated_at": "2026-09-26T00:58:00Z", "response_text": "<svg xmlns='http://www.w3.org/2000/svg' width='660' height='440' viewBox='0 0 660 440'><rect width='660' height='440' fill='#182838'/><rect x='15' y='15' width='630' height='410' rx='12' fill='none' stroke='#9bd4fa' stroke-width='5'/><text x='330' y='200' text-anchor='middle' font-family='sans-serif' font-size='46' fill='#eaf2fa'>离线示例作品</text><text x='330' y='272' text-anchor='middle' font-family='sans-serif' font-size='24' fill='#82dcc0'>NO MODEL CALL / NO QQ SEND</text></svg>"}
+  }
+}
