@@ -95,14 +95,19 @@
               </label>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSIgnoreEncryptedContentDesc') }}</p>
             </div>
-            <div class="mt-3">
+            <div class="mt-3 space-y-2">
+              <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSAutoFallbackDesc') }}</p>
               <label class="flex items-center gap-2">
-                <input v-model="excelBPSAutoDisableOn403" type="checkbox"
-                  data-testid="bulk-excel-bps-auto-disable-on-403"
+                <input v-model="excelBPSShadowRecovery" type="checkbox" data-testid="bulk-excel-bps-shadow-recovery"
                   class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
-                <span class="text-sm">{{ t('admin.accounts.openai.excelBPSAutoDisableOn403') }}</span>
+                <span class="text-sm">{{ t('admin.accounts.openai.excelBPSShadowRecovery') }}</span>
               </label>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSAutoDisableOn403Desc') }}</p>
+              <p class="input-hint">{{ t('admin.accounts.openai.excelBPSShadowRecoveryDesc') }}</p>
+              <div v-if="excelBPSShadowRecovery" data-testid="bulk-excel-bps-fallback-model-selection">
+                <label class="input-label">{{ t('admin.accounts.openai.excelBPSFallbackModels') }}</label>
+                <ModelWhitelistSelector v-model="excelBPSFallbackModels" platform="openai" />
+                <p class="input-hint">{{ t('admin.accounts.openai.excelBPSFallbackModelsHint') }}</p>
+              </div>
             </div>
             <div class="mt-3">
               <label class="flex items-center gap-2">
@@ -112,6 +117,7 @@
                 <span class="text-sm">{{ t('admin.accounts.openai.excelBPSAutoMoveOn403') }}</span>
               </label>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSAutoMoveOn403Desc') }}</p>
+              <p v-if="excelBPSShadowRecovery" class="mt-1 text-xs text-amber-600 dark:text-amber-400">{{ t('admin.accounts.openai.excelBPSAutoMoveSuppressed') }}</p>
               <div v-if="excelBPSAutoMoveOn403" class="mt-2">
                 <label class="input-label">{{ t('admin.accounts.openai.excelBPS403TargetGroup') }}</label>
                 <Select v-model="excelBPS403TargetGroupID" :options="excelBPS403GroupOptions"
@@ -1843,7 +1849,8 @@ const excelBPSModels = ref<string[]>([...DEFAULT_EXCEL_BPS_MODELS])
 const excelBPSMihomo = ref(false)
 const excelBPSProxySource = ref<'mihomo' | 'ip_pool'>('mihomo')
 const excelBPSCacheCreationAsInput = ref(false)
-const excelBPSAutoDisableOn403 = ref(false)
+const excelBPSShadowRecovery = ref(false)
+const excelBPSFallbackModels = ref<string[]>([])
 const excelBPSOmitUnsupportedTools = ref(false)
 const excelBPSIgnoreImages = ref(false)
 const excelBPSIgnoreEncryptedContent = ref(false)
@@ -2156,14 +2163,23 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
       : 'mihomo'
     extra.openai_excel_bps_cache_creation_as_input =
       excelBPSEnabled.value && excelBPSCacheCreationAsInput.value
-    extra.openai_excel_bps_auto_disable_on_403 = excelBPSEnabled.value && excelBPSAutoDisableOn403.value
+    extra.openai_excel_bps_shadow_recovery = excelBPSEnabled.value && excelBPSShadowRecovery.value
+    if (!excelBPSEnabled.value) {
+      extra.openai_excel_bps_fallback_models = null
+    } else if (excelBPSShadowRecovery.value) {
+      extra.openai_excel_bps_fallback_models = [...new Set(excelBPSFallbackModels.value.map(model => model.trim()).filter(Boolean))]
+    }
     extra.openai_excel_bps_omit_unsupported_tools = excelBPSEnabled.value && excelBPSOmitUnsupportedTools.value
     extra.openai_excel_bps_ignore_images = excelBPSEnabled.value && excelBPSIgnoreImages.value
     extra.openai_excel_bps_ignore_encrypted_content = excelBPSEnabled.value && excelBPSIgnoreEncryptedContent.value
-    extra.openai_excel_bps_auto_move_on_403 = excelBPSEnabled.value && excelBPSAutoMoveOn403.value
-    extra.openai_excel_bps_403_target_group_id = excelBPSEnabled.value && excelBPSAutoMoveOn403.value
-      ? Number(excelBPS403TargetGroupID.value)
-      : null
+    const target = Number(excelBPS403TargetGroupID.value)
+    if (excelBPSEnabled.value && excelBPSAutoMoveOn403.value && excelBPS403TargetGroupID.value !== '' && excelBPS403GroupOptions.value.some(option => option.value === target)) {
+      extra.openai_excel_bps_auto_move_on_403 = true
+      extra.openai_excel_bps_403_target_group_id = target
+    } else if (!excelBPSEnabled.value || !excelBPSAutoMoveOn403.value) {
+      extra.openai_excel_bps_auto_move_on_403 = false
+      extra.openai_excel_bps_403_target_group_id = null
+    }
   }
 
   if (enableOpenAIPassthrough.value) {
@@ -2426,13 +2442,18 @@ const handleSubmit = async () => {
     return
   }
 
-  if (enableExcelBPS.value && allOpenAIOAuthOnly.value && excelBPSEnabled.value && excelBPSAutoMoveOn403.value) {
+  if (enableExcelBPS.value && allOpenAIOAuthOnly.value && excelBPSEnabled.value && excelBPSAutoMoveOn403.value && !excelBPSShadowRecovery.value) {
     const target = Number(excelBPS403TargetGroupID.value)
     if (excelBPS403TargetGroupID.value === '' || !Number.isSafeInteger(target) || target < 0 ||
       !excelBPS403GroupOptions.value.some(option => option.value === target)) {
       appStore.showError(t('admin.accounts.openai.excelBPS403SelectTarget'))
       return
     }
+  }
+
+  if (enableExcelBPS.value && allOpenAIOAuthOnly.value && excelBPSEnabled.value && excelBPSShadowRecovery.value && !excelBPSFallbackModels.value.some(model => model.trim())) {
+    appStore.showError(t('admin.accounts.openai.excelBPSFallbackModelsRequired'))
+    return
   }
 
   // base_url 现在也会作用于 Grok OAuth 订阅账号的转发端点；坏值会让请求期
@@ -2590,7 +2611,8 @@ watch(
       excelBPSMihomo.value = false
       excelBPSProxySource.value = 'mihomo'
       excelBPSCacheCreationAsInput.value = false
-      excelBPSAutoDisableOn403.value = false
+      excelBPSShadowRecovery.value = false
+      excelBPSFallbackModels.value = []
       excelBPSOmitUnsupportedTools.value = false
       excelBPSIgnoreImages.value = false
       excelBPSIgnoreEncryptedContent.value = false
