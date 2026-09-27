@@ -2241,13 +2241,13 @@ if [[ "$preserve_worker" == false && "$maintenance_transition" == false && "$onl
   write_partial worker_updating
   stop_worker_after_schedule_drain "$postgres_id" "$(resolve_container_id sub2api-worker)" 90 \
     || fail 'worker could not be safely drained; API cutover canceled'
+  worker_update_started=true
   failure_reason=worker_update_failed
   run_post_stop_command "${compose_candidate[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" --force-recreate sub2api-worker >/dev/null
   wait_for_worker_healthy || fail 'worker did not become healthy before timeout'
   worker_logs_are_acceptable || fail 'worker logs contain a startup failure'
   worker_runtime_image_id=$(run_post_stop_command docker inspect "$(resolve_container_id sub2api-worker)" --format '{{.Image}}')
   [[ "$worker_runtime_image_id" == "$candidate_worker_image_id" ]] || fail 'updated worker image ID differs from candidate'
-  rm -f "$record_root/.$attempt_id.worker-stop"
   write_partial worker_accepted
 fi
 
@@ -2303,6 +2303,7 @@ failure_reason=final_identity_check_failed
 write_final_record succeeded promoted ''
 trace_event 'persist success-record'
 record_finalized=true
+rm -f "$record_root/.$attempt_id.worker-stop"
 run_post_stop_command rm -f -- "$partial_path"
 partial_path=''
 # Promotion is committed. Release the lock while old requests drain so an
