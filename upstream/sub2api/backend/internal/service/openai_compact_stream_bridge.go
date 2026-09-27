@@ -117,6 +117,14 @@ func writeOpenAICompactSSEFailureMessage(c *gin.Context, statusCode int, errType
 }
 
 func writeOpenAICompactSSEFailureMessageIdentified(c *gin.Context, statusCode int, errType, code, message string) {
+	writeOpenAICompactSSEFailureMessageDetails(c, statusCode, errType, code, message, "")
+}
+
+func writeOpenAICompactSSEFailureMessageParam(c *gin.Context, statusCode int, errType, message, param string) {
+	writeOpenAICompactSSEFailureMessageDetails(c, statusCode, errType, "", message, param)
+}
+
+func writeOpenAICompactSSEFailureMessageDetails(c *gin.Context, statusCode int, errType, code, message, param string) {
 	if c == nil {
 		return
 	}
@@ -137,10 +145,16 @@ func writeOpenAICompactSSEFailureMessageIdentified(c *gin.Context, statusCode in
 			"created_at": time.Now().Unix(),
 			"status":     "failed",
 			"output":     []any{},
-			"error": map[string]any{
-				"code":    errType,
-				"message": message,
-			},
+			"error": func() map[string]any {
+				errorBody := map[string]any{
+					"code":    errType,
+					"message": message,
+				}
+				if param != "" {
+					errorBody["param"] = param
+				}
+				return errorBody
+			}(),
 		},
 	})
 	if err != nil {

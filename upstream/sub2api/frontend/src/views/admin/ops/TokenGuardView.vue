@@ -23,7 +23,7 @@
       <p v-if="notice" role="status" class="success-banner">{{ notice }}</p>
 
       <section class="summary-grid">
-        <article class="summary-card"><span>{{ t('tokenGuard.statsProbed') }}</span><strong>{{ remote?.runtime.stats.probed ?? 0 }}</strong><small>{{ t('tokenGuard.interval') }} {{ draft?.interval_seconds ?? 0 }}s</small></article>
+        <article class="summary-card"><span>{{ t('tokenGuard.statsProbed') }}</span><strong>{{ remote?.runtime.stats.probed ?? 0 }}</strong><small>{{ remote?.runtime.job?.status === 'running' ? `${remote.runtime.job.completed}/${remote.runtime.job.total}` : `${t('tokenGuard.interval')} ${draft?.interval_seconds ?? 0}s` }}</small></article>
         <article class="summary-card"><span>{{ t('tokenGuard.statsBad') }}</span><strong>{{ badCount }}</strong><small>{{ t('tokenGuard.failStreak') }} ≥ {{ draft?.fail_streak_threshold ?? 1 }}</small></article>
         <article class="summary-card"><span>{{ t('tokenGuard.statsRepaired') }}</span><strong>{{ remote?.runtime.stats.repaired ?? 0 }}</strong><small>{{ t('tokenGuard.stateFixed') }} {{ remote?.runtime.stats.state_fixed ?? 0 }}</small></article>
         <article class="summary-card"><span>{{ t('tokenGuard.lastRun') }}</span><strong class="text-base">{{ remote?.runtime.last_run ? date(remote.runtime.last_run) : t('tokenGuard.never') }}</strong><small>{{ remote?.runtime.last_message || '-' }}</small></article>
@@ -39,7 +39,16 @@
               <label class="field-label">{{ t('tokenGuard.mode') }}<select v-model="draft.mode" class="input w-full" data-testid="guard-mode"><option value="native">{{ t('tokenGuard.modeNative') }}</option><option value="external">{{ t('tokenGuard.modeExternal') }}</option></select></label>
               <p v-if="draft.mode === 'native'" class="field-hint">{{ t('tokenGuard.nativeHint') }}</p>
               <label class="field-label">{{ t('tokenGuard.groupIds') }}</label>
-              <input v-model="groupIdsText" class="input w-full" placeholder="1, 2" />
+              <Select
+                v-model="selectedGroupIds"
+                multiple
+                searchable
+                :options="groupOptions"
+                :placeholder="t('tokenGuard.allGroups')"
+                :aria-label="t('tokenGuard.groupIds')"
+                :disabled="groupsLoading"
+              />
+              <p v-if="groupsLoadError" class="field-hint text-amber-600 dark:text-amber-400">{{ t('tokenGuard.groupsLoadError') }}</p>
               <p class="field-hint">{{ t('tokenGuard.groupIdsHint') }}</p>
 
               <div class="grid-2">
@@ -149,11 +158,14 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import SmartOpsNav from '@/components/admin/operations/SmartOpsNav.vue'
 import Icon from '@/components/icons/Icon.vue'
+import Select from '@/components/common/Select.vue'
+import { groupsAPI } from '@/api/admin/groups'
+import type { AdminGroup, SelectOption } from '@/types'
 import {
   downloadTokenGuardSource,
   getTokenGuardStatus,
   reloginTokenGuardAccount,
-  runTokenGuard,
+  startTokenGuardRun,
   saveTokenGuardConfig,
   type TokenGuardConfig,
   type TokenGuardEvent,
@@ -168,6 +180,9 @@ const probeHeadersText = ref('')
 const reloginHeadersText = ref('')
 const loading = ref(false), saving = ref(false), running = ref(false), reloginBusy = ref(0)
 const error = ref(''), notice = ref('')
+const groups = ref<AdminGroup[]>([])
+const groupsLoading = ref(false)
+const groupsLoadError = ref(false)
 let timer: ReturnType<typeof setInterval> | undefined
 let alive = true
 
@@ -187,6 +202,28 @@ function selectAccount(index: number) {
 }
 const events = computed<TokenGuardEvent[]>(() => remote.value?.events ?? [])
 const badCount = computed(() => accounts.value.filter(item => item.probe_state === 'auth' || item.account_status === 'error').length)
+const selectedGroupIds = computed<number[]>({
+  get: () => draft.value?.group_ids ?? [],
+  set: (value) => {
+    if (draft.value) {
+      draft.value = {
+        ...draft.value,
+        group_ids: [...new Set(value.map(Number).filter(id => Number.isInteger(id) && id > 0))]
+      }
+    }
+  }
+})
+const groupOptions = computed<SelectOption[]>(() => {
+  const known = groups.value.map(group => ({
+    value: group.id,
+    label: `${group.name} (#${group.id})`
+  }))
+  const knownIds = new Set(groups.value.map(group => group.id))
+  const missing = selectedGroupIds.value
+    .filter(id => !knownIds.has(id))
+    .map(id => ({ value: id, label: `#${id}` }))
+  return [...missing, ...known]
+})
 const dirty = computed(() => {
   if (!draft.value || !remote.value) return false
   return JSON.stringify(collect()) !== JSON.stringify(normalize(remote.value.config))
@@ -209,8 +246,6 @@ const parseHeaders = (raw: string) => raw.split(/\r?\n/).reduce<Record<string, s
   return acc
 }, {})
 const headersTextOf = (headers: Record<string, string> | undefined) => Object.entries(headers ?? {}).map(([name, value]) => `${name}: ${value}`).join('\n')
-const groupTextOf = (config: TokenGuardConfig | null) => (config?.group_ids ?? []).join(', ')
-
 function normalize(config: TokenGuardConfig): TokenGuardConfig {
   return {
     ...config,
@@ -263,6 +298,18 @@ async function load(silent = false) {
   }
 }
 
+async function loadGroups() {
+  groupsLoading.value = true
+  groupsLoadError.value = false
+  try {
+    groups.value = await groupsAPI.getAll('openai')
+  } catch {
+    groupsLoadError.value = true
+  } finally {
+    groupsLoading.value = false
+  }
+}
+
 async function save() {
   if (!draft.value || saving.value) return
   if (credentialError.value) { error.value = credentialError.value; return }
@@ -287,8 +334,24 @@ async function run() {
   if (running.value) return
   running.value = true; error.value = ''; notice.value = ''
   try {
-    const stats = await runTokenGuard()
+    const job = await startTokenGuardRun()
     if (!alive) return
+    let current = job
+    while (alive && (current.status === 'pending' || current.status === 'running')) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      await load(true)
+      const polled = remote.value?.runtime.job
+      if (polled?.id === job.id) current = polled
+    }
+    if (!alive) return
+    if (current.status === 'failed') {
+      throw new Error(current.error || t('qualityOps.error'))
+    }
+    if (current.status === 'canceled') {
+      notice.value = t('tokenGuard.runCanceled')
+      return
+    }
+    const stats = current.stats
     notice.value = t('tokenGuard.runDone', { probed: stats.probed, healthy: stats.healthy, repaired: stats.repaired, state_fixed: stats.state_fixed })
     await load(true)
   } catch (e) {
@@ -315,6 +378,7 @@ async function relogin(item: { account_id: number }) {
 
 onMounted(() => {
   void load()
+  void loadGroups()
   timer = setInterval(() => { if (document.visibilityState === 'visible') void load(true) }, 30_000)
 })
 onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
