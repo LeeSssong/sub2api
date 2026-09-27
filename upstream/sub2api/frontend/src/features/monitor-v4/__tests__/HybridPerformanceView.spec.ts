@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import HybridPerformanceView from '../HybridPerformanceView.vue'
 import HybridPerformancePanel from '../HybridPerformancePanel.vue'
 
 const { getSnapshot } = vi.hoisted(() => ({
@@ -33,6 +34,21 @@ vi.mock('vue-i18n', async () => {
 })
 
 describe('HybridPerformanceView', () => {
+  it('renders the hybrid performance panel inside the route view', async () => {
+    const wrapper = mount(HybridPerformanceView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<main><slot /></main>' },
+          CodexRadarRecommendations: { template: '<section data-test="codexradar-panel" />' },
+        },
+      },
+    })
+    await vi.waitFor(() => expect(getSnapshot).toHaveBeenCalled())
+    expect(wrapper.find('[data-test="hybrid-performance-panel"]').exists()).toBe(true)
+    expect(wrapper.find('hybridperformancepanel').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('renders Chinese title and empty copy instead of translation keys', async () => {
     const wrapper = mount(HybridPerformancePanel, {
       global: {

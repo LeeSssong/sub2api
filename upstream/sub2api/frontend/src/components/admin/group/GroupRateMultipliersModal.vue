@@ -175,7 +175,7 @@
                       />
                     </td>
                     <td v-if="showFinalRate" class="whitespace-nowrap px-3 py-2 font-medium text-primary-600 dark:text-primary-400">
-                      {{ computeFinalRate(entry.rate_multiplier) }}
+                      {{ formatMultiplierLabel(computeFinalRate(entry.rate_multiplier)) }}
                     </td>
                     <td class="px-2 py-2">
                       <button

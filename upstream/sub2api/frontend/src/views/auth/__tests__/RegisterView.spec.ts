@@ -98,6 +98,15 @@ describe('RegisterView invitation layout', () => {
     registerMock.mockResolvedValue({})
   })
 
+  it('keeps the form title without a generic description', async () => {
+    const wrapper = mountRegister()
+    await flushPromises()
+    expect(wrapper.get('h2').text()).toBe('auth.createAccount')
+    expect(wrapper.text()).not.toContain('auth.signUpToStart')
+    expect(wrapper.get('h2').element.nextElementSibling).toBeNull()
+    wrapper.unmount()
+  })
+
   it('keeps the optional affiliate invitation field before Turnstile', async () => {
     const wrapper = mountRegister()
     await flushPromises()
