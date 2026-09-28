@@ -163,7 +163,6 @@
                 :title="t('keys.ipRestrictionEnabled')"
               />
             </div>
-            <span class="mt-1 block text-xs" :class="row.status === 'active' ? 'text-emerald-400' : 'text-gray-400'">{{ row.status === 'active' ? t('keys.enable') : t('keys.status.' + row.status) }}</span>
           </template>
 
           <template #cell-group="{ row }">
