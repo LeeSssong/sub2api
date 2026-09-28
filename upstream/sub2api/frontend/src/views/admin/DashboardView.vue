@@ -279,7 +279,7 @@
                   @change="onDateRangeChange"
                 />
               </div>
-              <button @click="loadDashboardStats" :disabled="chartsLoading" class="btn btn-secondary">
+              <button @click="loadDashboardStats" :disabled="chartsLoading" class="btn btn-secondary"><Icon name="refresh" size="sm" aria-hidden="true" />
                 {{ t('common.refresh') }}
               </button>
               <div class="ml-auto flex items-center gap-2">

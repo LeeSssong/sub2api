@@ -45,7 +45,7 @@
             @click="loadPlugins"
           >
             <Icon name="refresh" size="sm" />
-            <span class="sr-only">{{ t("common.refresh") }}</span>
+            <span class="refresh-button-label">{{ t("common.refresh") }}</span>
           </button>
         </div>
       </section>

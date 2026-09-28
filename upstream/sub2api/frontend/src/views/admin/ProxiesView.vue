@@ -45,7 +45,8 @@
               :title="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
+            <span>{{ t('common.refresh') }}</span>
+          </button>
             <button
               @click="handleBatchTest"
               :disabled="batchTesting || loading"

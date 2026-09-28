@@ -24,7 +24,7 @@
         <UsageStatsCards class="usage-stats" :stats="usageStats" :show-account-cost="false" user-overview />
         <div v-if="statsLoadError" class="flex items-center justify-between gap-3 border-t border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
           <span>{{ t('usage.failedToLoad') }}</span>
-          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadStats">{{ t('common.refresh') }}</button>
+          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadStats"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
         </div>
       </section>
 
@@ -77,7 +77,7 @@
         </div>
         <div v-if="chartsLoadError || modelStatsLoadError" data-testid="usage-charts-error" class="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
           <span>{{ t('usage.failedToLoad') }}</span>
-          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="retryFailedCharts">{{ t('common.refresh') }}</button>
+          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="retryFailedCharts"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
         </div>
       </section>
 
@@ -133,7 +133,7 @@
             </div>
           </div>
           <div class="usage-filter-actions" data-testid="usage-filter-actions">
-            <button type="button" @click="refreshData" :disabled="activeTab === 'errors' ? errorLoading : loading" class="btn btn-secondary">
+            <button type="button" @click="refreshData" :disabled="activeTab === 'errors' ? errorLoading : loading" class="btn btn-secondary"><Icon name="refresh" size="sm" aria-hidden="true" />
               {{ t('common.refresh') }}
             </button>
             <button type="button" @click="resetFilters" class="btn btn-secondary">
@@ -177,7 +177,7 @@
         <h2 class="usage-records-heading">{{ t('usage.requestDetails') }}</h2>
         <div v-if="logsLoadError" data-testid="usage-logs-error" class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
           <span>{{ t('usage.failedToLoad') }}</span>
-          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadLogs">{{ t('common.refresh') }}</button>
+          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadLogs"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
         </div>
         <UsageTable
           v-if="!logsLoadError || logsLoaded"
@@ -208,7 +208,7 @@
       <template v-else-if="errorViewEnabled">
         <div v-if="errorListLoadError" data-testid="usage-errors-error" class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
           <span>{{ t('usage.errors.failedToLoad') }}</span>
-          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadErrors">{{ t('common.refresh') }}</button>
+          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadErrors"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
         </div>
         <UserErrorRequestsTable
         v-if="!errorListLoadError || errorListLoaded"

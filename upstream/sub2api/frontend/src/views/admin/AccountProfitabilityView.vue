@@ -8,7 +8,7 @@
         <div class="min-w-0">
           <h1 class="text-2xl font-semibold">{{ t('admin.accountProfitability.title') }}</h1>
         </div>
-        <button class="btn btn-secondary shrink-0" data-test="financial-refresh" @click="refreshCurrentView">
+        <button class="btn btn-secondary shrink-0" data-test="financial-refresh" @click="refreshCurrentView"><Icon name="refresh" size="sm" aria-hidden="true" />
           {{ t('common.refresh') }}
         </button>
       </header>
@@ -300,6 +300,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'

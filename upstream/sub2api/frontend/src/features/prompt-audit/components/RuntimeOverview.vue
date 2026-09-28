@@ -10,7 +10,7 @@
         </p>
       </div>
       <button type="button" class="btn btn-secondary btn-sm" :disabled="loading" @click="$emit('refresh')">
-        {{ t('admin.promptAudit.actions.refresh') }}
+        <Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}
       </button>
     </div>
 
@@ -72,6 +72,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PromptAuditRuntime } from '../types'

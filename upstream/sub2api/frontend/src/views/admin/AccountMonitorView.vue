@@ -99,7 +99,7 @@
         role="alert"
       >
         <span>{{ rangeError }}</span>
-        <button type="button" class="btn btn-secondary shrink-0 px-3 py-1.5 text-xs" @click="load(activeRange)">
+        <button type="button" class="btn btn-secondary shrink-0 px-3 py-1.5 text-xs" @click="load(activeRange)"><Icon name="refresh" size="sm" aria-hidden="true" />
           {{ t('common.refresh') }}
         </button>
       </div>
@@ -135,7 +135,7 @@
         role="alert"
       >
         <span>{{ rangeError }}</span>
-        <button type="button" class="btn btn-secondary px-3 py-1.5 text-xs" @click="load(activeRange)">
+        <button type="button" class="btn btn-secondary px-3 py-1.5 text-xs" @click="load(activeRange)"><Icon name="refresh" size="sm" aria-hidden="true" />
           {{ t('common.refresh') }}
         </button>
       </div>

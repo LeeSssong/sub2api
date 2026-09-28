@@ -178,7 +178,7 @@
 
       <!-- Right: actions -->
       <div v-if="showActions" class="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
-        <button type="button" @click="$emit('refresh')" class="btn btn-secondary">
+        <button type="button" @click="$emit('refresh')" class="btn btn-secondary"><Icon name="refresh" size="sm" aria-hidden="true" />
           {{ t('common.refresh') }}
         </button>
         <button type="button" @click="$emit('reset')" class="btn btn-secondary">
@@ -199,6 +199,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { ref, onMounted, onUnmounted, toRef, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'

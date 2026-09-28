@@ -5,7 +5,7 @@
         <div>
           <h1 class="text-2xl font-semibold">经营总览</h1>
         </div>
-        <button class="btn btn-secondary" data-test="business-refresh" :disabled="loading" @click="loadReport">刷新</button>
+        <button class="btn btn-secondary" data-test="business-refresh" :disabled="loading" @click="loadReport"><Icon name="refresh" size="sm" aria-hidden="true" /> 刷新</button>
       </header>
 
       <section class="flex flex-wrap items-end gap-3" data-test="business-range-controls">
@@ -61,6 +61,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed, onMounted, ref } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { adminAPI } from '@/api/admin'

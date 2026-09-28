@@ -104,11 +104,11 @@
         </div>
         <div v-if="listLoadError && apiKeys.length" class="mb-3 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
           <span>{{ t('keys.failedToLoad') }}</span>
-          <button type="button" class="btn btn-secondary" @click="loadApiKeys">{{ t('common.refresh') }}</button>
+          <button type="button" class="btn btn-secondary" @click="loadApiKeys"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
         </div>
         <div v-if="usageLoadError" data-test="key-usage-error" class="mb-3 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
           <span>{{ t('keys.usageUnavailable') }}</span>
-          <button type="button" class="btn btn-secondary" @click="loadApiKeys">{{ t('common.refresh') }}</button>
+          <button type="button" class="btn btn-secondary" @click="loadApiKeys"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
         </div>
         <div class="keys-inventory" :class="{ 'keys-expanded': columns.length > 7 }">
         <DataTable
@@ -459,7 +459,7 @@
           <template #empty>
             <div v-if="listLoadError" class="flex flex-col items-center gap-3 py-8 text-center" role="alert">
               <p class="text-sm text-red-600 dark:text-red-400">{{ t('keys.failedToLoad') }}</p>
-              <button type="button" class="btn btn-secondary" @click="loadApiKeys">{{ t('common.refresh') }}</button>
+              <button type="button" class="btn btn-secondary" @click="loadApiKeys"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
             </div>
             <EmptyState
               v-else

@@ -60,7 +60,8 @@
                 size="md"
                 :class="loading ? 'animate-spin' : ''"
               />
-            </button>
+            <span>{{ t('common.refresh') }}</span>
+          </button>
             <div class="relative" ref="columnDropdownRef">
               <button
                 @click="showColumnDropdown = !showColumnDropdown"
@@ -3958,7 +3959,7 @@
                 size="sm"
                 :class="compositeRoutesLoading ? 'animate-spin' : ''"
               />
-            </button>
+            <span>{{ t('common.refresh') }}</span></button>
           </div>
 
           <div

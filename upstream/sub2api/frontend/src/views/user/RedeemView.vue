@@ -188,7 +188,7 @@
 
           <div v-if="historyLoadError" class="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
             <span>{{ t('common.error') }}</span>
-            <button type="button" class="btn btn-secondary" @click="fetchHistory">{{ t('common.refresh') }}</button>
+            <button type="button" class="btn btn-secondary" @click="fetchHistory"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
           </div>
 
           <!-- History List -->

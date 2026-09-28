@@ -9,7 +9,8 @@
           <div class="flex flex-1 items-center justify-end gap-2">
             <button @click="fetchOrders" :disabled="loading" class="btn btn-secondary" :title="t('common.refresh')">
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
+            <span>{{ t('common.refresh') }}</span>
+          </button>
             <button data-testid="back-to-recharge" class="btn btn-primary" @click="router.push('/purchase')">返回充值</button>
           </div>
         </div>
@@ -18,7 +19,7 @@
       <!-- Table -->
       <div v-if="loadError" class="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
         <span>{{ t('common.error') }}</span>
-        <button type="button" class="btn btn-secondary" @click="fetchOrders">{{ t('common.refresh') }}</button>
+        <button type="button" class="btn btn-secondary" @click="fetchOrders"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
       </div>
       <OrderTable v-else :orders="orders" :loading="loading">
         <template #actions="{ row }">

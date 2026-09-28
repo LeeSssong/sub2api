@@ -44,13 +44,14 @@
             </div>
           </div>
           <button
-            class="btn btn-secondary btn-icon flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600"
+            class="btn btn-secondary  flex   items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600"
             type="button"
             :title="t('common.refresh')"
             :disabled="loading"
             @click="reload(false)"
           >
             <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
+          <span>{{ t('common.refresh') }}</span>
           </button>
         </header>
 

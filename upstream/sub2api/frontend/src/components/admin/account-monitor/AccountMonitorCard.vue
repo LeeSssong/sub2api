@@ -175,7 +175,7 @@
         <button class="icon-button h-8 w-8 2xl:w-full" data-test="account-edit" type="button" title="编辑账号" aria-label="编辑账号" @click="emit('accountEdit', account)"><Icon name="edit" size="xs" /><span class="sr-only 2xl:not-sr-only 2xl:ml-1 2xl:text-[11px]">编辑</span></button>
         <button class="icon-button h-8 w-8 2xl:w-full" data-test="account-delete" type="button" title="删除账号" aria-label="删除账号" @click="emit('accountDelete', account)"><Icon name="trash" size="xs" /><span class="sr-only 2xl:not-sr-only 2xl:ml-1 2xl:text-[11px]">删除</span></button>
         <button class="icon-button h-8 w-8 2xl:w-full" data-test="account-more" type="button" title="更多账号操作" aria-label="更多账号操作" @click="emit('accountMore', account, $event)"><Icon name="more" size="xs" /><span class="sr-only 2xl:not-sr-only 2xl:ml-1 2xl:text-[11px]">更多</span></button>
-        <button class="icon-button h-8 w-8 2xl:w-full" data-test="refresh-account" type="button" title="刷新当前账号" aria-label="刷新当前账号" :disabled="running" @click="emit('refresh', account.account_id)"><Icon name="refresh" size="sm" :class="{ 'animate-spin': running }" /><span class="sr-only 2xl:not-sr-only 2xl:ml-1 2xl:text-[11px]">刷新</span></button>
+        <button class="btn btn-secondary   2xl:w-full" data-test="refresh-account" type="button" title="刷新当前账号" aria-label="刷新当前账号" :disabled="running" @click="emit('refresh', account.account_id)"><Icon name="refresh" size="sm" :class="{ 'animate-spin': running }" /><span class="refresh-button-label">刷新</span></button>
       </section>
 
       <div v-if="false && schedulerContext" class="min-w-0 2xl:col-span-6">

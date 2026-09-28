@@ -23,7 +23,8 @@
               </button>
               <button type="button" class="btn btn-secondary" :disabled="loadingKeys || loadingJobs" :title="t('common.refresh')" @click="refreshPage">
                 <Icon name="refresh" size="md" :class="loadingKeys || loadingJobs ? 'animate-spin' : ''" />
-              </button>
+              <span>{{ t('common.refresh') }}</span>
+          </button>
               <button type="button" class="btn btn-secondary" @click="showGuideModal = true">
                 <Icon name="book" size="md" class="mr-2" />
                 {{ t('batchImage.actions.usageGuide') }}
