@@ -14,6 +14,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const harvestRuntimeKey = "codex:harvest:runtime:worker"
+
 const codexHarvestControlsKey = "openai_codex_harvest_controls_v1"
 
 type CodexHarvestSpeed struct {

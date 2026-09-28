@@ -2,7 +2,6 @@
   <AppLayout>
     <div class="token-guard">
       <SmartOpsNav />
-      <button class="link-btn text-xs" @click="downloadSource">{{ t('tokenGuard.downloadSource') }}</button>
       <header class="ops-heading">
         <div>
           <p class="eyebrow">{{ t('accountOps.smartTitle') }}</p>
@@ -34,10 +33,7 @@
           <div class="section-title"><span class="icon-tile"><Icon name="shield" size="md" /></span><div><h3>{{ t('tokenGuard.title') }}</h3><p>{{ t('tokenGuard.enabledHint') }}</p></div></div>
           <form v-if="draft" class="settings-form" @submit.prevent="save">
             <fieldset :disabled="saving">
-              <p class="field-hint">{{ t('tokenGuard.plaintextHint') }}</p>
               <label class="enable-row"><span><strong>{{ t('tokenGuard.enabled') }}</strong><small>{{ t('tokenGuard.enabledHint') }}</small></span><input v-model="draft.enabled" type="checkbox" role="switch" :aria-label="t('tokenGuard.enabled')" /></label>
-              <label class="field-label">{{ t('tokenGuard.mode') }}<select v-model="draft.mode" class="input w-full" data-testid="guard-mode"><option value="native">{{ t('tokenGuard.modeNative') }}</option><option value="external">{{ t('tokenGuard.modeExternal') }}</option></select></label>
-              <p v-if="draft.mode === 'native'" class="field-hint">{{ t('tokenGuard.nativeHint') }}</p>
               <label class="field-label">{{ t('tokenGuard.groupIds') }}</label>
               <Select
                 v-model="selectedGroupIds"
@@ -59,53 +55,33 @@
                 <label class="field-label">{{ t('tokenGuard.failStreak') }}<input v-model.number="draft.fail_streak_threshold" type="number" min="1" max="10" class="input w-full" /></label>
               </div>
 
-              <label v-if="draft.mode === 'external'" class="field-label">{{ t('tokenGuard.probeEndpoint') }}<input v-model.trim="draft.probe_endpoint" class="input w-full" /></label>
+              <label class="field-label">{{ t('tokenGuard.probeEndpoint') }}<input v-model.trim="draft.probe_endpoint" class="input w-full" /></label>
               <label class="field-label">{{ t('tokenGuard.probeModel') }}<input v-model.trim="draft.probe_model" class="input w-full" placeholder="gpt-6-astra" /></label>
               <p class="field-hint">{{ t('tokenGuard.probeModelHint') }}</p>
-              <template v-if="draft.mode === 'external'">
               <label class="field-label">{{ t('tokenGuard.probeHeaders') }}</label>
               <textarea v-model="probeHeadersText" rows="3" class="input w-full" placeholder="Header-Name: value"></textarea>
               <p class="field-hint">{{ t('tokenGuard.headersHint') }}</p>
 
-              </template>
-              <label class="kind-option"><input v-model="draft.auto_relogin" type="checkbox" /><span><strong>{{ t('tokenGuard.autoRelogin') }}</strong><small>{{ t('tokenGuard.autoReloginHint') }}</small></span></label>
-              <template v-if="draft.mode === 'external'">
-              <label class="field-label">{{ t('tokenGuard.reloginEndpoint') }}</label>
+              <label class="kind-option"><input v-model="draft.auto_relogin" type="checkbox" /><span><strong>{{ t('tokenGuard.autoRelogin') }}</strong><small>{{ t('tokenGuard.reloginEndpoint') }}</small></span></label>
               <input v-model.trim="draft.relogin_endpoint" class="input w-full" />
               <label class="field-label">{{ t('tokenGuard.reloginHeaders') }}</label>
               <textarea v-model="reloginHeadersText" rows="3" class="input w-full" placeholder="Header-Name: value"></textarea>
               <p class="field-hint">{{ t('tokenGuard.headersHint') }}</p>
-              </template>
               <label class="kind-option"><input v-model="draft.restore_schedulable" type="checkbox" /><span><strong>{{ t('tokenGuard.restoreSchedulable') }}</strong><small>{{ t('tokenGuard.scopeNote') }}</small></span></label>
 
               <label class="field-label">{{ t('tokenGuard.reloginAccounts') }}</label>
+              <textarea v-model="reloginText" rows="7" class="input w-full font-mono text-xs" placeholder="user@example.com----password----JBSWY3DPEHPK3PXP"></textarea>
               <p class="field-hint">{{ t('tokenGuard.reloginAccountsHint') }}</p>
-              <div v-for="(credential, index) in draft.relogin_accounts" :key="index" class="credential-row" data-testid="credential-row">
-                <label class="field-label">{{ t('tokenGuard.account') }}<select v-model.number="credential.account_id" class="input w-full" required @change="selectAccount(index)">
-                  <option :value="0" disabled>{{ t('tokenGuard.pendingBinding') }}</option>
-                  <option v-if="credential.account_id && !availableAccounts.some(item => item.account_id === credential.account_id)" :value="credential.account_id">#{{ credential.account_id }} · {{ t('tokenGuard.unavailableAccount') }}</option>
-                  <option v-for="account in availableAccounts" :key="account.account_id" :value="account.account_id">#{{ account.account_id }} · {{ account.account_name }}{{ account.email ? ` · ${account.email}` : '' }}</option>
-                </select></label>
-                <label class="field-label">{{ t('tokenGuard.email') }}<input v-model="credential.email" type="text" required autocomplete="off" class="input w-full" /></label>
-                <label class="field-label">{{ t('tokenGuard.password') }}<input v-model="credential.password" type="text" required autocomplete="off" class="input w-full" /></label>
-                <label class="field-label">{{ t('tokenGuard.mfaSecret') }}<input v-model="credential.mfa_secret" type="text" required autocomplete="off" class="input w-full" /></label>
-                <button type="button" class="link-btn" @click="draft.relogin_accounts.splice(index, 1)">{{ t('tokenGuard.removeAccount') }}</button>
-              </div>
-              <button type="button" class="btn btn-secondary mt-3" data-testid="add-credential" @click="draft.relogin_accounts.push({ account_id: 0, email: '', password: '', mfa_secret: '' })">{{ t('tokenGuard.addAccount') }}</button>
-              <p v-if="credentialError" role="alert" class="field-hint text-red-600">{{ credentialError }}</p>
 
-              <label class="kind-option"><input v-model="draft.email_enabled" data-testid="guard-email-enabled" type="checkbox" /><span><strong>{{ t('tokenGuard.emailEnabled') }}</strong><small>{{ t('tokenGuard.emailHint') }}</small></span></label>
-              <label v-if="draft.email_enabled" class="field-label">{{ t('tokenGuard.emailRecipient') }}<input v-model.trim="draft.email_recipient" data-testid="guard-email-recipient" type="email" maxlength="254" autocomplete="email" class="input w-full" :placeholder="t('tokenGuard.sharedRecipient')" /></label>
               <div class="grid-2">
-                <label class="field-label">{{ t('tokenGuard.barkKey') }}<input v-model.trim="draft.bark_key" type="text" autocomplete="off" class="input w-full" placeholder="留空则不推送" /></label>
+                <label class="field-label">{{ t('tokenGuard.barkKey') }}<input v-model.trim="draft.bark_key" class="input w-full" placeholder="留空则不推送" /></label>
                 <div>
-                  <label class="kind-option"><input v-model="draft.notify_on_auth" data-testid="guard-notify-auth" type="checkbox" /><span><strong>{{ t('tokenGuard.notifyOnAuth') }}</strong><small>{{ t('tokenGuard.authNotifyHint') }}</small></span></label>
-                  <label class="kind-option"><input v-model="draft.notify_on_fix" type="checkbox" /><span><strong>{{ t('tokenGuard.notifyOnFix') }}</strong><small>{{ t('tokenGuard.enabledChannels') }}</small></span></label>
-                  <label class="kind-option"><input v-model="draft.notify_on_fail" type="checkbox" /><span><strong>{{ t('tokenGuard.notifyOnFail') }}</strong><small>{{ t('tokenGuard.enabledChannels') }}</small></span></label>
+                  <label class="kind-option"><input v-model="draft.notify_on_fix" type="checkbox" /><span><strong>{{ t('tokenGuard.notifyOnFix') }}</strong><small>Bark</small></span></label>
+                  <label class="kind-option"><input v-model="draft.notify_on_fail" type="checkbox" /><span><strong>{{ t('tokenGuard.notifyOnFail') }}</strong><small>Bark</small></span></label>
                 </div>
               </div>
 
-              <div class="settings-actions"><span>{{ dirty ? t('tokenGuard.unsaved') : t('tokenGuard.saved') }}</span><button class="btn btn-primary" :disabled="saving || !dirty || !!credentialError">{{ t(saving ? 'qualityOps.saving' : 'tokenGuard.save') }}</button></div>
+              <div class="settings-actions"><span>{{ dirty ? t('tokenGuard.unsaved') : t('tokenGuard.saved') }}</span><button class="btn btn-primary" :disabled="saving || !dirty">{{ t(saving ? 'qualityOps.saving' : 'tokenGuard.save') }}</button></div>
             </fieldset>
           </form>
         </section>
@@ -165,8 +141,9 @@ import Select from '@/components/common/Select.vue'
 import { groupsAPI } from '@/api/admin/groups'
 import type { AdminGroup, SelectOption } from '@/types'
 import {
-  downloadTokenGuardSource,
   getTokenGuardStatus,
+  formatTokenGuardReloginText,
+  parseTokenGuardReloginText,
   reloginTokenGuardAccount,
   startTokenGuardRun,
   saveTokenGuardConfig,
@@ -178,6 +155,7 @@ import {
 const { t } = useI18n()
 const remote = ref<TokenGuardStatus | null>(null)
 const draft = ref<TokenGuardConfig | null>(null)
+const reloginText = ref('')
 const probeHeadersText = ref('')
 const reloginHeadersText = ref('')
 const loading = ref(false), saving = ref(false), running = ref(false), reloginBusy = ref(0)
@@ -189,19 +167,6 @@ let timer: ReturnType<typeof setInterval> | undefined
 let alive = true
 
 const accounts = computed(() => remote.value?.accounts ?? [])
-const availableAccounts = computed(() => remote.value?.available_accounts ?? [])
-const credentialError = computed(() => {
-  const rows = draft.value?.relogin_accounts ?? []
-  if (rows.some(row => !row.account_id || !row.email.trim() || !row.password.length || !row.mfa_secret.trim())) return t('tokenGuard.credentialsRequired')
-  if (new Set(rows.map(row => row.account_id)).size !== rows.length) return t('tokenGuard.duplicateAccount')
-  return ''
-})
-function selectAccount(index: number) {
-  const row = draft.value?.relogin_accounts[index]
-  if (!row) return
-  const account = availableAccounts.value.find(item => item.account_id === row.account_id)
-  if (account?.email) row.email = account.email
-}
 const events = computed<TokenGuardEvent[]>(() => remote.value?.events ?? [])
 const badCount = computed(() => accounts.value.filter(item => item.probe_state === 'auth' || item.account_status === 'error').length)
 const selectedGroupIds = computed<number[]>({
@@ -237,6 +202,7 @@ const date = (value: string) => {
   return Number.isNaN(parsed.getTime()) ? value : `${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
 }
 const message = (e: unknown) => (e as { message?: string })?.message || t('qualityOps.error')
+const reloginTextOf = (config: TokenGuardConfig | null) => formatTokenGuardReloginText(config?.relogin_accounts)
 const parseHeaders = (raw: string) => raw.split(/\r?\n/).reduce<Record<string, string>>((acc, line) => {
   const index = line.indexOf(':')
   if (index > 0) {
@@ -250,9 +216,8 @@ const headersTextOf = (headers: Record<string, string> | undefined) => Object.en
 function normalize(config: TokenGuardConfig): TokenGuardConfig {
   return {
     ...config,
-    mode: config.mode ?? (config.probe_endpoint || config.relogin_endpoint ? 'external' : 'native'),
     group_ids: [...(config.group_ids ?? [])].sort((a, b) => a - b),
-    relogin_accounts: [...(config.relogin_accounts ?? [])].map(item => ({ account_id: item.account_id ?? 0, email: item.email.trim().toLowerCase(), password: item.password, mfa_secret: item.mfa_secret.trim() })).sort((a, b) => a.account_id - b.account_id),
+    relogin_accounts: [...(config.relogin_accounts ?? [])].map(item => ({ email: item.email.toLowerCase(), password: item.password, mfa_secret: item.mfa_secret })).sort((a, b) => a.email.localeCompare(b.email)),
     probe_headers: config.probe_headers ?? {},
     relogin_headers: config.relogin_headers ?? {}
   }
@@ -260,22 +225,12 @@ function normalize(config: TokenGuardConfig): TokenGuardConfig {
 
 function collect(): TokenGuardConfig {
   const base = draft.value!
-  return normalize({ ...base, group_ids: base.group_ids, relogin_accounts: base.relogin_accounts,
+  return normalize({ ...base, group_ids: base.group_ids, relogin_accounts: parseTokenGuardReloginText(reloginText.value),
     probe_headers: parseHeaders(probeHeadersText.value), relogin_headers: parseHeaders(reloginHeadersText.value) })
 }
 
 const probeClass = (state: string) => (state === 'ok' ? 'ok' : state === 'auth' ? 'danger' : '')
 const eventClass = (kind: string) => (kind === 'relogin_ok' || kind === 'state_fixed' || kind === 'probe_ok' ? 'ok' : kind === 'relogin_failed' || kind === 'state_failed' || kind === 'probe_auth' ? 'danger' : '')
-
-async function downloadSource() {
-  try {
-    const blob = await downloadTokenGuardSource()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = 'token-guard-source.tar.gz'; a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
-  } catch (e) { error.value = message(e) }
-}
 
 async function load(silent = false) {
   if (loading.value || saving.value) return
@@ -287,7 +242,8 @@ async function load(silent = false) {
     const preserveDraft = dirty.value
     remote.value = status
     if (!preserveDraft) {
-      draft.value = normalize(status.config)
+      draft.value = { ...status.config }
+      reloginText.value = reloginTextOf(status.config)
       probeHeadersText.value = headersTextOf(status.config.probe_headers)
       reloginHeadersText.value = headersTextOf(status.config.relogin_headers)
     }
@@ -312,12 +268,12 @@ async function loadGroups() {
 
 async function save() {
   if (!draft.value || saving.value) return
-  if (credentialError.value) { error.value = credentialError.value; return }
   saving.value = true; error.value = ''; notice.value = ''
   try {
     const saved = await saveTokenGuardConfig(collect())
     if (!alive) return
-    draft.value = normalize(saved)
+    draft.value = { ...saved }
+    reloginText.value = reloginTextOf(saved)
     probeHeadersText.value = headersTextOf(saved.probe_headers)
     reloginHeadersText.value = headersTextOf(saved.relogin_headers)
     if (remote.value) remote.value = { ...remote.value, config: saved }
@@ -417,8 +373,6 @@ onBeforeUnmount(() => { alive = false; if (timer) clearInterval(timer) })
 .kind-option { @apply mb-2 flex items-start gap-3 rounded-xl border border-gray-100 p-3 dark:border-dark-700; }
 .kind-option:has(input:checked) { @apply border-primary-200 bg-primary-50/30 dark:border-primary-800 dark:bg-primary-950/20; }
 .kind-option input { @apply mt-1 rounded text-primary-600; }
-.credential-row { @apply my-3 rounded-xl border border-gray-200 p-3 dark:border-dark-700; }
-.credential-row .field-label { @apply mt-2; }
 .settings-actions { @apply mt-5 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700; }
 .settings-actions span { @apply text-xs text-gray-400; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }

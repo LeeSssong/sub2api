@@ -3533,6 +3533,12 @@ func (a *Account) IsAPIKeyCacheCreationAsInputEnabled() bool {
 	if !a.IsAPIKeyCacheCreationAsInputEligible() {
 		return false
 	}
+	// API-key billing is independent from OAuth BPS lifecycle updates.
+	// Explicit false wins over the legacy key; untouched accounts keep their setting.
+	if raw, exists := a.Extra["openai_apikey_cache_creation_as_input"]; exists {
+		enabled, _ := raw.(bool)
+		return enabled
+	}
 	enabled, _ := a.Extra["openai_excel_bps_cache_creation_as_input"].(bool)
 	return enabled
 }

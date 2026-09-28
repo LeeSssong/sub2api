@@ -4437,7 +4437,11 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     }
     excelBPSMihomo.value = newAccount.type === 'oauth' && extra?.openai_excel_bps_mihomo === true
     excelBPSProxySource.value = extra?.openai_excel_bps_proxy_source === 'ip_pool' ? 'ip_pool' : 'mihomo'
-    excelBPSCacheCreationAsInput.value = (excelBPSEnabled.value || (newAccount.type === 'apikey' && !newAccount.parent_account_id)) && extra?.openai_excel_bps_cache_creation_as_input === true
+    excelBPSCacheCreationAsInput.value = newAccount.type === 'apikey' && !newAccount.parent_account_id
+      ? (Object.prototype.hasOwnProperty.call(extra ?? {}, 'openai_apikey_cache_creation_as_input')
+        ? extra?.openai_apikey_cache_creation_as_input === true
+        : extra?.openai_excel_bps_cache_creation_as_input === true)
+      : excelBPSEnabled.value && extra?.openai_excel_bps_cache_creation_as_input === true
     excelBPSAutoDisableOn403.value = newAccount.type === 'oauth' && extra?.openai_excel_bps_auto_disable_on_403 === true
     excelBPSAutoRecoverOn403.value = newAccount.type === 'oauth' && extra?.openai_excel_bps_auto_recover_on_403 === true
     excelBPSRecoveryIntervalMinutes.value = bpsRecoveryIntervalOrDefault(extra?.openai_excel_bps_403_recovery_interval_minutes)
@@ -5983,6 +5987,9 @@ const handleSubmit = async () => {
         newExtra.openai_excel_bps_mihomo = true
       } else {
         delete newExtra.openai_excel_bps_mihomo
+      }
+      if (props.account.type === 'apikey' && !isSparkShadow.value) {
+        newExtra.openai_apikey_cache_creation_as_input = excelBPSCacheCreationAsInput.value
       }
       if ((newExtra.openai_excel_bps === true || (props.account.type === 'apikey' && !isSparkShadow.value)) && excelBPSCacheCreationAsInput.value) {
         newExtra.openai_excel_bps_cache_creation_as_input = true

@@ -823,7 +823,6 @@ func registerScheduledTestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	admin.GET("/account-ops/alerts", h.Admin.AccountOps.List)
 	// 智能运维 → 凭证守护：账号令牌巡检 / 自动重登 / 错误态自愈
 	admin.GET("/account-ops/token-guard/status", h.Admin.AccountTokenGuard.Status)
-	admin.GET("/account-ops/token-guard/source", h.Admin.AccountTokenGuard.Source)
 	admin.PUT("/account-ops/token-guard/config", h.Admin.AccountTokenGuard.SaveConfig)
 	admin.POST("/account-ops/token-guard/run", h.Admin.AccountTokenGuard.Run)
 	admin.POST("/account-ops/token-guard/run/start", h.Admin.AccountTokenGuard.StartRun)

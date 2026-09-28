@@ -1,12 +1,8 @@
 export default {
-  "notifyOnAuth": "Token invalid notification",
-  "sharedRecipient": "Leave blank to use Account Operations recipient",
-  "authNotifyHint": "Notify on transition to authentication failure; repeated failures are suppressed",
-
   "twoFA": {
   "title": "2FA login and import",
   "label": "Initial login with email, password and 2FA",
-  "hint": "One email----password----2FA per line (commas also supported), up to 100 entries. Uses the saved Credential Guard relogin endpoint and headers, even when inspection is off. After a successful login, passwords and 2FA secrets are automatically saved or updated by email in Credential Guard for future logins; inspection is not enabled automatically.",
+  "hint": "One email----password----2FA per line (commas also supported), up to 100 entries. Initial login uses the configured login service. Imported accounts join Credential Operations by default with encrypted password/2FA storage, inspection and automatic re-login enabled. Subsequent logins use the local Worker. Configure the encryption key and Worker first.",
   "settings": "View relogin service settings",
   "credentials": "Login credentials",
   "placeholder": "email----password----2FA secret",
@@ -19,21 +15,15 @@ export default {
   "states": {
     "pending": "Pending",
     "login": "Logging in…",
-    "importing": "Importing…",
-    "created": "Imported",
-    "skipped": "Account exists, skipped",
-    "failed": "Login or credential save incomplete; retry or check credentials, service and guard settings",
-    "importFailed": "Logged in, import failed; retry import"
+    "importing": "Importing and enrolling in Credential Operations…",
+    "created": "Imported and enrolled in Credential Operations",
+    "skipped": "Existing account enrolled in Credential Operations",
+    "failed": "Login incomplete; retry or check credentials and the initial login service",
+    "importFailed": "Logged in; import or Credential Operations enrollment incomplete. Check encryption settings and retry"
   }
 },
-  "emailEnabled": "Email notifications",
-  "emailRecipient": "Recipient email",
-  "emailHint": "Uses the same email service and site SMTP as Account Operations. Can be combined with Bark.",
-  "enabledChannels": "Send to configured Bark and enabled email",
-
-  "downloadSource": "Download relogin executor source (AGPL-3.0)",
   "title": "Credential Guard",
-  "description": "Probe OpenAI OAuth access tokens and repair confirmed authentication failures with credentials bound to each account.",
+  "description": "Probes access tokens for accounts in the selected groups, re-logs in expired credentials, and restores scheduling for accounts stuck in the error state.",
   "enabled": "Enable credential guard",
   "enabledHint": "When disabled, no probing or repair runs.",
   "groupIds": "Guard group IDs",
@@ -43,7 +33,7 @@ export default {
   "interval": "Probe interval (seconds)",
   "probeEndpoint": "Probe endpoint",
   "probeModel": "Probe model",
-  "probeModelHint": "Model used for the actual OAuth probe request.",
+  "probeModelHint": "The probe endpoint supports gpt-6-astra and gpt-5.6-sol.",
   "probeHeaders": "Extra probe headers",
   "reloginHeaders": "Extra re-login headers",
   "headersHint": "One per line: Header-Name: value (as required by the probe / re-login service)",
@@ -59,7 +49,7 @@ export default {
   "notifyOnFix": "Notify on successful repair",
   "notifyOnFail": "Notify on failed repair",
   "reloginAccounts": "Re-login credentials",
-  "reloginAccountsHint": "Bind credentials to the account ID. Email, password and 2FA secret are required; passwords preserve spaces and commas.",
+  "reloginAccountsHint": "One per line: account----password----2FA. Legacy comma-separated entries are still accepted.",
   "save": "Save configuration",
   "saved": "Configuration saved",
   "unsaved": "Unsaved changes",
@@ -109,20 +99,5 @@ export default {
   "statsBad": "Issues",
   "statsRepaired": "Repaired",
   "stateFixed": "State recovered",
-  "scopeNote": "Only scheduling restrictions and error states created by this guard can be restored. Manual stops and other restrictions remain in place.",
-  "plaintextHint": "All saved credentials, headers and the Bark key are displayed and stored in plaintext.",
-  "mode": "Execution mode",
-  "modeNative": "Native services",
-  "modeExternal": "External services (legacy)",
-  "nativeHint": "Uses the built-in OpenAI OAuth probe and re-login services. No external endpoints or extra headers are needed.",
-  "autoReloginHint": "Only confirmed authentication failures trigger automatic re-login; temporary network, rate limit and service failures do not.",
-  "email": "Login email",
-  "password": "Login password",
-  "mfaSecret": "2FA / TOTP secret",
-  "pendingBinding": "Pending binding — select an account",
-  "unavailableAccount": "Account unavailable",
-  "addAccount": "Add credentials",
-  "removeAccount": "Remove credentials",
-  "credentialsRequired": "Select an account and enter email, password and 2FA secret for every row before saving.",
-  "duplicateAccount": "Each account can have only one credential row."
+  "scopeNote": "The guard only reads the stored access token to call the probe endpoint; credentials are written back only when a token is invalid and auto re-login is enabled."
 }

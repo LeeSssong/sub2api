@@ -465,6 +465,18 @@ describe('EditAccountModal', () => {
     }
   })
 
+  it('honors explicit API key cache disable even when legacy BPS setting is enabled', async () => {
+    const account = buildAccount()
+    account.extra = { openai_apikey_cache_creation_as_input: false, openai_excel_bps_cache_creation_as_input: true }
+    const wrapper = mountModal(account)
+    const selector = '[data-testid="excel-bps-cache-creation-as-input"]'
+    expect(wrapper.get<HTMLInputElement>(selector).element.checked).toBe(false)
+    await wrapper.get(selector).setValue(true)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateAccountMock.mock.calls.at(-1)?.[1]?.extra?.openai_apikey_cache_creation_as_input).toBe(true)
+  })
+
   it('saves API key cache input billing independently of OAuth BPS routing', async () => {
     const account = buildAccount()
     account.extra = { unrelated: 'keep' }
@@ -477,6 +489,7 @@ describe('EditAccountModal', () => {
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
     await flushPromises()
     const saved = updateAccountMock.mock.calls[0]?.[1]?.extra
+    expect(saved.openai_apikey_cache_creation_as_input).toBe(true)
     expect(saved.openai_excel_bps_cache_creation_as_input).toBe(true)
     expect(saved.openai_excel_bps).toBeUndefined()
     expect(saved.unrelated).toBe('keep')
@@ -485,6 +498,7 @@ describe('EditAccountModal', () => {
     await wrapper.get(selector).setValue(false)
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
     await flushPromises()
+    expect(updateAccountMock.mock.calls[1]?.[1]?.extra?.openai_apikey_cache_creation_as_input).toBe(false)
     expect(updateAccountMock.mock.calls[1]?.[1]?.extra?.openai_excel_bps_cache_creation_as_input).toBeUndefined()
   })
 

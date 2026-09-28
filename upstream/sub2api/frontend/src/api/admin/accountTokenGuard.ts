@@ -1,17 +1,14 @@
 import { apiClient } from '../client'
 
 export interface TokenGuardReloginAccount {
-  account_id: number
   email: string
   password: string
   mfa_secret: string
 }
 
-export type TokenGuardReloginTextEntry = Pick<TokenGuardReloginAccount, 'email' | 'password' | 'mfa_secret'>
-
 // Unlike the settings parser, imports must reject malformed lines rather than
 // silently dropping an account from a batch.
-export function parseTwoFALoginText(raw: string): TokenGuardReloginTextEntry[] {
+export function parseTwoFALoginText(raw: string): TokenGuardReloginAccount[] {
   const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
   if (!lines.length || lines.length > 100) throw new Error('invalid_batch')
   const seen = new Set<string>()
@@ -34,8 +31,8 @@ export interface TwoFALoginJob {
 
 const twoFALoginPath = '/admin/account-ops/token-guard/two-fa-login'
 
-export async function startTwoFALogin(entry: TokenGuardReloginTextEntry): Promise<TwoFALoginJob> {
-  return (await apiClient.post(twoFALoginPath, entry)).data
+export async function startTwoFALogin(entry: TokenGuardReloginAccount): Promise<TwoFALoginJob> {
+  return (await apiClient.post(twoFALoginPath, { ...entry, credential_target: 'operations' })).data
 }
 
 export async function getTwoFALogin(id: string): Promise<TwoFALoginJob> {
@@ -46,8 +43,7 @@ export async function deleteTwoFALogin(id: string): Promise<void> {
   await apiClient.delete(`${twoFALoginPath}/${id}`)
 }
 
-
-export function parseTokenGuardReloginText(raw: string): TokenGuardReloginTextEntry[] {
+export function parseTokenGuardReloginText(raw: string): TokenGuardReloginAccount[] {
   return raw
     .split(/\r?\n/)
     .map(line => line.trim())
@@ -61,14 +57,13 @@ export function parseTokenGuardReloginText(raw: string): TokenGuardReloginTextEn
     .filter(item => item.email && item.password)
 }
 
-export function formatTokenGuardReloginText(accounts: TokenGuardReloginTextEntry[] | undefined): string {
+export function formatTokenGuardReloginText(accounts: TokenGuardReloginAccount[] | undefined): string {
   return (accounts ?? [])
     .map(item => `${item.email}----${item.password}----${item.mfa_secret}`)
     .join('\n')
 }
 
 export interface TokenGuardConfig {
-  mode: 'native' | 'external'
   enabled: boolean
   group_ids: number[]
   interval_seconds: number
@@ -84,10 +79,7 @@ export interface TokenGuardConfig {
   relogin_accounts: TokenGuardReloginAccount[]
   restore_schedulable: boolean
   fail_streak_threshold: number
-  email_enabled?: boolean
-  email_recipient?: string
   bark_key: string
-  notify_on_auth?: boolean
   notify_on_fix: boolean
   notify_on_fail: boolean
 }
@@ -146,7 +138,6 @@ export interface TokenGuardJob {
 
 export interface TokenGuardStatus {
   config: TokenGuardConfig
-  available_accounts: { account_id: number; account_name: string; email: string }[]
   accounts: TokenGuardAccountState[]
   events: TokenGuardEvent[]
   runtime: {
@@ -167,7 +158,7 @@ export async function saveTokenGuardConfig(config: TokenGuardConfig): Promise<To
 }
 
 export async function runTokenGuard(): Promise<TokenGuardStats> {
-  return (await apiClient.post('/admin/account-ops/token-guard/run', undefined, { timeout: 26 * 60 * 1000 })).data
+  return (await apiClient.post('/admin/account-ops/token-guard/run')).data
 }
 
 export async function startTokenGuardRun(): Promise<TokenGuardJob> {
@@ -183,9 +174,5 @@ export async function cancelTokenGuardJob(jobId: string): Promise<TokenGuardJob>
 }
 
 export async function reloginTokenGuardAccount(accountId: number): Promise<{ account_id: number; action: string }> {
-  return (await apiClient.post(`/admin/account-ops/token-guard/accounts/${accountId}/relogin`, undefined, { timeout: 26 * 60 * 1000 })).data
-}
-
-export async function downloadTokenGuardSource(): Promise<Blob> {
-  return (await apiClient.get('/admin/account-ops/token-guard/source', { responseType: 'blob' })).data
+  return (await apiClient.post(`/admin/account-ops/token-guard/accounts/${accountId}/relogin`)).data
 }

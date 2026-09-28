@@ -2996,6 +2996,15 @@
         <p class="input-hint">{{ t('admin.accounts.openai.copilotSDKDesc') }}</p>
       </div>
 
+      <div v-if="form.platform === 'openai' && accountCategory === 'apikey'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <label class="flex items-center gap-2">
+          <input v-model="apiKeyCacheCreationAsInput" type="checkbox" data-testid="apikey-cache-creation-as-input"
+            class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
+          <span class="text-sm">{{ t('admin.accounts.openai.excelBPSCacheCreationAsInput') }}</span>
+        </label>
+        <p class="input-hint">{{ t('admin.accounts.openai.excelBPSCacheCreationAsInputDesc') }}</p>
+      </div>
+
       <!-- OpenAI OAuth RPM limit -->
       <div
         v-if="form.platform === 'openai' && accountCategory === 'oauth-based' && addMethod === 'oauth'"
@@ -3861,6 +3870,8 @@
 
 <script setup lang="ts">
 import OpenAITwoFAImport from './OpenAITwoFAImport.vue'
+import type { TokenGuardReloginAccount } from '@/api/admin/accountTokenGuard'
+import { createTokenGuardV2Account } from '@/api/admin/accountTokenGuardV2'
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -4418,6 +4429,7 @@ const applyGrokOAuthUpstreamConfig = (credentials: Record<string, unknown>) => {
 }
 const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(true)
+const apiKeyCacheCreationAsInput = ref(false)
 const copilotSDKEnabled = ref(false)
 const openaiPassthroughEnabled = ref(false)
 // OpenAI Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
@@ -4888,7 +4900,8 @@ watch(
       interceptWarmupRequests.value = false
     }
     if (newPlatform !== 'openai') {
-      copilotSDKEnabled.value = false
+      apiKeyCacheCreationAsInput.value = false
+  copilotSDKEnabled.value = false
       openaiPassthroughEnabled.value = false
       openaiFlattenNamespacesEnabled.value = false
       openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
@@ -5453,6 +5466,12 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
   // 清理兼容旧键，统一改用分类型开关。
   delete extra.responses_websockets_v2_enabled
   delete extra.openai_ws_enabled
+  if (accountCategory.value === 'apikey') {
+    extra.openai_apikey_cache_creation_as_input = apiKeyCacheCreationAsInput.value
+    // Preserve compatibility with the previous application during rollback.
+    if (apiKeyCacheCreationAsInput.value) extra.openai_excel_bps_cache_creation_as_input = true
+    else delete extra.openai_excel_bps_cache_creation_as_input
+  }
   if (accountCategory.value === 'apikey' && copilotSDKEnabled.value) {
     extra.openai_copilot_sdk = true
   } else {
@@ -6484,12 +6503,10 @@ const isAgentIdentityImportContent = (content: string) => {
   }
 }
 
-const importTwoFACredential = async (credential: Record<string, unknown>, email: string): Promise<'created' | 'skipped'> => {
-  if (!validateAdmission()) throw new Error('invalid_account_settings')
+const importTwoFACredential = async (credential: Record<string, unknown>, email: string, login: TokenGuardReloginAccount): Promise<'created' | 'skipped'> => {
   const credentialExtras = buildOpenAICodexImportCredentialExtras()
   if (credentialExtras === null) throw new Error('invalid_account_settings')
   const result = await adminAPI.accounts.importCodexSession({
-    ...admissionFields.value,
     content: JSON.stringify(credential),
     name: form.name.trim() ? `${form.name.trim()} (${email})` : email,
     notes: form.notes || null,
@@ -6504,12 +6521,26 @@ const importTwoFACredential = async (credential: Record<string, unknown>, email:
     credential_extras: credentialExtras,
     extra: withUpstreamRequestIdHeader(buildOpenAICodexImportExtra()),
     update_existing: false,
-    skip_existing: true,
-    active_probe_enabled: activeProbeEnabled.value
+    skip_existing: true
   })
   if (result.failed > 0) throw new Error('import_failed')
   if (result.created > 0) {
     await createAutoBPSRules(createdImportAccountIds(result))
+  }
+  const accountIds = [...new Set((result.items ?? [])
+    .filter(item => item.action === 'created' || item.action === 'skipped')
+    .map(item => item.account_id)
+    .filter((id): id is number => typeof id === 'number' && id > 0))]
+  if (!accountIds.length) throw new Error('import_missing_account_id')
+  for (const accountId of accountIds) {
+    await createTokenGuardV2Account({
+      account_id: accountId, login_email: login.email,
+      credential_mode: 'password_totp', proxy_source: 'account',
+      password: login.password, totp_secret: login.mfa_secret,
+      enabled: true, auto_relogin_enabled: true
+    })
+  }
+  if (result.created > 0) {
     emit('created')
     return 'created'
   }

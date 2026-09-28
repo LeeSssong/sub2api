@@ -1,12 +1,8 @@
 export default {
-  "notifyOnAuth": "令牌失效通知",
-  "sharedRecipient": "留空复用账号运维的收件邮箱",
-  "authNotifyHint": "首次检测到认证失效时通知；连续失效不重复发送",
-
   "twoFA": {
   "title": "2FA 登录导入",
   "label": "邮箱、密码与 2FA 首次登录",
-  "hint": "每行一条：账号----密码----2FA（兼容逗号分隔），最多 100 条。使用凭证守护已保存的重登接口和请求头，即使巡检关闭也可登录。登录成功后，密码与 2FA 会按邮箱自动保存或更新到凭证守护，用于后续重登；不会自动开启巡检。",
+  "hint": "每行一条：账号----密码----2FA（兼容逗号分隔），最多 100 条。首次登录使用已配置的重登服务。导入后默认加入凭证运营，加密保存密码与 2FA，并开启巡检、自动重登；后续重登由本地 Worker 执行。需配置加密密钥与 Worker。",
   "settings": "查看重登服务配置",
   "credentials": "登录凭据",
   "placeholder": "邮箱----密码----2FA 密钥",
@@ -19,21 +15,15 @@ export default {
   "states": {
     "pending": "待处理",
     "login": "登录中…",
-    "importing": "导入中…",
-    "created": "已导入",
-    "skipped": "已有账号，已跳过",
-    "failed": "登录或凭据保存未完成，可重试；请检查凭据、重登服务或守护配置",
-    "importFailed": "登录成功，导入失败；可重试导入"
+    "importing": "导入并登记凭证运营…",
+    "created": "已导入并加入凭证运营",
+    "skipped": "已有账号，已加入凭证运营",
+    "failed": "登录未完成，可重试；请检查凭据与首次登录服务",
+    "importFailed": "登录成功，导入或凭证运营登记未完成；可重试，请检查加密配置"
   }
 },
-  "emailEnabled": "邮箱推送",
-  "emailRecipient": "推送邮箱",
-  "emailHint": "复用账号运维的邮件服务与站点 SMTP，可同时使用 Bark。",
-  "enabledChannels": "发送至已配置的 Bark 和已启用的邮箱",
-
-  "downloadSource": "下载重登执行器源码（AGPL-3.0）",
   "title": "凭证守护",
-  "description": "探测 OpenAI OAuth 访问令牌，并使用按账号绑定的凭据修复已确认的认证失效。",
+  "description": "巡检分组内账号的访问令牌，令牌失效时自动重登写回，账号处于错误态时自动恢复调度。",
   "enabled": "启用凭证守护",
   "enabledHint": "关闭后不再自动巡检与修复。",
   "groupIds": "守护分组 ID",
@@ -43,7 +33,7 @@ export default {
   "interval": "巡检间隔（秒）",
   "probeEndpoint": "测活接口",
   "probeModel": "测活模型",
-  "probeModelHint": "实际 OAuth 探测请求使用的模型。",
+  "probeModelHint": "该测活接口支持的模型：gpt-6-astra / gpt-5.6-sol。",
   "probeHeaders": "测活接口额外请求头",
   "reloginHeaders": "重登接口额外请求头",
   "headersHint": "每行一个：Header-Name: value（按测活 / 重登服务的要求填写）",
@@ -59,7 +49,7 @@ export default {
   "notifyOnFix": "修复成功推送",
   "notifyOnFail": "修复失败推送",
   "reloginAccounts": "重登凭据",
-  "reloginAccountsHint": "凭据按账号 ID 绑定。邮箱、密码和 2FA 密钥均必填；密码中的空格和逗号会原样保留。",
+  "reloginAccountsHint": "每行一条：账号----密码----2FA。也兼容读取旧的逗号格式；凭据保存在本机设置中，仅用于自动重登。",
   "save": "保存配置",
   "saved": "配置已保存",
   "unsaved": "有未保存的修改",
@@ -109,20 +99,5 @@ export default {
   "statsBad": "异常账号",
   "statsRepaired": "本轮修复",
   "stateFixed": "状态自愈",
-  "scopeNote": "只恢复由本守护器设置的调度限制和错误状态，不解除手动停用或其他限制。",
-  "plaintextHint": "所有已保存的登录凭据、请求头和 Bark Key 均以明文展示和存储。",
-  "mode": "执行模式",
-  "modeNative": "原生服务",
-  "modeExternal": "外部服务（兼容旧配置）",
-  "nativeHint": "使用内置 OpenAI OAuth 探测和重新登录服务，无需填写外部端点或额外请求头。",
-  "autoReloginHint": "仅确认的认证失效触发自动重新登录；临时网络故障、限流和服务异常不会触发。",
-  "email": "登录邮箱",
-  "password": "登录密码",
-  "mfaSecret": "2FA / TOTP 密钥",
-  "pendingBinding": "待绑定：请选择账号",
-  "unavailableAccount": "账号不可用",
-  "addAccount": "添加登录凭据",
-  "removeAccount": "移除此凭据",
-  "credentialsRequired": "每行必须选择账号并填写邮箱、密码和 2FA 密钥后才能保存。",
-  "duplicateAccount": "同一账号只能绑定一组登录凭据。"
+  "scopeNote": "巡检只读取账号已有的 access_token 并用它调用测活接口，不会修改账号凭据；只有令牌失效且开启自动重登时才会写回新凭据。"
 }

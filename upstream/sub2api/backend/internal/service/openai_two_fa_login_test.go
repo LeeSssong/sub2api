@@ -46,9 +46,6 @@ func newTwoFATestService(t *testing.T, server *httptest.Server) *AccountTokenGua
 	cfg := defaultAccountTokenGuardConfig()
 	cfg.Enabled, cfg.AutoRelogin = false, false
 	cfg.ReloginEndpoint = server.URL
-	if cfg.ReloginHeaders == nil {
-		cfg.ReloginHeaders = make(map[string]string)
-	}
 	cfg.ReloginHeaders["X-Test-Client"] = "{{uuid}}"
 	raw, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -67,6 +64,30 @@ func waitTwoFALogin(t *testing.T, svc *AccountTokenGuardService, id string) *Ope
 		return ok && job.Status != "running"
 	}, 3*time.Second, 5*time.Millisecond)
 	return job
+}
+
+func TestTwoFALoginForOperationsDoesNotSaveLegacyCredentials(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "{\"credential\":{\"access_token\":\"access\",\"refresh_token\":\"refresh\",\"id_token\":\"id\"}}")
+	}))
+	defer server.Close()
+	svc := newTwoFATestService(t, server)
+	settings, ok := svc.settings.(*twoFALoginSettings)
+	require.True(t, ok)
+	before := settings.raw
+	entry := AccountTokenGuardReloginAccount{Email: "operations@example.com", Password: "test-password", MFASecret: "test-secret"}
+	job, err := svc.StartTwoFALoginForOperations(context.Background(), entry)
+	require.NoError(t, err)
+	result := waitTwoFALogin(t, svc, job.ID)
+	require.Equal(t, "succeeded", result.Status)
+	settings.mu.Lock()
+	require.Zero(t, settings.writes)
+	require.Equal(t, before, settings.raw)
+	settings.mu.Unlock()
+	raw, err := json.Marshal(result)
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), entry.Password)
+	require.NotContains(t, string(raw), entry.MFASecret)
 }
 
 func TestTwoFALoginInitialLoginWithoutExistingAccount(t *testing.T) {
@@ -103,8 +124,7 @@ func TestTwoFALoginInitialLoginWithoutExistingAccount(t *testing.T) {
 	require.Equal(t, "password_2fa", payload["auth_mode"])
 	require.Equal(t, "start", payload["action"])
 	require.Equal(t, "p,a!ss", payload["password"])
-	// The local guard applies configured headers without a provider-specific marker.
-	require.Empty(t, payload["relogin_header"])
+	require.Equal(t, "1", payload["relogin_header"])
 	require.NotEmpty(t, payload["test_client"])
 	require.NotEqual(t, "{{uuid}}", payload["test_client"])
 	result.Credential["access_token"] = "mutated"

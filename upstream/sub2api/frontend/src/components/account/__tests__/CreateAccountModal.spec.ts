@@ -11,6 +11,7 @@ const {
   showWarningMock,
   importCodexSessionMock,
   createOpenAICodexPATMock,
+  createCredentialOperationsMock,
   authIsSimpleMode,
 } = vi.hoisted(() => ({
   createAccountMock: vi.fn(),
@@ -19,6 +20,7 @@ const {
   showWarningMock: vi.fn(),
   importCodexSessionMock: vi.fn(),
   createOpenAICodexPATMock: vi.fn(),
+  createCredentialOperationsMock: vi.fn(),
   authIsSimpleMode: { value: true },
 }))
 
@@ -61,6 +63,10 @@ vi.mock('@/api/admin', () => ({
 
 vi.mock('@/api/admin/accounts', () => ({
   getAntigravityDefaultModelMapping: vi.fn().mockResolvedValue([]),
+}))
+
+vi.mock('@/api/admin/accountTokenGuardV2', () => ({
+  createTokenGuardV2Account: createCredentialOperationsMock,
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -215,11 +221,28 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
       failed: 0,
       errors: [],
       warnings: [],
+      items: [{ action: 'created', account_id: 42 }],
     })
+    createCredentialOperationsMock.mockReset().mockResolvedValue({ account_id: 42 })
     createOpenAICodexPATMock.mockReset().mockResolvedValue({})
   })
 
   afterEach(() => vi.useRealTimers())
+
+  it('creates API keys with an independent cache creation billing toggle', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await selectButtonByText(wrapper, 'API Key')
+    const selector = '[data-testid="apikey-cache-creation-as-input"]'
+    expect(wrapper.find(selector).exists()).toBe(true)
+    await wrapper.get(selector).setValue(true)
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('cache input account')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_apikey_cache_creation_as_input).toBe(true)
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_excel_bps).toBeUndefined()
+  })
 
   it('offers 2FA initial login with optional name and imports through Session deduplication', async () => {
     const wrapper = mountModal()
@@ -230,13 +253,37 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     const importer = wrapper.getComponent(OpenAITwoFAImport)
     expect(wrapper.findComponent(OAuthAuthorizationFlowStub).exists()).toBe(false)
     const credential = { access_token: 'test-access', refresh_token: 'test-refresh', account_id: 'test-workspace' }
-    await expect(importer.props('importCredential')(credential, 'user@example.com')).resolves.toBe('created')
+    const login = { email: 'user@example.com', password: 'test-password', mfa_secret: 'test-secret' }
+    await expect(importer.props('importCredential')(credential, login.email, login)).resolves.toBe('created')
     expect(importCodexSessionMock).toHaveBeenCalledWith(expect.objectContaining({
       content: JSON.stringify(credential), name: 'user@example.com', update_existing: false, skip_existing: true,
       concurrency: 10, group_ids: [], proxy_id: null,
     }))
     expect(wrapper.emitted('created')).toHaveLength(1)
     expect(wrapper.emitted('close')).toBeUndefined()
+    expect(createCredentialOperationsMock).toHaveBeenCalledWith({
+      account_id: 42, login_email: login.email, password: login.password, totp_secret: login.mfa_secret,
+      credential_mode: 'password_totp', proxy_source: 'account', enabled: true, auto_relogin_enabled: true,
+    })
+  })
+
+  it('retries operations enrollment for an already imported identity without reporting premature success', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await wrapper.get('[data-testid="openai-two-fa"]').trigger('click')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    const importer = wrapper.getComponent(OpenAITwoFAImport)
+    const credential = { access_token: 'test-access', refresh_token: 'test-refresh' }
+    const login = { email: 'user@example.com', password: 'test-password', mfa_secret: 'test-secret' }
+    createCredentialOperationsMock.mockRejectedValueOnce(new Error('encryption unavailable'))
+    await expect(importer.props('importCredential')(credential, login.email, login)).rejects.toThrow()
+    expect(wrapper.emitted('created')).toBeUndefined()
+    importCodexSessionMock.mockResolvedValue({ created: 0, updated: 0, skipped: 1, failed: 0, items: [{ action: 'skipped', account_id: 42 }] })
+    await expect(importer.props('importCredential')(credential, login.email, login)).resolves.toBe('skipped')
+    expect(createCredentialOperationsMock).toHaveBeenCalledTimes(2)
+    expect(createCredentialOperationsMock.mock.calls[1]?.[0]).toMatchObject({
+      account_id: 42, password: login.password, totp_secret: login.mfa_secret, enabled: true, auto_relogin_enabled: true,
+    })
   })
 
   it('sets month and year expiry presets without submitting the account form', async () => {
