@@ -3,6 +3,7 @@ package basispoints
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // normalizeHistoryMessage keeps client attribution as text rather than sending
@@ -15,6 +16,18 @@ func normalizeHistoryMessage(item object, index int) (object, error) {
 	agent := kind == "agent_message"
 	if !agent && kind != "message" && (kind != "" || text(item["role"]) == "") {
 		return item, nil
+	}
+	// BPS rejects foreign message IDs (for example item_* from client history).
+	// Full message content is replayed here, so an incompatible ID can be omitted.
+	// Keep this BPS-only and never rewrite tool IDs or mutate the source history.
+	if _, exists := item["id"]; !agent && exists && !strings.HasPrefix(text(item["id"]), "msg_") {
+		cleaned := make(object, len(item)-1)
+		for key, value := range item {
+			if key != "id" {
+				cleaned[key] = value
+			}
+		}
+		item = cleaned
 	}
 	metadata := make(object)
 	for key, value := range item {
