@@ -61,6 +61,11 @@ const messages: Record<string, string> = {
   'keys.usage': 'Usage',
   'keys.usageUnavailable': 'Usage unavailable',
   'keys.failedToLoad': 'Failed to load API keys',
+  'keys.endpoints.title': 'API endpoint',
+  'keys.endpoints.default': 'Default',
+  'keys.endpoints.copyAddress': 'Copy address',
+  'keys.endpoints.instructions': 'Connection instructions',
+  'keys.endpoints.unavailable': 'Endpoint unavailable',
 }
 
 vi.mock('@/api', () => ({
@@ -156,6 +161,7 @@ const TablePageLayoutStub = {
     <div :data-continuous="continuous">
       <slot name="actions" />
       <slot name="filters" />
+      <slot name="endpoint" />
       <slot name="table" />
       <slot name="pagination" />
     </div>
@@ -164,7 +170,7 @@ const TablePageLayoutStub = {
 
 const DataTableStub = {
   name: 'DataTable',
-  props: ['columns', 'data'],
+  props: ['columns', 'data', 'stickyFirstColumn'],
   emits: ['sort'],
   template: `
     <div>
@@ -311,12 +317,26 @@ describe('user KeysView column settings', () => {
   })
 
   it('keeps actions, filters, endpoints, list, and pagination in one work surface', async () => {
+    getPublicSettings.mockResolvedValue({ api_base_url: 'https://api.example.test/v1' })
     const wrapper = await mountView()
     expect(wrapper.get('[data-continuous]').exists()).toBe(true)
     const content = wrapper.get('[data-continuous]').html()
+    expect(wrapper.get('[data-test="keys-actions"]').classes()).toContain('justify-between')
     expect(content.indexOf('data-tour="keys-create-btn"')).toBeLessThan(content.indexOf('Search name or key...'))
-    expect(content.indexOf('Search name or key...')).toBeLessThan(content.indexOf('data-test="columns"'))
+    expect(content.indexOf('Search name or key...')).toBeLessThan(content.indexOf('data-test="keys-endpoint"'))
+    expect(content.indexOf('data-test="keys-endpoint"')).toBeLessThan(content.indexOf('data-test="keys-list-heading"'))
+    expect(content.indexOf('data-test="keys-list-heading"')).toBeLessThan(content.indexOf('data-test="columns"'))
     expect(content.indexOf('data-test="columns"')).toBeLessThan(content.indexOf('data-test="page-size-50"'))
+    expect(wrapper.get('[data-test="keys-endpoint"]').text()).toContain('https://api.example.test/v1')
+    expect(wrapper.getComponent({ name: 'DataTable' }).props('stickyFirstColumn')).toBe(false)
+  })
+
+  it('uses the current origin when no public endpoint is configured and copies only that address', async () => {
+    const wrapper = await mountView()
+    expect(wrapper.get('[data-test="keys-endpoint"]').text()).toContain(`${window.location.origin}/v1`)
+    await getButtonByText(wrapper, 'Copy address').trigger('click')
+    expect(copyToClipboard).toHaveBeenCalledWith(`${window.location.origin}/v1`, 'keys.endpoints.copied')
+    expect(copyToClipboard).not.toHaveBeenCalledWith('sk-test-key', expect.anything())
   })
 
   it('uses the same complete key form as the AI tool entry when creating a key', async () => {
@@ -335,6 +355,14 @@ describe('user KeysView column settings', () => {
     })
   })
 
+  it('exposes result count, page size, and navigation in the narrow key footer', async () => {
+    const wrapper = await mountView()
+    const footer = wrapper.get('[data-test="keys-mobile-pagination"]')
+    expect(footer.text()).toContain('1')
+    expect(footer.findAll('button')).toHaveLength(2)
+    expect(footer.findComponent({ name: 'Select' }).exists()).toBe(true)
+  })
+
   it('uses the default API key columns with low-frequency columns hidden', async () => {
     const wrapper = await mountView()
 
@@ -345,14 +373,14 @@ describe('user KeysView column settings', () => {
       'current_concurrency',
       'usage',
       'expires_at',
-      'status',
-      'created_at',
       'actions',
     ])
     expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_ip')
     expect(visibleColumnKeys(wrapper)).not.toContain('id')
+    expect(visibleColumnKeys(wrapper)).not.toContain('status')
+    expect(visibleColumnKeys(wrapper)).not.toContain('created_at')
   })
 
   it('shows a retryable error instead of the empty state after an initial list failure', async () => {
@@ -397,9 +425,9 @@ describe('user KeysView column settings', () => {
 
     expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
     expect(localStorage.getItem('api-key-hidden-columns')).toBe(
-      JSON.stringify(['id', 'last_used_at', 'last_used_ip'])
+      JSON.stringify(['id', 'last_used_at', 'last_used_ip', 'status', 'created_at'])
     )
-    expect(localStorage.getItem('api-key-column-settings-version')).toBe('3')
+    expect(localStorage.getItem('api-key-column-settings-version')).toBe('4')
   })
 
   it('shows the API key ID column when toggled', async () => {
@@ -452,7 +480,7 @@ describe('user KeysView column settings', () => {
     expect(localStorage.getItem('api-key-hidden-columns')).toBe(
       JSON.stringify(['group', 'created_at', 'last_used_ip', 'id'])
     )
-    expect(localStorage.getItem('api-key-column-settings-version')).toBe('3')
+    expect(localStorage.getItem('api-key-column-settings-version')).toBe('4')
   })
 
   it('does not include always-visible columns in the toggleable menu', async () => {

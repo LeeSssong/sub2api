@@ -19,10 +19,13 @@ describe('shared line selector', () => {
     await wrapper.get('[aria-label="选择线路"]').trigger('click')
     await nextTick()
     expect(document.body.textContent).toContain('0.8x倍率')
-    expect(document.body.textContent).toContain('管理正常')
+    expect(document.body.textContent).toContain('可用')
     expect(document.body.textContent).toContain('关联密钥 2 把')
     expect(document.body.textContent).toContain('97%')
     expect(document.body.textContent).toContain('2.16s')
+    expect(document.querySelector('.xq-line-select-dropdown')).not.toBeNull()
+    expect(document.querySelector('.line-status')?.textContent).toContain('可用')
+    expect(document.querySelector('.line-rate')?.textContent).toContain('0.8x倍率')
     const option = document.querySelector('[role="option"]') as HTMLElement
     option.click()
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([1])
@@ -35,6 +38,7 @@ describe('shared line selector', () => {
     await nextTick()
     const popup = document.querySelector('[role="listbox"]') as HTMLElement
     expect(popup.getAttribute('style')).toContain('max-width')
+    expect(popup.classList.contains('xq-line-select-dropdown')).toBe(true)
     const input = popup.querySelector('input') as HTMLInputElement
     input.value = 'missing'
     input.dispatchEvent(new Event('input', { bubbles: true }))

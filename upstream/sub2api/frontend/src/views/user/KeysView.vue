@@ -2,48 +2,43 @@
   <AppLayout>
     <div class="user-page user-keys-page">
       <UserPageHeader title="我的密钥" />
-      <TablePageLayout continuous>
+      <TablePageLayout continuous class="keys-work-surface">
       <template #filters>
-        <div class="flex flex-col gap-3">
-          <div class="flex flex-wrap items-center gap-3">
+        <div class="keys-filters">
             <SearchInput
               v-model="filterSearch"
               :placeholder="t('keys.searchPlaceholder')"
-              class="w-full sm:w-64"
+              class="keys-search"
               @search="onFilterChange"
             />
             <Select
               :model-value="filterGroupId"
               brand
-              class="w-40"
+              class="keys-filter-select"
               :options="groupFilterOptions"
               @update:model-value="onGroupFilterChange"
             />
             <Select
               :model-value="filterStatus"
               brand
-              class="w-40"
+              class="keys-filter-select"
               :options="statusFilterOptions"
               @update:model-value="onStatusFilterChange"
             />
-          </div>
-          <EndpointPopover
-            v-if="publicSettings?.api_base_url || (publicSettings?.custom_endpoints?.length ?? 0) > 0"
-            :api-base-url="publicSettings?.api_base_url || ''"
-            :custom-endpoints="publicSettings?.custom_endpoints || []"
-          />
         </div>
       </template>
 
       <template #actions>
-        <div class="flex justify-end gap-3">
+        <div class="flex items-center justify-between gap-3" data-test="keys-actions">
+          <div class="flex items-center gap-3">
           <button
             @click="loadApiKeys"
             :disabled="loading"
             class="btn btn-secondary"
             :title="t('common.refresh')"
           >
-            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+            <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
+            <span>{{ t('common.refresh') }}</span>
           </button>
           <div class="relative" ref="columnDropdownRef">
             <button
@@ -51,10 +46,8 @@
               class="btn btn-secondary px-2 md:px-3"
               :title="t('keys.columnSettings')"
             >
-              <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-              </svg>
-              <span class="hidden md:inline">{{ t('keys.columnSettings') }}</span>
+              <Icon name="grid" size="sm" />
+              <span>{{ t('keys.columnSettings') }}</span>
             </button>
             <div
               v-if="showColumnDropdown"
@@ -77,6 +70,7 @@
               </button>
             </div>
           </div>
+          </div>
           <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
             <Icon name="plus" size="md" class="mr-2" />
             {{ t('keys.createKey') }}
@@ -84,7 +78,30 @@
         </div>
       </template>
 
+      <template #endpoint>
+        <div class="keys-endpoint" data-test="keys-endpoint">
+          <div class="min-w-0">
+            <div class="keys-endpoint-label">{{ t('keys.endpoints.title') }} <span>{{ t('keys.endpoints.default') }}</span></div>
+            <code>{{ apiEndpoint || t('keys.endpoints.unavailable') }}</code>
+            <EndpointPopover
+              v-if="publicSettings?.custom_endpoints?.length"
+              class="mt-2"
+              api-base-url=""
+              :custom-endpoints="publicSettings.custom_endpoints"
+            />
+          </div>
+          <div class="keys-endpoint-actions">
+            <button type="button" class="btn btn-secondary" :disabled="!apiEndpoint" @click="copyEndpoint">{{ t('keys.endpoints.copyAddress') }}</button>
+            <button type="button" class="btn btn-secondary" @click="showConnectionHelp = true">{{ t('keys.endpoints.instructions') }}</button>
+          </div>
+        </div>
+      </template>
+
       <template #table>
+        <div class="keys-list-heading" data-test="keys-list-heading">
+          <h2>{{ t('keys.apiKey') }}</h2>
+          <span>{{ t('keys.listHint') }}</span>
+        </div>
         <div v-if="listLoadError && apiKeys.length" class="mb-3 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
           <span>{{ t('keys.failedToLoad') }}</span>
           <button type="button" class="btn btn-secondary" @click="loadApiKeys">{{ t('common.refresh') }}</button>
@@ -93,11 +110,14 @@
           <span>{{ t('keys.usageUnavailable') }}</span>
           <button type="button" class="btn btn-secondary" @click="loadApiKeys">{{ t('common.refresh') }}</button>
         </div>
+        <div class="keys-inventory" :class="{ 'keys-expanded': columns.length > 7 }">
         <DataTable
           :columns="columns"
           :data="apiKeys"
           :loading="loading"
           :server-side-sort="true"
+          :sticky-first-column="false"
+          :sticky-actions-column="false"
           default-sort-key="created_at"
           default-sort-order="desc"
           @sort="handleSort"
@@ -143,6 +163,7 @@
                 :title="t('keys.ipRestrictionEnabled')"
               />
             </div>
+            <span class="mt-1 block text-xs" :class="row.status === 'active' ? 'text-emerald-400' : 'text-gray-400'">{{ row.status === 'active' ? t('keys.enable') : t('keys.status.' + row.status) }}</span>
           </template>
 
           <template #cell-group="{ row }">
@@ -382,11 +403,11 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
+            <div class="keys-row-actions flex items-center gap-1">
               <!-- Use Key Button -->
               <button
                 @click="openUseKeyModal(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:text-green-600 dark:hover:text-green-400"
               >
                 <Icon name="terminal" size="sm" />
                 <span class="text-xs">{{ t('keys.useKey') }}</span>
@@ -395,7 +416,7 @@
               <button
                 v-if="!publicSettings?.hide_ccs_import_button"
                 @click="importToCcswitch(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:text-blue-600 dark:hover:text-blue-400"
               >
                 <Icon name="upload" size="sm" />
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
@@ -406,8 +427,8 @@
                 :class="[
                   'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
                   row.status === 'active'
-                    ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
-                    : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
+                    ? 'text-gray-500 hover:text-yellow-600 dark:hover:text-yellow-400'
+                    : 'text-gray-500 hover:text-green-600 dark:hover:text-green-400'
                 ]"
               >
                 <Icon v-if="row.status === 'active'" name="ban" size="sm" />
@@ -425,7 +446,7 @@
               <!-- Delete Button -->
               <button
                 @click="confirmDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="keys-action-danger flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:text-red-600 dark:hover:text-red-400"
               >
                 <Icon name="trash" size="sm" />
                 <span class="text-xs">{{ t('common.delete') }}</span>
@@ -447,20 +468,45 @@
             />
           </template>
         </DataTable>
+        </div>
       </template>
 
       <template #pagination>
         <Pagination
           v-if="pagination.total > 0"
+          class="keys-desktop-pagination"
           :page="pagination.page"
           :total="pagination.total"
           :page-size="pagination.page_size"
           @update:page="handlePageChange"
           @update:pageSize="handlePageSizeChange"
         />
+        <div v-if="pagination.total > 0" class="keys-mobile-pagination" data-test="keys-mobile-pagination">
+          <span>{{ t('pagination.showing') }} {{ (pagination.page - 1) * pagination.page_size + 1 }} {{ t('pagination.to') }} {{ Math.min(pagination.page * pagination.page_size, pagination.total) }} {{ t('pagination.of') }} {{ pagination.total }} {{ t('pagination.results') }}</span>
+          <div class="keys-mobile-pagination-controls">
+            <label>{{ t('pagination.perPage') }}
+              <Select
+                :model-value="pagination.page_size"
+                :options="keyPageSizeOptions"
+                @update:model-value="handleMobilePageSizeChange"
+              />
+            </label>
+            <button type="button" :aria-label="t('pagination.previous')" :disabled="pagination.page === 1" @click="handlePageChange(pagination.page - 1)"><Icon name="chevronLeft" size="sm" /></button>
+            <span class="keys-current-page">{{ pagination.page }}</span>
+            <button type="button" :aria-label="t('pagination.next')" :disabled="pagination.page >= pagination.pages" @click="handlePageChange(pagination.page + 1)"><Icon name="chevronRight" size="sm" /></button>
+          </div>
+        </div>
       </template>
       </TablePageLayout>
     </div>
+
+    <BaseDialog :show="showConnectionHelp" :title="t('keys.endpoints.instructions')" width="narrow" @close="showConnectionHelp = false">
+      <p class="text-sm text-gray-600 dark:text-gray-300">{{ t('keys.endpoints.instructionsHint') }}</p>
+      <div class="mt-4 flex flex-wrap items-center gap-3">
+        <code class="break-all text-sm">{{ apiEndpoint || t('keys.endpoints.unavailable') }}</code>
+        <button type="button" class="btn btn-secondary" :disabled="!apiEndpoint" @click="copyEndpoint">{{ t('keys.endpoints.copyAddress') }}</button>
+      </div>
+    </BaseDialog>
 
     <CreateLineKeyDialog
       :show="showCreateModal"
@@ -1126,9 +1172,11 @@
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { getConfiguredTablePageSizeOptions } from '@/utils/tablePreferences'
 
 const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
+import { buildGatewayUrl } from '@/api/client'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import UserPageHeader from '@/components/user/UserPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -1187,10 +1235,10 @@ const allColumns = computed<Column[]>(() => [
 ])
 
 const ALWAYS_VISIBLE_COLUMNS = new Set(['name', 'actions'])
-const DEFAULT_HIDDEN_COLUMNS = ['id', 'rate_limit', 'last_used_at', 'last_used_ip']
+const DEFAULT_HIDDEN_COLUMNS = ['id', 'rate_limit', 'last_used_at', 'last_used_ip', 'status', 'created_at']
 const HIDDEN_COLUMNS_KEY = 'api-key-hidden-columns'
 const COLUMN_SETTINGS_VERSION_KEY = 'api-key-column-settings-version'
-const COLUMN_SETTINGS_VERSION = 3
+const COLUMN_SETTINGS_VERSION = 4
 const VERSION_NEW_HIDDEN_COLUMNS: Record<number, string[]> = {
   2: ['last_used_ip'],
   3: ['id']
@@ -1285,6 +1333,7 @@ const pagination = ref({
   total: 0,
   pages: 0
 })
+const keyPageSizeOptions = getConfiguredTablePageSizeOptions().map(size => ({ value: size, label: String(size) }))
 const sortState = ref({
   sort_by: 'created_at',
   sort_order: 'desc' as 'asc' | 'desc'
@@ -1303,11 +1352,20 @@ const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
 const showCcsClientSelect = ref(false)
 const showColumnDropdown = ref(false)
+const showConnectionHelp = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
+const apiEndpoint = computed(() => {
+  const configured = publicSettings.value?.api_base_url?.trim()
+  if (configured) return configured
+  return buildGatewayUrl('/v1')
+})
+const copyEndpoint = () => {
+  if (apiEndpoint.value) void clipboardCopy(apiEndpoint.value, t('keys.endpoints.copied'))
+}
 const dropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
@@ -1568,6 +1626,10 @@ const closeUseKeyModal = () => {
 const handlePageChange = (page: number) => {
   pagination.value.page = page
   loadApiKeys()
+}
+
+const handleMobilePageSizeChange = (value: string | number | boolean | null) => {
+  if (typeof value === 'number') handlePageSizeChange(value)
 }
 
 const handlePageSizeChange = (pageSize: number) => {

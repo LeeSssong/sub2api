@@ -53,7 +53,7 @@
           v-if="isOpen"
           ref="dropdownRef"
           class="select-dropdown-portal"
-          :class="[instanceId, brand && 'select-dropdown-brand']"
+          :class="[instanceId, brand && 'select-dropdown-brand', dropdownClass]"
           :style="dropdownStyle"
           role="listbox"
           tabindex="-1"
@@ -161,6 +161,7 @@ interface Props {
   /** 远程搜索模式下的加载态：options 为空时下拉显示 loading 文案 */
   loading?: boolean
   brand?: boolean
+  dropdownClass?: string
 }
 
 interface Emits {
@@ -180,7 +181,8 @@ const props = withDefaults(defineProps<Props>(), {
   labelKey: 'label',
   remote: false,
   loading: false,
-  brand: false
+  brand: false,
+  dropdownClass: ''
 })
 
 const emit = defineEmits<Emits>()
