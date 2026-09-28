@@ -307,6 +307,22 @@ describe('user KeysView column settings', () => {
     isCurrentStep.mockReturnValue(false)
   })
 
+  it('uses a bordered line trigger with an expanded state and no redundant selection text', async () => {
+    const key = createApiKey()
+    key.group_id = 12
+    key.group = { id: 12, name: 'GPT-Pro', platform: 'openai', status: 'active', rate_multiplier: 0.3 } as ApiKey['group']
+    listKeys.mockResolvedValue({ items: [key], total: 1, page: 1, page_size: 20, pages: 1 })
+    const wrapper = await mountView()
+    const trigger = wrapper.get('.keys-line-trigger')
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+    expect(trigger.text()).not.toContain('keys.selectGroup')
+    expect(wrapper.getComponent({ name: 'GroupBadge' }).props('rateMultiplier')).toBe(0.3)
+    await trigger.trigger('click')
+    expect(wrapper.get('.keys-line-trigger').attributes('aria-expanded')).toBe('true')
+    await wrapper.get('.keys-line-popup input').trigger('keydown.esc')
+    expect(wrapper.get('.keys-line-trigger').attributes('aria-expanded')).toBe('false')
+  })
+
   it('opens the inline line popup with real metrics and unknown availability when monitoring is missing', async () => {
     getAvailableGroups.mockResolvedValue([
       { id: 12, name: 'GPT Plus', status: 'active', platform: 'openai', rate_multiplier: 1.2 },

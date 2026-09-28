@@ -171,11 +171,14 @@
               <button
                 :ref="(el) => setGroupButtonRef(row.id, el)"
                 @click="openGroupSelector(row)"
-                class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
+                class="keys-line-trigger"
+                type="button"
+                :aria-expanded="groupSelectorKeyId === row.id"
                 :title="t('keys.clickToChangeGroup')"
               >
                 <GroupBadge
                   v-if="row.group"
+                  class="keys-line-trigger-badge"
                   :name="row.group.name"
                   :platform="row.group.platform"
                   :subscription-type="row.group.subscription_type"
@@ -186,12 +189,12 @@
                   :peak-end="row.group.peak_end"
                   :peak-rate-multiplier="row.group.peak_rate_multiplier"
                 />
-                <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
+                <span v-else class="keys-line-trigger-empty">{{
                   t('keys.noGroup')
                 }}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
                 <svg
-                  class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
+                  class="keys-line-trigger-chevron"
+                  aria-hidden="true"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -200,7 +203,7 @@
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"
+                    d="m6 9 6 6 6-6"
                   />
                 </svg>
               </button>
@@ -2064,6 +2067,45 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.keys-line-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid #1b4055;
+  border-radius: 11px;
+  background: #091a2b;
+  color: #f1f9f9;
+  cursor: pointer;
+}
+.keys-line-trigger:hover,
+.keys-line-trigger[aria-expanded="true"] { border-color: #61c9d9; }
+.keys-line-trigger:focus-visible { outline: 2px solid #61c9d9; outline-offset: 2px; }
+.keys-line-trigger :deep(.keys-line-trigger-badge) {
+  min-width: 0;
+  padding: 0;
+  gap: 8px;
+  background: transparent;
+  color: #f1f9f9;
+  font-size: 14px;
+  font-weight: 650;
+}
+.keys-line-trigger :deep(.keys-line-trigger-badge > .truncate) { overflow: visible; text-overflow: clip; }
+.keys-line-trigger :deep(.keys-line-trigger-badge > svg) { width: 20px; height: 20px; color: #c4d7dd; flex: none; }
+.keys-line-trigger :deep(.keys-line-trigger-badge > span.rounded) {
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: #163343;
+  color: #61c9d9;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.keys-line-trigger-chevron { width: 14px; height: 14px; flex: none; color: #a1b8c2; }
+.keys-line-trigger[aria-expanded="true"] .keys-line-trigger-chevron { transform: rotate(180deg); }
+.keys-line-trigger-empty { color: #a1b8c2; font-size: 14px; }
+
 .keys-line-popup{width:420px;max-width:calc(100vw - 16px);border:1px solid #1b4055;border-radius:12px;background:#0d2235;color:#f1f9f9;box-shadow:0 16px 40px #0005;}
 .keys-line-popup-search{padding:6px;color:#a1b8c2;}
 .keys-line-popup-input{height:42px;border:1px solid #1b4055;border-radius:10px;background:#091a2b;color:#f1f9f9;caret-color:#61c9d9;}
