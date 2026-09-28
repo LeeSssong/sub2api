@@ -163,3 +163,57 @@
   .user-keys-page .keys-inventory [data-field="usage"] > div { text-align: right; }
   .user-keys-page .keys-inventory .keys-row-actions { justify-content: flex-start; gap: 2px; }
 }
+
+/* My keys is a viewport-sized inventory: page through rows, never scroll the content vertically. */
+.user-workspace:has(.user-keys-page) { height: 100dvh; min-height: 0; padding-top: 20px !important; padding-bottom: 16px !important; overflow: hidden; }
+.user-keys-page { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.user-keys-page .user-page-header { flex-shrink: 0; margin-bottom: 12px; }
+.user-app-shell .user-keys-page .keys-work-surface { flex: 1; height: 0; min-height: 0; overflow: hidden !important; padding: 0 16px; }
+.user-app-shell .user-keys-page .keys-work-surface > .layout-section-fixed { padding: 8px 0; }
+.user-keys-page .keys-toolbar { display: flex; align-items: center; gap: 12px; }
+.user-keys-page .keys-toolbar .keys-filters { flex: 1; grid-template-columns: minmax(140px, 1fr) 140px 120px; gap: 8px; }
+.user-keys-page .keys-toolbar [data-test="keys-actions"] { flex-shrink: 0; gap: 8px; }
+.user-keys-page .keys-toolbar [data-test="keys-actions"] > div { gap: 6px; }
+.user-keys-page .keys-toolbar .btn { padding: 6px 10px; min-height: 36px; white-space: nowrap; }
+.user-keys-page .keys-endpoint { gap: 8px; }
+.user-keys-page .keys-endpoint-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.user-keys-page .keys-endpoint code { margin: 0; font-size: 12px; }
+.user-keys-page .keys-endpoint-label { white-space: nowrap; }
+.user-keys-page .keys-endpoint-actions { gap: 6px; }
+.user-keys-page .keys-endpoint-actions .btn { min-height: 28px; padding: 3px 8px; font-size: 12px; }
+.user-app-shell .user-keys-page .keys-work-surface .layout-section-scrollable { flex: 1 !important; min-height: 0 !important; overflow: hidden !important; }
+.user-app-shell .user-keys-page .keys-work-surface .table-scroll-container { height: 100% !important; min-height: 0; overflow: hidden !important; }
+.user-keys-page .keys-list-heading { flex-shrink: 0; padding: 8px 0; }
+.user-keys-page .keys-list-heading h2 { font-size: 14px; }
+.user-keys-page .keys-list-heading span { font-size: 11px; }
+.user-keys-page .keys-inventory { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.user-app-shell .user-keys-page .keys-work-surface .table-wrapper { flex: 1; min-height: 0; overflow-y: hidden; overflow-x: auto; }
+.user-app-shell .user-keys-page .keys-work-surface td { padding: 6px 10px; height: 64px; }
+.user-app-shell .user-keys-page .keys-work-surface th { padding: 8px 10px; height: 40px; }
+.user-keys-page .keys-pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; font-size: 12px; color: var(--xq-secondary); }
+.user-keys-page .keys-pagination nav { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.user-keys-page .keys-pagination button { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--xq-border); border-radius: 6px; }
+.user-keys-page .keys-pagination button:disabled { opacity: .4; }
+.user-keys-page .keys-pagination button:focus-visible { outline: 2px solid var(--xq-accent); outline-offset: 2px; }
+@media (max-width: 1280px) {
+  .user-keys-page .keys-toolbar { flex-wrap: wrap; gap: 8px; }
+  .user-keys-page .keys-toolbar .keys-filters { flex-basis: 100%; }
+  .user-keys-page .keys-toolbar [data-test="keys-actions"] { width: 100%; }
+}
+@media (max-width: 700px) {
+  .user-workspace:has(.user-keys-page) { padding: 12px 8px 10px !important; }
+  .user-app-shell .user-keys-page .keys-work-surface { padding: 0 8px; }
+  .user-keys-page .user-page-header { margin-bottom: 8px; }
+  .user-keys-page .keys-toolbar .keys-filters { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .user-keys-page .keys-search { grid-column: 1 / -1; }
+  .user-keys-page .keys-endpoint { flex-direction: row; align-items: center; }
+  .user-keys-page .keys-endpoint-summary { display: block; }
+  .user-keys-page .keys-endpoint-label { font-size: 10px; }
+  .user-keys-page .keys-endpoint code { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+  .user-keys-page .keys-endpoint-actions { flex-direction: column; gap: 2px; }
+  .user-keys-page .keys-endpoint-actions .btn { min-height: 24px; padding: 2px 4px; font-size: 10px; }
+  .user-keys-page .keys-list-heading { flex-direction: row; }
+  .user-keys-page .keys-list-heading > span { display: none; }
+  .user-keys-page .keys-pagination { font-size: 10px; }
+  .user-keys-page .keys-pagination nav { gap: 5px; }
+}

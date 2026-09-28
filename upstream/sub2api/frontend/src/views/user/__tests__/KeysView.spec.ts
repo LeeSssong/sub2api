@@ -323,6 +323,21 @@ describe('user KeysView column settings', () => {
     expect(wrapper.get('.keys-line-trigger').attributes('aria-expanded')).toBe('false')
   })
 
+  it('keeps the line menu below a low trigger and limits it to available space', async () => {
+    const wrapper = await mountView()
+    const trigger = wrapper.get('.keys-line-trigger')
+    const bottom = window.innerHeight - 130
+    vi.spyOn(trigger.element, 'getBoundingClientRect').mockReturnValue({
+      x: 200, y: bottom - 36, left: 200, top: bottom - 36,
+      right: 400, bottom, width: 200, height: 36, toJSON: () => ({}),
+    })
+    await trigger.trigger('click')
+    const popup = wrapper.get('.keys-line-popup').element as HTMLElement
+    expect(popup.style.top).toBe(String(bottom + 4) + 'px')
+    expect(popup.style.bottom).toBe('')
+    expect(popup.style.maxHeight).toBe('118px')
+  })
+
   it('opens the inline line popup with real metrics and unknown availability when monitoring is missing', async () => {
     getAvailableGroups.mockResolvedValue([
       { id: 12, name: 'GPT Plus', status: 'active', platform: 'openai', rate_multiplier: 1.2 },
@@ -363,11 +378,11 @@ describe('user KeysView column settings', () => {
     expect(wrapper.get('[data-continuous]').exists()).toBe(true)
     const content = wrapper.get('[data-continuous]').html()
     expect(wrapper.get('[data-test="keys-actions"]').classes()).toContain('justify-between')
-    expect(content.indexOf('data-tour="keys-create-btn"')).toBeLessThan(content.indexOf('Search name or key...'))
+    expect(content.indexOf('Search name or key...')).toBeLessThan(content.indexOf('data-tour="keys-create-btn"'))
     expect(content.indexOf('Search name or key...')).toBeLessThan(content.indexOf('data-test="keys-endpoint"'))
     expect(content.indexOf('data-test="keys-endpoint"')).toBeLessThan(content.indexOf('data-test="keys-list-heading"'))
     expect(content.indexOf('data-test="keys-list-heading"')).toBeLessThan(content.indexOf('data-test="columns"'))
-    expect(content.indexOf('data-test="columns"')).toBeLessThan(content.indexOf('data-test="page-size-50"'))
+    expect(content.indexOf('data-test="columns"')).toBeLessThan(content.indexOf('data-test="keys-pagination"'))
     expect(wrapper.get('[data-test="keys-endpoint"]').text()).toContain('https://api.example.test/v1')
     expect(wrapper.getComponent({ name: 'DataTable' }).props('stickyFirstColumn')).toBe(false)
   })
@@ -398,10 +413,11 @@ describe('user KeysView column settings', () => {
 
   it('exposes result count, page size, and navigation in the narrow key footer', async () => {
     const wrapper = await mountView()
-    const footer = wrapper.get('[data-test="keys-mobile-pagination"]')
+    const footer = wrapper.get('[data-test="keys-pagination"]')
     expect(footer.text()).toContain('1')
     expect(footer.findAll('button')).toHaveLength(2)
-    expect(footer.findComponent({ name: 'Select' }).exists()).toBe(true)
+    expect(footer.text()).toContain('5')
+    expect(footer.findComponent({ name: 'Select' }).exists()).toBe(false)
   })
 
   it('uses the default API key columns with low-frequency columns hidden', async () => {
@@ -555,12 +571,10 @@ describe('user KeysView column settings', () => {
     expect(currentConcurrencyColumn?.sortable).toBe(true)
   })
 
-  it('keeps filters and selected page size when sorting by current concurrency', async () => {
+  it('keeps filters and viewport page size when sorting by current concurrency', async () => {
     getAvailableGroups.mockResolvedValue([{ id: 42, name: 'OpenAI' }])
     const wrapper = await mountView()
 
-    await wrapper.get('[data-test="page-size-50"]').trigger('click')
-    await flushPromises()
 
     await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('update:modelValue', 'target')
     await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
@@ -579,7 +593,7 @@ describe('user KeysView column settings', () => {
 
     expect(listKeys).toHaveBeenLastCalledWith(
       1,
-      50,
+      5,
       {
         search: 'target',
         status: 'active',

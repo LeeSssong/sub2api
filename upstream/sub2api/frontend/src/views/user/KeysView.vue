@@ -3,8 +3,9 @@
     <div class="user-page user-keys-page">
       <UserPageHeader title="我的密钥" />
       <TablePageLayout continuous class="keys-work-surface">
-      <template #filters>
-        <div class="keys-filters">
+      <template #actions>
+        <div class="keys-toolbar">
+          <div class="keys-filters">
             <SearchInput
               v-model="filterSearch"
               :placeholder="t('keys.searchPlaceholder')"
@@ -26,9 +27,6 @@
               @update:model-value="onStatusFilterChange"
             />
         </div>
-      </template>
-
-      <template #actions>
         <div class="flex items-center justify-between gap-3" data-test="keys-actions">
           <div class="flex items-center gap-3">
           <button
@@ -76,11 +74,12 @@
             {{ t('keys.createKey') }}
           </button>
         </div>
+        </div>
       </template>
 
       <template #endpoint>
         <div class="keys-endpoint" data-test="keys-endpoint">
-          <div class="min-w-0">
+          <div class="keys-endpoint-summary min-w-0">
             <div class="keys-endpoint-label">{{ t('keys.endpoints.title') }} <span>{{ t('keys.endpoints.default') }}</span></div>
             <code>{{ apiEndpoint || t('keys.endpoints.unavailable') }}</code>
             <EndpointPopover
@@ -110,8 +109,9 @@
           <span>{{ t('keys.usageUnavailable') }}</span>
           <button type="button" class="btn btn-secondary" @click="loadApiKeys"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
         </div>
-        <div class="keys-inventory" :class="{ 'keys-expanded': columns.length > 7 }">
+        <div ref="inventoryRef" class="keys-inventory" :class="{ 'keys-expanded': columns.length > 7 }">
         <DataTable
+          table-only
           :columns="columns"
           :data="apiKeys"
           :loading="loading"
@@ -474,29 +474,13 @@
       </template>
 
       <template #pagination>
-        <Pagination
-          v-if="pagination.total > 0"
-          class="keys-desktop-pagination"
-          :page="pagination.page"
-          :total="pagination.total"
-          :page-size="pagination.page_size"
-          @update:page="handlePageChange"
-          @update:pageSize="handlePageSizeChange"
-        />
-        <div v-if="pagination.total > 0" class="keys-mobile-pagination" data-test="keys-mobile-pagination">
-          <span>{{ t('pagination.showing') }} {{ (pagination.page - 1) * pagination.page_size + 1 }} {{ t('pagination.to') }} {{ Math.min(pagination.page * pagination.page_size, pagination.total) }} {{ t('pagination.of') }} {{ pagination.total }} {{ t('pagination.results') }}</span>
-          <div class="keys-mobile-pagination-controls">
-            <label>{{ t('pagination.perPage') }}
-              <Select
-                :model-value="pagination.page_size"
-                :options="keyPageSizeOptions"
-                @update:model-value="handleMobilePageSizeChange"
-              />
-            </label>
-            <button type="button" :aria-label="t('pagination.previous')" :disabled="pagination.page === 1" @click="handlePageChange(pagination.page - 1)"><Icon name="chevronLeft" size="sm" /></button>
-            <span class="keys-current-page">{{ pagination.page }}</span>
-            <button type="button" :aria-label="t('pagination.next')" :disabled="pagination.page >= pagination.pages" @click="handlePageChange(pagination.page + 1)"><Icon name="chevronRight" size="sm" /></button>
-          </div>
+        <div class="keys-pagination" data-test="keys-pagination">
+          <span>{{ t('pagination.of') }} {{ pagination.total }} {{ t('pagination.results') }} · {{ t('pagination.perPage') }} {{ pagination.page_size }}</span>
+          <nav :aria-label="t('pagination.pageOf', { page: pagination.page, total: Math.max(1, pagination.pages) })">
+            <button type="button" :aria-label="t('pagination.previous')" :disabled="loading || pagination.page <= 1" @click="handlePageChange(pagination.page - 1)"><Icon name="chevronLeft" size="sm" /></button>
+            <span>{{ pagination.page }} / {{ Math.max(1, pagination.pages) }}</span>
+            <button type="button" :aria-label="t('pagination.next')" :disabled="loading || pagination.page >= pagination.pages" @click="handlePageChange(pagination.page + 1)"><Icon name="chevronRight" size="sm" /></button>
+          </nav>
         </div>
       </template>
       </TablePageLayout>
@@ -1105,7 +1089,8 @@
         style="pointer-events: auto !important;"
         :style="{
           top: dropdownPosition.top !== undefined ? dropdownPosition.top + 'px' : undefined,
-          bottom: dropdownPosition.bottom !== undefined ? dropdownPosition.bottom + 'px' : undefined,
+          maxHeight: dropdownPosition.maxHeight + 'px',
+          width: dropdownPosition.width + 'px',
           left: dropdownPosition.left + 'px'
         }"
       >
@@ -1165,13 +1150,11 @@
 </template>
 
 <script setup lang="ts">
-	import { ref, reactive, computed, onMounted, onUnmounted, watch, type ComponentPublicInstance } from 'vue'
+	import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
-import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
-import { getConfiguredTablePageSizeOptions } from '@/utils/tablePreferences'
 
 const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
@@ -1180,7 +1163,6 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import UserPageHeader from '@/components/user/UserPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import DataTable from '@/components/common/DataTable.vue'
-	import Pagination from '@/components/common/Pagination.vue'
 	import BaseDialog from '@/components/common/BaseDialog.vue'
 	import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 	import EmptyState from '@/components/common/EmptyState.vue'
@@ -1191,6 +1173,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import { buildLineOptions } from '@/components/keys/lineOptions'
+import { fitKeyRows, placeKeyMenu } from '@/components/keys/keysViewport'
 import { providerIcon } from '@/features/ai-tools/model'
 import LineSelect from '@/components/keys/LineSelect.vue'
 import CreateLineKeyDialog from '@/features/ai-tools/CreateLineKeyDialog.vue'
@@ -1329,11 +1312,11 @@ const lineCounts = ref<Map<number, number> | null>(null)
 
 const pagination = ref({
   page: 1,
-  page_size: getPersistedPageSize(),
+  page_size: 5,
   total: 0,
   pages: 0
 })
-const keyPageSizeOptions = getConfiguredTablePageSizeOptions().map(size => ({ value: size, label: String(size) }))
+
 const sortState = ref({
   sort_by: 'created_at',
   sort_order: 'desc' as 'asc' | 'desc'
@@ -1368,7 +1351,7 @@ const copyEndpoint = () => {
 }
 const dropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
-const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
+const dropdownPosition = ref<ReturnType<typeof placeKeyMenu> | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
 
@@ -1621,16 +1604,6 @@ const handlePageChange = (page: number) => {
   loadApiKeys()
 }
 
-const handleMobilePageSizeChange = (value: string | number | boolean | null) => {
-  if (typeof value === 'number') handlePageSizeChange(value)
-}
-
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.value.page_size = pageSize
-  pagination.value.page = 1
-  loadApiKeys()
-}
-
 const handleSort = (key: string, order: 'asc' | 'desc') => {
   sortState.value.sort_by = key
   sortState.value.sort_order = order
@@ -1685,26 +1658,7 @@ const openGroupSelector = (key: ApiKey) => {
     const buttonEl = groupButtonRefs.value.get(key.id)
     if (buttonEl) {
       const rect = buttonEl.getBoundingClientRect()
-      const dropdownEstHeight = 400 // estimated max dropdown height
-      const dropdownEstWidth = Math.min(420, window.innerWidth - 16)
-      const spaceBelow = window.innerHeight - rect.bottom
-      const spaceAbove = rect.top
-      // 夹取 left，避免窄屏下浮层超出视口右缘
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - dropdownEstWidth - 8))
-
-      if (spaceBelow < dropdownEstHeight && spaceAbove > spaceBelow) {
-        // Not enough space below, pop upward
-        dropdownPosition.value = {
-          bottom: window.innerHeight - rect.top + 4,
-          left
-        }
-      } else {
-        // Default: pop downward
-        dropdownPosition.value = {
-          top: rect.bottom + 4,
-          left
-        }
-      }
+      dropdownPosition.value = placeKeyMenu(rect, window.innerWidth, window.innerHeight)
     }
     groupSelectorKeyId.value = key.id
     groupSearchQuery.value = ''
@@ -2047,10 +2001,47 @@ function formatResetTime(resetAt: string | null): string {
   return `${mins}m`
 }
 
+const inventoryRef = ref<HTMLElement | null>(null)
+let inventoryObserver: ResizeObserver | undefined
+let fitFrame = 0
+let measuredRowHeight = 64
+const fitInventory = () => {
+  const inventory = inventoryRef.value
+  if (!inventory || inventory.clientHeight <= 0) return
+  if (!loading.value) {
+    const rows = [...inventory.querySelectorAll('tbody tr')].filter(row => row.children.length > 1)
+    measuredRowHeight = Math.max(64, ...rows.map(row => row.getBoundingClientRect().height))
+  }
+  const headerHeight = inventory.querySelector('thead')?.getBoundingClientRect().height || 44
+  const size = fitKeyRows(inventory.clientHeight, headerHeight, measuredRowHeight)
+  if (size !== pagination.value.page_size) {
+    const firstItem = (pagination.value.page - 1) * pagination.value.page_size
+    pagination.value.page_size = size
+    pagination.value.page = Math.floor(firstItem / size) + 1
+    groupSelectorKeyId.value = null
+    void loadApiKeys()
+  }
+}
+const scheduleFitInventory = () => {
+  cancelAnimationFrame(fitFrame)
+  fitFrame = requestAnimationFrame(fitInventory)
+}
+const handleViewportResize = () => {
+  groupSelectorKeyId.value = null
+  scheduleFitInventory()
+}
+watch([loading, columns], () => { void nextTick(scheduleFitInventory) })
+
 onMounted(() => {
   const requestedGroupId = new URLSearchParams(window.location.search).get('group_id')
   if (requestedGroupId && /^\d+$/.test(requestedGroupId)) filterGroupId.value = Number(requestedGroupId)
   loadSavedColumns()
+  if (typeof ResizeObserver !== 'undefined') {
+    inventoryObserver = new ResizeObserver(scheduleFitInventory)
+    if (inventoryRef.value) inventoryObserver.observe(inventoryRef.value)
+  }
+  window.addEventListener('resize', handleViewportResize)
+  void nextTick(scheduleFitInventory)
   loadApiKeys()
   loadGroups()
   loadUserGroupRates()
@@ -2061,11 +2052,16 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', closeGroupSelector)
+  inventoryObserver?.disconnect()
+  cancelAnimationFrame(fitFrame)
+  window.removeEventListener('resize', handleViewportResize)
   if (resetTimer) clearInterval(resetTimer)
 })
 </script>
 
 <style scoped>
+.keys-line-popup{display:flex;flex-direction:column;}
+.keys-line-popup-search{flex-shrink:0;}
 .keys-line-trigger {
   display: inline-flex;
   align-items: center;
@@ -2110,7 +2106,7 @@ onUnmounted(() => {
 .keys-line-popup-input{height:42px;border:1px solid #1b4055;border-radius:10px;background:#091a2b;color:#f1f9f9;caret-color:#61c9d9;}
 .keys-line-popup-input::placeholder{color:#a1b8c2;}
 .keys-line-popup-input:focus{border-color:#61c9d9;outline:2px solid #61c9d9;outline-offset:2px;}
-.keys-line-popup-list{scrollbar-width:thin;scrollbar-color:#28495b #0d2235;}
+.keys-line-popup-list{flex:1;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#28495b #0d2235;}
 .keys-line-popup-option{border-bottom:1px solid #1b4055;text-align:left;color:#f1f9f9;}
 .keys-line-popup-option:hover,.keys-line-popup-option-selected{background:#163343;}
 .keys-line-popup-option:focus-visible{outline:2px solid #61c9d9;outline-offset:-2px;}
