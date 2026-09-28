@@ -84,6 +84,14 @@ func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID
 }
 
 func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *ScheduledTestPlan) bool {
+	var triggeredAccount *Account
+	if plan.TriggerSource == quality5xxSource && s.accountTestSvc != nil {
+		var lookupErr error
+		triggeredAccount, lookupErr = s.accountTestSvc.accountRepo.GetByID(ctx, plan.AccountID)
+		if lookupErr != nil || triggeredAccount == nil {
+			return false // Keep the queued signal; no completed run has taken place.
+		}
+	}
 	now := time.Now()
 	zone := now.Location().String()
 	if s.cfg != nil && s.cfg.Timezone != "" {
@@ -114,6 +122,11 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 	snapshot.TriggerSource = plan.TriggerSource
 	if snapshot.TriggerSource == "" {
 		snapshot.TriggerSource = "scheduled"
+	}
+	applyTriggeredQuality := true
+	if triggeredAccount != nil {
+		snapshot, applyTriggeredQuality = quality5xxTestConfig(triggeredAccount, plan.ModelID, snapshot)
+		plan.ReportExecution.ExpectedCount = snapshot.ParallelCount
 	}
 	plan.PelicanConfig = &snapshot
 	// Legacy rules can target API-key accounts, or an account can change type
@@ -149,11 +162,14 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 	defer stop()
 	qualityAction := ""
 	if plan.PelicanConfig.Quality != nil {
-		var actionErr error
-		qualityAction, actionErr = s.planRepo.ApplyQualityOutcome(saveCtx, plan, until, qualityOutcome(results))
-		if actionErr != nil {
-			qualityAction = "action_error"
-			logger.LegacyPrintf("service.scheduled_test_runner", "quality plan=%d action failed: %v", plan.ID, actionErr)
+		qualityAction = "inconclusive"
+		if applyTriggeredQuality {
+			var actionErr error
+			qualityAction, actionErr = s.planRepo.ApplyQualityOutcome(saveCtx, plan, until, qualityOutcome(results))
+			if actionErr != nil {
+				qualityAction = "action_error"
+				logger.LegacyPrintf("service.scheduled_test_runner", "quality plan=%d action failed: %v", plan.ID, actionErr)
+			}
 		}
 	}
 	succeeded := false
@@ -179,7 +195,9 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 	}
 	finished := time.Now()
 	if plan.TriggerSource == quality5xxSource {
-		following, nextErr := nextPlanRun(plan, finished)
+		// The stored rule was validated before claiming. The execution-only
+		// question may now be candy even for a state-probe BPS recovery rule.
+		following, nextErr := computeNextRun(plan.CronExpression, finished)
 		if nextErr != nil {
 			return false
 		}
@@ -220,7 +238,12 @@ func (s *ScheduledTestRunnerService) runPelicanSample(ctx context.Context, plan 
 	// 探针题型的结果自带 correct/incorrect/unknown 判定，不经过判题模型。
 	if plan.PelicanConfig.Quality != nil && result.Status == "success" && !isOpenAICodexStateProbePlan(plan.PelicanConfig) {
 		var judgment *QualityJudgment
-		if s.judgeQuality != nil {
+		if plan.TriggerSource == quality5xxSource && isBuiltinCandyPlan(plan.PelicanConfig) {
+			judgment = &QualityJudgment{Verdict: "incorrect", Reason: "builtin_candy", AccountID: plan.AccountID}
+			if CandyAnswerCorrect(result.ResponseText) {
+				judgment.Verdict = "correct"
+			}
+		} else if s.judgeQuality != nil {
 			judgment = s.judgeQuality(ctx, plan.AccountID, plan.PelicanConfig, result.ResponseText)
 		}
 		applyQualityJudgment(result, judgment)

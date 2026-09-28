@@ -35,7 +35,7 @@ func TestQuality5xxSignalsFilterAndCoalesceAcrossReplicas(t *testing.T) {
 	require.Equal(t, []string{"42"}, client.ZRange(ctx, quality5xxPendingKey, 0, -1).Val())
 	client.ZRem(ctx, quality5xxPendingKey, "42")
 	trigger.Observe(ctx, oauth, 500)
-	require.EqualValues(t, 0, client.ZCard(ctx, quality5xxPendingKey).Val())
+	require.EqualValues(t, 1, client.ZCard(ctx, quality5xxPendingKey).Val(), "a new failure after completion must run immediately")
 	r.FastForward(61 * time.Second)
 	trigger.Observe(ctx, oauth, 599)
 	require.EqualValues(t, 1, client.ZCard(ctx, quality5xxPendingKey).Val())
@@ -156,5 +156,5 @@ func TestQuality5xxKeepsSignalWhileAnExistingLeaseCouldBeInterrupted(t *testing.
 	plan.RunningUntil = &until
 	plan.PelicanConfig.Quality = &QualityPolicy{TriggerOnUpstream5xx: true}
 	runner := &ScheduledTestRunnerService{planRepo: &qualityClaimFailureRepo{plan: plan}}
-	require.Error(t, runner.runQualityTriggeredAccount(context.Background(), plan.AccountID))
+	require.Error(t, runner.runQualityTriggeredAccount(context.Background(), plan.AccountID, time.Now()))
 }

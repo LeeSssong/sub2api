@@ -8,7 +8,7 @@ export default {
   "modelsRestored": "已恢复指定模型",
   "trigger5xx": "OAuth 账号返回 5xx 时立即检测",
   "trigger5xxShort": "5xx 触发",
-  "trigger5xxHint": "仅对本规则的 OAuth 账号生效。后台立即发起检测，复用现有记录与处置；与进行中或同时到期的检测合并，连续错误冷却 60 秒。保留定时计划，检测本身不再次触发。",
+  "trigger5xxHint": "仅对本规则的 OAuth 账号生效。HTTP 状态或流内错误任一判为 5xx，立即排队检测：支持门票探针时优先探针，BPS 等不支持的通道使用糖果题。同账号排队或检测中的错误合并，不设 60 秒冷却。保留定时计划，检测本身不再次触发；BPS 糖果题不作为直连恢复证据。",
 
   "bulkAccountSelectionHint": "分组、类型与搜索可组合筛选；全选包含所有匹配页，仅选择已有规则的账户。切换筛选保留已选账户。",
   "accountNoRule": "暂无规则",

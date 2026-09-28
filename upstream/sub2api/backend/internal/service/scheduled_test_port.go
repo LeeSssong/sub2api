@@ -22,8 +22,9 @@ type PelicanTestConfig struct {
 
 // ScheduledTestPlan represents a scheduled test plan domain model.
 type ScheduledTestPlan struct {
-	TriggerSource   string                      `json:"-"`
-	ReportExecution *PelicanReportExecutionMeta `json:"-"`
+	TriggerObservedAt *time.Time                  `json:"-"`
+	TriggerSource     string                      `json:"-"`
+	ReportExecution   *PelicanReportExecutionMeta `json:"-"`
 	// PelicanGroupIDs is the account membership captured atomically with the execution claim.
 	PelicanGroupIDs []int64            `json:"-"`
 	AccountName     string             `json:"account_name,omitempty"`

@@ -44,7 +44,6 @@ func newQuality5xxTrigger(shared *redis.Client) *quality5xxTrigger {
 
 var queueQuality5xx = redis.NewScript(`
  if redis.call('ZSCORE', KEYS[1], ARGV[1]) then return 0 end
- if not redis.call('SET', KEYS[2], '1', 'NX', 'EX', 60) then return 0 end
  redis.call('ZADD', KEYS[1], ARGV[2], ARGV[1])
  redis.call('EXPIRE', KEYS[1], 1200)
  return 1`)
@@ -56,7 +55,7 @@ func (s *quality5xxTrigger) Observe(ctx context.Context, account *Account, statu
 	enqueueCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 150*time.Millisecond)
 	defer cancel()
 	id := strconv.FormatInt(account.ID, 10)
-	if _, err := queueQuality5xx.Run(enqueueCtx, s.redis, []string{quality5xxPendingKey, "quality:5xx:cooldown:" + id}, id, time.Now().UnixMilli()).Result(); err != nil {
+	if _, err := queueQuality5xx.Run(enqueueCtx, s.redis, []string{quality5xxPendingKey}, id, time.Now().UnixMilli()).Result(); err != nil {
 		slog.Warn("quality 5xx trigger could not be queued", "account_id", account.ID)
 	}
 }
@@ -108,7 +107,7 @@ func (s *ScheduledTestRunnerService) startQualityTriggers() {
 					defer func() { <-slots; active.Delete(id) }()
 					runCtx, cancel := context.WithTimeout(ctx, 12*time.Minute)
 					defer cancel()
-					if err := s.runQualityTriggeredAccount(runCtx, id); err != nil {
+					if err := s.runQualityTriggeredAccount(runCtx, id, time.UnixMilli(int64(entry.Score))); err != nil {
 						return
 					}
 					if runCtx.Err() != nil {
@@ -122,7 +121,7 @@ func (s *ScheduledTestRunnerService) startQualityTriggers() {
 	}()
 }
 
-func (s *ScheduledTestRunnerService) runQualityTriggeredAccount(ctx context.Context, accountID int64) error {
+func (s *ScheduledTestRunnerService) runQualityTriggeredAccount(ctx context.Context, accountID int64, observedAt time.Time) error {
 	plans, err := s.planRepo.ListByAccountID(ctx, accountID)
 	if err != nil {
 		return err
@@ -132,11 +131,12 @@ func (s *ScheduledTestRunnerService) runQualityTriggeredAccount(ctx context.Cont
 			continue
 		}
 		plan.TriggerSource = quality5xxSource
+		plan.TriggerObservedAt = &observedAt
+		if plan.LastRunAt != nil && !plan.LastRunAt.Before(observedAt) {
+			continue // An overlapping scheduled/event test already covered this signal.
+		}
 		if plan.RunningUntil != nil && plan.RunningUntil.After(time.Now()) {
 			return fmt.Errorf("quality plan %d is still running", plan.ID)
-		}
-		if plan.LastRunAt != nil && plan.LastRunAt.After(time.Now().Add(-time.Minute)) {
-			continue
 		}
 		if !s.runOnePlan(ctx, plan) {
 			// A lost claim can mean an actual running test OR only a transient
@@ -151,7 +151,7 @@ func (s *ScheduledTestRunnerService) runQualityTriggeredAccount(ctx context.Cont
 			if current.RunningUntil != nil && current.RunningUntil.After(time.Now()) {
 				return fmt.Errorf("quality plan %d is still running", plan.ID)
 			}
-			if current.LastRunAt != nil && current.LastRunAt.After(time.Now().Add(-time.Minute)) {
+			if current.LastRunAt != nil && !current.LastRunAt.Before(observedAt) {
 				continue
 			}
 			return fmt.Errorf("quality plan %d could not be claimed", plan.ID)
@@ -161,10 +161,41 @@ func (s *ScheduledTestRunnerService) runQualityTriggeredAccount(ctx context.Cont
 }
 
 // Called immediately after real transport responses, before protocol retry or
-// status mapping. Transport errors and HTTP-200 stream failures are excluded.
+// status mapping. Stream failures also report their classified status separately.
 func (s *RateLimitService) observeQualityResponse(ctx context.Context, account *Account, response *http.Response, err error) {
 	if s == nil || err != nil || response == nil {
 		return
 	}
-	s.qualityTrigger.Observe(ctx, account, response.StatusCode)
+	s.observeQualityStatus(ctx, account, response.StatusCode)
+}
+
+// Both transport status and semantic failure status feed the same coalescing
+// queue. Probe context is preserved to prevent recursive tests.
+func (s *RateLimitService) observeQualityStatus(ctx context.Context, account *Account, status int) {
+	if s != nil {
+		s.qualityTrigger.Observe(ctx, account, status)
+	}
+}
+
+// Select an execution-only test for the account's actual model route. Never
+// bypass BPS to test direct ticket state when diagnosing the BPS route itself.
+func quality5xxTestConfig(account *Account, model string, cfg PelicanTestConfig) (PelicanTestConfig, bool) {
+	cfg.ParallelCount = 1
+	if openAICodexStateProbeUnsupportedReason(account, model, false) == "" {
+		cfg.QuestionKind = OpenAICodexStateProbeQuestionKind
+		return cfg, true
+	}
+	cfg.QuestionKind = "candy"
+	cfg.Prompt = CandyPrompt
+	applyOutcome := true
+	if cfg.Quality != nil {
+		policy := *cfg.Quality
+		policy.ExpectedAnswer = "21"
+		policy.Judge = nil
+		cfg.Quality = &policy
+		// Only a direct state probe may advance an owned BPS recovery rule.
+		// A correct BPS candy answer cannot prove direct routing has recovered.
+		applyOutcome = policy.Action != QualityActionEnableBPS && !cfg.BPSRecoveryPending
+	}
+	return cfg, applyOutcome
 }

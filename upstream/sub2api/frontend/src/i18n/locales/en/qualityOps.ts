@@ -8,7 +8,7 @@ export default {
   "modelsRestored": "Selected models restored",
   "trigger5xx": "Test immediately when an OAuth account returns 5xx",
   "trigger5xxShort": "5xx trigger",
-  "trigger5xxHint": "Applies only to this rule’s OAuth account. Runs in the background using the existing history and actions. Coalesces with running or due tests, with a 60-second cooldown. Keeps the cron schedule and excludes probe errors.",
+  "trigger5xxHint": "Applies only to this rule’s OAuth account. An HTTP or in-stream 5xx immediately queues a test: ticket probe when supported, candy question for BPS and other unsupported routes. Errors coalesce while the account is queued or being tested; no 60-second cooldown. Keeps the cron schedule and excludes probe errors. BPS candy results do not prove direct-route recovery.",
 
   "bulkAccountSelectionHint": "Combine group, type and search filters. Select all includes every matching page and only accounts with existing rules. Changing filters keeps your selection.",
   "accountNoRule": "No rule",
