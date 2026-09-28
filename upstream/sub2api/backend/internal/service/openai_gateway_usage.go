@@ -573,9 +573,14 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if upstreamTokens != tokens {
 		rawCost, rawErr := s.calculateOpenAIRecordUsageCost(ctx, result, apiKey, billingModels, multiplier, imageMultiplier, videoMultiplier, baseMultiplier, upstreamTokens, serviceTier, longContextBillingGate, pricingAt)
 		if rawErr != nil {
-			return rawErr
+			if !isUsagePricingUnavailableError(rawErr) {
+				return rawErr
+			}
+			// Preserve successful usage even when raw upstream pricing is absent.
+			upstreamTotalCost = 0
+		} else {
+			upstreamTotalCost = rawCost.TotalCost
 		}
-		upstreamTotalCost = rawCost.TotalCost
 	}
 	if apiKey.GroupID != nil {
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
