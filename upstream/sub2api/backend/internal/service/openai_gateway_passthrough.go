@@ -2376,6 +2376,11 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthroughWithImage(
 				ObserveVisibleOutput(c, int64(len(line)))
 			}
 			s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)
+			if normalized, normalizeErr := normalizeAPIKeyCacheInputPayload(account, []byte(line)); normalizeErr != nil {
+				return resultWithUsage(), normalizeErr
+			} else {
+				line = string(normalized)
+			}
 		}
 		if line == "" {
 			pendingSSEEventType = ""
@@ -2573,6 +2578,11 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	if err != nil {
 		return nil, fmt.Errorf("restore OpenAI Responses client tools: %w", err)
 	}
+	var normalizeErr error
+	body, normalizeErr = normalizeAPIKeyCacheInputPayload(account, body)
+	if normalizeErr != nil {
+		return nil, fmt.Errorf("normalize cache input usage: %w", normalizeErr)
+	}
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
 		c.Data(resp.StatusCode, contentType, body)
 	}
@@ -2650,6 +2660,11 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		if contentType == "" {
 			contentType = "text/event-stream"
 		}
+	}
+	var normalizeErr error
+	body, normalizeErr = normalizeAPIKeyCacheInputPayload(account, body)
+	if normalizeErr != nil {
+		return nil, fmt.Errorf("normalize cache input usage: %w", normalizeErr)
 	}
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
 		c.Data(resp.StatusCode, contentType, body)

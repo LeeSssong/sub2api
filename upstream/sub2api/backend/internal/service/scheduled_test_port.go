@@ -14,6 +14,8 @@ type PelicanTestConfig struct {
 	Prompt          string         `json:"prompt"`
 	ReasoningEffort string         `json:"reasoning_effort"`
 	ParallelCount   int            `json:"parallel_count"`
+	// Runtime ownership state; never accepted from JSON.
+	BPSRecoveryPending bool `json:"-"`
 	// ModelID is recorded with each result so later edits do not relabel history.
 	ModelID string `json:"model_id,omitempty"`
 }

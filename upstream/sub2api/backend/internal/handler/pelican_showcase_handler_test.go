@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,6 +34,15 @@ func (r *showcaseSettingRepo) GetMultiple(_ context.Context, keys []string) (map
 	return out, nil
 }
 
+func (r *showcaseSettingRepo) SetMultiple(_ context.Context, values map[string]string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for key, value := range values {
+		r.values[key] = value
+	}
+	return nil
+}
+
 type showcaseHandlerRepo struct {
 	statistics    *service.PelicanShowcaseStatistics
 	statisticsErr error
@@ -47,13 +57,13 @@ func (r *showcaseHandlerRepo) ReadStatistics(context.Context, []int64, time.Time
 	return r.statistics, r.statisticsErr
 }
 
-func (r *showcaseHandlerRepo) ListGroups(context.Context, []int64) ([]*service.PelicanShowcaseGroup, error) {
+func (r *showcaseHandlerRepo) ListGroups(context.Context) ([]*service.PelicanShowcaseGroup, error) {
 	return r.groups, nil
 }
 func (r *showcaseHandlerRepo) ListItems(context.Context, []int64, int, time.Time) ([]*service.PelicanShowcaseItem, error) {
 	return r.items, nil
 }
-func (r *showcaseHandlerRepo) GetItem(context.Context, int64, []int64, int, time.Time) (*service.PelicanShowcaseItem, error) {
+func (r *showcaseHandlerRepo) GetItem(context.Context, int64, int, time.Time) (*service.PelicanShowcaseItem, error) {
 	return r.item, nil
 }
 func (r *showcaseHandlerRepo) Delete(context.Context, int64) (bool, error) { return r.deleted, nil }
@@ -94,7 +104,7 @@ func TestPelicanShowcaseHandler_ListExposesNoAccountIdentity(t *testing.T) {
 	}
 	h := newShowcaseHandler(map[string]string{
 		service.SettingKeyPelicanShowcaseEnabled: "true",
-		service.SettingKeyPelicanShowcaseConfig:  `{"group_ids":[3],"max_items":10,"auto_cleanup":true,"retention_days":5}`,
+		service.SettingKeyPelicanShowcaseConfig:  `{"max_items":10,"auto_cleanup":true,"retention_days":5}`,
 	}, repo)
 
 	w := httptest.NewRecorder()
@@ -112,7 +122,7 @@ func TestPelicanShowcaseHandler_ItemAndAdminDelete(t *testing.T) {
 	repo := &showcaseHandlerRepo{}
 	h := newShowcaseHandler(map[string]string{
 		service.SettingKeyPelicanShowcaseEnabled: "true",
-		service.SettingKeyPelicanShowcaseConfig:  `{"group_ids":[3]}`,
+		service.SettingKeyPelicanShowcaseConfig:  `{}`,
 	}, repo)
 
 	w := httptest.NewRecorder()
@@ -183,4 +193,38 @@ func TestPelicanShowcaseHandler_StatisticsContractAndUnavailable(t *testing.T) {
 	group = data["groups"].([]any)[0].(map[string]any)
 	require.Nil(t, group["stats"])
 	require.Len(t, group["items"].([]any), 1)
+}
+
+func TestPelicanShowcaseHandler_AdminSettingsRoundTrip(t *testing.T) {
+	values := map[string]string{service.SettingKeyPelicanShowcaseConfig: `{"group_ids":[3],"max_items":10}`}
+	h := newShowcaseHandler(values, &showcaseHandlerRepo{})
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/pelican-showcase/settings", nil)
+	h.GetSettings(c)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.JSONEq(t, `{"code":0,"message":"success","data":{"enabled":true,"max_items":10,"auto_cleanup":false,"retention_days":7}}`, w.Body.String())
+
+	put := func(body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/pelican-showcase/settings", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		h.UpdateSettings(c)
+		return w
+	}
+	w = put(`{"enabled":true,"max_items":30,"auto_cleanup":true,"retention_days":14}`)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.JSONEq(t, `{"code":0,"message":"success","data":{"enabled":true,"max_items":30,"auto_cleanup":true,"retention_days":14}}`, w.Body.String())
+	require.Equal(t, "true", values[service.SettingKeyPelicanShowcaseEnabled])
+	require.JSONEq(t, `{"max_items":30,"auto_cleanup":true,"retention_days":14}`, values[service.SettingKeyPelicanShowcaseConfig],
+		"the legacy group list is dropped on save")
+
+	saved := values[service.SettingKeyPelicanShowcaseConfig]
+	for _, bad := range []string{`{"max_items":101}`, `{"retention_days":91}`, `not json`} {
+		w = put(bad)
+		require.Equal(t, http.StatusBadRequest, w.Code, bad)
+		require.Equal(t, saved, values[service.SettingKeyPelicanShowcaseConfig], bad)
+	}
 }

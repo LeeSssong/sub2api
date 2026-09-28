@@ -85,6 +85,11 @@ func (s *OpenAIGatewayService) degradeExcelBPS(ctx context.Context, account *Acc
 	if isExcelBPSShadowProbe(ctx) || !IsExcelBPSDegradationStatus(status) || !account.IsExcelBPSEnabled() {
 		return false
 	}
+	// Missing preferences retain the site's existing automatic fallback. Shadow
+	// recovery owns its 403 path independently of the ordinary shutdown switch.
+	if status == http.StatusForbidden && account.Extra[ExcelBPSShadowRecoveryKey] != true && account.Extra["openai_excel_bps_auto_disable_on_403"] == false {
+		return false
+	}
 	repo, ok := s.accountRepo.(AccountExcelBPSRecoveryRepository)
 	if !ok {
 		return false
@@ -681,6 +686,9 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 	result.Duration = time.Since(start)
 	result.UpstreamTerminalEvent = terminal
 	if keepaliveErr != nil || ctx.Err() != nil {
+		if isExcelBPSClientCancellation(c, ctx.Err()) {
+			MarkOpsClientCancellation(c, stream)
+		}
 		captureOutcome = requestcapture.OutcomeClientDisconnected
 		result.ClientDisconnect = true
 		if keepaliveErr != nil {

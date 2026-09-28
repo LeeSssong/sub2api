@@ -79,6 +79,7 @@ var openaiAllowedHeaders = map[string]bool{
 	"accept-language":         true,
 	"content-type":            true,
 	"conversation_id":         true,
+	"openai-beta":             true,
 	"user-agent":              true,
 	"originator":              true,
 	"session_id":              true,
@@ -474,6 +475,12 @@ var ErrNoAvailableCompactAccounts = errors.New("no available accounts support /r
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
+	priorityScheduling      prioritySchedulingState
+	excelBPSRecoveryMu      sync.Mutex
+	excelBPSRecoveryCancel  context.CancelFunc
+	excelBPSRecoveryDone    chan struct{}
+	excelBPSRecoveryStopped bool
+
 	excelBPSWarmMu                sync.Mutex
 	excelBPSWarmCancel            context.CancelFunc
 	excelBPSWarmDone              chan struct{}
@@ -495,6 +502,7 @@ type OpenAIGatewayService struct {
 	usageBillingRepo              UsageBillingRepository
 	userRepo                      UserRepository
 	userSubRepo                   UserSubscriptionRepository
+	rpmCache                      RPMCache
 	cache                         GatewayCache
 	cfg                           *config.Config
 	codexDetector                 CodexClientRestrictionDetector
@@ -602,6 +610,11 @@ func (s *OpenAIGatewayService) usageCostEvidenceRegistrarFor(account *Account) U
 }
 
 type OpenAIGatewayOption func(*OpenAIGatewayService)
+
+// WithOpenAIRPMCache enables strict RPM accounting for OpenAI OAuth accounts.
+func WithOpenAIRPMCache(cache RPMCache) OpenAIGatewayOption {
+	return func(s *OpenAIGatewayService) { s.rpmCache = cache }
+}
 
 // NewOpenAIGatewayService creates a new OpenAIGatewayService
 func NewOpenAIGatewayService(

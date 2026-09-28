@@ -1,8 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"strings"
 )
 
 // excelBPSDownstreamUsage applies the account's cache-creation-as-input policy
@@ -10,7 +12,7 @@ import (
 // OpenAI total input already includes cache creation: keep totals and cache
 // reads intact, and clear every supported cache-write alias and TTL breakdown.
 func excelBPSDownstreamUsage(payload []byte) ([]byte, error) {
-	for _, path := range []string{"usage", "response.usage"} {
+	for _, path := range []string{"usage", "response.usage", "data.usage", "data.response.usage"} {
 		usage := gjson.GetBytes(payload, path)
 		if !usage.IsObject() {
 			continue
@@ -42,4 +44,33 @@ func excelBPSDownstreamUsage(payload []byte) ([]byte, error) {
 		}
 	}
 	return payload, nil
+}
+
+// normalizeAPIKeyCacheInputPayload runs only after capturing upstream usage.
+// Keep SSE framing and unknown JSON fields intact, including large integers.
+func normalizeAPIKeyCacheInputPayload(account *Account, payload []byte) ([]byte, error) {
+	if !account.IsAPIKeyCacheCreationAsInputEligible() || !account.IsExcelBPSCacheCreationAsInputEnabled() {
+		return payload, nil
+	}
+	if !bodyHasSSEFraming(payload) {
+		return excelBPSDownstreamUsage(payload)
+	}
+	lines := bytes.Split(payload, []byte("\n"))
+	for i, line := range lines {
+		text := string(line)
+		if !strings.HasPrefix(text, "data:") {
+			continue
+		}
+		value := strings.TrimSpace(strings.TrimPrefix(text, "data:"))
+		if value == "[DONE]" || !gjson.Valid(value) {
+			continue
+		}
+		normalized, err := excelBPSDownstreamUsage([]byte(value))
+		if err != nil {
+			return nil, err
+		}
+		prefixEnd := bytes.Index(line, []byte(value))
+		lines[i] = append(append(append([]byte(nil), line[:prefixEnd]...), normalized...), line[prefixEnd+len(value):]...)
+	}
+	return bytes.Join(lines, []byte("\n")), nil
 }

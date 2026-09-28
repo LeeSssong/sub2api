@@ -98,7 +98,13 @@ func TestPelicanReportArtworkUsesExactResultAndExistingGalleryVisibility(t *test
 	gallery := NewPelicanShowcaseRepository(integrationDB).(*pelicanShowcaseRepository)
 	result, err := repo.Create(ctx, &service.ScheduledTestResult{PlanID: plan.ID, Status: "success", ResponseText: "<svg></svg>", PelicanConfig: &service.PelicanTestConfig{Prompt: "draw", ModelID: "model"}, PelicanGroupIDs: groups, ReportExecution: &service.PelicanReportExecutionMeta{ID: "draw-exec", ExpectedCount: 1}, StartedAt: now.Add(-time.Second), FinishedAt: now})
 	require.NoError(t, err)
-	require.NoError(t, gallery.Publish(ctx, result, groups, 20))
+	for _, groupID := range groups {
+		require.NoError(t, gallery.Publish(ctx, service.PelicanShowcaseSnapshot{
+			GroupID: groupID, SourceResultID: result.ID,
+			ModelID: result.PelicanConfig.ModelID, ReasoningEffort: result.PelicanConfig.ReasoningEffort,
+			ResponseText: result.ResponseText, LatencyMs: result.LatencyMs, GeneratedAt: result.StartedAt,
+		}, 20))
+	}
 	got, err := gallery.ReadReport(ctx, groups[0], "model", groups, 20, time.Time{}, now.Add(-24*time.Hour), now.Add(time.Minute))
 	require.NoError(t, err)
 	require.NotNil(t, got.Artwork)
@@ -126,7 +132,13 @@ func TestPelicanReportLatestFailureNeverSelectsSuccessfulSibling(t *testing.T) {
 			StartedAt: at.Add(-time.Second), FinishedAt: at})
 		require.NoError(t, err)
 		if status == "success" {
-			require.NoError(t, gallery.Publish(ctx, result, groups, 20))
+			for _, groupID := range groups {
+				require.NoError(t, gallery.Publish(ctx, service.PelicanShowcaseSnapshot{
+					GroupID: groupID, SourceResultID: result.ID,
+					ModelID: result.PelicanConfig.ModelID, ReasoningEffort: result.PelicanConfig.ReasoningEffort,
+					ResponseText: result.ResponseText, LatencyMs: result.LatencyMs, GeneratedAt: result.StartedAt,
+				}, 20))
+			}
 		}
 		got, err := gallery.ReadReport(ctx, groups[0], "model", groups, 20, time.Time{}, now.Add(-24*time.Hour), now.Add(time.Minute))
 		require.NoError(t, err)
@@ -157,7 +169,13 @@ func TestPelicanReportDefaultModelFollowsNewestPageGeneration(t *testing.T) {
 			PelicanConfig: &service.PelicanTestConfig{Prompt: "draw", ModelID: model}, PelicanGroupIDs: groups,
 			ReportExecution: &service.PelicanReportExecutionMeta{ID: model, ExpectedCount: 1}, StartedAt: start, FinishedAt: end})
 		require.NoError(t, err)
-		require.NoError(t, gallery.Publish(ctx, result, groups, 20))
+		for _, groupID := range groups {
+			require.NoError(t, gallery.Publish(ctx, service.PelicanShowcaseSnapshot{
+				GroupID: groupID, SourceResultID: result.ID,
+				ModelID: result.PelicanConfig.ModelID, ReasoningEffort: result.PelicanConfig.ReasoningEffort,
+				ResponseText: result.ResponseText, LatencyMs: result.LatencyMs, GeneratedAt: result.StartedAt,
+			}, 20))
+		}
 		if i == 0 {
 			newestID = result.ID
 		}

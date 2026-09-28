@@ -18,6 +18,7 @@ import (
 
 type excelBPSAutoDisableRepo struct {
 	AccountRepository
+	AccountExcelBPS403RecoveryRepository
 	AccountExcelBPSRecoveryRepository
 	disable func(context.Context, *Account) (bool, error)
 }
@@ -181,6 +182,29 @@ func TestExcelBPSRecoveryShadowErrorsNeverMutateBusinessAccount(t *testing.T) {
 			require.Error(t, err)
 			require.False(t, svc.isExcelBPSCoolingDown(a, "gpt-6-astra"))
 			require.True(t, a.IsExcelBPSEnabled())
+		})
+	}
+}
+
+func TestExcelBPSExplicit403DisablePreferenceAndShadowPrecedence(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		status int
+		shadow bool
+		want   bool
+	}{
+		{"explicit off", 403, false, false}, {"shadow owns recovery", 403, true, true}, {"5xx remains automatic", 503, false, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			a := excelAccount()
+			a.Extra["openai_excel_bps_auto_disable_on_403"] = false
+			a.Extra[ExcelBPSShadowRecoveryKey] = tt.shadow
+			calls := 0
+			svc := &OpenAIGatewayService{accountRepo: &excelBPSAutoDisableRepo{disable: func(context.Context, *Account) (bool, error) { calls++; return true, nil }}}
+			require.Equal(t, tt.want, svc.degradeExcelBPS(context.Background(), a, tt.status))
+			if !tt.want {
+				require.Zero(t, calls)
+			}
 		})
 	}
 }
