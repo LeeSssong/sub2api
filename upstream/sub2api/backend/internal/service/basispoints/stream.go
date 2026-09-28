@@ -15,38 +15,6 @@ type protocolError struct{ error }
 
 func (e protocolError) Unwrap() error { return e.error }
 
-// Diagnostics are retained separately from the public error envelope.
-// Bridge copies used for validation share only this synchronized pointer.
-type streamDiagnostics struct {
-	mu  sync.Mutex
-	err error
-}
-
-func (b *Bridge) ProtocolError() error {
-	if b.diagnostics == nil {
-		return nil
-	}
-	b.diagnostics.mu.Lock()
-	defer b.diagnostics.mu.Unlock()
-	return b.diagnostics.err
-}
-
-func (b *Bridge) recordProtocolError(err error) {
-	b.diagnostics.mu.Lock()
-	b.diagnostics.err = err
-	b.diagnostics.mu.Unlock()
-}
-
-func clientFailure(response object, code, message, status string) object {
-	safe := object{"status": status, "output": []any{}, "error": object{"code": code, "message": message}}
-	for _, field := range []string{"id", "model", "usage"} {
-		if value := response[field]; value != nil {
-			safe[field] = value
-		}
-	}
-	return safe
-}
-
 type streamBody struct {
 	*io.PipeReader
 	upstream io.ReadCloser
@@ -87,7 +55,6 @@ func (b *Bridge) StreamWithRepair(ctx context.Context, upstream io.ReadCloser, r
 // StreamWithRepairs keeps known-target transport corrections and first-turn
 // unknown-target regeneration separate; neither can dispatch unvalidated tools.
 func (b *Bridge) StreamWithRepairs(ctx context.Context, upstream io.ReadCloser, repair ToolRepairFunc, unknown RepairToolCall) io.ReadCloser {
-	b.diagnostics = &streamDiagnostics{}
 	ctx, cancel := context.WithCancel(ctx)
 	reader, writer := io.Pipe()
 	body := &streamBody{PipeReader: reader, upstream: upstream, cancel: cancel}
@@ -175,20 +142,6 @@ func (b *Bridge) transformWithRepairs(ctx context.Context, reader io.Reader, wri
 		kind := text(payload["type"])
 		if kind == "" {
 			kind = event
-		}
-		if kind == "response.failed" || kind == "response.incomplete" || kind == "error" {
-			response, _ := payload["response"].(object)
-			code, message, status := "basispoints_upstream_error", "The upstream service could not complete this response. Please try again later.", "failed"
-			if kind == "response.incomplete" {
-				code, message, status = "basispoints_stream_incomplete", "The upstream response was incomplete.", "incomplete"
-			}
-			terminal = true
-			b.recordProtocolError(fmt.Errorf("basispoints upstream terminal: %s", kind))
-			safe := object{"response": clientFailure(response, code, message, status)}
-			if usage := payload["usage"]; usage != nil {
-				safe["usage"] = usage
-			}
-			return emit(kind, safe)
 		}
 		if b.structured != nil && kind == "response.completed" {
 			if response, ok := payload["response"].(object); !ok || response == nil {
@@ -309,8 +262,15 @@ func (b *Bridge) transformWithRepairs(ctx context.Context, reader io.Reader, wri
 		if errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || !errors.As(err, &invalid) {
 			return err
 		}
-		b.recordProtocolError(err)
-		failed := clientFailure(terminalResponse, "basispoints_protocol_error", "The upstream tool response could not be processed. Please try again or start a new conversation.", "failed")
+		failed := object{
+			"status": "failed", "output": []any{},
+			"error": object{"code": "basispoints_protocol_error", "message": err.Error()},
+		}
+		for _, field := range []string{"id", "model", "usage"} {
+			if value := terminalResponse[field]; value != nil {
+				failed[field] = value
+			}
+		}
 		return emit("response.failed", object{"response": failed})
 	}
 	if !terminal {

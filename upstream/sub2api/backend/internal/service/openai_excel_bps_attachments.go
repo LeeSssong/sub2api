@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/requestcapture"
 	"github.com/Wei-Shaw/sub2api/internal/service/basispoints"
 )
 
@@ -43,10 +42,6 @@ func (s *OpenAIGatewayService) uploadExcelBPSAttachment(ctx context.Context, acc
 	req.Header.Set("Accept-Encoding", "identity")
 	req.ContentLength = length
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
-	capture := requestcapture.FromContext(ctx)
-	attempt := capture.LastAttempt()
-	outcome := requestcapture.OutcomeFailed
-	defer func() { capture.RecordForwardingOutcome(attempt, outcome) }()
 	if err != nil {
 		return "", fmt.Errorf("excel BPS attachment connection failed")
 	}
@@ -55,7 +50,6 @@ func (s *OpenAIGatewayService) uploadExcelBPSAttachment(ctx context.Context, acc
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		s.handleExcelBPSUnauthorized(ctx, account, resp.StatusCode, resp.Header, raw)
-		s.degradeExcelBPS(ctx, account, resp.StatusCode)
 		status := resp.StatusCode
 		if status < 400 || status > 599 {
 			status = http.StatusBadGateway
@@ -72,6 +66,5 @@ func (s *OpenAIGatewayService) uploadExcelBPSAttachment(ctx context.Context, acc
 	if json.Unmarshal(raw, &result) != nil || !basispoints.ValidAttachmentID(result.OpenAIFileID) {
 		return "", fmt.Errorf("invalid Excel BPS attachment response")
 	}
-	outcome = requestcapture.OutcomeSuccess
 	return result.OpenAIFileID, nil
 }

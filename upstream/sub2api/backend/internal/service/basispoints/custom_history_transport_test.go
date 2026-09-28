@@ -118,8 +118,8 @@ func TestRawCustomStreamingRequiresExplicitRouting(t *testing.T) {
 				completed++
 			case "response.failed":
 				failed++
-				if !bytes.Contains(data, []byte("basispoints_protocol_error")) || bytes.Contains(data, []byte("codex2api.custom")) || bytes.Contains(data, []byte("private-fixture")) {
-					t.Fatal("invalid routing must expose a stable error without internal transport details")
+				if !bytes.Contains(data, []byte("summary=codex2api.custom/CATALOG_NAME")) || bytes.Contains(data, []byte("private-fixture")) {
+					t.Fatal("invalid routing must explain the marker without exposing code")
 				}
 			}
 			return nil

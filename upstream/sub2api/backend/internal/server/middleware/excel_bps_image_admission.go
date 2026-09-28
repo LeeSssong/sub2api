@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -24,9 +25,9 @@ type excelBPSImageSettingsReader interface {
 	GetExcelBPSImageRelaySettings(context.Context) (service.ExcelBPSImageRelaySettings, error)
 }
 
-// A budget accounts for request bodies and their processing copies, not RSS.
-// Preprocessing and retained-body pools each enforce the configured budget.
-// Their combined accounting is capped at twice that budget; never queue bodies.
+// This budget accounts for request bodies and their processing copies, not RSS.
+// Reserve before any body-reading middleware and hold until the request ends,
+// including upstream streaming and scheduler waits. Never queue large bodies.
 type bpsImageAdmissionBudget struct {
 	mu          sync.Mutex
 	bytes       int64
@@ -35,19 +36,24 @@ type bpsImageAdmissionBudget struct {
 	maxRequests int
 }
 
-type bpsImageAdmissionLease struct {
-	budget   *bpsImageAdmissionBudget
-	weight   int64
-	released bool
+type bpsImageReservation struct {
+	budget *bpsImageAdmissionBudget
+	weight int64
+	once   sync.Once
 }
 
-func (b *bpsImageAdmissionBudget) configure(limitBytes int64, maxRequests int) {
+func (b *bpsImageAdmissionBudget) acquire(weight int64) (*bpsImageReservation, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.limitBytes, b.maxRequests = limitBytes, maxRequests
+	limitBytes, maxRequests := b.limits()
+	if b.requests >= maxRequests || weight > limitBytes-b.bytes {
+		return nil, false
+	}
+	b.bytes += weight
+	b.requests++
+	return &bpsImageReservation{budget: b, weight: weight}, true
 }
 
-// Caller holds b.mu. A slot cap never silently increases the memory budget.
 func (b *bpsImageAdmissionBudget) limits() (int64, int) {
 	limitBytes, maxRequests := b.limitBytes, b.maxRequests
 	if limitBytes == 0 {
@@ -56,50 +62,67 @@ func (b *bpsImageAdmissionBudget) limits() (int64, int) {
 	if maxRequests == 0 {
 		maxRequests = bpsImageMaxRequests
 	}
+	// Each small request reserves at least 8 MiB. Scale the effective budget
+	// with the request cap so the configured slots remain usable, while
+	// preserving a larger explicitly configured budget. This is not RSS.
+	if minimum := int64(maxRequests) * bpsImageMinBodyBytes * bpsImageBodyMultiplier; minimum > limitBytes {
+		limitBytes = minimum
+	}
 	return limitBytes, maxRequests
 }
 
-func (b *bpsImageAdmissionBudget) acquire(weight int64) (*bpsImageAdmissionLease, bool) {
+func (b *bpsImageAdmissionBudget) configure(limitBytes int64, maxRequests int) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	limitBytes, maxRequests := b.limits()
-	if weight < 0 || b.requests >= maxRequests || weight > limitBytes-b.bytes {
-		return nil, false
-	}
-	b.bytes += weight
-	b.requests++
-	return &bpsImageAdmissionLease{budget: b, weight: weight}, true
+	b.limitBytes, b.maxRequests = limitBytes, maxRequests
+	b.mu.Unlock()
 }
 
-func (l *bpsImageAdmissionLease) resize(weight int64) bool {
-	b := l.budget
+func (r *bpsImageReservation) resize(weight int64) bool {
+	b := r.budget
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	limitBytes, _ := b.limits()
-	if l.released || weight < 0 || (weight > l.weight && weight-l.weight > limitBytes-b.bytes) {
+	if weight > r.weight && weight-r.weight > limitBytes-b.bytes {
 		return false
 	}
-	b.bytes += weight - l.weight
-	l.weight = weight
+	b.bytes += weight - r.weight
+	r.weight = weight
 	return true
 }
 
-func (l *bpsImageAdmissionLease) release() {
-	b := l.budget
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if !l.released {
-		b.bytes -= l.weight
+func (r *bpsImageReservation) release() {
+	r.once.Do(func() {
+		b := r.budget
+		b.mu.Lock()
+		defer b.mu.Unlock()
+		b.bytes -= r.weight
 		b.requests--
-		l.released = true
-	}
+	})
 }
 
-func bpsImageBodyWeight(length int64) int64 {
-	if length < bpsImageMinBodyBytes {
-		length = bpsImageMinBodyBytes
+var errBPSImageRequestBusy = errors.New("image relay request capacity is busy")
+
+type bpsImageBudgetedBody struct {
+	io.ReadCloser
+	reservation *bpsImageReservation
+	read        int64
+	maxBody     int64
+}
+
+func (b *bpsImageBudgetedBody) Read(p []byte) (int, error) {
+	anticipated := b.read + int64(len(p))
+	if anticipated > b.maxBody {
+		anticipated = b.maxBody
 	}
-	return length * bpsImageBodyMultiplier
+	if anticipated < bpsImageMinBodyBytes {
+		anticipated = bpsImageMinBodyBytes
+	}
+	if !b.reservation.resize(anticipated * bpsImageBodyMultiplier) {
+		return 0, errBPSImageRequestBusy
+	}
+	n, err := b.ReadCloser.Read(p)
+	b.read += int64(n)
+	return n, err
 }
 
 // ExcelBPSImageAdmission must be shared across the gateway route aliases.
@@ -108,7 +131,6 @@ func bpsImageBodyWeight(length int64) int64 {
 // including text-only requests. Disabled relay leaves existing limits intact.
 func ExcelBPSImageAdmission(settings excelBPSImageSettingsReader, configuredMax int64) gin.HandlerFunc {
 	budget := &bpsImageAdmissionBudget{}
-	preprocessing := &bpsImageAdmissionBudget{}
 	return func(c *gin.Context) {
 		if settings == nil || !bpsImageAdmissionRoute(c) {
 			c.Next()
@@ -138,6 +160,7 @@ func ExcelBPSImageAdmission(settings excelBPSImageSettingsReader, configuredMax 
 		if maxRequests == 0 {
 			maxRequests = service.DefaultExcelBPSImageMaxRequests
 		}
+		budget.configure(int64(budgetMiB)<<20, maxRequests)
 		maxBody := int64(bodyLimitMiB) << 20
 		if maxBody > bpsImageMaxBodyBytes {
 			maxBody = bpsImageMaxBodyBytes
@@ -145,8 +168,6 @@ func ExcelBPSImageAdmission(settings excelBPSImageSettingsReader, configuredMax 
 		if configuredMax > 0 && configuredMax < maxBody {
 			maxBody = configuredMax
 		}
-		budget.configure(int64(budgetMiB)<<20, maxRequests)
-		preprocessing.configure(int64(budgetMiB)<<20, maxRequests)
 		length := c.Request.ContentLength
 		if length > maxBody {
 			bpsImageAdmissionError(c, http.StatusRequestEntityTooLarge, "basispoints_image_body_too_large", "Request body exceeds the image relay ingress limit")
@@ -157,68 +178,59 @@ func ExcelBPSImageAdmission(settings excelBPSImageSettingsReader, configuredMax 
 			readLimit = length
 		}
 		encoding := strings.TrimSpace(c.GetHeader("Content-Encoding"))
-		needsPreprocessing := length <= 0 || (encoding != "" && !strings.EqualFold(encoding, "identity"))
-		accounted := length
-		if needsPreprocessing {
-			// Claim a request slot, but do not guess the retained decoded size.
-			accounted = 0
+		compressed := encoding != "" && !strings.EqualFold(encoding, "identity")
+		// Compressed input needs the full budget while decoding, but only its
+		// actual decoded size while the downstream response is in flight.
+		accounted := readLimit
+		if compressed {
+			accounted = maxBody
+		} else if length <= 0 {
+			accounted = bpsImageMinBodyBytes
 		}
-		lease, acquired := budget.acquire(bpsImageBodyWeight(accounted))
+		if accounted < bpsImageMinBodyBytes {
+			accounted = bpsImageMinBodyBytes
+		}
+		reservation, acquired := budget.acquire(accounted * bpsImageBodyMultiplier)
 		if !acquired {
 			bpsImageAdmissionError(c, http.StatusServiceUnavailable, "basispoints_image_request_busy", "Image relay request capacity is busy; retry later")
 			return
 		}
-		defer lease.release()
+		defer reservation.release()
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, readLimit)
-		if needsPreprocessing && !bpsImagePreread(c, preprocessing, lease, maxBody) {
-			return
+		if length <= 0 || compressed {
+			if !compressed {
+				c.Request.Body = &bpsImageBudgetedBody{ReadCloser: c.Request.Body, reservation: reservation, maxBody: maxBody}
+			}
+			body, err := httputil.ReadRequestBodyWithPreallocLimit(c.Request, maxBody)
+			_ = c.Request.Body.Close()
+			if err != nil {
+				switch {
+				case errors.Is(err, errBPSImageRequestBusy):
+					bpsImageAdmissionError(c, http.StatusServiceUnavailable, "basispoints_image_request_busy", "Image relay request capacity is busy; retry later")
+				default:
+					var maxErr *http.MaxBytesError
+					if errors.As(err, &maxErr) {
+						bpsImageAdmissionError(c, http.StatusRequestEntityTooLarge, "basispoints_image_body_too_large", "Request body exceeds the image relay ingress limit")
+					} else {
+						c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "invalid_request_error", "message": "Failed to read request body"}})
+					}
+				}
+				return
+			}
+			actual := int64(len(body))
+			if actual > maxBody {
+				bpsImageAdmissionError(c, http.StatusRequestEntityTooLarge, "basispoints_image_body_too_large", "Request body exceeds the image relay ingress limit")
+				return
+			}
+			if actual < bpsImageMinBodyBytes {
+				actual = bpsImageMinBodyBytes
+			}
+			reservation.resize(actual * bpsImageBodyMultiplier)
+			c.Request.Body = httputil.NewPrereadBody(body)
+			c.Request.ContentLength = int64(len(body))
 		}
 		c.Next()
 	}
-}
-
-// Preprocessing is bounded independently of retained requests: a gzip or
-// unknown-length body can coexist with ordinary traffic, then releases its
-// worst-case reservation before an upstream stream starts. The decoded body
-// and its processing copies remain charged until the downstream handler exits.
-func bpsImagePreread(c *gin.Context, preprocessing *bpsImageAdmissionBudget, retained *bpsImageAdmissionLease, maxBody int64) bool {
-	// The shared decoder can materialize up to 64 MiB before returning. Reserve
-	// that bound even when this endpoint has a smaller decoded-body limit.
-	transientBytes := maxBody
-	if transientBytes < 64<<20 {
-		transientBytes = 64 << 20
-	}
-	transient, acquired := preprocessing.acquire(bpsImageBodyWeight(transientBytes))
-	if !acquired {
-		bpsImageAdmissionError(c, http.StatusServiceUnavailable, "basispoints_image_request_busy", "Request body preprocessing capacity is busy; retry later")
-		return false
-	}
-	defer transient.release()
-	wireBody := c.Request.Body
-	defer func() { _ = wireBody.Close() }()
-	body, err := httputil.ReadRequestBodyWithPrealloc(c.Request)
-	if err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
-			bpsImageAdmissionError(c, http.StatusRequestEntityTooLarge, "basispoints_image_body_too_large", "Request body exceeds the image relay ingress limit")
-		} else {
-			bpsImageAdmissionError(c, http.StatusBadRequest, "invalid_request_body", "Unable to read or decode request body")
-		}
-		return false
-	}
-	if int64(len(body)) > maxBody {
-		bpsImageAdmissionError(c, http.StatusRequestEntityTooLarge, "basispoints_image_body_too_large", "Decoded request body exceeds the image ingress limit")
-		return false
-	}
-	if !retained.resize(bpsImageBodyWeight(int64(len(body)))) {
-		bpsImageAdmissionError(c, http.StatusServiceUnavailable, "basispoints_image_request_busy", "Request body memory capacity is busy; retry later")
-		return false
-	}
-	// Keep PrereadBody outermost: later middleware reuses its bytes directly.
-	c.Request.Body = httputil.NewPrereadBody(body)
-	c.Request.ContentLength = int64(len(body))
-	c.Request.Header.Del("Content-Length")
-	return true
 }
 
 func bpsImageAdmissionRoute(c *gin.Context) bool {
@@ -236,7 +248,7 @@ func bpsImageAdmissionRoute(c *gin.Context) bool {
 
 func bpsImageAdmissionError(c *gin.Context, status int, code, message string) {
 	errorType := "server_error"
-	if status == http.StatusRequestEntityTooLarge || status == http.StatusBadRequest {
+	if status == http.StatusRequestEntityTooLarge {
 		errorType = "invalid_request_error"
 	}
 	if status == http.StatusServiceUnavailable {

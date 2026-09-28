@@ -647,9 +647,6 @@ func stringMappingFromRaw(raw any) map[string]string {
 }
 
 func (a *Account) GetModelMapping() map[string]string {
-	if mapping, ok := a.excelBPSFallbackMapping(); ok {
-		return mapping
-	}
 	runtimeVersion := xai.RuntimeModelMappingVersion()
 	credentialsPtr := mapPtr(a.Credentials)
 	rawMapping, _ := a.Credentials["model_mapping"].(map[string]any)
@@ -916,9 +913,6 @@ func resolveRequestedModelInMapping(mapping map[string]string, requestedModel st
 // （isDeepseekServableModel）——未知模型名透传上游只会得到 404/400，并误触发
 // per-(账号,模型) 30 分钟冷却；带 [1m] 上下文后缀的写法先归一化再比对。
 func (a *Account) IsModelSupported(requestedModel string) bool {
-	if mapping, ok := a.excelBPSFallbackMapping(); ok {
-		return mappingSupportsRequestedModel(mapping, requestedModel)
-	}
 	// 透传模式仅替换认证、模型语义完全交由上游决定，因此放行所有模型。
 	// 该短路必须在 model_mapping 判定之前：账号从"白名单模式"切换到透传后，
 	// credentials 里常残留旧的非空 model_mapping，若不在此放行，透传账号会被
@@ -2191,10 +2185,6 @@ func (a *Account) IsOpenAIPassthroughEnabled() bool {
 // IsExcelBPSEnabled routes an existing ChatGPT OAuth account to the Excel gateway.
 // Credentials and refresh remain on the original account; no sidecar is involved.
 func (a *Account) IsExcelBPSEnabled() bool {
-	return a.IsExcelBPSConfigured() && !a.ExcelBPSRecovery().Active
-}
-
-func (a *Account) IsExcelBPSConfigured() bool {
 	if a == nil || a.Platform != PlatformOpenAI || a.Type != AccountTypeOAuth || a.IsShadow() || a.IsOpenAIAgentIdentity() || a.IsOpenAIPersonalAccessToken() {
 		return false
 	}
@@ -2258,9 +2248,9 @@ func (a *Account) ExcelBPSProxySource() string {
 }
 
 // IsExcelBPSCacheCreationAsInputEnabled controls local billing and downstream usage.
-// API-key accounts opt in independently; OAuth accounts still require BPS routing.
+// The setting has no effect unless this account uses the Excel/BPS protocol.
 func (a *Account) IsExcelBPSCacheCreationAsInputEnabled() bool {
-	if !a.IsAPIKeyCacheCreationAsInputEligible() && !a.IsExcelBPSEnabled() {
+	if !a.IsExcelBPSEnabled() {
 		return false
 	}
 	enabled, _ := a.Extra["openai_excel_bps_cache_creation_as_input"].(bool)
@@ -3536,4 +3526,13 @@ func (a *Account) QuotaDimensionOrDefault() string {
 // IsAPIKeyCacheCreationAsInputEligible does not enable any OAuth-only BPS routing.
 func (a *Account) IsAPIKeyCacheCreationAsInputEligible() bool {
 	return a != nil && a.Platform == PlatformOpenAI && a.Type == AccountTypeAPIKey && !a.IsShadow()
+}
+
+// IsAPIKeyCacheCreationAsInputEnabled is independent of OAuth BPS routing.
+func (a *Account) IsAPIKeyCacheCreationAsInputEnabled() bool {
+	if !a.IsAPIKeyCacheCreationAsInputEligible() {
+		return false
+	}
+	enabled, _ := a.Extra["openai_excel_bps_cache_creation_as_input"].(bool)
+	return enabled
 }

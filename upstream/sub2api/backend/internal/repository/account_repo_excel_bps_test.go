@@ -45,13 +45,9 @@ func TestBulkUpdateExcelBPSExtra(t *testing.T) {
 			extra: map[string]any{"openai_passthrough": true},
 		},
 		{
-			name:  "auto disable false remains an explicit opt-out",
-			extra: map[string]any{"openai_excel_bps_auto_disable_on_403": false},
-		},
-		{
-			name:    "enabling BPS preserves explicit 403 opt-out",
-			extra:   map[string]any{"openai_excel_bps": true, "openai_excel_bps_auto_disable_on_403": false},
-			removed: []string{service.ExcelBPS403DisabledAtKey, service.ExcelBPS403LastProbeAtKey},
+			name:    "auto disable false removes opt-in",
+			extra:   map[string]any{"openai_excel_bps_auto_disable_on_403": false},
+			removed: []string{"openai_excel_bps_auto_disable_on_403"},
 		},
 		{
 			name:    "auto recovery false removes opt-in",
@@ -84,7 +80,7 @@ func TestBulkUpdateExcelBPSExtra(t *testing.T) {
 			expression := "COALESCE(extra, '{}'::jsonb) || $1::jsonb"
 			switch tt.name {
 			case "disabled removes all BPS settings":
-				expression = "(" + expression + ") - 'openai_excel_bps' - 'openai_excel_bps_recovery' - 'openai_excel_bps_shadow_recovery' - 'openai_excel_bps_fallback_models' - 'openai_excel_bps_models' - 'openai_excel_bps_cache_creation_as_input' - 'openai_excel_bps_auto_disable_on_403' - 'openai_excel_bps_auto_recover_on_403' - 'openai_excel_bps_auto_move_on_403' - 'openai_excel_bps_403_target_group_id' - 'openai_excel_bps_mihomo'"
+				expression = "(" + expression + ") - 'openai_excel_bps' - 'openai_excel_bps_models' - 'openai_excel_bps_cache_creation_as_input' - 'openai_excel_bps_auto_disable_on_403' - 'openai_excel_bps_auto_recover_on_403' - 'openai_excel_bps_auto_move_on_403' - 'openai_excel_bps_403_target_group_id' - 'openai_excel_bps_mihomo'"
 			case "auto move false removes policy and destination":
 				expression = "(" + expression + ") - 'openai_excel_bps_auto_move_on_403' - 'openai_excel_bps_403_target_group_id'"
 			default:

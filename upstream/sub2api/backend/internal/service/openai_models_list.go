@@ -172,8 +172,7 @@ func projectAccountModelsBody(body []byte, account *Account, group *Group, codex
 	if codex {
 		field, idField = "models", "slug"
 	}
-	_, fallback := account.excelBPSFallbackMapping()
-	if !fallback && (account.IsOpenAIPassthroughEnabled() || len(account.GetModelMapping()) == 0) {
+	if account.IsOpenAIPassthroughEnabled() || len(account.GetModelMapping()) == 0 {
 		if len(account.GroupAllowedModels(derefGroupID(groupID))) == 0 {
 			return body, nil
 		}

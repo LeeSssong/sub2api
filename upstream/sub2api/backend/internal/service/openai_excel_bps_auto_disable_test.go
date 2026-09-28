@@ -18,20 +18,11 @@ import (
 
 type excelBPSAutoDisableRepo struct {
 	AccountRepository
-	AccountExcelBPS403RecoveryRepository
-	AccountExcelBPSRecoveryRepository
 	disable func(context.Context, *Account) (bool, error)
 }
 
 func (r *excelBPSAutoDisableRepo) DisableExcelBPSOn403(ctx context.Context, account *Account) (bool, error) {
 	return r.disable(ctx, account)
-}
-
-func (r *excelBPSAutoDisableRepo) DegradeExcelBPS(ctx context.Context, a *Account, status int) (bool, error) {
-	if r.disable == nil {
-		return false, nil
-	}
-	return r.disable(ctx, a)
 }
 
 func TestExcelBPSAutoDisableOn403(t *testing.T) {
@@ -44,15 +35,15 @@ func TestExcelBPSAutoDisableOn403(t *testing.T) {
 		writeErr   error
 		wantCalls  int
 	}{
-		{name: "baseline without legacy opt in", status: 403, wantCalls: 1},
+		{name: "default off", status: 403},
 		{name: "enabled", status: 403, optIn: true, changed: true, wantCalls: 1},
 		{name: "settings already changed", status: 403, optIn: true, wantCalls: 1},
 		{name: "write failed", status: 403, optIn: true, writeErr: errors.New("write failed"), wantCalls: 1},
-		{name: "model access denied", status: 403, optIn: true, modelError: true, wantCalls: 1},
+		{name: "model access denied", status: 403, optIn: true, modelError: true},
 		{name: "bad request", status: 400, optIn: true},
 		{name: "unauthorized", status: 401, optIn: true},
 		{name: "rate limited", status: 429, optIn: true},
-		{name: "server error", status: 500, optIn: true, wantCalls: 1},
+		{name: "server error", status: 500, optIn: true},
 	} {
 		for _, stream := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/stream=%v", tc.name, stream), func(t *testing.T) {
@@ -159,52 +150,5 @@ func TestAccount_IsExcelBPSAutoDisableOn403Enabled(t *testing.T) {
 		require.True(t, account.IsExcelBPSAutoDisableOn403Enabled())
 		mutate(account)
 		require.False(t, account.IsExcelBPSAutoDisableOn403Enabled())
-	}
-}
-
-func TestExcelBPSRecoveryShadowErrorsNeverMutateBusinessAccount(t *testing.T) {
-	for _, status := range []int{401, 403, 429, 500, 503} {
-		t.Run(fmt.Sprint(status), func(t *testing.T) {
-			a := excelAccount()
-			a.Extra[ExcelBPSAutoMoveOn403Key] = true
-			a.Extra[ExcelBPS403TargetGroupIDKey] = float64(7)
-			upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: status, Header: http.Header{"Retry-After": {"60"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":"token_revoked"}}`))}}
-			svc := openAIClientToolsTestService(upstream)
-			svc.accountRepo = &excelBPSAutoDisableRepo{disable: func(context.Context, *Account) (bool, error) {
-				t.Fatal("shadow probe changed account")
-				return false, nil
-			}}
-			svc.rateLimitService = &RateLimitService{} // auth mutation would panic rather than silently pass
-			ctx := context.WithValue(context.Background(), excelBPSShadowProbeKey{}, true)
-			c, _ := gin.CreateTestContext(httptest.NewRecorder())
-			c.Request = httptest.NewRequest(http.MethodPost, "/internal/probe", nil).WithContext(ctx)
-			_, err := svc.forwardExcelBPS(ctx, c, a, []byte(`{"model":"gpt-6-astra","input":"test"}`), time.Now())
-			require.Error(t, err)
-			require.False(t, svc.isExcelBPSCoolingDown(a, "gpt-6-astra"))
-			require.True(t, a.IsExcelBPSEnabled())
-		})
-	}
-}
-
-func TestExcelBPSExplicit403DisablePreferenceAndShadowPrecedence(t *testing.T) {
-	for _, tt := range []struct {
-		name   string
-		status int
-		shadow bool
-		want   bool
-	}{
-		{"explicit off", 403, false, false}, {"shadow owns recovery", 403, true, true}, {"5xx remains automatic", 503, false, true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			a := excelAccount()
-			a.Extra["openai_excel_bps_auto_disable_on_403"] = false
-			a.Extra[ExcelBPSShadowRecoveryKey] = tt.shadow
-			calls := 0
-			svc := &OpenAIGatewayService{accountRepo: &excelBPSAutoDisableRepo{disable: func(context.Context, *Account) (bool, error) { calls++; return true, nil }}}
-			require.Equal(t, tt.want, svc.degradeExcelBPS(context.Background(), a, tt.status))
-			if !tt.want {
-				require.Zero(t, calls)
-			}
-		})
 	}
 }

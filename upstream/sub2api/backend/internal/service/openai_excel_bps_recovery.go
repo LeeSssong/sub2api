@@ -23,7 +23,7 @@ const excelBPS403RecoveryConcurrency = 3
 
 // Claims persist before network I/O, preventing duplicate attempts across
 // instances and preserving the configured interval after a restart.
-type AccountExcelBPS403RecoveryRepository interface {
+type AccountExcelBPSRecoveryRepository interface {
 	ClaimExcelBPS403Probe(context.Context, *Account, time.Time) (bool, error)
 	RestoreExcelBPSAfter403(context.Context, *Account) (bool, error)
 }
@@ -102,7 +102,7 @@ func (s *OpenAIGatewayService) StartBPS403Recovery() {
 	if s == nil || s.accountRepo == nil {
 		return
 	}
-	if _, ok := s.accountRepo.(AccountExcelBPS403RecoveryRepository); !ok {
+	if _, ok := s.accountRepo.(AccountExcelBPSRecoveryRepository); !ok {
 		return
 	}
 	s.excelBPSRecoveryMu.Lock()
@@ -188,7 +188,7 @@ func (s *OpenAIGatewayService) recoverExcelBPS403Account(ctx context.Context, ac
 			logger.FromContext(ctx).Error("excel_bps.recovery_probe_panicked", zap.Int64("account_id", account.ID))
 		}
 	}()
-	repo, ok := s.accountRepo.(AccountExcelBPS403RecoveryRepository)
+	repo, ok := s.accountRepo.(AccountExcelBPSRecoveryRepository)
 	if !ok || !account.ExcelBPS403RecoveryDue(now) {
 		return
 	}

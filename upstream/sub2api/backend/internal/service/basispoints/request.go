@@ -29,7 +29,6 @@ type Bridge struct {
 	stagedReplays    *[]replayWrite
 	hasToolHistory   bool
 	disallowParallel bool
-	diagnostics      *streamDiagnostics
 }
 
 func decode(raw []byte, target any) error {

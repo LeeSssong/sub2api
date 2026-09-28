@@ -9,7 +9,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
-var _ service.AccountExcelBPS403RecoveryRepository = (*accountRepository)(nil)
+var _ service.AccountExcelBPSRecoveryRepository = (*accountRepository)(nil)
 
 // Compare all BPS options (including the server-owned shutdown/claim markers)
 // but allow unrelated usage snapshots to change during the probe.

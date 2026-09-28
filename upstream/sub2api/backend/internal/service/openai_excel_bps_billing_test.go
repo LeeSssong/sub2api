@@ -20,7 +20,8 @@ func TestAccount_IsExcelBPSCacheCreationAsInputEnabled(t *testing.T) {
 	apiKey := newAccount()
 	apiKey.Type = AccountTypeAPIKey
 	delete(apiKey.Extra, "openai_excel_bps")
-	require.True(t, apiKey.IsExcelBPSCacheCreationAsInputEnabled())
+	require.False(t, apiKey.IsExcelBPSCacheCreationAsInputEnabled())
+	require.True(t, apiKey.IsAPIKeyCacheCreationAsInputEnabled())
 	for name, modify := range map[string]func(*Account){
 		"missing option":  func(a *Account) { delete(a.Extra, "openai_excel_bps_cache_creation_as_input") },
 		"disabled option": func(a *Account) { a.Extra["openai_excel_bps_cache_creation_as_input"] = false },

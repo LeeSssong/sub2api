@@ -59,8 +59,6 @@ vi.mock('vue-i18n', async () => {
 
 import EditAccountModal from '../EditAccountModal.vue'
 
-const legacyPolicyKey = ['rate', 'multiplier', 'policy'].join('_')
-
 const BaseDialogStub = defineComponent({
   name: 'BaseDialog',
   props: {
@@ -335,102 +333,6 @@ describe('EditAccountModal', () => {
 
   afterEach(() => vi.useRealTimers())
 
-  it('reopens a degraded BPS account with recovery settings and saves only desired configuration', async () => {
-    const account = buildOpenAIOAuthParentAccount()
-    account.extra = {
-      openai_excel_bps: true,
-      openai_excel_bps_auto_disable_on_403: true,
-      openai_excel_bps_auto_recover_on_403: true,
-      openai_excel_bps_403_recovery_interval_minutes: 360,
-      openai_excel_bps_models: ['gpt-6-astra'],
-      openai_excel_bps_shadow_recovery: true,
-      openai_excel_bps_fallback_models: ['gpt-6-sol'],
-      openai_excel_bps_recovery: { active: true, trigger_status: 403, next_probe_at: '2026-09-27T12:00:00Z' }
-    }
-    updateAccountMock.mockReset().mockResolvedValue(account)
-    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
-    const wrapper = mountModal(account)
-    expect(wrapper.get<HTMLInputElement>('[data-testid="excel-bps-shadow-recovery"]').element.checked).toBe(true)
-    expect(wrapper.get('[data-testid="excel-bps-recovery-status"]').text()).toContain('admin.accounts.openai.excelBPSRecoveryActive')
-    expect(wrapper.get('[data-testid="excel-bps-fallback-model-selection"]').text()).toContain('gpt-6-sol')
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-    await flushPromises()
-    const extra = updateAccountMock.mock.calls[0]?.[1]?.extra
-    expect(extra.openai_excel_bps).toBe(true)
-    expect(extra.openai_excel_bps_models).toEqual(['gpt-6-astra'])
-    expect(extra.openai_excel_bps_fallback_models).toEqual(['gpt-6-sol'])
-    expect(extra).not.toHaveProperty('openai_excel_bps_recovery')
-    expect(extra).toMatchObject({ openai_excel_bps_auto_disable_on_403: true, openai_excel_bps_auto_recover_on_403: true, openai_excel_bps_403_recovery_interval_minutes: 360 })
-    for (const id of ['excel-bps-auto-disable-on-403', 'excel-bps-auto-recover-on-403', 'excel-bps-recovery-interval']) expect(wrapper.get<HTMLInputElement>(`[data-testid="${id}"]`).element.disabled).toBe(true)
-  })
-
-  it('requires a selected normal fallback model and clears shadow settings on manual BPS off', async () => {
-    const account = buildOpenAIOAuthParentAccount()
-    account.extra = { openai_excel_bps: true }
-    updateAccountMock.mockReset().mockResolvedValue(account)
-    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
-    const wrapper = mountModal(account)
-    expect(wrapper.find('[data-testid="excel-bps-auto-disable-on-403"]').exists()).toBe(true)
-    await wrapper.get('[data-testid="excel-bps-shadow-recovery"]').setValue(true)
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-    await flushPromises()
-    expect(updateAccountMock).not.toHaveBeenCalled()
-    wrapper.get('[data-testid="excel-bps-fallback-model-selection"]')
-      .getComponent(ModelWhitelistSelectorStub).vm.$emit('update:modelValue', [' gpt-6-sol ', 'gpt-6-sol', ' '])
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-    await flushPromises()
-    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_excel_bps_fallback_models).toEqual(['gpt-6-sol'])
-    await wrapper.get('[data-testid="excel-bps-toggle"]').trigger('click')
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-    await flushPromises()
-    const extra = updateAccountMock.mock.calls[1]?.[1]?.extra
-    expect(extra).not.toHaveProperty('openai_excel_bps_shadow_recovery')
-    expect(extra).not.toHaveProperty('openai_excel_bps_fallback_models')
-  })
-
-  it('turns off recovery probes on a degraded account while preserving desired BPS', async () => {
-    const account = buildOpenAIOAuthParentAccount()
-    account.extra = {
-      openai_excel_bps: true,
-      openai_excel_bps_shadow_recovery: true,
-      openai_excel_bps_fallback_models: ['gpt-6-sol'],
-      openai_excel_bps_recovery: { active: true, trigger_status: 500, next_probe_at: '2026-09-27T12:00:00Z' }
-    }
-    updateAccountMock.mockReset().mockResolvedValue(account)
-    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
-    const wrapper = mountModal(account)
-    expect(wrapper.get('[data-testid="excel-bps-recovery-status"]').text()).toContain('admin.accounts.openai.excelBPSRecoveryNextProbe')
-    await wrapper.get('[data-testid="excel-bps-shadow-recovery"]').setValue(false)
-    expect(wrapper.get('[data-testid="excel-bps-recovery-status"]').text()).toContain('admin.accounts.openai.excelBPSRecoveryPaused')
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-    await flushPromises()
-    const extra = updateAccountMock.mock.calls[0]?.[1]?.extra
-    expect(extra.openai_excel_bps).toBe(true)
-    expect(extra).not.toHaveProperty('openai_excel_bps_shadow_recovery')
-    expect(extra.openai_excel_bps_fallback_models).toEqual(['gpt-6-sol'])
-    expect(extra).not.toHaveProperty('openai_excel_bps_recovery')
-  })
-
-  it('keeps a legacy group preference with a stale destination during shadow recovery', async () => {
-    const account = buildOpenAIOAuthParentAccount()
-    account.extra = {
-      openai_excel_bps: true,
-      openai_excel_bps_shadow_recovery: true,
-      openai_excel_bps_fallback_models: ['gpt-6-sol'],
-      openai_excel_bps_auto_move_on_403: true,
-      openai_excel_bps_403_target_group_id: 7
-    }
-    updateAccountMock.mockReset().mockResolvedValue(account)
-    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
-    const wrapper = mountModal(account)
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-    await flushPromises()
-    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toMatchObject({
-      openai_excel_bps_auto_move_on_403: true,
-      openai_excel_bps_403_target_group_id: 7
-    })
-  })
-
   it('persists the BPS session proxy toggle and clears it when BPS is disabled', async () => {
     const account = buildAccount()
     account.type = 'oauth'
@@ -656,7 +558,7 @@ describe('EditAccountModal', () => {
     checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
     const wrapper = mountModal(account)
     const selector = '[data-testid="excel-bps-auto-disable-on-403"]'
-    expect(wrapper.get<HTMLInputElement>(selector).element.checked).toBe(true)
+    expect(wrapper.get<HTMLInputElement>(selector).element.checked).toBe(false)
     await wrapper.get(selector).setValue(true)
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
     await flushPromises()
@@ -671,7 +573,7 @@ describe('EditAccountModal', () => {
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
     await flushPromises()
     const clearedExtra = updateAccountMock.mock.calls[1]?.[1]?.extra
-    expect(clearedExtra.openai_excel_bps_auto_disable_on_403).toBe(false)
+    expect(clearedExtra.openai_excel_bps_auto_disable_on_403).toBeUndefined()
     expect(clearedExtra.openai_excel_bps).toBe(true)
     expect(clearedExtra.unrelated).toBe('preserve')
     wrapper.unmount()
@@ -686,7 +588,7 @@ describe('EditAccountModal', () => {
     const wrapper = mountModal(account)
     const recovery = '[data-testid="excel-bps-auto-recover-on-403"]'
     expect(wrapper.get<HTMLInputElement>(recovery).element.checked).toBe(false)
-    expect(wrapper.get<HTMLInputElement>(recovery).element.disabled).toBe(false)
+    expect(wrapper.get<HTMLInputElement>(recovery).element.disabled).toBe(true)
     await wrapper.get('[data-testid="excel-bps-auto-disable-on-403"]').setValue(true)
     await wrapper.get(recovery).setValue(true)
     const interval = wrapper.get<HTMLInputElement>('[data-testid="excel-bps-recovery-interval"]')
@@ -780,6 +682,46 @@ describe('EditAccountModal', () => {
     wrapper.unmount()
   })
 
+  it('clears the auto-disable option when manually turning off BPS', async () => {
+    const account = buildAccount()
+    account.type = 'oauth'
+    account.extra = { openai_excel_bps: true, openai_excel_bps_auto_disable_on_403: true }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+    await wrapper.get('[data-testid="excel-bps-toggle"]').trigger('click')
+    expect(wrapper.find('[data-testid="excel-bps-auto-disable-on-403"]').exists()).toBe(false)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    const extra = updateAccountMock.mock.calls[0]?.[1]?.extra
+    expect(extra.openai_excel_bps).toBeUndefined()
+    expect(extra.openai_excel_bps_auto_disable_on_403).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('restores the opt-in after automatic disable and resets it for another account', async () => {
+    const account = buildAccount()
+    account.type = 'oauth'
+    account.extra = { openai_excel_bps: false, openai_excel_bps_auto_disable_on_403: true }
+    const wrapper = mountModal(account)
+    const selector = '[data-testid="excel-bps-auto-disable-on-403"]'
+    expect(wrapper.find(selector).exists()).toBe(false)
+    await wrapper.get('[data-testid="excel-bps-toggle"]').trigger('click')
+    expect(wrapper.get<HTMLInputElement>(selector).element.checked).toBe(true)
+    await wrapper.setProps({ account: { ...account, id: 2, extra: { openai_excel_bps: true } } })
+    expect(wrapper.get<HTMLInputElement>(selector).element.checked).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('hides the auto-disable option for API keys and shadow accounts', () => {
+    for (const account of [buildAccount(), buildOpenAISparkShadowAccount()]) {
+      account.extra = { openai_excel_bps: true, openai_excel_bps_auto_disable_on_403: true }
+      const wrapper = mountModal(account)
+      expect(wrapper.find('[data-testid="excel-bps-auto-disable-on-403"]').exists()).toBe(false)
+      wrapper.unmount()
+    }
+  })
+
   it.each([0, 7])('saves and restores BPS 403 group target %s independently of disabling BPS', async target => {
     const account = buildAccount()
     account.type = 'oauth'
@@ -799,7 +741,7 @@ describe('EditAccountModal', () => {
     const extra = updateAccountMock.mock.calls[0]?.[1]?.extra
     expect(extra.openai_excel_bps_auto_move_on_403).toBe(true)
     expect(extra.openai_excel_bps_403_target_group_id).toBe(target)
-    expect(extra.openai_excel_bps_auto_disable_on_403).toBe(true)
+    expect(extra.openai_excel_bps_auto_disable_on_403).toBeUndefined()
     expect(extra.unrelated).toBe('keep')
     await wrapper.setProps({ account: { ...account, extra } })
     expect(wrapper.get<HTMLInputElement>(toggle).element.checked).toBe(true)
@@ -850,6 +792,24 @@ describe('EditAccountModal', () => {
       expect(hidden.find('[data-testid="excel-bps-auto-move-on-403"]').exists()).toBe(false)
       hidden.unmount()
     }
+  })
+
+  it('restores and saves both 403 options after re-enabling an automatically disabled protocol', async () => {
+    const account = buildAccount()
+    account.type = 'oauth'
+    account.extra = { openai_excel_bps: false, openai_excel_bps_auto_disable_on_403: true, openai_excel_bps_auto_move_on_403: true, openai_excel_bps_403_target_group_id: 0 }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+    await wrapper.get('[data-testid="excel-bps-toggle"]').trigger('click')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="excel-bps-auto-disable-on-403"]').element.checked).toBe(true)
+    expect(wrapper.get<HTMLInputElement>('[data-testid="excel-bps-auto-move-on-403"]').element.checked).toBe(true)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toMatchObject({
+      openai_excel_bps: true, openai_excel_bps_auto_disable_on_403: true,
+      openai_excel_bps_auto_move_on_403: true, openai_excel_bps_403_target_group_id: 0
+    })
   })
 
   it.each([false, true])('limits 403 destinations according to simple mode %s', async simpleMode => {
@@ -1158,48 +1118,207 @@ describe('EditAccountModal', () => {
 
   it('preserves adaptive Kimi Responses endpoint on submit', async () => {
     const account = buildAccount()
-    updateAccountMock.mockReset().mockResolvedValue(account)
-    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
-    const wrapper = mountModal(account)
-
-    expect(wrapper.find('[data-testid="edit-rate-multiplier-policy"]').exists()).toBe(false)
-    expect(wrapper.get('[data-testid="upstream-billing-rate-sync"]').attributes('aria-checked')).toBe('false')
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-
-    expect(updateAccountMock.mock.calls[0]?.[1]?.upstream_billing_rate_sync_enabled).toBe(false)
-    expect(updateAccountMock.mock.calls[0]?.[1]).not.toHaveProperty(legacyPolicyKey)
-  })
-
-  it('loads and persists the account active-probe switch', async () => {
-    const account = buildAccount()
-    account.active_probe_enabled = false
-    updateAccountMock.mockReset().mockResolvedValue(account)
-    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
-    const wrapper = mountModal(account)
-
-    expect(wrapper.get('[data-testid="active-probe-enabled"]').attributes('aria-checked')).toBe('false')
-    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-
-    expect(updateAccountMock.mock.calls[0]?.[1]?.active_probe_enabled).toBe(false)
-  })
-
-  it('loads the official sync switch and omits the native rate while sync is enabled', async () => {
-    const account = buildAccount()
-    account.extra = {
-      upstream_billing_probe_enabled: true,
-      upstream_billing_rate_sync_enabled: true
+    account.platform = 'kimi'
+    account.credentials = {
+      api_key: 'sk-kimi',
+      account_mode: 'payg',
+      api_protocol: 'adaptive',
+      base_url: 'https://api.moonshot.cn/v1',
+      api_base_urls: {
+        chat_completions: 'https://api.moonshot.cn/v1',
+        anthropic: 'https://api.moonshot.cn/anthropic',
+        responses: 'https://api.moonshot.cn/v1'
+      }
     }
     updateAccountMock.mockReset().mockResolvedValue(account)
     checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
-    const wrapper = mountModal(account)
 
-    expect(wrapper.get('[data-testid="upstream-billing-rate-sync"]').attributes('aria-checked')).toBe('true')
+    const wrapper = mountModal(account)
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
-    expect(updateAccountMock.mock.calls[0]?.[1]?.upstream_billing_probe_enabled).toBe(true)
-    expect(updateAccountMock.mock.calls[0]?.[1]?.upstream_billing_rate_sync_enabled).toBe(true)
-    expect(updateAccountMock.mock.calls[0]?.[1]).not.toHaveProperty('rate_multiplier')
-    expect(updateAccountMock.mock.calls[0]?.[1]).not.toHaveProperty(legacyPolicyKey)
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      account_mode: 'payg',
+      api_protocol: 'adaptive',
+      base_url: 'https://api.moonshot.cn/v1',
+      api_base_urls: {
+        chat_completions: 'https://api.moonshot.cn/v1',
+        anthropic: 'https://api.moonshot.cn/anthropic',
+        responses: 'https://api.moonshot.cn/v1'
+      }
+    })
+  })
+
+  it('preserves adaptive GLM endpoints on submit', async () => {
+    const account = buildAccount()
+    account.platform = 'zhipu'
+    account.credentials = {
+      api_key: 'sk-glm',
+      account_mode: 'coding',
+      api_protocol: 'adaptive',
+      base_url: 'https://open.bigmodel.cn/api/coding/paas/v4',
+      api_base_urls: {
+        chat_completions: 'https://open.bigmodel.cn/api/coding/paas/v4',
+        anthropic: 'https://open.bigmodel.cn/api/anthropic'
+      }
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      account_mode: 'coding',
+      api_protocol: 'adaptive',
+      base_url: 'https://open.bigmodel.cn/api/coding/paas/v4',
+      api_base_urls: {
+        chat_completions: 'https://open.bigmodel.cn/api/coding/paas/v4',
+        anthropic: 'https://open.bigmodel.cn/api/anthropic'
+      }
+    })
+  })
+
+  it.each([
+    ['explicit Chat Completions', 'chat_completions'],
+    ['legacy missing protocol', undefined]
+  ])('preserves a custom CN relay for %s accounts', async (_name, storedProtocol) => {
+    const account = buildAccount()
+    account.platform = 'zhipu'
+    account.credentials = {
+      api_key: 'sk-glm',
+      account_mode: 'payg',
+      base_url: 'https://relay.example.com/v1'
+    }
+    if (storedProtocol) {
+      account.credentials.api_protocol = storedProtocol
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    const submittedCredentials = updateAccountMock.mock.calls[0]?.[1]?.credentials
+    expect(submittedCredentials).toMatchObject({
+      account_mode: 'payg',
+      api_protocol: 'chat_completions',
+      base_url: 'https://relay.example.com/v1'
+    })
+    expect(submittedCredentials).not.toHaveProperty('api_base_urls')
+  })
+
+  it('uses the legacy base_url when adaptive endpoints are missing', async () => {
+    const account = buildAccount()
+    account.platform = 'zhipu'
+    account.credentials = {
+      api_key: 'sk-glm',
+      account_mode: 'payg',
+      api_protocol: 'adaptive',
+      base_url: 'https://relay.example.com/v1',
+      api_base_urls: {
+        chat_completions: '   '
+      }
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      api_protocol: 'adaptive',
+      base_url: 'https://relay.example.com/v1',
+      api_base_urls: {
+        chat_completions: 'https://relay.example.com/v1',
+        anthropic: 'https://open.bigmodel.cn/api/anthropic'
+      }
+    })
+  })
+
+  it('carries a fixed Chat relay into Adaptive when the user switches protocols', async () => {
+    const account = buildAccount()
+    account.platform = 'zhipu'
+    account.credentials = {
+      api_key: 'sk-glm',
+      account_mode: 'payg',
+      api_protocol: 'chat_completions',
+      base_url: 'https://relay.example.com/v1'
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    const adaptiveButton = wrapper
+      .findAll('button')
+      .find(button => button.text().includes('admin.accounts.cnProviders.apiProtocol.adaptive'))
+    expect(adaptiveButton).toBeDefined()
+    await adaptiveButton!.trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      api_protocol: 'adaptive',
+      base_url: 'https://relay.example.com/v1',
+      api_base_urls: {
+        chat_completions: 'https://relay.example.com/v1'
+      }
+    })
+  })
+
+  it.each([
+    {
+      name: 'Anthropic',
+      platform: 'zhipu',
+      protocol: 'anthropic',
+      baseUrl: 'https://relay.example.com/anthropic',
+      expectedBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+      expectedProtocolUrls: {
+        chat_completions: 'https://open.bigmodel.cn/api/paas/v4',
+        anthropic: 'https://relay.example.com/anthropic'
+      }
+    },
+    {
+      name: 'Responses',
+      platform: 'deepseek',
+      protocol: 'responses',
+      baseUrl: 'https://relay.example.com/responses',
+      expectedBaseUrl: 'https://api.deepseek.com',
+      expectedProtocolUrls: {
+        chat_completions: 'https://api.deepseek.com',
+        anthropic: 'https://api.deepseek.com/anthropic',
+        responses: 'https://relay.example.com/responses'
+      }
+    }
+  ])('keeps a fixed $name relay in its protocol slot when switching to Adaptive', async (testCase) => {
+    const account = buildAccount()
+    account.platform = testCase.platform
+    account.credentials = {
+      api_key: 'sk-cn',
+      account_mode: 'payg',
+      api_protocol: testCase.protocol,
+      base_url: testCase.baseUrl
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    const adaptiveButton = wrapper
+      .findAll('button')
+      .find(button => button.text().includes('admin.accounts.cnProviders.apiProtocol.adaptive'))
+    expect(adaptiveButton).toBeDefined()
+    await adaptiveButton!.trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      api_protocol: 'adaptive',
+      base_url: testCase.expectedBaseUrl,
+      api_base_urls: testCase.expectedProtocolUrls
+    })
   })
 
   it('preserves model mappings when editing the whitelist', async () => {
@@ -1316,6 +1435,85 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_flatten_namespaces).toBe(
       true
     )
+  })
+
+  it('writes the upstream request id header into extra only when it changes', async () => {
+    const account = buildAccount()
+    account.extra = { openai_compact_mode: 'force_on' }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const untouched = mountModal(account)
+    await untouched.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.upstream_request_id_header).toBeUndefined()
+
+    updateAccountMock.mockClear()
+    const wrapper = mountModal(account)
+    await wrapper.get('[data-testid="upstream-request-id-header"]').setValue(' X-Oneapi-Request-Id ')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toMatchObject({
+      openai_compact_mode: 'force_on',
+      upstream_request_id_header: 'X-Oneapi-Request-Id'
+    })
+  })
+
+  it('removes the upstream request id header from extra when cleared', async () => {
+    const account = buildAccount()
+    account.extra = { upstream_request_id_header: 'X-Request-ID' }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    expect((wrapper.get('[data-testid="upstream-request-id-header"]').element as HTMLInputElement).value).toBe('X-Request-ID')
+    await wrapper.get('[data-testid="upstream-request-id-header"]').setValue('')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toBeDefined()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('upstream_request_id_header')
+  })
+
+  it('writes images_url_to_b64_json into extra when toggled on', async () => {
+    const account = buildAccount()
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const toggle = wrapper.get('[data-testid="openai-images-url-to-b64-json-toggle"]')
+    expect(toggle.attributes('aria-checked')).toBe('false')
+    await toggle.trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.images_url_to_b64_json).toBe(true)
+  })
+
+  it('removes images_url_to_b64_json from extra when toggled off', async () => {
+    const account = buildAccount()
+    account.extra = { images_url_to_b64_json: true }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const toggle = wrapper.get('[data-testid="openai-images-url-to-b64-json-toggle"]')
+    expect(toggle.attributes('aria-checked')).toBe('true')
+    await toggle.trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toBeDefined()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('images_url_to_b64_json')
   })
 
   it('hides the Codex namespace flatten toggle for non-OAuth OpenAI accounts', async () => {

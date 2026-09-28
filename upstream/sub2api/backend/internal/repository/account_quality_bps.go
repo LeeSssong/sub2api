@@ -250,23 +250,8 @@ func qualityBPSPatchExtra(ctx context.Context, tx *sql.Tx, accountID int64, set 
 	if remove == nil {
 		remove = []string{}
 	}
-	// Caller holds the account row lock. A BPS-only edit must not invalidate
-	// an otherwise untouched quarantine owner, but must never forgive an earlier
-	// manual edit. Advance only snapshots matching the exact pre-BPS revision.
-	var previousVersion, nextVersion time.Time
-	if err := tx.QueryRowContext(ctx, `SELECT updated_at FROM accounts WHERE id=$1`, accountID).Scan(&previousVersion); err != nil {
-		return err
-	}
-	if err := tx.QueryRowContext(ctx, `UPDATE accounts SET extra=(COALESCE(extra,'{}'::jsonb) || $2::jsonb) - $3::text[], updated_at=clock_timestamp() WHERE id=$1 RETURNING updated_at`,
-		accountID, string(payload), pq.Array(remove)).Scan(&nextVersion); err != nil {
-		return err
-	}
-	_, err = tx.ExecContext(ctx, `UPDATE account_quality_states s
- SET state=jsonb_set(s.state,'{account_version}',to_jsonb($3::timestamptz))
- FROM scheduled_test_plans p
- WHERE p.id=s.plan_id AND p.account_id=$1
- AND s.state->>'action' IN ('remove_groups','disable_scheduling')
- AND (s.state->>'account_version')::timestamptz=$2`, accountID, previousVersion, nextVersion)
+	_, err = tx.ExecContext(ctx, `UPDATE accounts SET extra=(COALESCE(extra,'{}'::jsonb) || $2::jsonb) - $3::text[], updated_at=clock_timestamp() WHERE id=$1`,
+		accountID, string(payload), pq.Array(remove))
 	return err
 }
 

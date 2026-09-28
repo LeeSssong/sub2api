@@ -1478,28 +1478,31 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	hasAnyMapping := false
 
 	for _, acc := range accounts {
-		_, fallback := acc.excelBPSFallbackMapping()
+		// Passthrough routing accepts models independently of model_mapping, so a
+		// stale mapping on a passthrough account must not narrow the public list.
+		// Treat it like an unmapped account: skip its mapping here and let
+		// supplementUnmappedOpenAIModels contribute the default set. Mappings on
+		// the ordinary accounts in the same group still count.
 		mapping := acc.GetModelMapping()
-		if platform == PlatformOpenAI && acc.IsOpenAIPassthroughEnabled() && !fallback {
+		if platform == PlatformOpenAI && acc.IsOpenAIPassthroughEnabled() {
 			mapping = nil
 		}
-		if fallback {
-			hasAnyMapping = true
-		}
-		if len(mapping) > 0 {
-			hasAnyMapping = true
-			for model := range mapping {
-				if platform != "" && acc.Platform != platform && !mixedListingModelAllowed(platform, model) {
-					continue
-				}
-				if !acc.IsModelAllowedInGroup(groupID, model) {
-					continue
-				}
-				modelSet[model] = struct{}{}
+		for model := range mapping {
+			// Accounts pulled in through mixed scheduling only contribute the
+			// models that belong to the listing platform (e.g. an antigravity
+			// account's claude-* mappings must not surface on a gemini group).
+			if platform != "" && acc.Platform != platform && !mixedListingModelAllowed(platform, model) {
+				continue
 			}
+			// 账号在本分组里被限制了可用模型时，只公布允许的那部分。
+			if !acc.IsModelAllowedInGroup(groupID, model) {
+				continue
+			}
+			modelSet[model] = struct{}{}
+			hasAnyMapping = true
 		}
 		// 没有映射的账号默认支持全部模型；在本分组被限制时改为公布限制清单里的具体模型名。
-		if len(mapping) == 0 && !fallback {
+		if len(mapping) == 0 {
 			for _, model := range groupAllowedConcreteModels(&acc, groupID) {
 				if platform != "" && acc.Platform != platform && !mixedListingModelAllowed(platform, model) {
 					continue

@@ -25,15 +25,13 @@ type ScheduledTestRunnerService struct {
 	groupTests   *PelicanGroupTestService
 	candyMonitor *ChannelMonitorV2CandyService
 
-	bpsRecoveryMu     sync.Mutex
-	bpsRecoveryCancel context.CancelFunc
-	qualityTrigger    *quality5xxTrigger
-	triggerCancel     context.CancelFunc
-	triggerWG         sync.WaitGroup
-	planSlots         chan struct{}
-	cron              *cron.Cron
-	startOnce         sync.Once
-	stopOnce          sync.Once
+	qualityTrigger *quality5xxTrigger
+	triggerCancel  context.CancelFunc
+	triggerWG      sync.WaitGroup
+	planSlots      chan struct{}
+	cron           *cron.Cron
+	startOnce      sync.Once
+	stopOnce       sync.Once
 }
 
 // NewScheduledTestRunnerService creates a new runner.
@@ -80,9 +78,6 @@ func (s *ScheduledTestRunnerService) Start() {
 			logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] not started (invalid schedule): %v", err)
 			return
 		}
-		recoveryCtx, recoveryCancel := context.WithCancel(context.Background())
-		s.bpsRecoveryCancel = recoveryCancel
-		_, _ = c.AddFunc("* * * * *", func() { s.runExcelBPSRecovery(recoveryCtx) })
 		s.cron = c
 		s.cron.Start()
 		logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] started (tick=every minute)")
@@ -95,9 +90,6 @@ func (s *ScheduledTestRunnerService) Stop() {
 		return
 	}
 	s.stopOnce.Do(func() {
-		if s.bpsRecoveryCancel != nil {
-			s.bpsRecoveryCancel()
-		}
 		if s.qualityTrigger != nil && s.qualityTrigger.ownsClient {
 			defer s.qualityTrigger.redis.Close()
 		}

@@ -41,15 +41,6 @@ func NativeFallbackReason(body []byte) string {
 			return fallback
 		}
 	}
-	if choice.Type == gjson.String && choice.String() == "required" {
-		return "tool_choice"
-	}
-	if choice.IsObject() {
-		// Named/allowed tool selections have strict native semantics. Preserve
-		// the request and let the native route validate its capability.
-		return "tool_choice"
-	}
-
 	// Inline data images are handled by Sub2API's local relay before Prepare;
 	// leave them on BPS so the relay can rewrite them to signed HTTPS URLs.
 	return ""

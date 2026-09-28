@@ -12,7 +12,7 @@ import (
 // normalizeAPIKeyProtocolUsage changes only client-visible usage. Anthropic
 // excludes cache creation from input_tokens; OpenAI already includes it.
 func normalizeAPIKeyProtocolUsage(account *Account, payload []byte, anthropic bool) ([]byte, error) {
-	if !account.IsAPIKeyCacheCreationAsInputEligible() || !account.IsExcelBPSCacheCreationAsInputEnabled() {
+	if !account.IsAPIKeyCacheCreationAsInputEnabled() {
 		return payload, nil
 	}
 	if anthropic {
@@ -42,7 +42,7 @@ func normalizeAPIKeyProtocolUsage(account *Account, payload []byte, anthropic bo
 			}
 		}
 	}
-	return excelBPSDownstreamUsage(payload)
+	return apiKeyDownstreamUsage(payload)
 }
 
 // apiKeyCacheOutputWriter is installed only on the Chat/Messages client output
@@ -55,7 +55,7 @@ type apiKeyCacheOutputWriter struct {
 }
 
 func installAPIKeyCacheOutput(c *gin.Context, account *Account, anthropic bool) func() {
-	if c == nil || !account.IsAPIKeyCacheCreationAsInputEligible() || !account.IsExcelBPSCacheCreationAsInputEnabled() {
+	if c == nil || !account.IsAPIKeyCacheCreationAsInputEnabled() {
 		return func() {}
 	}
 	previous := c.Writer
@@ -127,4 +127,72 @@ func (w *apiKeyCacheOutputWriter) Write(payload []byte) (int, error) {
 func (w *apiKeyCacheOutputWriter) WriteHeaderNow() {
 	w.Header().Del("Content-Length")
 	w.ResponseWriter.WriteHeaderNow()
+}
+
+// apiKeyDownstreamUsage applies the account's cache-creation-as-input policy
+// to client-visible usage after recording the original upstream measurement.
+// OpenAI total input already includes cache creation: keep totals and cache
+// reads intact, and clear every supported cache-write alias and TTL breakdown.
+func apiKeyDownstreamUsage(payload []byte) ([]byte, error) {
+	for _, path := range []string{"usage", "response.usage", "data.usage", "data.response.usage"} {
+		usage := gjson.GetBytes(payload, path)
+		if !usage.IsObject() {
+			continue
+		}
+		normalized := []byte(usage.Raw)
+		changed := false
+		for _, field := range []string{
+			"input_tokens_details.cache_write_tokens", "prompt_tokens_details.cache_write_tokens",
+			"input_tokens_details.cache_creation_tokens", "prompt_tokens_details.cache_creation_tokens",
+			"cache_write_tokens", "cache_creation_input_tokens", "cache_write_input_tokens", "cache_creation_tokens",
+			"cache_creation.ephemeral_5m_input_tokens", "cache_creation.ephemeral_1h_input_tokens",
+		} {
+			if value := usage.Get(field); !value.Exists() || value.Raw == "0" {
+				continue
+			}
+			var err error
+			normalized, err = sjson.SetBytes(normalized, field, 0)
+			if err != nil {
+				return nil, err
+			}
+			changed = true
+		}
+		if changed {
+			var err error
+			payload, err = sjson.SetRawBytes(payload, path, normalized)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return payload, nil
+}
+
+// normalizeAPIKeyCacheInputPayload runs only after capturing upstream usage.
+// Keep SSE framing and unknown JSON fields intact, including large integers.
+func normalizeAPIKeyCacheInputPayload(account *Account, payload []byte) ([]byte, error) {
+	if !account.IsAPIKeyCacheCreationAsInputEnabled() {
+		return payload, nil
+	}
+	if !bodyHasSSEFraming(payload) {
+		return apiKeyDownstreamUsage(payload)
+	}
+	lines := bytes.Split(payload, []byte("\n"))
+	for i, line := range lines {
+		text := string(line)
+		if !strings.HasPrefix(text, "data:") {
+			continue
+		}
+		value := strings.TrimSpace(strings.TrimPrefix(text, "data:"))
+		if value == "[DONE]" || !gjson.Valid(value) {
+			continue
+		}
+		normalized, err := apiKeyDownstreamUsage([]byte(value))
+		if err != nil {
+			return nil, err
+		}
+		prefixEnd := bytes.Index(line, []byte(value))
+		lines[i] = append(append(append([]byte(nil), line[:prefixEnd]...), normalized...), line[prefixEnd+len(value):]...)
+	}
+	return bytes.Join(lines, []byte("\n")), nil
 }

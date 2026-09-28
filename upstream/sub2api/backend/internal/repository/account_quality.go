@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -207,13 +206,10 @@ func (r *scheduledTestPlanRepository) ApplyQualityOutcome(ctx context.Context, p
 			}
 		}
 	case outcome == "passed" && state.Action != "" && q.AutoRestore:
-		// Account actions require unchanged revision/membership; model recovery patches only owned entries.
-		// Even a same-value manual disable advances the revision and must win.
-		var ownedGroups, currentGroups any
-		if json.Unmarshal(state.Remaining, &ownedGroups) != nil || json.Unmarshal(groups, &currentGroups) != nil {
-			return "restore_conflict", nil
-		}
-		if status != "active" || !recoveryEligible || (state.Action != "remove_models" && (!version.Equal(state.AccountVersion) || !reflect.DeepEqual(ownedGroups, currentGroups))) {
+		// Match upstream PR #186: group/scheduling rules restore only their owned
+		// mutation without treating a BPS-only account update as a conflict.
+		// The local remove-models action retains its own health guard.
+		if status != "active" || (state.Action == "remove_models" && !recoveryEligible) {
 			return "restore_conflict", nil
 		}
 		switch state.Action {

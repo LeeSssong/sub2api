@@ -1841,28 +1841,9 @@
           </label>
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSIgnoreEncryptedContentDesc') }}</p>
         </div>
-        <div v-if="excelBPSEnabled" class="mt-3 space-y-2">
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSAutoFallbackDesc') }}</p>
-          <div v-if="excelBPSRecoveryActive" data-testid="excel-bps-recovery-status" class="rounded-lg bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
-            {{ t('admin.accounts.openai.excelBPSRecoveryActive', { status: excelBPSRecoveryStatus }) }}
-            <span v-if="excelBPSShadowRecovery && excelBPSRecoveryNextProbe">{{ t('admin.accounts.openai.excelBPSRecoveryNextProbe', { time: excelBPSRecoveryNextProbe }) }}</span>
-            <span v-else-if="!excelBPSShadowRecovery">{{ t('admin.accounts.openai.excelBPSRecoveryPaused') }}</span>
-          </div>
-          <label class="flex items-center gap-2">
-            <input v-model="excelBPSShadowRecovery" type="checkbox" data-testid="excel-bps-shadow-recovery"
-              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
-            <span class="text-sm">{{ t('admin.accounts.openai.excelBPSShadowRecovery') }}</span>
-          </label>
-          <p class="input-hint">{{ t('admin.accounts.openai.excelBPSShadowRecoveryDesc') }}</p>
-          <div v-if="excelBPSShadowRecovery || excelBPSRecoveryActive" data-testid="excel-bps-fallback-model-selection">
-            <label class="input-label">{{ t('admin.accounts.openai.excelBPSFallbackModels') }}</label>
-            <ModelWhitelistSelector v-model="excelBPSFallbackModels" platform="openai" />
-            <p class="input-hint">{{ t('admin.accounts.openai.excelBPSFallbackModelsHint') }}</p>
-          </div>
-        </div>
         <div v-if="excelBPSEnabled || excelBPS403RecoveryPending" class="mt-3">
           <label class="flex items-center gap-2">
-            <input v-model="excelBPSAutoDisableOn403" type="checkbox" :disabled="excelBPSShadowRecovery"
+            <input v-model="excelBPSAutoDisableOn403" type="checkbox"
               data-testid="excel-bps-auto-disable-on-403"
               class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
             <span class="text-sm">{{ t('admin.accounts.openai.excelBPSAutoDisableOn403') }}</span>
@@ -1871,17 +1852,16 @@
         </div>
         <div v-if="excelBPSEnabled || excelBPS403RecoveryPending" class="mt-3">
           <label class="flex items-center gap-2">
-            <input v-model="excelBPSAutoRecoverOn403" type="checkbox" :disabled="excelBPSShadowRecovery || !excelBPSAutoDisableOn403"
+            <input v-model="excelBPSAutoRecoverOn403" type="checkbox" :disabled="!excelBPSAutoDisableOn403"
               data-testid="excel-bps-auto-recover-on-403"
               class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500 disabled:opacity-50" />
             <span class="text-sm">{{ t('admin.accounts.openai.excelBPSAutoRecoverOn403') }}</span>
           </label>
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSAutoRecoverOn403Desc') }}</p>
-          <p v-if="excelBPSShadowRecovery" class="mt-1 text-xs text-amber-600 dark:text-amber-400">{{ t('admin.accounts.openai.excelBPSShadowRecoveryPriority') }}</p>
           <div v-if="excelBPSAutoRecoverOn403 && excelBPSAutoDisableOn403" class="mt-2">
             <label class="block space-y-1">
               <span class="text-sm">{{ t('admin.accounts.openai.excelBPS403RecoveryInterval') }}</span>
-              <input v-model.number="excelBPSRecoveryIntervalMinutes" :disabled="excelBPSShadowRecovery" type="number" min="1" :max="MAX_BPS_RECOVERY_INTERVAL_MINUTES" step="1" required
+              <input v-model.number="excelBPSRecoveryIntervalMinutes" type="number" min="1" :max="MAX_BPS_RECOVERY_INTERVAL_MINUTES" step="1" required
                 data-testid="excel-bps-recovery-interval" class="input w-40" />
             </label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPS403RecoveryIntervalHint') }}</p>
@@ -1895,7 +1875,6 @@
             <span class="text-sm">{{ t('admin.accounts.openai.excelBPSAutoMoveOn403') }}</span>
           </label>
           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSAutoMoveOn403Desc') }}</p>
-          <p v-if="excelBPSShadowRecovery" class="mt-1 text-xs text-amber-600 dark:text-amber-400">{{ t('admin.accounts.openai.excelBPSAutoMoveSuppressed') }}</p>
           <div v-if="excelBPSAutoMoveOn403" class="mt-2">
             <label class="input-label">{{ t('admin.accounts.openai.excelBPS403TargetGroup') }}</label>
             <Select v-model="excelBPS403TargetGroupID" :options="excelBPS403GroupOptions"
@@ -3904,17 +3883,7 @@ const excelBPSModels = ref<string[]>([...DEFAULT_EXCEL_BPS_MODELS])
 const excelBPSMihomo = ref(false)
 const excelBPSProxySource = ref<'mihomo' | 'ip_pool'>('mihomo')
 const excelBPSCacheCreationAsInput = ref(false)
-const excelBPSShadowRecovery = ref(false)
-const excelBPSFallbackModels = ref<string[]>([])
-const excelBPSRecovery = ref<Record<string, unknown> | null>(null)
-const excelBPSRecoveryActive = computed(() => excelBPSRecovery.value?.active === true)
-const excelBPSRecoveryStatus = computed(() => String(excelBPSRecovery.value?.trigger_status ?? ''))
-const excelBPSRecoveryNextProbe = computed(() => {
-  const raw = excelBPSRecovery.value?.next_probe_at
-  if (typeof raw !== 'string' || !raw || Number.isNaN(Date.parse(raw))) return ''
-  return new Date(raw).toLocaleString()
-})
-const excelBPSAutoDisableOn403 = ref(true)
+const excelBPSAutoDisableOn403 = ref(false)
 const excelBPSAutoRecoverOn403 = ref(false)
 const excelBPSRecoveryIntervalMinutes = ref<number | string>(DEFAULT_BPS_RECOVERY_INTERVAL_MINUTES)
 const excelBPS403RecoveryPending = computed(() => props.account?.extra?.openai_excel_bps !== true && typeof props.account?.extra?.openai_excel_bps_403_disabled_at === 'string')
@@ -4432,10 +4401,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   excelBPSMihomo.value = false
   excelBPSProxySource.value = 'mihomo'
   excelBPSCacheCreationAsInput.value = false
-  excelBPSShadowRecovery.value = false
-  excelBPSFallbackModels.value = []
-  excelBPSRecovery.value = null
-  excelBPSAutoDisableOn403.value = true
+  excelBPSAutoDisableOn403.value = false
   excelBPSAutoRecoverOn403.value = false
   excelBPSRecoveryIntervalMinutes.value = DEFAULT_BPS_RECOVERY_INTERVAL_MINUTES
   excelBPSOmitUnsupportedTools.value = false
@@ -4472,12 +4438,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     excelBPSMihomo.value = newAccount.type === 'oauth' && extra?.openai_excel_bps_mihomo === true
     excelBPSProxySource.value = extra?.openai_excel_bps_proxy_source === 'ip_pool' ? 'ip_pool' : 'mihomo'
     excelBPSCacheCreationAsInput.value = (excelBPSEnabled.value || (newAccount.type === 'apikey' && !newAccount.parent_account_id)) && extra?.openai_excel_bps_cache_creation_as_input === true
-    excelBPSShadowRecovery.value = excelBPSEnabled.value && extra?.openai_excel_bps_shadow_recovery === true
-    excelBPSFallbackModels.value = Array.isArray(extra?.openai_excel_bps_fallback_models)
-      ? extra.openai_excel_bps_fallback_models.filter((model): model is string => typeof model === 'string') : []
-    excelBPSRecovery.value = newAccount.type === 'oauth' && extra?.openai_excel_bps_recovery && typeof extra.openai_excel_bps_recovery === 'object'
-      ? extra.openai_excel_bps_recovery as Record<string, unknown> : null
-    excelBPSAutoDisableOn403.value = newAccount.type === 'oauth' && extra?.openai_excel_bps_auto_disable_on_403 !== false
+    excelBPSAutoDisableOn403.value = newAccount.type === 'oauth' && extra?.openai_excel_bps_auto_disable_on_403 === true
     excelBPSAutoRecoverOn403.value = newAccount.type === 'oauth' && extra?.openai_excel_bps_auto_recover_on_403 === true
     excelBPSRecoveryIntervalMinutes.value = bpsRecoveryIntervalOrDefault(extra?.openai_excel_bps_403_recovery_interval_minutes)
     excelBPSOmitUnsupportedTools.value = excelBPSEnabled.value && extra?.openai_excel_bps_omit_unsupported_tools === true
@@ -5446,11 +5407,11 @@ const submitUpdateAccount = async (accountID: number, updatePayload: Record<stri
 const handleSubmit = async () => {
   if (!props.account) return
   const accountID = props.account.id
-  if (props.account.platform === 'openai' && props.account.type === 'oauth' && !isSparkShadow.value && (excelBPSEnabled.value || excelBPS403RecoveryPending.value) && !excelBPSShadowRecovery.value && excelBPSAutoDisableOn403.value && excelBPSAutoRecoverOn403.value && !isValidBPSRecoveryInterval(excelBPSRecoveryIntervalMinutes.value)) {
+  if (props.account.platform === 'openai' && props.account.type === 'oauth' && !isSparkShadow.value && (excelBPSEnabled.value || excelBPS403RecoveryPending.value) && excelBPSAutoDisableOn403.value && excelBPSAutoRecoverOn403.value && !isValidBPSRecoveryInterval(excelBPSRecoveryIntervalMinutes.value)) {
     appStore.showError(t('admin.accounts.openai.excelBPS403RecoveryIntervalInvalid'))
     return
   }
-  if (props.account.platform === 'openai' && props.account.type === 'oauth' && !isSparkShadow.value && excelBPSEnabled.value && excelBPSAutoMoveOn403.value && !excelBPSShadowRecovery.value) {
+  if (props.account.platform === 'openai' && props.account.type === 'oauth' && !isSparkShadow.value && excelBPSEnabled.value && excelBPSAutoMoveOn403.value) {
     const target = Number(excelBPS403TargetGroupID.value)
     if (excelBPS403TargetGroupID.value === '' || !Number.isSafeInteger(target) || target < 0 ||
       !excelBPS403GroupOptions.value.some(option => option.value === target)) {
@@ -5461,11 +5422,6 @@ const handleSubmit = async () => {
   const autoBPSError = autoBPSSupported.value ? autoBPS.validate() : ''
   if (autoBPSError) {
     appStore.showError(t(autoBPSError))
-    return
-  }
-
-  if (props.account.platform === 'openai' && props.account.type === 'oauth' && !isSparkShadow.value && excelBPSEnabled.value && (excelBPSShadowRecovery.value || excelBPSRecoveryActive.value) && !excelBPSFallbackModels.value.some(model => model.trim())) {
-    appStore.showError(t('admin.accounts.openai.excelBPSFallbackModelsRequired'))
     return
   }
 
@@ -5999,7 +5955,6 @@ const handleSubmit = async () => {
     if (props.account.platform === 'openai' && (props.account.type === 'oauth' || props.account.type === 'setup-token' || props.account.type === 'apikey')) {
       const currentExtra = (props.account.extra as Record<string, unknown>) || {}
       const newExtra: Record<string, unknown> = { ...currentExtra }
-      delete newExtra.openai_excel_bps_recovery
       if (props.account.type === 'oauth') {
         applyAccountRPMSettings(newExtra, {
           enabled: rpmLimitEnabled.value,
@@ -6049,49 +6004,33 @@ const handleSubmit = async () => {
       } else {
         delete newExtra.openai_excel_bps_ignore_encrypted_content
       }
-      if (newExtra.openai_excel_bps === true && excelBPSShadowRecovery.value) {
-        newExtra.openai_excel_bps_shadow_recovery = true
-      } else {
-        delete newExtra.openai_excel_bps_shadow_recovery
-      }
-      if (newExtra.openai_excel_bps === true && (excelBPSShadowRecovery.value || excelBPSRecoveryActive.value || Array.isArray(currentExtra.openai_excel_bps_fallback_models))) {
-        newExtra.openai_excel_bps_fallback_models = [...new Set(excelBPSFallbackModels.value.map(model => model.trim()).filter(Boolean))]
-      } else {
-        delete newExtra.openai_excel_bps_fallback_models
-      }
       // Preserve hidden routing options when editing a 403-disabled account.
       const preserveDisabledBPS = props.account.type === 'oauth' && !isSparkShadow.value &&
         !excelBPSEnabled.value && excelBPS403RecoveryPending.value
       if (preserveDisabledBPS) {
         for (const key of ['openai_excel_bps_models', 'openai_excel_bps_mihomo', 'openai_excel_bps_proxy_source',
           'openai_excel_bps_cache_creation_as_input', 'openai_excel_bps_omit_unsupported_tools',
-          'openai_excel_bps_ignore_images', 'openai_excel_bps_ignore_encrypted_content',
-          'openai_excel_bps_shadow_recovery', 'openai_excel_bps_fallback_models']) {
+          'openai_excel_bps_ignore_images', 'openai_excel_bps_ignore_encrypted_content']) {
           if (Object.prototype.hasOwnProperty.call(currentExtra, key)) newExtra[key] = currentExtra[key]
           else delete newExtra[key]
         }
       }
-      // Shadow recovery uses its own schedule; preserve the ordinary 403 preferences.
-      if (!(newExtra.openai_excel_bps === true && excelBPSShadowRecovery.value)) {
-        if (newExtra.openai_excel_bps === true || preserveDisabledBPS) {
-          newExtra.openai_excel_bps_auto_disable_on_403 = excelBPSAutoDisableOn403.value
-          newExtra.openai_excel_bps_403_recovery_interval_minutes = bpsRecoveryIntervalOrDefault(excelBPSRecoveryIntervalMinutes.value)
-        } else {
-          delete newExtra.openai_excel_bps_auto_disable_on_403
-        }
-        if ((newExtra.openai_excel_bps === true || preserveDisabledBPS) && excelBPSAutoDisableOn403.value && excelBPSAutoRecoverOn403.value) {
-          newExtra.openai_excel_bps_auto_recover_on_403 = true
-        } else {
-          delete newExtra.openai_excel_bps_auto_recover_on_403
-        }
+      if ((newExtra.openai_excel_bps === true || preserveDisabledBPS) && excelBPSAutoDisableOn403.value) {
+        newExtra.openai_excel_bps_auto_disable_on_403 = true
+      } else {
+        delete newExtra.openai_excel_bps_auto_disable_on_403
+      }
+      if (newExtra.openai_excel_bps === true || preserveDisabledBPS) {
+        newExtra.openai_excel_bps_403_recovery_interval_minutes = bpsRecoveryIntervalOrDefault(excelBPSRecoveryIntervalMinutes.value)
+      }
+      if ((newExtra.openai_excel_bps === true || preserveDisabledBPS) && excelBPSAutoDisableOn403.value && excelBPSAutoRecoverOn403.value) {
+        newExtra.openai_excel_bps_auto_recover_on_403 = true
+      } else {
+        delete newExtra.openai_excel_bps_auto_recover_on_403
       }
       if ((newExtra.openai_excel_bps === true || preserveDisabledBPS) && excelBPSAutoMoveOn403.value) {
-        const target = Number(excelBPS403TargetGroupID.value)
-        if (excelBPS403TargetGroupID.value !== '' && excelBPS403GroupOptions.value.some(option => option.value === target)) {
-          newExtra.openai_excel_bps_auto_move_on_403 = true
-          newExtra.openai_excel_bps_403_target_group_id = target
-        }
-        // A stale destination is suppressed during shadow recovery; keep the saved preference.
+        newExtra.openai_excel_bps_auto_move_on_403 = true
+        newExtra.openai_excel_bps_403_target_group_id = Number(excelBPS403TargetGroupID.value)
       } else {
         delete newExtra.openai_excel_bps_auto_move_on_403
         delete newExtra.openai_excel_bps_403_target_group_id

@@ -147,8 +147,7 @@ func TestToolRepairBoundsAttemptsAndPreservesFailureUsage(t *testing.T) {
 			} else {
 				require.Equal(t, "response.failed", last["type"])
 				require.Len(t, events, 1)
-				require.Equal(t, "basispoints_protocol_error", repairValue[object](t, response["error"])["code"])
-				require.ErrorContains(t, bridge.ProtocolError(), "after 2 corrections")
+				require.Contains(t, repairValue[object](t, response["error"])["message"], "after 2 corrections")
 				require.Empty(t, response["output"])
 			}
 			usage := repairValue[object](t, response["usage"])

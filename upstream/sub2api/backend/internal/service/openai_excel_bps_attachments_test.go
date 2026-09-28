@@ -198,7 +198,7 @@ func TestExcelBPSNativePreflightRejectsBeforeNetwork(t *testing.T) {
 			require.True(t, ok)
 			part["image_url"] = "data:image/png;base64,PRIVATE"
 		},
-		"invalid tool choice": func(v map[string]any) { v["tool_choice"] = "invalid" },
+		"invalid tool choice": func(v map[string]any) { v["tool_choice"] = "required" },
 		"previous response":   func(v map[string]any) { v["previous_response_id"] = "resp_unsupported" },
 		"ambiguous reference": func(v map[string]any) {
 			parts := nativeGatewayParts(t, v)
@@ -336,26 +336,5 @@ func TestExcelBPSNativeToolScreenshotsStayInline(t *testing.T) {
 				})
 			}
 		}
-	}
-}
-
-func TestExcelBPSAttachmentRecoveryDegradation(t *testing.T) {
-	for _, status := range []int{403, 500, 503, 429} {
-		t.Run(fmt.Sprint(status), func(t *testing.T) {
-			body, _ := nativeGatewayBody(t)
-			calls := 0
-			svc := openAIClientToolsTestService(&httpUpstreamRecorder{resp: &http.Response{StatusCode: status, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":"basispoints_model_access_changed"}}`))}})
-			enableNativeAttachments(svc)
-			svc.accountRepo = &excelBPSAutoDisableRepo{disable: func(context.Context, *Account) (bool, error) { calls++; return true, nil }}
-			c, _ := gin.CreateTestContext(httptest.NewRecorder())
-			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
-			_, err := svc.Forward(context.Background(), c, excelAccount(), body)
-			require.Error(t, err)
-			if status == 429 {
-				require.Zero(t, calls)
-			} else {
-				require.Equal(t, 1, calls)
-			}
-		})
 	}
 }

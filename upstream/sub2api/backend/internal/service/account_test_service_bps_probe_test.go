@@ -236,26 +236,3 @@ func TestExcelBPSProbeAdmissionBoundsConcurrentAccounts(t *testing.T) {
 	_, ok = svc.beginExcelBPSProbe(0)
 	require.False(t, ok)
 }
-
-func TestExcelBPSRecoveryNativeAcceptanceAndIsolation(t *testing.T) {
-	for _, mode := range []string{"", "wrong_basic", "wrong_final", "wrong_argument", "failed_terminal"} {
-		t.Run(mode, func(t *testing.T) {
-			upstream := &bpsProbeUpstream{mode: mode}
-			svc := bpsProbeTestService(upstream)
-			a := excelAccount()
-			a.Extra[ExcelBPSShadowRecoveryKey] = true
-			a.Extra["openai_excel_bps_models"] = []string{"gpt-6-astra"}
-			a.Extra[ExcelBPSRecoveryKey] = map[string]any{"active": true}
-			err := svc.RunExcelBPSRecoveryProbe(context.Background(), a)
-			if mode == "" {
-				require.NoError(t, err)
-				require.Len(t, upstream.bodies, 3)
-			} else {
-				require.Error(t, err)
-			}
-			require.True(t, a.IsExcelBPSDegraded())
-			require.True(t, a.IsExcelBPSConfigured())
-			require.Nil(t, a.Credentials["model_mapping"])
-		})
-	}
-}

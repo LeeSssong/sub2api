@@ -69,8 +69,6 @@ WHERE id = $1 AND deleted_at IS NULL AND platform IN ('openai', 'composite') FOR
 WHERE id = $1 AND deleted_at IS NULL AND parent_account_id IS NULL
   AND platform = 'openai' AND type = 'oauth' AND credentials = $2::jsonb
   AND extra -> 'openai_excel_bps' = 'true'::jsonb
-  AND COALESCE(extra -> 'openai_excel_bps_shadow_recovery', 'false'::jsonb) <> 'true'::jsonb
-  AND COALESCE(extra -> 'openai_excel_bps_recovery' -> 'active', 'false'::jsonb) <> 'true'::jsonb
   AND extra -> 'openai_excel_bps_auto_move_on_403' = 'true'::jsonb
   AND extra -> 'openai_excel_bps_403_target_group_id' = $3::jsonb
 FOR UPDATE`, account.ID, string(credentials), strconv.FormatInt(target, 10))

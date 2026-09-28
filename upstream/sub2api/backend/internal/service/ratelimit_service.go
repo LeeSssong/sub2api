@@ -445,13 +445,16 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 		if resolved, rerr := resolveCredentialAccount(ctx, s.accountRepo, account); rerr == nil && resolved != nil {
 			authAccount = resolved
 		}
-		if bpsAuthPolicy && authAccount.Platform == PlatformOpenAI {
-			code := extractUpstreamErrorCode(responseBody)
-			if code == "token_invalidated" || code == "token_revoked" {
-				s.handleAuthError(ctx, authAccount, "Token revoked (401): "+code+"; reauthorization required")
-				shouldDisable = true
-				break
+		// OpenAI: token_invalidated / token_revoked 表示 token 被永久作废（非过期），直接标记 error
+		openai401Code := extractUpstreamErrorCode(responseBody)
+		if authAccount.Platform == PlatformOpenAI && (openai401Code == "token_invalidated" || openai401Code == "token_revoked") {
+			msg := "Token revoked (401): account authentication permanently revoked"
+			if upstreamMsg != "" {
+				msg = "Token revoked (401): " + upstreamMsg
 			}
+			s.handleAuthError(ctx, authAccount, msg)
+			shouldDisable = true
+			break
 		}
 		// OpenAI: {"detail":"Unauthorized"} 表示 token 完全无效（非标准 OpenAI 错误格式），直接标记 error
 		if authAccount.Platform == PlatformOpenAI && gjson.GetBytes(responseBody, "detail").String() == "Unauthorized" {
@@ -1248,6 +1251,13 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 			}
 		}
 	}
+	s.handle429Cooldown(ctx, account, headers, responseBody)
+}
+
+// handle429Cooldown persists the shared quota snapshot and blocks scheduling.
+// Callers that do not retry the rejected request (Excel BPS) enter here directly
+// instead of deferring the cooldown for the Codex same-account retry window.
+func (s *RateLimitService) handle429Cooldown(ctx context.Context, account *Account, headers http.Header, responseBody []byte) {
 	// Spark 影子：限流/熔断状态 100% 由 QueryUsage(/wham/usage body 的 codex_bengalfox)驱动。
 	// /responses 的 429 携带的 x-codex-*/usage_limit_reached 是 global codex 道(plan/spec §8),
 	// 套到影子会把 spark 误耦合到 global 窗口——即便 spark 仍有配额也会被冷却到 global reset,

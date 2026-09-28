@@ -41,9 +41,6 @@ func supplementUnmappedOpenAIModels(accounts []Account, groupID *int64, models [
 	seen := make(map[string]struct{}, len(catalog))
 	for i := range accounts {
 		account := &accounts[i]
-		if _, fallback := account.excelBPSFallbackMapping(); fallback {
-			continue
-		}
 		if account.Platform != PlatformOpenAI || (!account.IsOpenAIPassthroughEnabled() && len(account.GetModelMapping()) != 0) {
 			continue
 		}
