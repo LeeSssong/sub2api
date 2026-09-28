@@ -146,6 +146,7 @@ export default {
     group: '线路',
     currentConcurrency: '当前并发',
     noGroup: '未绑定线路',
+    searchLine: '搜索线路...',
     searchGroup: '搜索分组...',
     noGroupFound: '未找到匹配的分组',
     created: '创建时间',

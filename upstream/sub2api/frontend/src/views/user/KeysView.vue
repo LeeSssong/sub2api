@@ -1099,7 +1099,7 @@
       <div
         v-if="groupSelectorKeyId !== null && dropdownPosition"
         ref="dropdownRef"
-        class="animate-in fade-in slide-in-from-top-2 fixed z-[100000020] w-max max-w-[calc(100vw-16px)] overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5 duration-200 sm:min-w-[380px] dark:bg-dark-800 dark:ring-white/10"
+        class="keys-line-popup animate-in fade-in slide-in-from-top-2 fixed z-[100000020] w-max max-w-[calc(100vw-16px)] overflow-hidden duration-200 sm:min-w-[380px]"
         style="pointer-events: auto !important;"
         :style="{
           top: dropdownPosition.top !== undefined ? dropdownPosition.top + 'px' : undefined,
@@ -1108,55 +1108,52 @@
         }"
       >
         <!-- Search box -->
-        <div class="border-b border-gray-100 p-2 dark:border-dark-700">
+        <div class="keys-line-popup-search">
           <div class="relative">
-            <svg class="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               v-model="groupSearchQuery"
               type="text"
-              class="w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-primary-300 focus:ring-1 focus:ring-primary-300 dark:border-dark-600 dark:bg-dark-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-primary-600 dark:focus:ring-primary-600"
-              :placeholder="t('keys.searchGroup')"
+              class="keys-line-popup-input w-full py-1.5 pl-9 pr-3 text-sm outline-none"
+              :placeholder="t('keys.searchLine')"
+              :aria-label="t('keys.searchLine')"
+              @keydown.esc="groupSelectorKeyId = null"
               @click.stop
             />
           </div>
         </div>
         <!-- Group list -->
-        <div class="max-h-80 overflow-y-auto p-1.5">
+        <div class="keys-line-popup-list max-h-80 overflow-y-auto p-1.5">
           <button
             v-for="option in filteredGroupOptions"
             :key="option.value ?? 'null'"
             @click="changeGroup(selectedKeyForGroup!, option.value)"
             :class="[
-              'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
-              'border-b border-gray-100 last:border-0 dark:border-dark-700',
+              'keys-line-popup-option flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
               selectedKeyForGroup?.group_id === option.value ||
               (!selectedKeyForGroup?.group_id && option.value === null)
-                ? 'bg-primary-50 dark:bg-primary-900/20'
-                : 'hover:bg-gray-100 dark:hover:bg-dark-700'
+                ? 'keys-line-popup-option-selected'
+                : 'hover:bg-transparent'
             ]"
             :title="option.description || undefined"
           >
-            <GroupOptionItem
-              :name="option.label"
-              :platform="option.platform"
-              :subscription-type="option.subscriptionType"
-              :rate-multiplier="option.rate"
-              :user-rate-multiplier="option.userRate"
-              :peak-rate-enabled="option.peakRateEnabled"
-              :peak-start="option.peakStart"
-              :peak-end="option.peakEnd"
-              :peak-rate-multiplier="option.peakRateMultiplier"
-              :description="option.description"
-              :selected="
-                selectedKeyForGroup?.group_id === option.value ||
-                (!selectedKeyForGroup?.group_id && option.value === null)
-              "
-            />
+            <div class="keys-line-popup-content">
+              <div class="keys-line-popup-heading">
+                <img :src="providerIcon(option.platform)" alt="" />
+                <strong>{{ option.label }}</strong>
+                <span class="keys-line-popup-rate">{{ option.rateLabel }}</span>
+                <span class="keys-line-popup-status">
+                  <i :data-status="option.availability" aria-hidden="true" />
+                  {{ option.availability === 'available' ? '可用' : option.availability === 'unavailable' ? '不可用' : '状态未知' }}<template v-if="selectedKeyForGroup?.group_id === option.value"> · 当前线路</template>
+                </span>
+              </div>
+              <div class="keys-line-popup-metrics">近 1 小时稳定性 <span :data-tone="option.successTone">{{ option.successLabel }}</span> · 首字 {{ option.ttftLabel }}</div>
+            </div>
           </button>
           <!-- Empty state when search has no results -->
-          <div v-if="filteredGroupOptions.length === 0" class="py-4 text-center text-sm text-gray-400 dark:text-gray-500">
+          <div v-if="filteredGroupOptions.length === 0" class="keys-line-popup-empty py-4 text-center text-sm">
             {{ t('keys.noGroupFound') }}
           </div>
         </div>
@@ -1191,7 +1188,8 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import UseKeyModal from '@/components/keys/UseKeyModal.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
-	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
+	import { buildLineOptions } from '@/components/keys/lineOptions'
+import { providerIcon } from '@/features/ai-tools/model'
 import LineSelect from '@/components/keys/LineSelect.vue'
 import CreateLineKeyDialog from '@/features/ai-tools/CreateLineKeyDialog.vue'
 import { linkedCounts } from '@/features/ai-tools/model'
@@ -1468,18 +1466,11 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
 
 // Convert groups to Select options format with rate multiplier and subscription type
 const groupOptions = computed(() =>
-  groups.value.map((group) => ({
-    value: group.id,
-    label: group.name,
-    description: group.description,
-    rate: group.rate_multiplier,
-    userRate: userGroupRates.value[group.id] ?? null,
-    peakRateEnabled: group.peak_rate_enabled,
-    peakStart: group.peak_start,
-    peakEnd: group.peak_end,
-    peakRateMultiplier: group.peak_rate_multiplier,
-    subscriptionType: group.subscription_type,
-    platform: group.platform
+  buildLineOptions(groups.value, userGroupRates.value, lineMetrics.value, lineCounts.value).map(option => ({
+    ...option,
+    availability: option.group.status !== 'active' ? 'unavailable'
+      : lineMetrics.value.get(option.value)?.current_operational === true ? 'available'
+      : lineMetrics.value.get(option.value)?.current_operational === false ? 'unavailable' : 'unknown'
   }))
 )
 
@@ -1693,7 +1684,7 @@ const openGroupSelector = (key: ApiKey) => {
     if (buttonEl) {
       const rect = buttonEl.getBoundingClientRect()
       const dropdownEstHeight = 400 // estimated max dropdown height
-      const dropdownEstWidth = Math.min(380, window.innerWidth - 16)
+      const dropdownEstWidth = Math.min(420, window.innerWidth - 16)
       const spaceBelow = window.innerHeight - rect.bottom
       const spaceAbove = rect.top
       // 夹取 left，避免窄屏下浮层超出视口右缘
@@ -1715,6 +1706,10 @@ const openGroupSelector = (key: ApiKey) => {
     }
     groupSelectorKeyId.value = key.id
     groupSearchQuery.value = ''
+    lineMetrics.value = new Map()
+    void getHybridPerformanceSnapshot('1h').then(snapshot => {
+      lineMetrics.value = new Map(snapshot.groups.map(group => [group.id, group]))
+    }).catch(() => { lineMetrics.value = new Map() })
   }
 }
 
@@ -2067,3 +2062,30 @@ onUnmounted(() => {
   if (resetTimer) clearInterval(resetTimer)
 })
 </script>
+
+<style scoped>
+.keys-line-popup{width:420px;max-width:calc(100vw - 16px);border:1px solid #1b4055;border-radius:12px;background:#0d2235;color:#f1f9f9;box-shadow:0 16px 40px #0005;}
+.keys-line-popup-search{padding:6px;color:#a1b8c2;}
+.keys-line-popup-input{height:42px;border:1px solid #1b4055;border-radius:10px;background:#091a2b;color:#f1f9f9;caret-color:#61c9d9;}
+.keys-line-popup-input::placeholder{color:#a1b8c2;}
+.keys-line-popup-input:focus{border-color:#61c9d9;outline:2px solid #61c9d9;outline-offset:2px;}
+.keys-line-popup-list{scrollbar-width:thin;scrollbar-color:#28495b #0d2235;}
+.keys-line-popup-option{border-bottom:1px solid #1b4055;text-align:left;color:#f1f9f9;}
+.keys-line-popup-option:hover,.keys-line-popup-option-selected{background:#163343;}
+.keys-line-popup-option:focus-visible{outline:2px solid #61c9d9;outline-offset:-2px;}
+.keys-line-popup-content{width:100%;min-width:0;}
+.keys-line-popup-heading{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.keys-line-popup-heading img{width:20px;height:20px;object-fit:contain;}
+.keys-line-popup-heading strong{font-weight:650;overflow-wrap:anywhere;}
+.keys-line-popup-rate{padding:2px 7px;border-radius:7px;background:#1b3d4d;color:#61c9d9;font-size:12px;font-weight:650;white-space:nowrap;}
+.keys-line-popup-status{display:flex;align-items:center;gap:6px;margin-left:auto;color:#a1b8c2;font-size:12px;}
+.keys-line-popup-status i{width:6px;height:6px;border-radius:50%;background:#a1b8c2;}
+.keys-line-popup-status i[data-status="available"]{background:#8cdfc4;}
+.keys-line-popup-status i[data-status="unavailable"]{background:#d47e7e;}
+.keys-line-popup-metrics{margin-top:7px;color:#a1b8c2;font-size:12px;}
+.keys-line-popup-metrics span[data-tone="green"]{color:#8cdfc4;}
+.keys-line-popup-metrics span[data-tone="amber"]{color:#d9b86d;}
+.keys-line-popup-metrics span[data-tone="red"]{color:#d47e7e;}
+.keys-line-popup-empty{color:#a1b8c2;}
+@media(max-width:480px){.keys-line-popup-status{margin-left:28px;}.keys-line-popup-metrics{line-height:1.6;}}
+</style>

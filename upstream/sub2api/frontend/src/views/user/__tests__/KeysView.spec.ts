@@ -187,6 +187,7 @@ const DataTableStub = {
           <slot name="cell-id" :value="row.id" :row="row" />
         </div>
         <slot name="cell-name" :value="row.name" :row="row" />
+        <slot name="cell-group" :row="row" />
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
         </div>
@@ -251,7 +252,7 @@ const mountView = async () => {
         EndpointPopover: true,
         GroupBadge: true,
         GroupOptionItem: true,
-        Teleport: true,
+        Teleport: { template: '<div><slot /></div>' },
       },
     },
   })
@@ -304,6 +305,30 @@ describe('user KeysView column settings', () => {
     getUserGroupRates.mockResolvedValue({})
     getHybridPerformanceSnapshot.mockResolvedValue({ groups: [] })
     isCurrentStep.mockReturnValue(false)
+  })
+
+  it('opens the inline line popup with real metrics and unknown availability when monitoring is missing', async () => {
+    getAvailableGroups.mockResolvedValue([
+      { id: 12, name: 'GPT Plus', status: 'active', platform: 'openai', rate_multiplier: 1.2 },
+      { id: 13, name: 'Other line', status: 'active', platform: 'openai', rate_multiplier: 1 }
+    ])
+    getUserGroupRates.mockResolvedValue({ 12: 0.8 })
+    getHybridPerformanceSnapshot.mockResolvedValue({ groups: [{ id: 12, current_operational: false, success_rate: 75, ttft_p50_ms: 2160, request_count: 10 }] })
+    const wrapper = await mountView()
+    await wrapper.get('button[title="keys.clickToChangeGroup"]').trigger('click')
+    await flushPromises()
+    const popup = wrapper.get('.keys-line-popup')
+    expect(popup.text()).toContain('0.8x')
+    expect(popup.text()).toContain('75%')
+    expect(popup.text()).toContain('不可用')
+    expect(popup.text()).toContain('状态未知')
+    expect(popup.findComponent({ name: 'GroupOptionItem' }).exists()).toBe(false)
+    await popup.get('input').setValue('Other')
+    await flushPromises()
+    await nextTick()
+    expect(wrapper.findAll('.keys-line-popup-option')).toHaveLength(1)
+    await wrapper.get('.keys-line-popup input').trigger('keydown.esc')
+    expect(wrapper.find('.keys-line-popup').exists()).toBe(false)
   })
 
   it('uses the shared line selector in the full key management form', async () => {

@@ -146,6 +146,7 @@ export default {
     group: 'Line',
     currentConcurrency: 'Current Concurrency',
     noGroup: 'No line bound',
+    searchLine: 'Search lines...',
     searchGroup: 'Search groups...',
     noGroupFound: 'No groups found',
     created: 'Created',
