@@ -83,7 +83,13 @@ func normalizeBulkExcelBPSExtra(extra map[string]any) (bool, error) {
 	if _, ok := extra[ExcelBPSFallbackModelsKey]; ok {
 		changed = true
 	}
-	for _, key := range []string{ExcelBPSShadowRecoveryKey, "openai_excel_bps", ExcelBPSIgnoreImagesKey, ExcelBPSIgnoreEncryptedContentKey, "openai_excel_bps_cache_creation_as_input", "openai_excel_bps_auto_disable_on_403", ExcelBPSAutoMoveOn403Key, "openai_excel_bps_mihomo"} {
+	if _, exists := extra[ExcelBPS403RecoveryIntervalMinutesKey]; exists {
+		changed = true
+		if err := validateExcelBPS403RecoveryExtra(extra); err != nil {
+			return true, err
+		}
+	}
+	for _, key := range []string{ExcelBPSShadowRecoveryKey, "openai_excel_bps", ExcelBPSIgnoreImagesKey, ExcelBPSIgnoreEncryptedContentKey, "openai_excel_bps_cache_creation_as_input", "openai_excel_bps_auto_disable_on_403", ExcelBPSAutoRecoverOn403Key, ExcelBPSAutoMoveOn403Key, "openai_excel_bps_mihomo"} {
 		if raw, exists := extra[key]; exists {
 			changed = true
 			if _, ok := raw.(bool); !ok {
@@ -133,6 +139,9 @@ func normalizeBulkExcelBPSExtra(extra map[string]any) (bool, error) {
 			extra["openai_excel_bps_mihomo"] = false
 		}
 		extra["openai_excel_bps_cache_creation_as_input"] = false
+		if _, exists := extra[ExcelBPSAutoRecoverOn403Key]; exists {
+			extra[ExcelBPSAutoRecoverOn403Key] = false
+		}
 		if _, exists := extra[ExcelBPSIgnoreImagesKey]; exists {
 			extra[ExcelBPSIgnoreImagesKey] = false
 		}

@@ -738,6 +738,12 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			}
 
 			requesttiming.Output(ctx, openAIStreamDataStartsSemanticTTFT(data, eventType), startsVisibleOutput, timingTerminal(eventType))
+			if normalized, normalizeErr := normalizeAPIKeyCacheInputPayload(account, []byte(line)); normalizeErr != nil {
+				streamEarlyErr = normalizeErr
+				return
+			} else {
+				line = string(normalized)
+			}
 			// 写入客户端（客户端断开后继续 drain 上游）
 			if !clientDisconnected && !failureDelivered && !suppressCurrentEvent {
 				shouldFlush := queueDrained && (clientOutputStarted || startsClientOutput)
@@ -1712,6 +1718,11 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 		}
 	}
 
+	var normalizeErr error
+	body, normalizeErr = normalizeAPIKeyCacheInputPayload(account, body)
+	if normalizeErr != nil {
+		return nil, fmt.Errorf("normalize cache input usage: %w", normalizeErr)
+	}
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
 		c.Data(resp.StatusCode, contentType, body)
 	}
@@ -1835,6 +1846,11 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 		if contentType == "" {
 			contentType = "text/event-stream"
 		}
+	}
+	var normalizeErr error
+	body, normalizeErr = normalizeAPIKeyCacheInputPayload(account, body)
+	if normalizeErr != nil {
+		return nil, fmt.Errorf("normalize cache input usage: %w", normalizeErr)
 	}
 	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
 		c.Data(resp.StatusCode, contentType, body)

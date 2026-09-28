@@ -31,10 +31,10 @@ func TestPelicanShowcaseStatisticsWindowAndVisibleGroups(t *testing.T) {
 			Groups: map[int64]PelicanShowcaseCounts{3: {SuccessCount: 1, TotalCount: 2}, 5: {SuccessCount: 2, TotalCount: 2}},
 		},
 	}
-	svc := &PelicanShowcaseService{repo: repo, settings: enabledShowcase(3, 5, 7, 9)}
+	svc := &PelicanShowcaseService{repo: repo, settings: enabledShowcase()}
 	view, err := svc.View(context.Background(), now)
 	require.NoError(t, err)
-	require.Equal(t, []int64{3, 5, 7}, repo.ids, "only configured, existing active groups reach statistics")
+	require.Equal(t, []int64{3, 5, 7}, repo.ids, "only plan-backed existing active groups reach statistics")
 	require.Equal(t, now.Add(-24*time.Hour), repo.from)
 	require.Equal(t, now, repo.to)
 	require.NotNil(t, view.Stats)
@@ -71,7 +71,7 @@ func TestPelicanShowcaseStatisticsUnavailableKeepsArtwork(t *testing.T) {
 			repo := &statisticsShowcaseRepo{showcaseRepoStub: showcaseRepoStub{
 				groups: []*PelicanShowcaseGroup{{ID: 3}}, items: []*PelicanShowcaseItem{{ID: 10, GroupID: 3}},
 			}, statistics: tc.data, err: tc.err}
-			view, err := (&PelicanShowcaseService{repo: repo, settings: enabledShowcase(3)}).View(context.Background(), now)
+			view, err := (&PelicanShowcaseService{repo: repo, settings: enabledShowcase()}).View(context.Background(), now)
 			require.NoError(t, err)
 			require.Nil(t, view.Stats)
 			require.Nil(t, view.StatsWindow)

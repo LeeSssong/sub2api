@@ -64,6 +64,9 @@ func (r *accountRepository) DegradeExcelBPS(ctx context.Context, a *service.Acco
 	if a == nil || !a.IsExcelBPSEnabled() || !service.IsExcelBPSDegradationStatus(status) {
 		return false, nil
 	}
+	if status == 403 && a.Extra[service.ExcelBPSShadowRecoveryKey] != true && a.Extra["openai_excel_bps_auto_disable_on_403"] == false {
+		return false, nil
+	}
 	credentials, err := json.Marshal(a.Credentials)
 	if err != nil {
 		return false, err

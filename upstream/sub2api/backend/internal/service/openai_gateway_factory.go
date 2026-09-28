@@ -32,6 +32,7 @@ type OpenAIGatewayDependencies struct {
 	BalanceNotify *BalanceNotifyService
 	Settings      *SettingService
 	Quotas        UserPlatformQuotaRepository
+	RPMCache      RPMCache
 	Harvest       *CodexHarvestService
 	TurnState     OpenAITurnStateStore
 }
@@ -41,6 +42,7 @@ func ProvideOpenAIGatewayService(d OpenAIGatewayDependencies) *OpenAIGatewayServ
 		d.GroupRates, d.Cache, d.Config, d.Scheduler, d.Concurrency, d.Billing, d.RateLimit,
 		d.BillingCache, d.Upstream, d.Deferred, d.OpenAITokens, d.GrokTokens, d.Pricing,
 		d.Channels, d.BalanceNotify, d.Settings, d.Quotas,
+		WithOpenAIRPMCache(d.RPMCache),
 		func(s *OpenAIGatewayService) { s.codexHarvest = d.Harvest; s.coordinationRedis = d.Redis })
 	svc.SetOpenAITurnStateStore(d.TurnState)
 	svc.SetOpenAITurnStateHarvesterProxyRepository(d.Proxies)

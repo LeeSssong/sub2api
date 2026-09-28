@@ -178,8 +178,16 @@ func (s *PelicanShowcaseService) Report(ctx context.Context, groupID int64, mode
 	if !runtime.Enabled || groupID <= 0 {
 		return nil, ErrPelicanReportNotFound
 	}
+	groups, err := s.repo.ListGroups(ctx)
+	if err != nil {
+		return nil, err
+	}
+	groupIDs := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		groupIDs = append(groupIDs, group.ID)
+	}
 	allowed := false
-	for _, id := range runtime.Config.GroupIDs {
+	for _, id := range groupIDs {
 		if id == groupID {
 			allowed = true
 			break
@@ -193,7 +201,7 @@ func (s *PelicanShowcaseService) Report(ctx context.Context, groupID int64, mode
 		return nil, fmt.Errorf("report repository unavailable")
 	}
 	now = now.UTC()
-	data, err := repo.ReadReport(ctx, groupID, model, runtime.Config.GroupIDs, runtime.Config.MaxItems, runtime.Config.retentionCutoff(now), now.Add(-24*time.Hour), now)
+	data, err := repo.ReadReport(ctx, groupID, model, groupIDs, runtime.Config.MaxItems, runtime.Config.retentionCutoff(now), now.Add(-24*time.Hour), now)
 	if err != nil {
 		return nil, err
 	}

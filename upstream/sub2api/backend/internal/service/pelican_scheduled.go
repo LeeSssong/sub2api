@@ -26,6 +26,14 @@ const PelicanDeliveryContract = "所有账号使用相同交付约定：直接�
 
 var pelicanHTMLPattern = regexp.MustCompile(`(?i)<(?:!doctype\s+html|html|svg)[\s>]`)
 
+// Failures that describe the model's output rather than the account; group tests keep
+// them as the group's answer instead of trying another account.
+const (
+	pelicanErrEmptyOutput  = "Model returned empty output"
+	pelicanErrCaptureLimit = "Response exceeds 4 MiB capture limit"
+	pelicanErrHistoryLimit = "Output exceeds 2 MiB history limit"
+)
+
 func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID int64, model string, cfg *PelicanTestConfig) (*ScheduledTestResult, error) {
 	ctx = context.WithValue(ctx, qualityProbeContextKey{}, true)
 	// 探针题型不下发题目，直接走门票探针。
@@ -52,7 +60,7 @@ func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID
 	output, message := parsePelicanOutput(w.Body.String())
 	if w.overflow {
 		output = ""
-		message = "Response exceeds 4 MiB capture limit"
+		message = pelicanErrCaptureLimit
 	}
 	if err != nil && message == "" {
 		message = err.Error()
@@ -63,7 +71,7 @@ func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID
 	// Bounded history storage; never persist a truncated animation as a success.
 	if len(output) > 2<<20 {
 		output = ""
-		message = "Output exceeds 2 MiB history limit"
+		message = pelicanErrHistoryLimit
 	}
 	status := "success"
 	if message != "" {
@@ -108,6 +116,22 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 		snapshot.TriggerSource = "scheduled"
 	}
 	plan.PelicanConfig = &snapshot
+	// Legacy rules can target API-key accounts, or an account can change type
+	// after a rule is saved. Advance the claimed schedule without running a
+	// probe or recording a misleading inconclusive quality round.
+	if isOpenAICodexStateProbePlan(plan.PelicanConfig) && s.accountTestSvc != nil {
+		account, lookupErr := s.accountTestSvc.accountRepo.GetByID(ctx, plan.AccountID)
+		ignoreBPS := plan.PelicanConfig.Quality != nil && (plan.PelicanConfig.Quality.Action == QualityActionEnableBPS || plan.PelicanConfig.BPSRecoveryPending)
+		if lookupErr != nil || openAICodexStateProbeUnsupportedReason(account, plan.ModelID, ignoreBPS) != "" {
+			logger.LegacyPrintf("service.scheduled_test_runner", "state probe plan=%d account=%d skipped: account unavailable or unsupported", plan.ID, plan.AccountID)
+			finishCtx, stop := context.WithTimeout(context.Background(), 30*time.Second)
+			defer stop()
+			if finishErr := s.planRepo.FinishPelican(finishCtx, plan.ID, until, time.Now()); finishErr != nil {
+				logger.LegacyPrintf("service.scheduled_test_runner", "pelican plan=%d finish failed: %v", plan.ID, finishErr)
+			}
+			return false
+		}
+	}
 	runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	results := make([]*ScheduledTestResult, plan.PelicanConfig.ParallelCount)
@@ -266,15 +290,15 @@ func intelligenceTestOutputError(cfg *PelicanTestConfig, output string) string {
 	if cfg.Quality != nil {
 		// Completed answers are graded by the configured model in the runner.
 		if strings.TrimSpace(output) == "" {
-			return "Model returned empty output"
+			return pelicanErrEmptyOutput
 		}
 		return ""
 	}
-	if isBuiltinCandyPlan(cfg) && strings.TrimSpace(output) != "21" {
-		return "answer_mismatch: expected 21"
-	}
 	if strings.TrimSpace(output) == "" {
-		return "Model returned empty output"
+		return pelicanErrEmptyOutput
+	}
+	if isBuiltinCandyPlan(cfg) && !CandyAnswerCorrect(output) {
+		return "answer_mismatch: expected 21"
 	}
 	if cfg.QuestionKind != "candy" && !isBuiltinCandyPlan(cfg) && !pelicanHTMLPattern.MatchString(output) {
 		return "Model did not return HTML or SVG"

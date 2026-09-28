@@ -426,6 +426,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	if err := checkBeforeWrite(); err != nil {
 		return nil, err
 	}
+	if err := s.acquireOpenAIRPMForSend(ctx, account); err != nil {
+		return nil, err
+	}
 	if err := lease.WriteJSONWithContextTimeout(ctx, payload, s.openAIWSWriteTimeout()); err != nil {
 		lease.MarkBroken()
 		logOpenAIWSModeInfo(
@@ -563,6 +566,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		}
 		if rewritten, changed := rewriteOpenAICyberPolicyClientPayload(message); changed {
 			message = rewritten
+		}
+		if normalized, err := normalizeAPIKeyCacheInputPayload(account, message); err == nil {
+			message = normalized
 		}
 		frame := make([]byte, 0, len(message)+8)
 		frame = append(frame, "data: "...)
@@ -918,6 +924,9 @@ readLoop:
 			responseID = strings.TrimSpace(gjson.GetBytes(finalResponse, "id").String())
 		}
 
+		if normalized, err := normalizeAPIKeyCacheInputPayload(account, finalResponse); err == nil {
+			finalResponse = normalized
+		}
 		c.Data(http.StatusOK, "application/json", finalResponse)
 	} else {
 		flushStreamWriter(true)

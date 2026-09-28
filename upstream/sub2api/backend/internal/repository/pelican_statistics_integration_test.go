@@ -158,7 +158,13 @@ func TestPelicanStatisticsWindowDeduplicationVisibilityAndHistory(t *testing.T) 
 	}
 	first := save("success", from, []int64{ids[0], ids[0], ids[1]})
 	first.ResponseText = "<svg></svg>"
-	require.NoError(t, NewPelicanShowcaseRepository(integrationDB).Publish(ctx, first, ids, 10))
+	for _, groupID := range ids {
+		require.NoError(t, NewPelicanShowcaseRepository(integrationDB).Publish(ctx, service.PelicanShowcaseSnapshot{
+			GroupID: groupID, SourceResultID: first.ID,
+			ModelID: first.PelicanConfig.ModelID, ReasoningEffort: first.PelicanConfig.ReasoningEffort,
+			ResponseText: first.ResponseText, LatencyMs: first.LatencyMs, GeneratedAt: first.StartedAt,
+		}, 10))
+	}
 	var artworkCount int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM pelican_showcase_items WHERE source_result_id = $1", first.ID).Scan(&artworkCount))
 	require.Equal(t, 2, artworkCount)
@@ -183,7 +189,7 @@ func TestPelicanStatisticsWindowDeduplicationVisibilityAndHistory(t *testing.T) 
 	_, err = integrationDB.ExecContext(ctx, "DELETE FROM account_groups WHERE account_id = $1", plan.AccountID)
 	require.NoError(t, err)
 	require.NoError(t, results.PruneOldResults(ctx, plan.ID, 0))
-	require.NoError(t, NewPelicanShowcaseRepository(integrationDB).Prune(ctx, []int64{}, 1, now))
+	require.NoError(t, NewPelicanShowcaseRepository(integrationDB).Prune(ctx, 1, now))
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM pelican_showcase_items WHERE source_result_id = $1", first.ID).Scan(&artworkCount))
 	require.Zero(t, artworkCount)
 	require.NoError(t, NewScheduledTestPlanRepository(integrationDB).Delete(ctx, plan.ID))

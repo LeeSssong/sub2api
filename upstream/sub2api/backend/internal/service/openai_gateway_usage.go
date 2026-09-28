@@ -234,7 +234,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	// OpenAI input_tokens 是总输入，包含缓存读取和缓存写入明细。
 	// 将三类 token 拆成互斥桶，避免缓存写入同时按普通输入和 cache_write 重复计费。
 	cacheCreationTokens := result.Usage.CacheCreationInputTokens
-	if account.IsExcelBPSCacheCreationAsInputEnabled() && result.UpstreamEndpoint == "/basispoints/api/responses" {
+	if account.IsExcelBPSCacheCreationAsInputEnabled() && (account.IsAPIKeyCacheCreationAsInputEligible() || result.UpstreamEndpoint == "/basispoints/api/responses") {
 		// Total input already includes cache creation. Retain those tokens in the
 		// ordinary input bucket without changing the original upstream usage.
 		cacheCreationTokens = 0
@@ -385,9 +385,13 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			longContextBillingGate,
 			pricingAt,
 		)
-		if standardErr == nil && standardCost != nil {
-			// Preserve the Fast list cost for audit/profit reporting, while the
-			// user-facing charge follows the group's free-Fast contract.
+		if standardErr != nil && !isUsagePricingUnavailableError(standardErr) {
+			return standardErr
+		}
+		// Missing pricing already fell back to a zero-cost log above; keep that
+		// usage row instead of dropping it on the Standard re-evaluation.
+		if standardErr == nil && cost != nil && standardCost != nil {
+			// Preserve the Fast list cost for audit/profit reporting.
 			cost.ActualCost = standardCost.ActualCost
 		} else {
 			logger.L().Warn("openai_usage.free_fast_standard_cost_failed",
@@ -569,14 +573,20 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if upstreamTokens != tokens {
 		rawCost, rawErr := s.calculateOpenAIRecordUsageCost(ctx, result, apiKey, billingModels, multiplier, imageMultiplier, videoMultiplier, baseMultiplier, upstreamTokens, serviceTier, longContextBillingGate, pricingAt)
 		if rawErr != nil {
-			return rawErr
+			if !isUsagePricingUnavailableError(rawErr) {
+				return rawErr
+			}
+			// Preserve successful usage even when raw upstream pricing is absent.
+			upstreamTotalCost = 0
+		} else {
+			upstreamTotalCost = rawCost.TotalCost
 		}
-		upstreamTotalCost = rawCost.TotalCost
 	}
 	if apiKey.GroupID != nil {
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
 			account.ID, *apiKey.GroupID, result.UpstreamModel, result.Model,
 			upstreamTokens, upstreamTotalCost, pricingAt, accountRateMultiplier,
+			accountStatsLongContextPricingEnabled(longContextBillingGate),
 		)
 	}
 	if usageCompleteness == UsageCompletenessUnknown {
