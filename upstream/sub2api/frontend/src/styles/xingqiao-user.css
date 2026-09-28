@@ -142,7 +142,7 @@
   .user-keys-page [data-test="keys-actions"],
   .user-keys-page [data-test="keys-actions"] > div { gap: 4px; }
   .user-keys-page [data-test="keys-actions"] button { min-height: 34px; padding: 0 6px !important; font-size: 11px; white-space: nowrap; flex-shrink: 0; }
-  .user-keys-page [data-test="keys-actions"] button svg { display: none; }
+  .user-keys-page [data-test="keys-actions"] button svg:not([data-icon="refresh"]) { display: none; }
   .user-keys-page .keys-work-surface .layout-section-scrollable { overflow: visible; }
   .user-keys-page .keys-work-surface .table-scroll-container { background: transparent; }
   .user-keys-page .keys-desktop-pagination { display: none; }

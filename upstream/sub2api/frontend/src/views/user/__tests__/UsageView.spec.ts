@@ -168,7 +168,7 @@ function mountUsageView() {
         Pagination: true,
         Select: SelectStub,
         DateRangePicker: true,
-        Icon: true,
+        Icon: false,
         UsageStatsCards: StatsStub,
         UsageTable: UsageTableStub,
         UsageDetailDialog: UsageDetailDialogStub,
@@ -265,6 +265,9 @@ describe('user UsageView', () => {
     expect(toolbar.findAll('button').map(button => button.text().trim()).filter(Boolean)).toEqual([
       'Refresh', 'Reset', 'Columns', 'Export CSV',
     ])
+    const refresh = toolbar.findAll('button').find(button => button.text().trim() === 'Refresh')!
+    expect(refresh.find('svg path').attributes('d')).toBeTruthy()
+    expect(refresh.find('svg').classes()).toContain('shrink-0')
     expect(toolbar.find('[data-testid="usage-export"]').classes()).toContain('usage-export')
     wrapper.unmount()
   })
