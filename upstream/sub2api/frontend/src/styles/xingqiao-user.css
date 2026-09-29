@@ -52,6 +52,20 @@
 .user-app-shell .input:focus,
 .user-app-shell select:focus,
 .user-app-shell textarea:focus { border-color: var(--xq-accent) !important; --tw-ring-color: rgb(97 201 217 / .2) !important; }
+.user-app-shell .select-trigger {
+  border: 1px solid var(--xq-border) !important;
+  border-radius: 8px;
+  background: var(--xq-depth) !important;
+  color: var(--xq-text) !important;
+  font-size: 14px;
+  font-weight: 400;
+}
+.user-app-shell .select-trigger .select-icon { color: var(--xq-secondary) !important; }
+.user-app-shell .select-trigger:hover { border-color: var(--xq-accent) !important; }
+.user-app-shell .select-trigger:focus-visible,
+.user-app-shell .select-trigger.select-trigger-open { border-color: var(--xq-accent) !important; outline: 2px solid rgb(97 201 217 / .35); outline-offset: 1px; box-shadow: none; }
+.user-app-shell .select-trigger.select-trigger-error { border-color: var(--xq-danger) !important; }
+.user-app-shell .select-trigger-disabled { opacity: .55; cursor: not-allowed; }
 .user-app-shell .input-label { color: var(--xq-secondary) !important; }
 .user-app-shell .btn { min-height: 38px; border-radius: 8px !important; box-shadow: none !important; transform: none !important; }
 .user-app-shell .btn-primary { border: 1px solid var(--xq-core) !important; background: var(--xq-core) !important; color: var(--xq-void) !important; }

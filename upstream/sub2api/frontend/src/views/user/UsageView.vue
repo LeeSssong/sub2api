@@ -1098,12 +1098,6 @@ watch(endpointDistributionSource, () => {
 .usage-filter-grid :deep(.select-trigger-brand) {
   min-height: 40px;
   padding: 0 12px;
-  border-color: var(--xq-border) !important;
-  border-radius: 8px;
-  background: var(--xq-depth) !important;
-  color: var(--xq-text);
-  font-size: 12px;
-  font-weight: 400;
 }
 
 .usage-filter-actions {
