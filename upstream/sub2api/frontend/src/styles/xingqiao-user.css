@@ -25,7 +25,7 @@
 .user-workspace {
   min-height: 100%;
   box-sizing: border-box;
-  padding: 28px 40px 48px !important;
+  padding: 28px 40px 0 !important;
   background: radial-gradient(760px 390px at 76% -8%,rgba(68,181,211,.11),transparent 68%),radial-gradient(560px 460px at 2% 92%,rgba(28,99,132,.07),transparent 72%),linear-gradient(180deg,#06111d 0,#040b13 72%) !important;
 }
 .user-page { width: min(100%, 1440px); margin: 0 auto; }
@@ -96,7 +96,7 @@
 }
 @media (max-width: 700px) {
   .user-main-frame { margin-left: 76px !important; }
-  .user-workspace { padding: 20px 14px 36px !important; }
+  .user-workspace { padding: 20px 14px 0 !important; }
   .user-page-header { margin-bottom: 18px; }
 }
 
@@ -185,7 +185,7 @@
 }
 
 /* My keys is a viewport-sized inventory: page through rows, never scroll the content vertically. */
-.user-workspace:has(.user-keys-page) { height: 100dvh; min-height: 0; padding-top: 20px !important; padding-bottom: 16px !important; overflow: hidden; }
+.user-workspace:has(.user-keys-page) { height: 100dvh; min-height: 0; padding-top: 20px !important; padding-bottom: 0 !important; overflow: hidden; }
 .user-keys-page { height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .user-keys-page .user-page-header { flex-shrink: 0; margin-bottom: 12px; }
 .user-app-shell .user-keys-page .keys-work-surface { flex: 1; height: 0; min-height: 0; overflow: hidden !important; padding: 0 16px; }
@@ -221,7 +221,7 @@
   .user-keys-page .keys-toolbar [data-test="keys-actions"] { width: 100%; }
 }
 @media (max-width: 700px) {
-  .user-workspace:has(.user-keys-page) { padding: 12px 8px 10px !important; }
+  .user-workspace:has(.user-keys-page) { padding: 12px 8px 0 !important; }
   .user-app-shell .user-keys-page .keys-work-surface { padding: 0 8px; }
   .user-keys-page .user-page-header { margin-bottom: 8px; }
   .user-keys-page .keys-toolbar .keys-filters { grid-template-columns: 1fr 1fr; gap: 6px; }
