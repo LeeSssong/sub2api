@@ -2016,6 +2016,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthroughWithImage(
 	terminalEventType := ""
 	terminalEventPending := false
 	terminalEventBytes := int64(0)
+	terminalSuccessful := false
 	semanticOutputSeen := false
 	capacityFailoverSuppressedLogged := false
 	failedMessage := ""
@@ -2337,6 +2338,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthroughWithImage(
 				terminalEventPending = true
 				terminalEventBytes = int64(len(line))
 				sawTerminalEvent = true
+				terminalSuccessful = IsSuccessfulStreamTerminal(dataBytes)
 				if trimmedData != "[DONE]" {
 					terminalEventType = eventType
 				}
@@ -2504,6 +2506,9 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthroughWithImage(
 		s.clearOpenAIProxyStreamDisconnect(account, resp)
 	}
 	logOpenAISuccessMissingUsage(ctx, c, account, resp, usage, terminalEventType, clientDisconnected)
+	if terminalSuccessful && !clientDisconnected && account != nil {
+		MarkOpsStreamCompleted(c, account.ID)
+	}
 
 	return resultWithUsage(), nil
 }

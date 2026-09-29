@@ -6,25 +6,146 @@ import * as accountsAPI from '@/api/admin/accounts'
 import scheduledTests from '@/api/admin/scheduledTests'
 import { listQualityPlans, listQualityOperations } from '@/api/admin/accountQuality'
 import { useAccountQualityStore } from '@/stores/accountQuality'
+import { useAuthStore } from '@/stores/auth'
 import type { ScheduledTestPlan } from '@/types'
+import { defaultQualityBPS } from '@/utils/qualityRulePatch'
 vi.mock('@/components/admin/operations/SmartOpsNav.vue', () => ({ default: { template: '<nav />' } }))
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { id: 1, role: 'admin' } }) }))
+vi.mock('@/stores/auth', async () => {
+  const { reactive } = await import('vue')
+  const auth = reactive({ user: { id: 1, role: 'admin' } })
+  return { useAuthStore: () => auth }
+})
 vi.mock('@/components/layout/AppLayout.vue', () => ({ default: { template: '<main><slot /></main>' } }))
 vi.mock('vue-i18n', async () => ({ ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'), useI18n: () => ({ t: (key: string) => key, te: () => true }) }))
 vi.mock('@/api/admin/accountQuality', () => ({ listQualityPlans: vi.fn(), runQualityPlan: vi.fn(), listQualityOperations: vi.fn().mockResolvedValue({items:[],next_cursor:0}) }))
 vi.mock('@/api/admin/scheduledTests', () => ({ default: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), listResults: vi.fn(), getResult: vi.fn() } }))
-vi.mock('@/api/admin/accounts', () => ({ getById: vi.fn().mockResolvedValue({ id: 1, platform: 'openai', credentials: { model_mapping: { 'model-a': 'upstream-a', 'model-b': 'upstream-b', 'model-c': 'model-c' } } }), list: vi.fn().mockResolvedValue({ items: [{ id: 1, name: 'Test account', platform: 'openai', type: 'oauth' }], total: 1 }) }))
+vi.mock('@/api/admin/accounts', () => ({ list: vi.fn().mockResolvedValue({ items: [{ id: 1, name: 'Test account', platform: 'openai', type: 'oauth' }], total: 1 }) }))
 vi.mock('@/api/admin/groups', () => ({ getModelAllowlistCandidates: vi.fn().mockResolvedValue(["test-judge"]), getAllIncludingInactive: vi.fn().mockResolvedValue([{ id: 21, name: 'Quality pool', status:'active', platform: 'openai' }]) }))
 vi.mock('@/components/account/ModelWhitelistSelector.vue', () => ({ default: { props: ['modelValue'], template: '<div data-testid="model-selector">{{ modelValue.join(",") }}</div>' } }))
 const mountView = () => mount(AccountQualityView, { global: { plugins: [createPinia()], stubs: { Teleport: true, AppLayout: { template: '<main><slot /></main>' } } } })
 describe('quality operations', () => {
-  beforeEach(() => { vi.clearAllMocks(); vi.mocked(scheduledTests.update).mockReset(); vi.mocked(accountsAPI.list).mockReset().mockResolvedValue({ items: [{ id: 1, name: 'Test account', platform: 'openai', type: 'oauth' }], total: 1 } as any); vi.mocked(listQualityPlans).mockResolvedValue([]); vi.mocked(listQualityOperations).mockResolvedValue({items:[],next_cursor:0}) })
+  beforeEach(() => { vi.clearAllMocks(); useAuthStore().user!.id = 1; vi.mocked(scheduledTests.delete).mockReset().mockResolvedValue(undefined); vi.mocked(scheduledTests.update).mockReset(); vi.mocked(accountsAPI.list).mockReset().mockResolvedValue({ items: [{ id: 1, name: 'Test account', platform: 'openai', type: 'oauth' }], total: 1 } as any); vi.mocked(listQualityPlans).mockResolvedValue([]); vi.mocked(listQualityOperations).mockResolvedValue({items:[],next_cursor:0}) })
   const rules = (): ScheduledTestPlan[] => [1, 2, 3].map(id => ({
     id, account_id: id, account_name: `Account ${id}`, model_id: `model-${id}`, cron_expression: '*/30 * * * *', enabled: true,
     max_results: 100, auto_recover: false, last_run_at: null, next_run_at: null, created_at: '', updated_at: '',
     pelican_config: { question_kind: 'state_probe', prompt: '', reasoning_effort: 'high', parallel_count: 1,
       quality: { expected_answer: '', action: 'remove_groups', remove_group_ids: [id], auto_restore: false } },
   }))
+
+  it('confirms and deletes checked rules including hidden search selections', async () => {
+    vi.mocked(listQualityPlans).mockResolvedValue(rules())
+    const wrapper = mountView(); await flushPromises()
+    expect(wrapper.get('[data-testid="quality-bulk-delete"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-plan-id="1"] .rule-checkbox input').setValue(true)
+    await wrapper.get('.rule-search input').setValue('Account 2')
+    await wrapper.get('[data-testid="quality-select-rules"]').setValue(true)
+    await wrapper.get('[data-testid="quality-bulk-delete"]').trigger('click')
+    const targets = wrapper.get('[data-testid="quality-delete-targets"]')
+    expect(targets.text()).toContain('Account 1')
+    expect(targets.text()).toContain('Account 2')
+    expect(targets.text()).not.toContain('Account 3')
+    expect(scheduledTests.delete).not.toHaveBeenCalled()
+    vi.mocked(listQualityPlans).mockResolvedValue([rules()[2]])
+    await wrapper.get('[data-testid="quality-confirm-delete"]').trigger('click'); await flushPromises()
+    expect(vi.mocked(scheduledTests.delete).mock.calls).toEqual([[1], [2]])
+    expect(wrapper.find('[data-testid="quality-delete-targets"]').exists()).toBe(false)
+    expect((wrapper.vm as any).selectedRuleIds).toEqual([])
+    expect(listQualityOperations).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('deletes rules selected in the bulk account picker without checking edit fields', async () => {
+    vi.mocked(listQualityPlans).mockResolvedValue(rules())
+    vi.mocked(accountsAPI.list).mockResolvedValue({ items: [{ id: 2, name: 'Account 2' }, { id: 3, name: 'Account 3' }], total: 2 } as any)
+    const wrapper = mountView(); await flushPromises()
+    await wrapper.get('[data-testid="quality-bulk-edit"]').trigger('click'); await flushPromises()
+    expect(wrapper.get('[data-testid="quality-editor-delete"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-testid="quality-select-page"]').trigger('click')
+    expect(wrapper.get('button[form="quality-rule-form"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-testid="quality-editor-delete"]').trigger('click')
+    vi.mocked(listQualityPlans).mockResolvedValue([rules()[0]])
+    await wrapper.get('[data-testid="quality-confirm-delete"]').trigger('click'); await flushPromises()
+    expect(vi.mocked(scheduledTests.delete).mock.calls).toEqual([[2], [3]])
+    expect(scheduledTests.update).not.toHaveBeenCalled()
+    expect(wrapper.find('#quality-rule-form').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('continues batch deletion after an error and retries only failed rules', async () => {
+    vi.mocked(listQualityPlans).mockResolvedValue(rules())
+    vi.mocked(scheduledTests.delete).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('delete denied')).mockResolvedValueOnce(undefined)
+    const wrapper = mountView(); await flushPromises()
+    await wrapper.get('[data-testid="quality-select-rules"]').setValue(true)
+    await wrapper.get('[data-testid="quality-bulk-delete"]').trigger('click')
+    vi.mocked(listQualityPlans).mockResolvedValue([rules()[1]])
+    await wrapper.get('[data-testid="quality-confirm-delete"]').trigger('click'); await flushPromises()
+    expect(vi.mocked(scheduledTests.delete).mock.calls).toEqual([[1], [2], [3]])
+    expect(wrapper.get('[data-testid="quality-delete-error"]').text()).toContain('#2: delete denied')
+    expect((wrapper.vm as any).selectedRuleIds).toEqual([2])
+    expect(wrapper.get('[data-testid="quality-delete-targets"]').findAll('li')).toHaveLength(1)
+    vi.mocked(listQualityPlans).mockResolvedValue([])
+    await wrapper.get('[data-testid="quality-confirm-delete"]').trigger('click'); await flushPromises()
+    expect(vi.mocked(scheduledTests.delete).mock.calls).toEqual([[1], [2], [3], [2]])
+    expect(wrapper.find('[data-testid="quality-delete-targets"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('can cancel deletion and still delete a single rule from its editor', async () => {
+    vi.mocked(listQualityPlans).mockResolvedValue(rules())
+    const wrapper = mountView(); await flushPromises()
+    const vm = wrapper.vm as any
+    vm.edit(rules()[0]); await flushPromises()
+    await wrapper.get('[data-testid="quality-editor-delete"]').trigger('click')
+    await wrapper.get('[data-testid="quality-cancel-delete"]').trigger('click')
+    expect(scheduledTests.delete).not.toHaveBeenCalled()
+    expect(wrapper.find('#quality-rule-form').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="quality-delete-targets"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="quality-editor-delete"]').trigger('click')
+    vi.mocked(listQualityPlans).mockRejectedValueOnce(new Error('refresh failed'))
+    await wrapper.get('[data-testid="quality-confirm-delete"]').trigger('click'); await flushPromises()
+    expect(vi.mocked(scheduledTests.delete).mock.calls).toEqual([[1]])
+    expect(useAccountQualityStore().plans.map(plan => plan.id)).toEqual([2, 3])
+    expect(wrapper.find('#quality-rule-form').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps the confirmed rule IDs fixed if selection changes', async () => {
+    vi.mocked(listQualityPlans).mockResolvedValue(rules())
+    const wrapper = mountView(); await flushPromises()
+    await wrapper.get('[data-plan-id="1"] .rule-checkbox input').setValue(true)
+    await wrapper.get('[data-testid="quality-bulk-delete"]').trigger('click')
+    const vm = wrapper.vm as any
+    vm.selectedRuleIds = [2, 3]
+    vi.mocked(listQualityPlans).mockResolvedValue(rules().slice(1))
+    await wrapper.get('[data-testid="quality-confirm-delete"]').trigger('click'); await flushPromises()
+    expect(vi.mocked(scheduledTests.delete).mock.calls).toEqual([[1]])
+    expect(vm.selectedRuleIds).toEqual([2, 3])
+    wrapper.unmount()
+  })
+
+  it.each(['unmount', 'identity'])('prevents duplicate submissions and stops deletion after %s changes', async (change) => {
+    vi.mocked(listQualityPlans).mockResolvedValue(rules())
+    let finish!: () => void
+    vi.mocked(scheduledTests.delete).mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve }))
+    const wrapper = mountView(); await flushPromises()
+    await wrapper.get('[data-testid="quality-select-rules"]').setValue(true)
+    await wrapper.get('[data-testid="quality-bulk-delete"]').trigger('click')
+    await wrapper.get('[data-testid="quality-confirm-delete"]').trigger('click'); await flushPromises()
+    expect(wrapper.get('[data-testid="quality-confirm-delete"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="quality-cancel-delete"]').attributes('disabled')).toBeDefined()
+    await (wrapper.vm as any).confirmDelete()
+    expect(scheduledTests.delete).toHaveBeenCalledTimes(1)
+    if (change === 'unmount') wrapper.unmount()
+    else { useAuthStore().user!.id = 2; await flushPromises() }
+    finish(); await flushPromises()
+    expect(vi.mocked(scheduledTests.delete).mock.calls).toEqual([[1]])
+    expect(listQualityOperations).toHaveBeenCalledTimes(1)
+    if (change === 'identity') {
+      expect(wrapper.find('[data-testid="quality-delete-targets"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="quality-delete-error"]').exists()).toBe(false)
+      wrapper.unmount()
+    }
+  })
 
   it('selects search matches independently of the history filter and preserves hidden selections', async () => {
     vi.mocked(listQualityPlans).mockResolvedValue(rules())
@@ -124,6 +245,44 @@ describe('quality operations', () => {
     wrapper.unmount()
   })
 
+  it('identifies a non-probe rule in a 13-rule BPS batch and saves after explicitly changing the test method', async () => {
+    const selected = Array.from({ length: 13 }, (_, index) => ({
+      ...rules()[0], id: index + 1, account_id: index + 1, account_name: `Account ${index + 1}`,
+      model_id: `model-${index + 1}`,
+    }))
+    selected[12].pelican_config = { question_kind: 'candy', prompt: 'Own question', reasoning_effort: 'low', parallel_count: 3,
+      quality: { expected_answer: '7', action: 'disable_scheduling', remove_group_ids: [], auto_restore: false,
+        judge: { group_id: 21, model_id: 'own-judge', prompt: 'Own grading instructions' } } }
+    const before = JSON.stringify(selected)
+    vi.mocked(listQualityPlans).mockResolvedValue(selected)
+    const wrapper = mountView(); await flushPromises()
+    await wrapper.get('[data-testid="quality-select-rules"]').setValue(true)
+    await wrapper.get('[data-testid="quality-bulk-edit"]').trigger('click'); await flushPromises()
+    await wrapper.get('[data-testid="quality-bulk-field-action"]').setValue(true)
+    await wrapper.get('[data-testid="quality-action-enable-bps"]').setValue(true)
+    await wrapper.get('#quality-rule-form').trigger('submit'); await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('qualityOps.rule #13: qualityOps.bpsRequiresProbe')
+    expect(scheduledTests.update).not.toHaveBeenCalled()
+    expect(JSON.stringify(selected)).toBe(before)
+    expect((wrapper.vm as any).bulkRuleIds).toHaveLength(13)
+
+    // The test method changes only after the user explicitly includes it.
+    await wrapper.get('[data-testid="quality-bulk-field-test"]').setValue(true)
+    await wrapper.get('[data-testid="quality-question-kind"]').setValue('state_probe')
+    await wrapper.get('#quality-rule-form').trigger('submit'); await flushPromises()
+    expect(scheduledTests.update).toHaveBeenCalledTimes(13)
+    for (const [index, [id, body]] of vi.mocked(scheduledTests.update).mock.calls.entries()) {
+      expect(id).toBe(index + 1)
+      expect(body).not.toHaveProperty('model_id')
+      expect(body).not.toHaveProperty('cron_expression')
+      expect(body.pelican_config).toMatchObject({ question_kind: 'state_probe', prompt: '', parallel_count: 1,
+        quality: { action: 'enable_bps', expected_answer: '', remove_group_ids: [], auto_restore: false } })
+      expect(body.pelican_config!.quality).not.toHaveProperty('judge')
+    }
+    expect(wrapper.find('#quality-rule-form').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('merges nested changes into refreshed per-rule settings', async () => {
     vi.mocked(listQualityPlans).mockResolvedValue(rules())
     const wrapper = mountView(); await flushPromises()
@@ -210,7 +369,11 @@ describe('quality operations', () => {
       { id: 4, account_id: 1, enabled: false, pelican_config: { quality: { action: 'remove_groups', remove_group_ids: [21] } } },
       { id: 5, account_id: 2, enabled: false, pelican_config: { quality: { action: 'enable_bps', remove_group_ids: [] } } }
     ] as any)
-    vi.mocked(accountsAPI.list).mockResolvedValue({ items: [{ id: 1, name: 'Group rule', platform: 'openai', type: 'oauth' }, { id: 2, name: 'BPS rule', platform: 'openai', type: 'oauth' }, { id: 3, name: 'New', platform: 'openai', type: 'oauth' }], total: 3 } as any)
+    vi.mocked(accountsAPI.list).mockResolvedValue({ items: [
+      { id: 1, name: 'Group rule', platform: 'openai', type: 'oauth', extra: {} },
+      { id: 2, name: 'BPS rule', platform: 'openai', type: 'oauth', extra: {} },
+      { id: 3, name: 'New', platform: 'openai', type: 'oauth', extra: {} }
+    ], total: 3 } as any)
     const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
     vm.newPlan(); await flushPromises()
     await wrapper.get('[data-testid="quality-select-page"]').trigger('click')
@@ -304,7 +467,6 @@ describe('quality operations', () => {
     expect(scheduledTests.create).toHaveBeenCalledWith(expect.objectContaining({ account_id: 1, model_id: 'gpt-6-astra' }))
     wrapper.unmount()
   })
-  beforeEach(() => { vi.clearAllMocks(); vi.mocked(listQualityPlans).mockResolvedValue([]); vi.mocked(listQualityOperations).mockResolvedValue({items:[],next_cursor:0}) })
   it('requires explicit group selection and keeps automatic restoration opt-in', async () => {
     const wrapper = mountView(); await flushPromises()
     const vm = wrapper.vm as any
@@ -314,7 +476,7 @@ describe('quality operations', () => {
     expect(wrapper.find('[role="alert"]').text()).toContain('qualityOps.selectGroups')
     vm.form.pelican_config.quality.remove_group_ids = [21]
     await vm.save()
-    expect(scheduledTests.create).toHaveBeenCalledWith(expect.objectContaining({ account_id: 1, auto_recover: false, pelican_config: expect.objectContaining({ quality: { trigger_on_upstream_5xx: false, expected_answer: '21', action: 'remove_groups', remove_group_ids: [21], remove_model_ids: [], auto_restore: false, judge: {group_id:21,model_id:'test-judge',prompt:'grade semantically'} } }) }))
+    expect(scheduledTests.create).toHaveBeenCalledWith(expect.objectContaining({ account_id: 1, auto_recover: false, pelican_config: expect.objectContaining({ quality: { expected_answer: '21', action: 'remove_groups', remove_group_ids: [21], auto_restore: false, judge: {group_id:21,model_id:'test-judge',prompt:'grade semantically'} } }) }))
     wrapper.unmount()
   })
   it('retries only accounts that were not created before a partial batch failure', async () => {
@@ -414,9 +576,11 @@ describe('quality operations', () => {
     expect((wrapper.find('[data-testid="quality-bps-auto-disable"]').element as HTMLInputElement).checked).toBe(true)
     expect(wrapper.find('[data-testid="quality-auto-restore"]').exists()).toBe(false)
     const checked = (id: string) => (wrapper.find(`[data-testid="quality-bps-${id}"]`).element as HTMLInputElement).checked
-    expect([checked('omit_unsupported_tools'), checked('ignore_images'), checked('ignore_encrypted_content'), checked('auto_disable_on_403')]).toEqual([true, false, true, false])
+    expect([checked('omit_unsupported_tools'), checked('ignore_images'), checked('ignore_encrypted_content'), checked('auto_disable_on_403'), checked('cache_creation_as_input')]).toEqual([false, false, true, true, true])
     expect(checked('auto_recover_on_403')).toBe(false)
-    expect((wrapper.find('[data-testid="quality-bps-auto_recover_on_403"]').element as HTMLInputElement).disabled).toBe(true)
+    expect((wrapper.find('[data-testid="quality-bps-auto_recover_on_403"]').element as HTMLInputElement).disabled).toBe(false)
+    expect(wrapper.get<HTMLSelectElement>('[data-testid="quality-probe-interval"]').element.value).toBe('*/2 * * * *')
+    await wrapper.get('[data-testid="quality-probe-interval"]').setValue('*/10 * * * *')
     expect(wrapper.find('[data-testid="model-selector"]').text()).toBe('gpt-6-astra,gpt-5.6-sol,gpt-5.6-terra')
     expect(wrapper.find('[data-testid="quality-bps-require-all"]').exists()).toBe(false)
     expect((wrapper.find('[data-testid="quality-bps-pass-threshold"]').element as HTMLInputElement).value).toBe('2')
@@ -447,15 +611,16 @@ describe('quality operations', () => {
     vm.form.pelican_config.quality.remove_group_ids = [21]
     await vm.save()
     const request = vi.mocked(scheduledTests.create).mock.calls[0][0] as any
-    expect(request.pelican_config.quality).toEqual({ expected_answer: '', action: 'enable_bps', remove_group_ids: [], remove_model_ids: [], trigger_on_upstream_5xx: false, auto_restore: true, bps: {
+    expect(request.cron_expression).toBe('*/10 * * * *')
+    expect(request.pelican_config.quality).toEqual({ expected_answer: '', action: 'enable_bps', remove_group_ids: [], auto_restore: true, bps: {
       failure_threshold: 3, usage_percent: 80, require_all: true, all_models: false, models: ['gpt-6-astra'],
-      omit_unsupported_tools: true, ignore_images: true, ignore_encrypted_content: true, auto_disable_on_403: true,
+      omit_unsupported_tools: false, ignore_images: true, ignore_encrypted_content: true, auto_disable_on_403: true,
       auto_recover_on_403: true, recovery_interval_minutes: 360,
-      auto_move_on_403: true, target_group_id: 21, session_proxy: false, proxy_source: '', cache_creation_as_input: false,
+      auto_move_on_403: true, target_group_id: 21, session_proxy: false, proxy_source: '', cache_creation_as_input: true,
       pass_threshold: 3, hold_on_usage: false } })
     wrapper.unmount()
   })
-  it('validates BPS triggers and drops BPS when a rule switches back to candy', async () => {
+  it('validates BPS triggers and switches candy tests to BPS observation', async () => {
     const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
     vm.newPlan(); await flushPromises(); vm.selectedAccounts = [1]
     await wrapper.find('[data-testid="quality-question-kind"]').setValue('state_probe')
@@ -480,14 +645,80 @@ describe('quality operations', () => {
     expect(wrapper.find('[data-testid="quality-bps-models"]').exists()).toBe(false)
     expect(scheduledTests.create).not.toHaveBeenCalled()
     await wrapper.find('[data-testid="quality-question-kind"]').setValue('candy')
-    expect(vm.form.pelican_config.quality.action).toBe('remove_groups')
+    expect(vm.form.pelican_config.quality.action).toBe('observe_only')
+    expect(vm.form.pelican_config.test_channel).toBe('bps')
     expect(wrapper.find('[data-testid="quality-action-enable-bps"]').exists()).toBe(false)
     vm.form.pelican_config.quality.judge = { group_id: 21, model_id: 'test-judge', prompt: 'grade semantically' }
     vm.form.pelican_config.quality.remove_group_ids = [21]
     await vm.save()
     const request = vi.mocked(scheduledTests.create).mock.calls[0][0] as any
-    expect(request.pelican_config.quality).toMatchObject({ action: 'remove_groups', remove_group_ids: [21] })
+    expect(request.pelican_config).toMatchObject({ question_kind: 'candy', test_channel: 'bps' })
+    expect(request.pelican_config.quality).toMatchObject({ action: 'observe_only', remove_group_ids: [], auto_restore: false })
     expect(request.pelican_config.quality.bps).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('saves 13 BPS rules as candy observations without retaining BPS lifecycle actions', async () => {
+    const selected = Array.from({ length: 13 }, (_, index) => {
+      const rule = rules()[0]
+      return { ...rule, id: index + 1, account_id: index + 1, model_id: `model-${index + 1}`,
+        pelican_config: { ...rule.pelican_config!, quality: { ...rule.pelican_config!.quality!,
+          action: 'enable_bps' as const, auto_restore: true, bps: defaultQualityBPS() } } }
+    })
+    const before = JSON.stringify(selected)
+    vi.mocked(listQualityPlans).mockResolvedValue(selected)
+    const wrapper = mountView(); await flushPromises()
+    await wrapper.get('[data-testid="quality-select-rules"]').setValue(true)
+    await wrapper.get('[data-testid="quality-bulk-edit"]').trigger('click'); await flushPromises()
+    await wrapper.get('[data-testid="quality-bulk-field-test"]').setValue(true)
+    await wrapper.get('[data-testid="quality-question-kind"]').setValue('candy')
+    expect(wrapper.get<HTMLSelectElement>('[data-testid="quality-test-channel"]').element.value).toBe('bps')
+    expect(wrapper.get('[data-testid="quality-bps-observation-hint"]').text()).toContain('qualityOps.bpsObservationHint')
+    const vm = wrapper.vm as any
+    vm.form.pelican_config.quality.judge = { group_id: 21, model_id: 'judge', prompt: 'Grade the answer' }
+    await wrapper.get('#quality-rule-form').trigger('submit'); await flushPromises()
+    expect(scheduledTests.update).toHaveBeenCalledTimes(13)
+    for (const [index, [id, body]] of vi.mocked(scheduledTests.update).mock.calls.entries()) {
+      expect(id).toBe(index + 1)
+      expect(body).not.toHaveProperty('model_id')
+      expect(body).not.toHaveProperty('cron_expression')
+      expect(body.pelican_config).toMatchObject({ question_kind: 'candy', test_channel: 'bps',
+        quality: { action: 'observe_only', expected_answer: '21', remove_group_ids: [], auto_restore: false,
+          judge: { group_id: 21, model_id: 'judge', prompt: 'Grade the answer' } } })
+      expect(body.pelican_config!.quality).not.toHaveProperty('bps')
+    }
+    expect(JSON.stringify(selected)).toBe(before)
+    expect(wrapper.find('#quality-rule-form').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('creates a candy BPS observation without group or lifecycle settings', async () => {
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
+    vm.newPlan(); await flushPromises(); vm.selectedAccounts = [1]
+    await wrapper.get('[data-testid="quality-test-channel"]').setValue('bps')
+    expect(wrapper.find('[data-testid="quality-action-enable-bps"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="quality-auto-restore"]').exists()).toBe(false)
+    vm.form.pelican_config.quality.judge = { group_id: 21, model_id: 'judge', prompt: 'Grade the answer' }
+    await wrapper.get('#quality-rule-form').trigger('submit'); await flushPromises()
+    expect(scheduledTests.create).toHaveBeenCalledWith(expect.objectContaining({ pelican_config: expect.objectContaining({
+      question_kind: 'candy', test_channel: 'bps', quality: expect.objectContaining({ action: 'observe_only', auto_restore: false, remove_group_ids: [] }),
+    }) }))
+    wrapper.unmount()
+  })
+
+  it('allows observation beside existing account policies while excluding duplicate observations', async () => {
+    vi.mocked(listQualityPlans).mockResolvedValue([
+      { ...rules()[0], account_id: 1 },
+      { ...rules()[1], account_id: 2, pelican_config: { ...rules()[1].pelican_config!, quality: { ...rules()[1].pelican_config!.quality!, action: 'enable_bps' } } },
+      { ...rules()[2], account_id: 3, pelican_config: { ...rules()[2].pelican_config!, quality: { ...rules()[2].pelican_config!.quality!, action: 'observe_only' } } },
+    ])
+    vi.mocked(accountsAPI.list).mockResolvedValue({ items: [1, 2, 3].map(id => ({ id, name: 'Account', platform: 'openai', type: 'oauth' })), total: 3 } as any)
+    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
+    vm.newPlan(); await flushPromises()
+    await wrapper.get('[data-testid="quality-test-channel"]').setValue('bps')
+    await wrapper.get('[data-testid="quality-select-page"]').trigger('click')
+    expect(vm.selectedAccounts).toEqual([1, 2])
+    expect(wrapper.get('#quality-rule-form input[type="checkbox"][value="3"]').attributes('disabled')).toBeDefined()
     wrapper.unmount()
   })
   it('loads saved BPS rules, summarizes their trigger and labels counted failures', async () => {
@@ -573,70 +804,4 @@ describe('quality operations', () => {
     expect(wrapper.find('pre img').exists()).toBe(false)
     wrapper.unmount()
   })
-  it('selects multiple native model entries, validates selection and shows model outcomes', async () => {
-   const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
-   vm.newPlan(); vm.selectedAccounts = [1]; vm.form.model_id = 'model-a'
-   vm.form.pelican_config.quality.judge = {group_id:21,model_id:'test-judge',prompt:'grade'}
-   vm.form.pelican_config.quality.action = 'remove_models'
-   await flushPromises()
-   expect(wrapper.find('input[type="radio"][value="remove_models"]').exists()).toBe(true)
-   await vm.save(); expect(wrapper.find('[role="alert"]').text()).toContain('qualityOps.selectModels')
-   const choices = wrapper.findAll('[data-quality-model]')
-   expect(choices).toHaveLength(3)
-   await choices[0].setValue(true); await choices[1].setValue(true)
-   await vm.save()
-   expect(scheduledTests.create).toHaveBeenCalledWith(expect.objectContaining({pelican_config: expect.objectContaining({quality: expect.objectContaining({action:'remove_models',remove_model_ids:['model-a','model-b']})})}))
-   const config = {quality:{action:'remove_models',remove_model_ids:['model-a','model-b']}}
-   expect(vm.planGroups({pelican_config:config})).toContain('model-a')
-   expect(vm.operationLabel({quality_action:'restored',pelican_config:config})).toBe('qualityOps.modelsRestored')
-   wrapper.unmount()
-  })
-
-  it('rejects removing every remaining explicit model', async () => {
-    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
-    vm.newPlan(); vm.selectedAccounts = [1]; vm.form.model_id = 'model-a'
-    vm.form.pelican_config.quality.judge = {group_id:21,model_id:'test-judge',prompt:'grade'}
-    vm.form.pelican_config.quality.action = 'remove_models'; await flushPromises()
-    vm.form.pelican_config.quality.remove_model_ids = ['model-a','model-b','model-c']
-    await vm.save()
-    expect(scheduledTests.create).not.toHaveBeenCalled()
-    expect(wrapper.find('[role="alert"]').text()).toContain('qualityOps.keepOneModel')
-    wrapper.unmount()
-  })
-  it('uses common explicit models and drops unavailable choices when accounts change', async () => {
-    vi.mocked(accountsAPI.getById).mockResolvedValueOnce({id:1,credentials:{model_mapping:{'model-a':'a','model-c':'c'}}} as any)
-    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
-    vm.newPlan(); vm.selectedAccounts = [1]; vm.form.pelican_config.quality.action = 'remove_models'; await flushPromises()
-    vm.form.pelican_config.quality.remove_model_ids = ['model-a']
-    vi.mocked(accountsAPI.getById).mockResolvedValueOnce({id:1,credentials:{model_mapping:{'model-a':'a','model-c':'c'}}} as any).mockResolvedValueOnce({id:2,credentials:{model_mapping:{'model-b':'b','model-c':'c'}}} as any)
-    vm.selectedAccounts = [1,2]; await flushPromises()
-    expect(wrapper.findAll('[data-quality-model]').map(e=>e.attributes('data-quality-model'))).toEqual(['model-c'])
-    expect(vm.form.pelican_config.quality.remove_model_ids).toEqual([])
-    wrapper.unmount()
-  })
-
-  it('keeps removed entries selectable when editing an existing model rule', async () => {
-    const plan = {id:4,account_id:1,model_id:'model-a',enabled:true,cron_expression:'*/30 * * * *',max_results:100,pelican_config:{question_kind:'candy',prompt:'question',reasoning_effort:'high',parallel_count:1,quality:{expected_answer:'21',action:'remove_models',remove_model_ids:['model-a','model-b'],remove_group_ids:[],auto_restore:true,judge:{group_id:21,model_id:'test-judge',prompt:'grade'}}}}
-    vi.mocked(listQualityPlans).mockResolvedValue([plan] as any)
-    vi.mocked(accountsAPI.getById).mockResolvedValueOnce({id:1,credentials:{model_mapping:{'model-c':'c'}}} as any)
-    const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
-    vm.edit(plan); await flushPromises()
-    expect(wrapper.findAll('[data-quality-model]').map(e=>e.attributes('data-quality-model'))).toEqual(['model-a','model-b','model-c'])
-    await vm.save()
-    expect(scheduledTests.update).toHaveBeenCalledWith(4,expect.objectContaining({pelican_config:expect.objectContaining({quality:expect.objectContaining({remove_model_ids:['model-a','model-b'],auto_restore:true})})}))
-    wrapper.unmount()
-  })
-
-})
-
-it('defaults 5xx triggers off and preserves opt-in for state probe rules', async () => {
- const wrapper = mountView(); await flushPromises(); const vm = wrapper.vm as any
- vm.newPlan(); await flushPromises()
- expect((wrapper.get('[data-testid="quality-trigger-5xx"]').element as HTMLInputElement).checked).toBe(false)
- await wrapper.get('[data-testid="quality-trigger-5xx"]').setValue(true)
- await wrapper.get('[data-testid="quality-question-kind"]').setValue('state_probe')
- vm.selectedAccounts = [1]; vm.form.pelican_config.quality.action = 'disable_scheduling'
- await vm.save(); await flushPromises()
- expect(scheduledTests.create).toHaveBeenCalledWith(expect.objectContaining({pelican_config:expect.objectContaining({quality:expect.objectContaining({trigger_on_upstream_5xx:true})})}))
- wrapper.unmount()
 })

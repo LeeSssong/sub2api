@@ -372,6 +372,17 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Account not found")
 	}
+	if options, ok := pelicanTestOptionsFromContext(ctx); ok {
+		if options.testChannel == "bps" {
+			model := strings.TrimSpace(modelID)
+			if model == "" {
+				model = openai.DefaultTestModel
+			}
+			if !account.IsExcelBPSEnabledForModel(model) || s.openaiGatewayService == nil {
+				return s.sendErrorAndEnd(c, "BPS observation unavailable: BPS must be enabled for this model; native fallback is disabled")
+			}
+		}
+	}
 
 	account = qualityProbeAccount(ctx, account)
 
@@ -1078,7 +1089,7 @@ func (s *AccountTestService) testExcelBPSAccountConnection(c *gin.Context, accou
 	if scope, _ := resolveOpenAIWSExecutionScope(probeCtx, body, 0); scope == "" {
 		probeCtx.Request.Header.Set("Session-Id", "account-test-"+uuid.NewString())
 	}
-	result, err := s.openaiGatewayService.Forward(probeCtx, probeCtx, account, body)
+	result, err := s.openaiGatewayService.Forward(probeCtx.Request.Context(), probeCtx, account, body)
 	if err != nil {
 		// A single-account test has no other account to fail over to.
 		var failover *UpstreamFailoverError

@@ -18,7 +18,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
-	"github.com/Wei-Shaw/sub2api/internal/requestcapture"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -273,6 +272,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 	sawBareError := false
 	sawResponseFailed := false
 	terminalEventType := ""
+	terminalSuccessful := false
 	responsesSemanticOutputSeen := false
 	capacityFailoverSuppressedLogged := false
 	failedMessage := ""
@@ -437,12 +437,8 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			return resultWithUsage(), fmt.Errorf("upstream response failed: %s", failedMessage)
 		}
 		logOpenAISuccessMissingUsage(ctx, c, account, resp, usage, terminalEventType, clientDisconnected)
-		if clientDisconnected || ctx.Err() != nil {
-			recordOpenAIForwardingOutcome(c, requestcapture.OutcomeClientDisconnected)
-		} else if terminalEventType == "response.completed" || terminalEventType == "response.done" {
-			recordOpenAIForwardingOutcome(c, requestcapture.OutcomeSuccess)
-		} else {
-			recordOpenAIForwardingOutcome(c, requestcapture.OutcomeIncomplete)
+		if terminalSuccessful && !clientDisconnected && account != nil {
+			MarkOpsStreamCompleted(c, account.ID)
 		}
 		return resultWithUsage(), nil
 	}
@@ -545,6 +541,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			// 初始上游 data 的 type 只解析一次：原始值保持终止事件的精确匹配，规范化值供后续分支复用。
 			if openAIStreamEventIsTerminalWithType(data, eventType) {
 				sawTerminalEvent = true
+				terminalSuccessful = IsSuccessfulStreamTerminal(dataBytes)
 				terminalEventType = eventType
 				if strings.TrimSpace(data) == "[DONE]" {
 					terminalEventType = "[DONE]"

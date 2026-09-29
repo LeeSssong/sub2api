@@ -1,0 +1,785 @@
+{
+  "base": "9ee2041d3d8ab1235cb53725077e7c70ef5cefda",
+  "target": "e0b227cc07dfb7094f1c01889c9fdb9f1d391374",
+  "files": [
+    {
+      "path": ".gitignore",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "Makefile",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/cmd/server/VERSION",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "backend/cmd/server/wire_gen.go",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "backend/go.sum",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/account_auto_config_gateway_test.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/account_auto_config_outcome.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/account_auto_config_outcome_test.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_auto_config_handler.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_token_guard_handler.go",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_account_capabilities_test.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_runtime.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/ops_error_logger.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/repository/account_auto_config.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_auto_config_integration_test.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_auto_config_test.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_quality.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/repository/account_quality_bps_integration_test.go",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_quality_observation_test.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_repo.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/repository/account_repo_token_guard.go",
+      "status": "A",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/repository/account_token_guard_recovery_integration_test.go",
+      "status": "A",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/repository/priority_scheduling.go",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/priority_scheduling_integration_test.go",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/scheduled_test_repo.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/server/routes/admin.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/account_cost.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_cost_test.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/account_quality.go",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "backend/internal/service/account_quality_observation_test.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_test_service.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/account_token_guard.go",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/account_token_guard_recovery_test.go",
+      "status": "A",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/account_token_guard_reliability_test.go",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/admin_account.go",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "backend/internal/service/crs_sync_service.go",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/oauth_auto_config.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/oauth_auto_config_test.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_account_scheduler.go",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_passthrough.go",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_response_handling.go",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "backend/internal/service/openai_two_fa_login.go",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/openai_two_fa_login_test.go",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/ops_service.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/ops_stream_completion.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/ops_stream_completion_test.go",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/pelican_scheduled.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/pelican_test_service.go",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling.go",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling_teams.go",
+      "status": "D",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling_teams_test.go",
+      "status": "D",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling_test.go",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/scheduled_test_port.go",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "backend/internal/service/scheduled_test_service.go",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "backend/internal/service/wire.go",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "backend/migrations/258_quality_observation_scope.sql",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/account-auto-config.md",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/account-token-guard-v2.md",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "docs/account-token-guard.md",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "docs/priority-scheduling.md",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "docs/quality-bps-observation.md",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-cost-multiplier/README.md",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-cost-multiplier/account-bulk-after-desktop.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-cost-multiplier/account-edit-after-desktop.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-cost-multiplier/account-edit-after-mobile.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-cost-multiplier/account-edit-before-desktop.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-cost-multiplier/priority-after-desktop.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-cost-multiplier/priority-before-desktop.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/auto-bps-options/after-zh.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/auto-config/README.md",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/auto-config/desktop-zh.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/auto-config/mobile-zh.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/auto-config/progress-dark.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/auto-config/progress-disabled.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/auto-config/progress-light.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v2-hover/README.md",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v2-hover/before.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v2-hover/candy.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v2-hover/desktop.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v2-hover/disabled.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v2-hover/light-long.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v2-hover/mobile.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-layout/README.md",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-layout/pelican-tests-after-desktop.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-layout/pelican-tests-after-mobile.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-layout/pelican-tests-before-desktop.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-layout/token-guard-v2-after-desktop.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-layout/token-guard-v2-after-mobile.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-layout/token-guard-v2-before-desktop.png",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/api/admin/__tests__/accountTokenGuard.spec.ts",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "frontend/src/api/admin/accountTokenGuard.ts",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "frontend/src/api/admin/accounts.ts",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/api/admin/autoConfig.ts",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/api/admin/priorityScheduling.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/AccountAutoBPSSection.vue",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/AccountCapacityCell.vue",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/AccountConcurrencyProgress.vue",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/BulkEditAccountModal.vue",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/CreateAccountModal.vue",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "frontend/src/components/account/EditAccountModal.vue",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/account/OpenAITwoFAImport.vue",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/BulkEditAccountModal.spec.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/CreateAccountModal.autoBPS.spec.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/CreateAccountModal.spec.ts",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/EditAccountModal.autoBPS.spec.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/EditAccountModal.spec.ts",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/OpenAITwoFAImport.spec.ts",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/PriorityAccountBatch.vue",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/QualityProbeSchedule.vue",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/SmartOpsNav.vue",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/__tests__/QualityProbeSchedule.spec.ts",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/layout/AppSidebar.vue",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/composables/useAccountAutoBPS.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v2/MonitorStatusCards.vue",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v2/__tests__/MonitorStatusCards.spec.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v2/__tests__/monitorCards.spec.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v2/monitorCards.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/accounts.ts",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/autoConfig.ts",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/channelMonitorV2.ts",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/index.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/priorityScheduling.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/qualityOps.ts",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/tokenGuard.ts",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/accounts.ts",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/autoConfig.ts",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/channelMonitorV2.ts",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/index.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/priorityScheduling.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/qualityOps.ts",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/tokenGuard.ts",
+      "status": "M",
+      "result": "already-current"
+    },
+    {
+      "path": "frontend/src/router/index.ts",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/types/index.ts",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/accountAutoBPS.spec.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/accountCost.spec.ts",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/priorityAccountBatch.spec.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/qualityRulePatch.spec.ts",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/utils/accountAutoBPS.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/utils/accountCost.ts",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/utils/intelligenceTest.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/utils/priorityAccountBatch.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/utils/qualityRulePatch.ts",
+      "status": "M",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/views/admin/AccountQualityView.vue",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "frontend/src/views/admin/AccountsView.vue",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/AutoConfigView.vue",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/PelicanTestsView.vue",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/PrioritySchedulingView.vue",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/AccountQualityView.spec.ts",
+      "status": "M",
+      "result": "conflict"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/AccountsView.lite.spec.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/AutoConfigView.spec.ts",
+      "status": "A",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/PrioritySchedulingView.spec.ts",
+      "status": "M",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/ops/TokenGuardV2View.vue",
+      "status": "M",
+      "result": "official"
+    }
+  ],
+  "repository": "https://github.com/ranxi2001/sub2api",
+  "branch": "production",
+  "local_start": "47b38712d5",
+  "resolution": "Non-fee conflicts prefer official; billing and deployment topology integration retained; generated wiring regenerated."
+}

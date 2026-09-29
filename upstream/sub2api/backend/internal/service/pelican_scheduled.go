@@ -51,6 +51,10 @@ func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID
 		ctx = context.WithValue(ctx, qualityProbeModelMappingKey{}, cfg.Quality.ProbeModelMapping)
 	}
 	started := time.Now()
+	ctx = withPelicanTestOptions(ctx, pelicanTestOptions{
+		testChannel: cfg.TestChannel,
+		observeOnly: cfg.Quality != nil && cfg.Quality.Action == QualityActionObserveOnly,
+	})
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	w := &pelicanRecorder{ResponseRecorder: httptest.NewRecorder(), cancel: cancel}

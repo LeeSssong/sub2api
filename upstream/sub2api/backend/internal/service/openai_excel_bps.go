@@ -33,7 +33,7 @@ var excelBPSCatalog basispoints.CatalogCache
 type excelBPSAuthPolicyKey struct{}
 
 func (s *OpenAIGatewayService) handleExcelBPSUnauthorized(ctx context.Context, account *Account, status int, headers http.Header, raw []byte) {
-	if status != http.StatusUnauthorized || s.rateLimitService == nil {
+	if status != http.StatusUnauthorized || s.rateLimitService == nil || isQualityObservation(ctx) {
 		return
 	}
 	fields := map[string]string{"message": "Excel BPS authentication failed"}
@@ -53,7 +53,7 @@ func (s *OpenAIGatewayService) handleExcelBPSUnauthorized(ctx context.Context, a
 
 func (s *OpenAIGatewayService) moveExcelBPSOn403(ctx context.Context, account *Account) bool {
 	target, enabled := account.ExcelBPS403GroupTarget()
-	if !enabled {
+	if !enabled || isQualityObservation(ctx) {
 		return false
 	}
 	repo, ok := s.accountRepo.(AccountExcelBPSGroupRepository)
@@ -74,7 +74,7 @@ func (s *OpenAIGatewayService) moveExcelBPSOn403(ctx context.Context, account *A
 }
 
 func (s *OpenAIGatewayService) disableExcelBPSOn403(ctx context.Context, account *Account) bool {
-	if !account.IsExcelBPSAutoDisableOn403Enabled() {
+	if !account.IsExcelBPSAutoDisableOn403Enabled() || isQualityObservation(ctx) {
 		return false
 	}
 	repo, ok := s.accountRepo.(AccountExcelBPSRepository)
@@ -217,7 +217,9 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 	// No output exists yet, so the handler may replay the request on another
 	// account within its switch budget unless the client is already gone.
 	failoverRateLimited := func(retryAfter string) (*OpenAIForwardResult, error) {
-		s.coolDownExcelBPS(ctx, account, retryAfter)
+		if !isQualityObservation(ctx) {
+			s.coolDownExcelBPS(ctx, account, retryAfter)
+		}
 		if isExcelBPSClientCancellation(c, ctx.Err()) {
 			return clientCanceled()
 		}
@@ -706,6 +708,7 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 	}
 	var completed []byte
 	terminal := ""
+	terminalSuccessful := false
 	cacheCreationAsInput := account.IsExcelBPSCacheCreationAsInputEnabled()
 	for scanner.Next(ctx, 0, heartbeat.C, keepalive) {
 		line := scanner.Text()
@@ -736,6 +739,7 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 					lease.ReportSuccess()
 				}
 				terminal = kind
+				terminalSuccessful = IsSuccessfulStreamTerminal(payload)
 				completed = []byte(gjson.GetBytes(payload, "response").Raw)
 				result.ResponseID = gjson.GetBytes(payload, "response.id").String()
 				result.UpstreamResponseModel = gjson.GetBytes(payload, "response.model").String()
@@ -797,6 +801,9 @@ func (s *OpenAIGatewayService) forwardExcelBPS(ctx context.Context, c *gin.Conte
 	}
 	imagePolicy.finish(ctx, imagePolicy.compact || len(compactOutput) > 0 || (imagePolicy.history != nil && imagePolicy.history.Count < imageSettings.Limits.MaxImages-imageSettings.WarningRemaining))
 	s.bindHTTPResponseAccount(ctx, c, account, result.ResponseID)
+	if stream && terminalSuccessful && !result.ClientDisconnect {
+		MarkOpsStreamCompleted(c, account.ID)
+	}
 	return result, nil
 }
 

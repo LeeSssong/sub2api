@@ -4,6 +4,10 @@ set -euo pipefail
 umask 077
 
 # Exact September 28 transition; replace target only after integrated SQL review.
+# September 29: official observation-scope index; bounded online migration.
+readonly SEPTEMBER_29_OLD_MIGRATIONS_HASH=611d464f9a31d60236cf065883d82966c3df2436683e899044c931ffb48743de
+readonly SEPTEMBER_29_NEW_MIGRATIONS_HASH=a3be3a718ef8c6a3980b71d4c3367c20776cebed128d206fdbf54cb35dff1477
+
 readonly SEPTEMBER_28_OLD_MIGRATIONS_HASH=aa5034f8164b58fec94947353be441991f7b0baeac48b9f7ba62f55013aed5c9
 readonly SEPTEMBER_28_NEW_MIGRATIONS_HASH=611d464f9a31d60236cf065883d82966c3df2436683e899044c931ffb48743de
 
@@ -57,7 +61,7 @@ done
 [[ "$maintenance_authorized" == false || "$mode" == production ]] || fail '--maintenance-authorized is only valid in production mode'
 [[ -z "$online_migrations_from_hash" || ( "$mode" == production && "$maintenance_authorized" == false ) ]] \
   || fail 'online migrations require production mode without maintenance'
-[[ -z "$online_migrations_from_hash" || "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 || "$online_migrations_from_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b || "$online_migrations_from_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" ]] \
+[[ -z "$online_migrations_from_hash" || "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 || "$online_migrations_from_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b || "$online_migrations_from_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" ]] \
   || fail 'online migration source hash is not a reviewed predecessor'
 maintenance_from_hash=${RELEASE_MAINTENANCE_FROM_HASH:-}
 if [[ "$maintenance_authorized" == true ]]; then
@@ -126,6 +130,11 @@ fi
 if [[ "$online_migrations_from_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" ]]; then
   [[ "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
     || fail 'September 28 requires exact reviewed migrations, new worker, and preserved detector'
+fi
+
+if [[ "$online_migrations_from_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" ]]; then
+  [[ "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
+    || fail 'September 29 requires exact reviewed migrations, new worker, and preserved detector'
 fi
 
 ruby -rjson -rtime -e '

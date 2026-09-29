@@ -6,6 +6,8 @@ export default {
       ttftP95: '首字 P95', latencyP95: '总耗时 P95', cacheHitRate: '缓存命中率', requestCount: '综合成功 {success}/{total}', realRequestCount: '真实请求成功 {success}/{total}', probeFallbackCount: '{count} 个空桶使用主动探测兜底', sampleCount: '基于 {count} 次调用', multiplier: '倍率：{value}x', empty: '暂无可见分组',
     },
     "cards": {
+        "bucketDetails": "时段内采样详情",
+        "sampleDetails": "{time} · 可用率 {availability} · 缓存率 {cache} · 首 Token P50 {ttft}",
         "showCards": "卡片视图",
         "showAnalytics": "详细数据",
         "passive": "V2 被动用量 · 缓存率与可用率",
@@ -24,6 +26,8 @@ export default {
         }
     },
     "candy": {
+        "disabled": "未开启检测",
+        "disabledHint": "该分组尚未开启降智检测, 可由管理员在渠道监控中配置.",
         "invalid": '请填写检测模型, 间隔必须是 1-1440 的整数分钟.',
         "title": "降智状态",
         "cadence": "每 {minutes} 分钟检测",

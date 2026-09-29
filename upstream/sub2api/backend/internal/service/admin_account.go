@@ -527,6 +527,13 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 }
 
 func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error) {
+	input.Extra = maps.Clone(input.Extra)
+	if err := ValidateAccountCostMultiplierExtra(input.Extra); err != nil {
+		return nil, err
+	}
+	if err := s.ApplyOAuthAutoConfig(ctx, input); err != nil {
+		return nil, err
+	}
 	if err := ValidateObserverGroupBindings(ctx, input.GroupIDs); err != nil {
 		return nil, err
 	}
@@ -642,6 +649,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 }
 
 func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *UpdateAccountInput) (*Account, error) {
+	if err := ValidateAccountCostMultiplierExtra(input.Extra); err != nil {
+		return nil, err
+	}
 	if err := ValidateGroupAllowedModels(input.GroupAllowedModels); err != nil {
 		return nil, err
 	}
@@ -1095,6 +1105,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 // UpdateAccountExtra 仅对 Extra JSONB 做 key 级合并，避免覆盖其它运行态键
 // （如 model_rate_limits / passive_usage_* 等）。
 func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
+	if err := ValidateAccountCostMultiplierExtra(updates); err != nil {
+		return err
+	}
 	_, moveChanged := updates[ExcelBPSAutoMoveOn403Key]
 	_, targetChanged := updates[ExcelBPS403TargetGroupIDKey]
 	if moveChanged || targetChanged {
@@ -1139,7 +1152,9 @@ func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, upd
 // BulkUpdateAccounts updates multiple accounts in one request.
 // It merges credentials/extra keys instead of overwriting the whole object.
 func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUpdateAccountsInput) (*BulkUpdateAccountsResult, error) {
-	input.Extra = maps.Clone(input.Extra)
+	if err := ValidateAccountCostMultiplierExtra(input.Extra); err != nil {
+		return nil, err
+	}
 	// Managed probe/session state may only enter through dedicated typed endpoints.
 	input.Extra = MergeOpenAICodexTicketExtra(input.Extra, nil)
 	input.Extra = sanitizedCodexFingerprintExtraUpdates(input.Extra)

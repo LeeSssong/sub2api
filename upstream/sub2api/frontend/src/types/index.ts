@@ -2736,7 +2736,7 @@ export interface QualityPolicy {
   trigger_on_upstream_5xx?: boolean
   judge?: QualityJudgeConfig
   expected_answer: string
-  action: 'remove_groups' | 'disable_scheduling' | 'remove_models' | 'enable_bps'
+  action: 'remove_groups' | 'disable_scheduling' | 'enable_bps' | 'observe_only'
   remove_group_ids: number[]
   remove_model_ids?: string[]
   auto_restore: boolean
@@ -2747,6 +2747,7 @@ export interface PelicanTestConfig {
   trigger_source?: string
   quality?: QualityPolicy
   question_kind?: 'candy' | 'pelican' | 'state_probe'
+  test_channel?: 'account' | 'bps'
   prompt: string
   reasoning_effort: string
   parallel_count: number

@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const QualityActionObserveOnly = "observe_only"
+
 // QualityPolicy is opt-in. Legacy connectivity/HTML tests never modify membership.
 type QualityPolicy struct {
 	// ProbeModelMapping is hydrated from owned recovery state when claiming a run. Never accepted from API JSON.
@@ -45,20 +47,13 @@ func validateQualityPolicy(plan *ScheduledTestPlan) error {
 	} else if len(q.ExpectedAnswer) > 4000 {
 		return fmt.Errorf("expected answer must be 1–4000 bytes")
 	}
-	if q.Action != "remove_groups" && q.Action != "disable_scheduling" && q.Action != "remove_models" && q.Action != QualityActionEnableBPS {
+	if q.Action != "remove_groups" && q.Action != "disable_scheduling" && q.Action != QualityActionEnableBPS && q.Action != QualityActionObserveOnly {
 		return fmt.Errorf("invalid quality action")
 	}
-	if q.Action == "remove_models" {
-		if len(q.RemoveModelIDs) == 0 || len(q.RemoveModelIDs) > 100 {
-			return fmt.Errorf("select 1–100 explicit models to remove")
-		}
-		seen := map[string]bool{}
-		for _, model := range q.RemoveModelIDs {
-			if model == "" || strings.TrimSpace(model) != model || len(model) > 100 || strings.ContainsAny(model, "*\\") || seen[model] {
-				return fmt.Errorf("invalid or duplicate model ID: use explicit model entries")
-			}
-			seen[model] = true
-		}
+	if q.Action == QualityActionObserveOnly {
+		q.AutoRestore = false
+		q.RemoveGroupIDs = nil
+		q.BPS = nil
 	}
 	if q.Action == QualityActionEnableBPS {
 		// BPS 开启后糖果题会走 BPS 通道，判不出直连是否恢复；只有探针能绕开 BPS 继续探直连。

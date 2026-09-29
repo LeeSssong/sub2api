@@ -7,15 +7,17 @@ import (
 
 // PelicanTestConfig stores intelligence test inputs; a missing kind preserves legacy HTML plans.
 type PelicanTestConfig struct {
-	TriggerSource   string         `json:"trigger_source,omitempty"`
-	ReportPairKey   string         `json:"report_pair_key,omitempty"`
-	Quality         *QualityPolicy `json:"quality,omitempty"`
-	QuestionKind    string         `json:"question_kind,omitempty"`
-	Prompt          string         `json:"prompt"`
-	ReasoningEffort string         `json:"reasoning_effort"`
-	ParallelCount   int            `json:"parallel_count"`
-	// Runtime ownership state; never accepted from JSON.
-	BPSRecoveryPending bool `json:"-"`
+	// BPSRecoveryPending is filled from persisted ownership when the runner
+	// claims a plan. It is never accepted from or written to configuration JSON.
+	TriggerSource      string         `json:"trigger_source,omitempty"`
+	ReportPairKey      string         `json:"report_pair_key,omitempty"`
+	BPSRecoveryPending bool           `json:"-"`
+	Quality            *QualityPolicy `json:"quality,omitempty"`
+	QuestionKind       string         `json:"question_kind,omitempty"`
+	TestChannel        string         `json:"test_channel,omitempty"`
+	Prompt             string         `json:"prompt"`
+	ReasoningEffort    string         `json:"reasoning_effort"`
+	ParallelCount      int            `json:"parallel_count"`
 	// ModelID is recorded with each result so later edits do not relabel history.
 	ModelID string `json:"model_id,omitempty"`
 }

@@ -861,6 +861,7 @@ func ProvideBackupService(
 // hold a *SettingService reference, but wire injects a tiny callback so writes to
 // ops_advanced_settings immediately propagate into the scheduler hot-path cache.
 func ProvideOpsService(
+	accountOps *AccountOpsService,
 	opsRepo OpsRepository,
 	settingRepo SettingRepository,
 	cfg *config.Config,
@@ -897,6 +898,7 @@ func ProvideOpsService(
 			settingService.WarmOpenAIQuotaAutoPauseSettings(context.Background())
 		}
 	}
+	svc.SetAutoConfigObserver(accountOps.ObserveConcurrencyResult)
 	svc.authCacheInvalidationWorker = authCacheInvalidationWorker
 	svc.apiKeyService = apiKeyService
 	if shouldStartSingleton(cfg) {
@@ -1129,7 +1131,7 @@ var ProviderSet = wire.NewSet(
 	ProvideUsageRecordWorkerPool,
 	ProvideSchedulerSnapshotService,
 	NewIdentityService,
-	NewCRSSyncService,
+	ProvideCRSSyncService,
 	ProvideUpdateService,
 	ProvideTokenRefreshService,
 	wire.Bind(new(GrokOAuthReconciler), new(*TokenRefreshService)),
@@ -1415,8 +1417,10 @@ func ProvideChannelMonitorV2Aggregator(repo ChannelMonitorV2Repository, db *sql.
 	return aggregator
 }
 
-func ProvideAccountOpsService(settings SettingRepository, repo AccountOpsRepository, email *EmailService, cfg *config.Config) *AccountOpsService {
+func ProvideAccountOpsService(settings SettingRepository, repo AccountOpsRepository, email *EmailService, accounts AccountRepository, groups GroupRepository, cfg *config.Config) *AccountOpsService {
 	svc := NewAccountOpsService(settings, repo, email)
+	svc.autoAccounts, _ = accounts.(AccountConcurrencyRepository)
+	svc.autoGroups = groups
 	svc.start(shouldStartSingleton(cfg))
 	return svc
 }
@@ -1445,5 +1449,12 @@ func ProvideAccountTokenGuardV2Service(repo AccountTokenGuardV2Repository, setti
 	if shouldStartSingleton(cfg) {
 		svc.Start()
 	}
+	return svc
+}
+
+func ProvideCRSSyncService(accounts AccountRepository, proxies ProxyRepository, oauth *OAuthService, openai *OpenAIOAuthService, gemini *GeminiOAuthService, cfg *config.Config, settings *SettingService, groups GroupRepository) *CRSSyncService {
+	svc := NewCRSSyncService(accounts, proxies, oauth, openai, gemini, cfg)
+	defaults := &adminServiceImpl{settingService: settings, groupRepo: groups}
+	svc.autoConfigure = defaults.ApplyOAuthAutoConfig
 	return svc
 }

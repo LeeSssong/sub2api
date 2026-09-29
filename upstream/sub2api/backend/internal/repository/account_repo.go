@@ -808,6 +808,10 @@ func lockAndMergeAccountProbeExtra(
 		extra[service.AccountAdmissionBlockedKey] = gate
 	}
 	extra = service.MergeExcelBPS403Marker(extra, currentExtra)
+	delete(extra, service.AutoConfigConcurrencyExtraKey)
+	if state, ok := currentExtra[service.AutoConfigConcurrencyExtraKey]; ok {
+		extra[service.AutoConfigConcurrencyExtraKey] = state
+	}
 	for _, key := range []string{
 		service.UpstreamBillingProbeEnabledExtraKey,
 		service.UpstreamBillingRateSyncEnabledExtraKey,

@@ -79,13 +79,13 @@ func TestQualityRunnerAppliesCombinedOutcomeOnce(t *testing.T) {
 	require.Equal(t, "groups_removed", results.results[0].QualityAction)
 }
 
-func TestQualityRemoveModelsPolicyValidation(t *testing.T) {
+func TestQualityRejectsRetiredRemoveModelsPolicy(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		models []string
 		valid  bool
 	}{
-		{"multiple", []string{"model-a", "model-b"}, true},
+		{"multiple", []string{"model-a", "model-b"}, false},
 		{"none", nil, false}, {"blank", []string{" "}, false},
 		{"duplicate", []string{"model-a", "model-a"}, false},
 		{"wildcard", []string{"model-*"}, false},

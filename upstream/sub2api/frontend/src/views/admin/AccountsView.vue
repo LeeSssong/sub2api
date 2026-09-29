@@ -285,7 +285,7 @@
             </div>
           </template>
           <template #cell-capacity="{ row }">
-            <AccountCapacityCell :account="row" />
+            <AccountCapacityCell :account="row" :concurrency-upgrade-enabled="concurrencyUpgradeEnabled" />
           </template>
           <template #cell-status="{ row }">
             <div class="flex items-center gap-1.5">
@@ -541,6 +541,20 @@ import type { Account, AccountListItem, AccountPlatform, AccountSchedulerGroupSc
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const concurrencyUpgradeEnabled = ref(false)
+let concurrencyUpgradeRequest = 0
+
+const loadConcurrencyUpgradeState = async () => {
+  const request = ++concurrencyUpgradeRequest
+  try {
+    const capabilities = await adminAPI.accounts.getManagementCapabilities()
+    if (request === concurrencyUpgradeRequest) {
+      concurrencyUpgradeEnabled.value = capabilities.concurrency_upgrade_enabled === true
+    }
+  } catch {
+    if (request === concurrencyUpgradeRequest) concurrencyUpgradeEnabled.value = false
+  }
+}
 
 const proxies = ref<AccountProxy[]>([])
 const groups = ref<AdminGroup[]>([])
@@ -1153,6 +1167,7 @@ useSwipeSelect(accountTableRef, {
 const resetAutoRefreshCache = () => {
   autoRefreshETag.value = null
   upstreamBillingRateETag.value = null
+  upstreamBillingRateAbortController?.abort()
 }
 
 type AccountLoadOptions = {
@@ -1166,7 +1181,7 @@ const load = async (options: AccountLoadOptions = {}) => {
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = false
   requestParams.lite = '1'
-  await baseLoad()
+  await Promise.all([baseLoad(), loadConcurrencyUpgradeState()])
   if (options.refreshTodayStats !== false) await refreshTodayStatsBatch()
 }
 
@@ -1175,7 +1190,7 @@ const reload = async () => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = false
-  await baseReload()
+  await Promise.all([baseReload(), loadConcurrencyUpgradeState()])
   await refreshTodayStatsBatch()
 }
 
@@ -1203,25 +1218,35 @@ const upstreamBillingRateContextKey = () => JSON.stringify({
 })
 
 const applyUpstreamBillingRateSnapshots = async (
-  result: NonNullable<Awaited<ReturnType<typeof adminAPI.accounts.getUpstreamBillingRatesWithEtag>>['data']>
+  result: NonNullable<Awaited<ReturnType<typeof adminAPI.accounts.getUpstreamBillingRatesWithEtag>>['data']>,
+  requestContextKey: string,
+  signal: AbortSignal
 ) => {
   const nextIDs = result.items.map(item => item.account_id)
   const currentIDs = accounts.value.map(account => account.id)
+  const currentByID = new Map(accounts.value.map(account => [account.id, account]))
 
-  // The compact response cannot fill a row that crossed a page boundary.
-  // Only that case needs the expensive, full account-list request.
-  if (result.total !== pagination.total || !sameAccountIDOrder(nextIDs, currentIDs)) {
-    try {
-      await load({ refreshTodayStats: false })
-    } catch (error) {
-      console.error('Failed to reconcile upstream billing sort:', error)
-    }
+  // Fetch missing rows without replacing the table with its loading skeleton.
+  if (result.total !== pagination.total || nextIDs.length !== currentIDs.length || nextIDs.some(id => !currentByID.has(id))) {
+    const page = await adminAPI.accounts.list(
+      pagination.page,
+      pagination.page_size,
+      { ...toRaw(params), lite: '1' },
+      { signal }
+    )
+    if (signal.aborted || loading.value || requestContextKey !== upstreamBillingRateContextKey()) return
+    pagination.total = page.total
+    pagination.pages = page.pages
+    mergeAccountsIncrementally(page.items)
+    hasPendingListSync.value = false
+    upstreamBillingNow.value = Date.now()
     return
   }
 
   const itemsByID = new Map(result.items.map(item => [item.account_id, item]))
-  let changed = false
-  const nextAccounts = accounts.value.map(account => {
+  let changed = !sameAccountIDOrder(nextIDs, currentIDs)
+  const nextAccounts = nextIDs.map(id => {
+    const account = currentByID.get(id)!
     const item = itemsByID.get(account.id)
     if (!item) return account
     const nextSnapshot = item.snapshot ?? null
@@ -1272,10 +1297,13 @@ const refreshUpstreamBillingRates = async (force = false) => {
       buildUpstreamBillingRateFilters(),
       { etag: force ? null : upstreamBillingRateETag.value, signal: controller.signal }
     )
-    if (loading.value || requestContextKey !== upstreamBillingRateContextKey()) return
+    if (controller.signal.aborted || loading.value || requestContextKey !== upstreamBillingRateContextKey()) return
     if (result.etag) upstreamBillingRateETag.value = result.etag
-    if (!result.notModified && result.data) await applyUpstreamBillingRateSnapshots(result.data)
+    if (!result.notModified && result.data) {
+      await applyUpstreamBillingRateSnapshots(result.data, requestContextKey, controller.signal)
+    }
   } catch (error) {
+    upstreamBillingRateETag.value = null
     const refreshError = error as { name?: string; code?: string }
     if (refreshError.name !== 'AbortError' && refreshError.name !== 'CanceledError' && refreshError.code !== 'ERR_CANCELED') {
       console.error('Failed to refresh upstream billing rates:', error)
@@ -1287,7 +1315,8 @@ const refreshUpstreamBillingRates = async (force = false) => {
 }
 
 const refreshUpstreamBillingSortedList = async (force = false) => {
-  if (!force && sortState.sort_by !== 'upstream_billing_rate') return
+  // A probe cannot change recent-use, name, or status ordering.
+  if (sortState.sort_by !== 'upstream_billing_rate' && sortState.sort_by !== 'rate_multiplier') return
   await refreshUpstreamBillingRates(force)
 }
 
@@ -1392,6 +1421,7 @@ const shouldReplaceAutoRefreshRow = (current: Account, next: Account) => {
   return (
     current.updated_at !== next.updated_at ||
     current.current_concurrency !== next.current_concurrency ||
+    JSON.stringify(current.extra?.auto_config_concurrency) !== JSON.stringify(next.extra?.auto_config_concurrency) ||
     current.current_window_cost !== next.current_window_cost ||
     current.active_sessions !== next.active_sessions ||
     current.current_rpm !== next.current_rpm ||
@@ -1449,6 +1479,7 @@ const refreshAccountsIncrementally = async () => {
   if (autoRefreshFetching.value) return
   syncAccountListDerivedParams()
   autoRefreshFetching.value = true
+  const upgradeStateRefresh = loadConcurrencyUpgradeState()
   try {
     const result = await adminAPI.accounts.listWithEtag(
       pagination.page,
@@ -1482,6 +1513,7 @@ const refreshAccountsIncrementally = async () => {
   } catch (error) {
     console.error('Auto refresh failed:', error)
   } finally {
+    await upgradeStateRefresh
     autoRefreshFetching.value = false
   }
 }
@@ -2239,6 +2271,7 @@ const patchUpstreamBillingSnapshot = (accountID: number, snapshot: UpstreamBilli
   })
 }
 const refreshAccountsAfterUpstreamBillingProbe = async () => {
+  enterAutoRefreshSilentWindow()
   await refreshUpstreamBillingSortedList(true)
 }
 const handleProbeUpstreamBilling = async (account: Account) => {
@@ -2577,6 +2610,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  concurrencyUpgradeRequest++
   upstreamBillingRateAbortController?.abort()
   if (usageBatchFlushTimer !== null) {
     clearTimeout(usageBatchFlushTimer)
