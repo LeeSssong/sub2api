@@ -663,7 +663,7 @@ const totalAmount = computed(() =>
 const amountError = computed(() => {
   if (validAmount.value <= 0) return ''
   if (validAmount.value < RECHARGE_MIN_AMOUNT) return '单笔最低充值 $1'
-  if (validAmount.value > RECHARGE_MAX_AMOUNT) return '单笔最高充值 $50'
+  if (validAmount.value > RECHARGE_MAX_AMOUNT) return '单笔最高充值 $50，如需大额充值可去 [云猫兑换充值] 或 [联系客服QQ:2826033474]'
   // No method can handle this amount
   if (!enabledMethods.value.some((m) => amountFitsMethod(validAmount.value, m))) {
     return t('payment.amountNoMethod')

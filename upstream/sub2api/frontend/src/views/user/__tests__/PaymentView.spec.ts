@@ -490,7 +490,7 @@ describe('PaymentView recharge-only experience', () => {
 
   it.each([
     [0.5, '单笔最低充值 $1'],
-    [50.01, '单笔最高充值 $50'],
+    [50.01, '单笔最高充值 $50，如需大额充值可去 [云猫兑换充值] 或 [联系客服QQ:2826033474]'],
   ])('shows the fixed recharge limit error for %s', async (value, message) => {
     const wrapper = await mountSubscriptionPlanList(0)
     const amountInput = wrapper.findComponent({ name: 'AmountInput' })
