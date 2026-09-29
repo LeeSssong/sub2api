@@ -35,22 +35,6 @@ const showcase = (overrides: Partial<ShowcaseData> = {}): ShowcaseData => ({
   ...overrides,
 })
 
-const withStats = () => {
-  const data = showcase()
-  Object.assign(data, {
-    // Group memberships overlap: the server total is deliberately not their sum.
-    stats: { success_count: 6, total_count: 8, success_rate: 75 },
-    stats_window: {
-      from: '2026-09-25T08:00:00Z', to: '2026-09-26T08:00:00Z',
-      coverage_started_at: '2026-09-24T08:00:00Z', complete: true,
-    },
-  })
-  Object.assign(data.groups[0], { stats: { success_count: 5, total_count: 7, success_rate: 500 / 7 } })
-  Object.assign(data.groups[1], { stats: { success_count: 5, total_count: 6, success_rate: 500 / 6 } })
-  Object.assign(data.groups[2], { stats: { success_count: 0, total_count: 0, success_rate: null } })
-  return data
-}
-
 const mountView = () => mount(PelicanShowcaseView, {
   global: {
     stubs: {
@@ -108,72 +92,6 @@ afterEach(() => {
 })
 
 describe('PelicanShowcaseView', () => {
-  it('uses deduplicated server totals and switches the summary with the group filter', async () => {
-    getShowcase.mockResolvedValue(withStats())
-    wrapper = mountView()
-    await flushPromises()
-    expect(wrapper.get('[data-testid="showcase-statistics-count"]').text()).toBe('6 / 8')
-    expect(wrapper.get('[data-testid="showcase-statistics-rate"]').text()).toBe('75.0%')
-    expect(wrapper.get('[data-testid="showcase-group-stats-1"]').text()).toContain('5 / 7')
-    expect(wrapper.get('[data-testid="showcase-group-stats-1"]').text()).toContain('71.4%')
-    await wrapper.get('[data-testid="showcase-tab-2"]').trigger('click')
-    expect(wrapper.get('[data-testid="showcase-statistics-count"]').text()).toBe('5 / 6')
-    expect(wrapper.get('[data-testid="showcase-statistics-rate"]').text()).toBe('83.3%')
-    expect(wrapper.get('[data-testid="showcase-statistics"]').text()).toContain('GPT Plus')
-  })
-
-  it('distinguishes no tests from completed tests that all failed', async () => {
-    const data = withStats()
-    Object.assign(data.groups[1], { stats: { success_count: 0, total_count: 6, success_rate: 0 } })
-    getShowcase.mockResolvedValue(data)
-    wrapper = mountView()
-    await flushPromises()
-    await wrapper.get('[data-testid="showcase-tab-3"]').trigger('click')
-    expect(wrapper.get('[data-testid="showcase-statistics-count"]').text()).toBe('0 / 0')
-    expect(wrapper.get('[data-testid="showcase-statistics-rate"]').text()).toBe('—')
-    expect(wrapper.get('[data-testid="showcase-statistics"]').text()).toContain('pelicanShowcase.statistics.noTests')
-    await wrapper.get('[data-testid="showcase-tab-2"]').trigger('click')
-    expect(wrapper.get('[data-testid="showcase-statistics-count"]').text()).toBe('0 / 6')
-    expect(wrapper.get('[data-testid="showcase-statistics-rate"]').text()).toBe('0.0%')
-  })
-
-  it('keeps artwork usable when statistics are absent and does not infer counts from cards', async () => {
-    getShowcase.mockResolvedValue(showcase())
-    wrapper = mountView()
-    await flushPromises()
-    expect(wrapper.get('[data-testid="showcase-statistics-count"]').text()).toBe('— / —')
-    expect(wrapper.get('[data-testid="showcase-statistics-rate"]').text()).toBe('—')
-    expect(wrapper.get('[data-testid="showcase-statistics"]').text()).toContain('pelicanShowcase.statistics.unavailable')
-    expect(wrapper.findAll('[data-testid="pelican-showcase-card"]').length).toBeGreaterThan(0)
-  })
-
-  it('labels incomplete coverage with its actual collection start', async () => {
-    const data = withStats()
-    Object.assign(data, { stats_window: {
-      from: '2026-09-25T08:00:00Z', to: '2026-09-26T08:00:00Z',
-      coverage_started_at: '2026-09-26T06:00:00Z', complete: false,
-    } })
-    getShowcase.mockResolvedValue(data)
-    wrapper = mountView()
-    await flushPromises()
-    const coverage = wrapper.get('[data-testid="showcase-statistics-coverage"]')
-    expect(coverage.text()).toContain('pelicanShowcase.statistics.partialCoverage')
-    expect(coverage.text()).toContain('2026')
-    expect(wrapper.get('[data-testid="showcase-statistics-window"]').text()).toContain('pelicanShowcase.statistics.sinceEnabled')
-  })
-
-  it('marks statistics unavailable when refresh fails instead of presenting stale values as current', async () => {
-    getShowcase.mockResolvedValueOnce(withStats()).mockRejectedValueOnce(new Error('offline'))
-    wrapper = mountView()
-    await flushPromises()
-    await wrapper.get('button[aria-label="common.refresh"]').trigger('click')
-    await flushPromises()
-    expect(wrapper.get('[data-testid="showcase-statistics-count"]').text()).toBe('— / —')
-    expect(wrapper.get('[data-testid="showcase-group-stats-1"]').text()).toContain('— / —')
-    expect(wrapper.findAll('[data-testid="pelican-showcase-card"]').length).toBeGreaterThan(0)
-    expect(showError).toHaveBeenCalled()
-  })
-
   it('explains that the gallery is closed without asking for items', async () => {
     getShowcase.mockResolvedValue(showcase({ enabled: false, groups: [] }))
     wrapper = mountView()
@@ -253,8 +171,8 @@ describe('PelicanShowcaseView', () => {
     expect(wrapper.findAll('[data-testid="pelican-showcase-card"]')[1].get('iframe').attributes('srcdoc')).toContain('data-item="202"')
   })
 
-  it('defaults each preview to fit and preserves statistics when artwork is removed', async () => {
-    getShowcase.mockResolvedValue(withStats())
+  it('previews a card, and only admins can take it down', async () => {
+    getShowcase.mockResolvedValue(showcase())
     wrapper = mountView()
     await settle()
 
@@ -280,7 +198,5 @@ describe('PelicanShowcaseView', () => {
     expect(showSuccess).toHaveBeenCalledWith('pelicanShowcase.removed')
     expect(wrapper.find('[data-testid="showcase-preview"]').exists()).toBe(false)
     expect(wrapper.get('[data-testid="showcase-group-2"]').text()).toContain('pelicanShowcase.groupEmpty')
-    expect(wrapper.get('[data-testid="showcase-statistics-count"]').text()).toBe('6 / 8')
-    expect(wrapper.get('[data-testid="showcase-group-stats-2"]').text()).toContain('5 / 6')
   })
 })

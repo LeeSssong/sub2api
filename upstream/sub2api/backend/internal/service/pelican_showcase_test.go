@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -98,8 +97,8 @@ func TestPelicanShowcaseConfigNormalizeAndParse(t *testing.T) {
 	_, err = parsePelicanShowcaseConfig("{broken")
 	require.Error(t, err, "corrupt config must not silently become defaults")
 	cfg, err = parsePelicanShowcaseConfig(`{"group_ids":[3,9],"max_items":8,"auto_cleanup":false,"retention_days":5}`)
-	require.NoError(t, err, "configs saved before group tests still parse; their group list is retained only as migration metadata")
-	require.Equal(t, PelicanShowcaseConfig{GroupIDs: []int64{3, 9}, MaxItems: 8, RetentionDays: 5}, cfg)
+	require.NoError(t, err, "configs saved before group tests still parse; their group list is ignored")
+	require.Equal(t, PelicanShowcaseConfig{MaxItems: 8, RetentionDays: 5}, cfg)
 
 	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 	require.True(t, PelicanShowcaseConfig{AutoCleanup: false, RetentionDays: 3}.retentionCutoff(now).IsZero())
@@ -239,22 +238,4 @@ func TestScheduledSaveResultNoLongerFeedsTheShowcase(t *testing.T) {
 	result := &ScheduledTestResult{ID: 91, Status: "success", ResponseText: "<svg></svg>", PelicanConfig: &PelicanTestConfig{ModelID: "gpt-6-astra"}}
 	require.NoError(t, svc.SaveResult(context.Background(), 7, 50, result))
 	require.Equal(t, 50, results.pruned, "account plans keep their admin history; only group tests publish")
-}
-
-func TestPelicanShowcaseViewIncludesUnavailableStatistics(t *testing.T) {
-	repo := &showcaseRepoStub{groups: []*PelicanShowcaseGroup{{ID: 3, Name: "A"}}}
-	view, err := (&PelicanShowcaseService{repo: repo, settings: enabledShowcase()}).View(context.Background(), time.Now())
-	require.NoError(t, err)
-	encoded, err := json.Marshal(view)
-	require.NoError(t, err)
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(encoded, &payload))
-	require.Contains(t, payload, "stats")
-	require.Nil(t, payload["stats"])
-	require.Contains(t, payload, "stats_window")
-	require.Nil(t, payload["stats_window"])
-	group := payload["groups"].([]any)[0].(map[string]any)
-	require.Contains(t, group, "stats")
-	require.Nil(t, group["stats"])
-	require.Equal(t, "A", group["name"])
 }

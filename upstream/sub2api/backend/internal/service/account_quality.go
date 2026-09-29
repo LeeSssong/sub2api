@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"maps"
 	"strings"
 )
 
@@ -11,15 +10,12 @@ const QualityActionObserveOnly = "observe_only"
 
 // QualityPolicy is opt-in. Legacy connectivity/HTML tests never modify membership.
 type QualityPolicy struct {
-	// ProbeModelMapping is hydrated from owned recovery state when claiming a run. Never accepted from API JSON.
-	ProbeModelMapping    map[string]string   `json:"-"`
+	TriggerOnUpstream5xx bool                `json:"trigger_on_upstream_5xx"`
 	Judge                *QualityJudgeConfig `json:"judge,omitempty"`
 	ExpectedAnswer       string              `json:"expected_answer"`
 	Action               string              `json:"action"`
-	RemoveModelIDs       []string            `json:"remove_model_ids,omitempty"`
 	RemoveGroupIDs       []int64             `json:"remove_group_ids"`
 	AutoRestore          bool                `json:"auto_restore"`
-	TriggerOnUpstream5xx bool                `json:"trigger_on_upstream_5xx"`
 	BPS                  *QualityBPSPolicy   `json:"bps,omitempty"`
 }
 
@@ -120,32 +116,4 @@ func (s *ScheduledTestService) ListQualityHistory(ctx context.Context, beforeID 
 		page.NextCursor = items[99].ID
 	}
 	return page, nil
-}
-
-// Scoped to a single direct quality probe; never persisted or used by scheduling.
-type qualityProbeModelMappingKey struct{}
-
-func qualityProbeAccount(ctx context.Context, account *Account) *Account {
-	removed, _ := ctx.Value(qualityProbeModelMappingKey{}).(map[string]string)
-	if len(removed) == 0 {
-		return account
-	}
-	copy := *account
-	copy.Credentials = maps.Clone(account.Credentials)
-	if copy.Credentials == nil {
-		copy.Credentials = map[string]any{}
-	}
-	current, _ := account.Credentials["model_mapping"].(map[string]any)
-	mapping := maps.Clone(current)
-	if mapping == nil {
-		mapping = map[string]any{}
-	}
-	for model, target := range removed {
-		// A manual replacement remains authoritative even for quality probes.
-		if _, exists := mapping[model]; !exists {
-			mapping[model] = target
-		}
-	}
-	copy.Credentials["model_mapping"] = mapping
-	return &copy
 }

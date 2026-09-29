@@ -2738,7 +2738,6 @@ export interface QualityPolicy {
   expected_answer: string
   action: 'remove_groups' | 'disable_scheduling' | 'enable_bps' | 'observe_only'
   remove_group_ids: number[]
-  remove_model_ids?: string[]
   auto_restore: boolean
   bps?: QualityBPSPolicy
 }

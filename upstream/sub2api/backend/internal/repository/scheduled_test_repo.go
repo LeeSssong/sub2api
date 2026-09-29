@@ -4,11 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
-	"github.com/lib/pq"
 )
 
 // --- Plan Repository ---
@@ -117,19 +115,7 @@ func NewScheduledTestResultRepository(db *sql.DB) service.ScheduledTestResultRep
 }
 
 func (r *scheduledTestResultRepository) Create(ctx context.Context, result *service.ScheduledTestResult) (*service.ScheduledTestResult, error) {
-	queryRow := r.db.QueryRowContext
-	var tx *sql.Tx
-	reportKind, _, _ := service.ClassifyPelicanReportResult(result)
-	if service.IsPelicanDrawingResult(result) || reportKind != "" {
-		var err error
-		tx, err = r.db.BeginTx(ctx, nil)
-		if err != nil {
-			return nil, err
-		}
-		defer func() { _ = tx.Rollback() }()
-		queryRow = tx.QueryRowContext
-	}
-	row := queryRow(ctx, `
+	row := r.db.QueryRowContext(ctx, `
 		INSERT INTO scheduled_test_results (plan_id, status, response_text, error_message, latency_ms, started_at, finished_at, created_at, pelican_config, quality_action, quality_judgment, quality_round_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11)
 		RETURNING id, plan_id, status, response_text, error_message, latency_ms, started_at, finished_at, created_at, pelican_config, quality_action, quality_judgment, quality_round_id
@@ -151,21 +137,6 @@ func (r *scheduledTestResultRepository) Create(ctx context.Context, result *serv
 	}
 	if len(judgment) > 0 {
 		if err := json.Unmarshal(judgment, &out.QualityJudgment); err != nil {
-			return nil, err
-		}
-	}
-	out.ReportExecution = result.ReportExecution
-	out.PelicanGroupIDs = result.PelicanGroupIDs
-	if tx != nil {
-		if service.IsPelicanDrawingResult(out) {
-			if err := recordPelicanDrawingOutcome(ctx, tx, out, result.PelicanGroupIDs); err != nil {
-				return nil, err
-			}
-		}
-		if err := recordPelicanReportFact(ctx, tx, out, result.PelicanGroupIDs); err != nil {
-			return nil, err
-		}
-		if err := tx.Commit(); err != nil {
 			return nil, err
 		}
 	}
@@ -287,30 +258,6 @@ func (r *scheduledTestPlanRepository) ClaimPelican(ctx context.Context, plan *se
 	if !locked {
 		return false, nil
 	}
-	var sharedRoundID, pairFingerprint string
-	if plan.ReportExecution != nil && plan.PelicanConfig != nil && plan.PelicanConfig.ReportPairKey != "" && plan.ReportExecution.ScheduledFor != nil && plan.NextRunAt != nil && plan.ReportExecution.ScheduledFor.Equal(*plan.NextRunAt) {
-		rows, err := tx.QueryContext(ctx, `SELECT id, account_id, model_id, cron_expression, enabled, max_results, auto_recover, last_run_at, next_run_at, created_at, updated_at, pelican_config, running_until
- FROM scheduled_test_plans WHERE account_id=$1 AND pelican_config->>'report_pair_key'=$2 ORDER BY id FOR UPDATE`, plan.AccountID, plan.PelicanConfig.ReportPairKey)
-		if err != nil {
-			return false, err
-		}
-		peers, err := scanPlans(rows)
-		_ = rows.Close()
-		if err != nil {
-			return false, err
-		}
-		pairFingerprint = service.PelicanReportPairFingerprint(plan, peers, plan.ReportExecution.Timezone)
-		sharedRoundID = service.PelicanReportPairIdentity(plan, peers, plan.ReportExecution.Timezone)
-		if sharedRoundID == "" && pairFingerprint != "" {
-			err = tx.QueryRowContext(ctx, `SELECT shared_round_id FROM pelican_report_pair_slots
- WHERE account_id=$1 AND pair_key=$2 AND model_id=$3 AND cron_expression=$4 AND scheduled_for=$5 AND membership_fingerprint=$6 AND timezone=$7`, plan.AccountID, plan.PelicanConfig.ReportPairKey, plan.ModelID, plan.CronExpression, *plan.ReportExecution.ScheduledFor, pairFingerprint, plan.ReportExecution.Timezone).Scan(&sharedRoundID)
-			if errors.Is(err, sql.ErrNoRows) {
-				sharedRoundID = ""
-			} else if err != nil {
-				return false, err
-			}
-		}
-	}
 	result, err := tx.ExecContext(ctx, `UPDATE scheduled_test_plans
  SET running_until = $3, next_run_at = $4
  WHERE id = $1 AND enabled = true
@@ -329,31 +276,6 @@ func (r *scheduledTestPlanRepository) ClaimPelican(ctx context.Context, plan *se
 	if err != nil {
 		return false, err
 	}
-	var groups pq.Int64Array
-	if n == 1 {
-		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(array_agg(DISTINCT group_id ORDER BY group_id), '{}'::bigint[])
-         FROM account_groups WHERE account_id = $1`, plan.AccountID).Scan(&groups); err != nil {
-			return false, err
-		}
-	}
-	if n == 1 && plan.PelicanConfig != nil && plan.PelicanConfig.Quality != nil {
-		var raw []byte
-		if err := tx.QueryRowContext(ctx, `SELECT COALESCE((SELECT state->'removed_models' FROM account_quality_states WHERE plan_id=$1),'{}'::jsonb)`, plan.ID).Scan(&raw); err != nil {
-			return false, err
-		}
-		plan.PelicanConfig.Quality.ProbeModelMapping = nil
-		if err := json.Unmarshal(raw, &plan.PelicanConfig.Quality.ProbeModelMapping); err != nil {
-			return false, err
-		}
-	}
-	if n == 1 && sharedRoundID != "" && plan.ReportExecution != nil && plan.PelicanConfig != nil && plan.PelicanConfig.ReportPairKey != "" && plan.ReportExecution.ScheduledFor != nil {
-		_, err := tx.ExecContext(ctx, `INSERT INTO pelican_report_pair_slots(account_id,pair_key,model_id,cron_expression,scheduled_for,shared_round_id,membership_fingerprint,timezone)
- VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING`, plan.AccountID, plan.PelicanConfig.ReportPairKey, plan.ModelID, plan.CronExpression, *plan.ReportExecution.ScheduledFor, sharedRoundID, pairFingerprint, plan.ReportExecution.Timezone)
-		if err != nil {
-			return false, err
-		}
-		plan.ReportExecution.SharedRoundID = sharedRoundID
-	}
 	var bpsRecoveryPending bool
 	if n == 1 && plan.PelicanConfig != nil && plan.PelicanConfig.Quality != nil {
 		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(
@@ -364,9 +286,6 @@ func (r *scheduledTestPlanRepository) ClaimPelican(ctx context.Context, plan *se
 	}
 	if err := tx.Commit(); err != nil {
 		return false, err
-	}
-	if n == 1 {
-		plan.PelicanGroupIDs = append([]int64{}, groups...)
 	}
 	if n == 1 && plan.PelicanConfig != nil {
 		config := *plan.PelicanConfig

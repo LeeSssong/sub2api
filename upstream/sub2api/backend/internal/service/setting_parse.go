@@ -853,7 +853,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	// Pelican showcase (default: disabled; strict true). A corrupt config is shown as the
 	// defaults so the admin page still loads; the runtime reader fails closed on it.
-	result.PelicanShowcaseEnabled = pelicanShowcaseEnabledByDefault(settings[SettingKeyPelicanShowcaseEnabled])
+	result.PelicanShowcaseEnabled = settings[SettingKeyPelicanShowcaseEnabled] == "true"
 	result.PelicanShowcase = DefaultPelicanShowcaseConfig()
 	if showcase, err := parsePelicanShowcaseConfig(settings[SettingKeyPelicanShowcaseConfig]); err == nil {
 		result.PelicanShowcase = showcase

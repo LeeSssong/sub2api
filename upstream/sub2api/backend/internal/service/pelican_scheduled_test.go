@@ -48,19 +48,17 @@ func TestPelicanPlanValidation(t *testing.T) {
 type pelicanPlanRepo struct {
 	ScheduledTestPlanRepository
 	mu       sync.Mutex
-	groupIDs []int64
 	claimed  bool
 	finished bool
 }
 
-func (r *pelicanPlanRepo) ClaimPelican(_ context.Context, plan *ScheduledTestPlan, _, _, _ time.Time) (bool, error) {
+func (r *pelicanPlanRepo) ClaimPelican(context.Context, *ScheduledTestPlan, time.Time, time.Time, time.Time) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.claimed {
 		return false, nil
 	}
 	r.claimed = true
-	plan.PelicanGroupIDs = append([]int64{}, r.groupIDs...)
 	return true, nil
 }
 func (r *pelicanPlanRepo) FinishPelican(context.Context, int64, time.Time, time.Time) error {
@@ -86,7 +84,7 @@ func (r *pelicanResults) PruneOldResults(_ context.Context, _ int64, count int) 
 	return nil
 }
 func TestPelicanScheduleClaimParallelResultsAndFailure(t *testing.T) {
-	plans := &pelicanPlanRepo{groupIDs: []int64{3, 7}}
+	plans := &pelicanPlanRepo{}
 	results := &pelicanResults{}
 	runner := &ScheduledTestRunnerService{planRepo: plans, scheduledSvc: NewScheduledTestService(plans, results)}
 	var mu sync.Mutex
@@ -98,7 +96,6 @@ func TestPelicanScheduleClaimParallelResultsAndFailure(t *testing.T) {
 		require.Equal(t, "gpt-6-astra", model)
 		require.Equal(t, "draw a pelican", cfg.Prompt)
 		calls++
-		plans.groupIDs = []int64{9}
 		if calls == 1 {
 			return nil, errors.New("timeout")
 		}
@@ -108,9 +105,6 @@ func TestPelicanScheduleClaimParallelResultsAndFailure(t *testing.T) {
 	runner.runOnePlan(context.Background(), pelicanPlan())
 	require.Equal(t, 2, calls)
 	require.Len(t, results.results, 2)
-	for _, result := range results.results {
-		require.Equal(t, []int64{3, 7}, result.PelicanGroupIDs)
-	}
 	require.Equal(t, 50, results.pruned)
 	require.True(t, plans.finished)
 	statuses := []string{results.results[0].Status, results.results[1].Status}

@@ -60,11 +60,6 @@ func (s *ScheduledTestRunnerService) Start() {
 	}
 	s.startOnce.Do(func() {
 		s.startQualityTriggers()
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := s.scheduledSvc.resultRepo.MaintainPelicanStatistics(ctx, time.Now()); err != nil {
-			logger.LegacyPrintf("service.scheduled_test_runner", "pelican statistics initialization failed: %v", err)
-		}
-		cancel()
 		loc := time.Local
 		if s.cfg != nil {
 			if parsed, err := time.LoadLocation(s.cfg.Timezone); err == nil && parsed != nil {
@@ -116,9 +111,6 @@ func (s *ScheduledTestRunnerService) runScheduled() {
 	defer cancel()
 
 	now := time.Now()
-	if err := s.scheduledSvc.resultRepo.MaintainPelicanStatistics(ctx, now); err != nil {
-		logger.LegacyPrintf("service.scheduled_test_runner", "pelican statistics maintenance failed: %v", err)
-	}
 	if err := s.scheduledSvc.resultRepo.PruneExpiredPelican(ctx, now.Add(-7*24*time.Hour)); err != nil {
 		logger.LegacyPrintf("service.scheduled_test_runner", "pelican history cleanup failed: %v", err)
 	}

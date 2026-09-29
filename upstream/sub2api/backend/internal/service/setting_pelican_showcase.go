@@ -26,11 +26,9 @@ const (
 // group test plan and keeps its own copies, so these limits are independent of the admin
 // test history. Configs saved before group tests also carry "group_ids"; it is ignored.
 type PelicanShowcaseConfig struct {
-	// GroupIDs is legacy migration metadata. Active group plans control visibility.
-	GroupIDs      []int64 `json:"group_ids,omitempty"`
-	MaxItems      int     `json:"max_items"`
-	AutoCleanup   bool    `json:"auto_cleanup"`
-	RetentionDays int     `json:"retention_days"`
+	MaxItems      int  `json:"max_items"`
+	AutoCleanup   bool `json:"auto_cleanup"`
+	RetentionDays int  `json:"retention_days"`
 }
 
 func DefaultPelicanShowcaseConfig() PelicanShowcaseConfig {
@@ -43,8 +41,6 @@ func DefaultPelicanShowcaseConfig() PelicanShowcaseConfig {
 
 // NormalizePelicanShowcaseConfig fills zero limits with defaults and rejects out-of-range values.
 func NormalizePelicanShowcaseConfig(cfg PelicanShowcaseConfig) (PelicanShowcaseConfig, error) {
-	// New saves never modify the legacy selection; plans are authoritative.
-	cfg.GroupIDs = nil
 	if cfg.MaxItems == 0 {
 		cfg.MaxItems = PelicanShowcaseDefaultMaxItems
 	}
@@ -70,10 +66,7 @@ func parsePelicanShowcaseConfig(raw string) (PelicanShowcaseConfig, error) {
 	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
 		return cfg, fmt.Errorf("invalid pelican showcase config JSON")
 	}
-	legacyIDs := cfg.GroupIDs
-	normalized, err := NormalizePelicanShowcaseConfig(cfg)
-	normalized.GroupIDs = legacyIDs
-	return normalized, err
+	return NormalizePelicanShowcaseConfig(cfg)
 }
 
 // retentionCutoff returns the oldest generation time still shown, or zero when
@@ -108,7 +101,7 @@ func (s *SettingService) GetPelicanShowcaseRuntime(ctx context.Context) (Pelican
 	if err != nil {
 		return PelicanShowcaseRuntime{}, err
 	}
-	return PelicanShowcaseRuntime{Enabled: pelicanShowcaseEnabledByDefault(vals[SettingKeyPelicanShowcaseEnabled]), Config: cfg}, nil
+	return PelicanShowcaseRuntime{Enabled: vals[SettingKeyPelicanShowcaseEnabled] == "true", Config: cfg}, nil
 }
 
 // UpdatePelicanShowcaseSettings saves the gallery switch and limits from the Smart Ops
@@ -133,6 +126,3 @@ func (s *SettingService) UpdatePelicanShowcaseSettings(ctx context.Context, enab
 	}
 	return PelicanShowcaseRuntime{Enabled: enabled, Config: normalized}, nil
 }
-
-// An unconfigured deployment exposes an empty gallery; explicit disabling is preserved.
-func pelicanShowcaseEnabledByDefault(raw string) bool { return raw == "" || raw == "true" }

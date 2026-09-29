@@ -149,19 +149,6 @@ describe('Pelican sandbox measurement runtime', () => {
     expect(root.style.zoom).toBe('0.48')
   })
 
-  it('does not amplify artwork measurements when zoomed DOMRects remain in layout pixels', async () => {
-    start('<html><body><main id="art">Responsive artwork</main></body></html>', 1024, 889, undefined, (frame) => {
-      const rect = (width: number, height: number) => ({ left: 0, top: 0, right: width, bottom: height, width, height }) as DOMRect
-      frame.document.documentElement.getBoundingClientRect = () => rect(1024, 768)
-      frame.document.body.getBoundingClientRect = () => rect(1024, 889)
-      frame.document.getElementById('art')!.getBoundingClientRect = () => rect(1024, 889)
-    })
-    expect(reports[0]).toMatchObject({ width: 1024, height: 889 })
-    await vi.advanceTimersByTimeAsync(6000)
-    expect(reports).toHaveLength(1)
-    expect(sandbox.document.documentElement.style.zoom).toBe(String(768 / 889))
-  })
-
   it('preserves the author root zoom while applying its own reduction', () => {
     // jsdom does not parse the zoom declaration; provide the browser's property.
     start('<html style="zoom:2"><body>Artwork</body></html>', 1600, 1200, undefined, (frame) => { frame.document.documentElement.style.zoom = '2' })

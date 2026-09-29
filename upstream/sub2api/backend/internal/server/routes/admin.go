@@ -862,9 +862,6 @@ func registerScheduledTestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 // Machine readers use admin authentication but receive the same user-visible gallery.
 // Reuse the public handlers so visibility, retention and statistics rules stay identical.
 func registerPelicanShowcaseRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	admin.GET("/pelican-showcase", h.PelicanShowcase.List)
-	admin.GET("/pelican-reports/groups/:group_id", h.PelicanShowcase.Report)
-	admin.GET("/pelican-showcase/items/:id", h.PelicanShowcase.GetItem)
 	admin.GET("/pelican-showcase/settings", h.PelicanShowcase.GetSettings)
 	admin.PUT("/pelican-showcase/settings", h.PelicanShowcase.UpdateSettings)
 	admin.DELETE("/pelican-showcase/items/:id", h.PelicanShowcase.DeleteItem)

@@ -24,7 +24,15 @@ fail() {
   exit 1
 }
 
+reauth_lifecycle() {
+  local action=$1
+  [[ -f /opt/sub2api/production/reauth-worker/worker.env ]] || return 0
+  [[ ! -L /usr/local/libexec/sub2api-reauth-worker.sh && -x /usr/local/libexec/sub2api-reauth-worker.sh ]] || return 1
+  /usr/local/libexec/sub2api-reauth-worker.sh "$action" >/dev/null
+}
+
 stop_worker_after_schedule_drain() {
+  reauth_lifecycle pause || return 1
   python3 - "$1" "$2" "$3" "$record_root/.$attempt_id.worker-stop" <<'PY_WORKER_DRAIN'
 import selectors
 import subprocess
@@ -247,14 +255,21 @@ rollback_committed_release() {
       fi
     fi
     if [[ "$committed" == false && "$worker_changed" == true ]]; then
-      if ! "${compose[@]}" up --no-deps -d --force-recreate sub2api-worker >/dev/null 2>&1; then
+      if ! reauth_lifecycle pause || ! "${compose[@]}" up --no-deps -d --force-recreate sub2api-worker >/dev/null 2>&1; then
         recovery_ok=false
       else
         restored_id=$("${compose[@]}" ps -q sub2api-worker) || recovery_ok=false
-        restored_status=$(docker inspect "$restored_id" --format '{{.State.Health.Status}}') || recovery_ok=false
+        local reauth_recovery_deadline=$(( $(date -u +%s) + 90 ))
+        while [[ "$recovery_ok" == true ]]; do
+          restored_status=$(docker inspect "$restored_id" --format '{{.State.Health.Status}}') || { recovery_ok=false; break; }
+          [[ "$restored_status" != healthy ]] || break
+          [[ "$restored_status" != unhealthy && "$(date -u +%s)" -lt "$reauth_recovery_deadline" ]] || { recovery_ok=false; break; }
+          sleep 1
+        done
         [[ "$restored_status" == healthy && "$(docker inspect "$restored_id" --format '{{.Image}}')" == "$(docker image inspect --format '{{.Id}}' "$current_worker")" ]] || recovery_ok=false
       fi
     fi
+    reauth_lifecycle resume || recovery_ok=false
     if [[ "$recovery_ok" != true ]]; then
       printf 'blue-green rollback recovery failed; lock retained for manual intervention: %s\n' "$lock_dir" >&2
       exit 1
@@ -318,6 +333,7 @@ rollback_committed_release() {
       || fail 'new worker could not safely drain during rollback'
     september28_compatibility_blocked=false
   fi
+  reauth_lifecycle pause || fail 'reauth could not drain before rollback'
   worker_changed=true
   "${restore_compose[@]}" up --no-deps -d --force-recreate sub2api-worker >/dev/null
   deadline=$(( $(date -u +%s) + 90 ))
@@ -329,6 +345,7 @@ rollback_committed_release() {
   done
   [[ "$(docker inspect "$("${restore_compose[@]}" ps -q sub2api-worker)" --format '{{.Image}}')" == "$(docker image inspect --format '{{.Id}}' "$old_worker")" ]] \
     || fail 'previous worker runtime image mismatch'
+  reauth_lifecycle resume || fail 'reauth could not resume after rollback'
   local state_tmp env_tmp
   state_tmp=$(mktemp "$root/.rollback-state.XXXXXX")
   env_tmp=$(mktemp "$root/.rollback-release.XXXXXX")
@@ -1242,7 +1259,7 @@ wait_for_worker_healthy() {
   max_attempts=$((timeout / poll + 1))
   while true; do
     worker_status=$(run_post_stop_command docker inspect "$(resolve_container_id sub2api-worker)" --format '{{.State.Health.Status}}') || return 1
-    [[ "$worker_status" == healthy ]] && return 0
+    [[ "$worker_status" == healthy ]] && { reauth_lifecycle resume; return $?; }
     attempts=$((attempts + 1))
     [[ "$attempts" -lt "$max_attempts" ]] || return 1
     now=$(date -u +%s)
@@ -1486,6 +1503,7 @@ restore_previous() {
           return 1
         fi
       fi
+      reauth_lifecycle pause || return 1
       run_post_stop_command "${compose_rollback[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" --force-recreate sub2api-worker >/dev/null 2>&1 || rollback_ok=false
     fi
   fi
@@ -1565,6 +1583,10 @@ on_exit() {
   if [[ "$status" -ne 0 && "$record_finalized" == true && "${drain_status:-}" == pending ]]; then
     jq '.drain = ((.drain // {}) + {status:"failed"})' "$record_path" >"$record_path.drain.tmp" &&
       chmod 0600 "$record_path.drain.tmp" && mv "$record_path.drain.tmp" "$record_path"
+  fi
+  if ! reauth_lifecycle resume; then
+    printf 'Reauth resume failed; inspect dedicated worker before next release\n' >&2
+    status=1
   fi
   cleanup_lock
   exit "$status"
@@ -2213,6 +2235,7 @@ if [[ "$maintenance_transition" == true ]]; then
   # Stop forward work at its partitioned deadline so EXIT can still spend the
   # reserved rollback/finalization budget before the overall hard deadline.
   arm_deadline_watchdog "$maintenance_forward_window_seconds"
+  reauth_lifecycle pause || fail 'reauth could not drain before maintenance'
   trace_event 'maintenance stop api-worker'
   maintenance_stopped=true
   run_post_stop_command "${compose_current[@]}" stop sub2api-blue sub2api-green sub2api-worker >/dev/null
@@ -2375,6 +2398,7 @@ write_partial state_persisted
 
 failure_reason=worker_update_failed
 if [[ "$preserve_worker" == false && ( "$maintenance_transition" == true || ( "$online_migration_transition" == true && "$migrations_hash" != "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" ) ) ]]; then
+  reauth_lifecycle pause || fail 'reauth could not drain before worker replacement'
   worker_update_started=true
   write_partial worker_updating
   if [[ "$online_migration_transition" == true ]]; then

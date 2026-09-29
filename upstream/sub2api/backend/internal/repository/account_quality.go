@@ -45,11 +45,10 @@ type qualityGroup struct {
 	AllowedModels json.RawMessage `json:"allowed_models"`
 }
 type qualityState struct {
-	Action         string            `json:"action"`
-	RemovedModels  map[string]string `json:"removed_models,omitempty"`
-	AccountVersion time.Time         `json:"account_version"`
-	Removed        []qualityGroup    `json:"removed"`
-	Remaining      json.RawMessage   `json:"remaining"`
+	Action         string          `json:"action"`
+	AccountVersion time.Time       `json:"account_version"`
+	Removed        []qualityGroup  `json:"removed"`
+	Remaining      json.RawMessage `json:"remaining"`
 	// 以下只用于「降智开 BPS」：连续降智轮数、开启后连续满血轮数，以及开启前 / 开启时 BPS 相关 Extra 的快照。
 	FailureStreak int                        `json:"failure_streak,omitempty"`
 	PassStreak    int                        `json:"pass_streak,omitempty"`
@@ -88,11 +87,7 @@ func (r *scheduledTestPlanRepository) ApplyQualityOutcome(ctx context.Context, p
 	var version time.Time
 	var schedulable bool
 	var status string
-	var recoveryEligible bool
-	err = tx.QueryRowContext(ctx, `SELECT updated_at, schedulable, status,
- (expires_at IS NULL OR expires_at>NOW()) AND (rate_limit_reset_at IS NULL OR rate_limit_reset_at<=NOW())
- AND (overload_until IS NULL OR overload_until<=NOW()) AND (temp_unschedulable_until IS NULL OR temp_unschedulable_until<=NOW())
- AND COALESCE(error_message,'')='' FROM accounts WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, plan.AccountID).Scan(&version, &schedulable, &status, &recoveryEligible)
+	err = tx.QueryRowContext(ctx, `SELECT updated_at, schedulable, status FROM accounts WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, plan.AccountID).Scan(&version, &schedulable, &status)
 	if err == sql.ErrNoRows {
 		return "account_deleted", nil
 	}
@@ -159,19 +154,6 @@ func (r *scheduledTestPlanRepository) ApplyQualityOutcome(ctx context.Context, p
 	case outcome == "failed":
 		state.Action = q.Action
 		switch q.Action {
-		case "remove_models":
-			account, readErr := qualityModelAccount(ctx, tx, plan.AccountID)
-			if readErr != nil {
-				return "", readErr
-			}
-			var ok bool
-			state.RemovedModels, ok = removeQualityModels(account, q.RemoveModelIDs)
-			if !ok {
-				return "model_removal_blocked", nil
-			}
-			err = writeQualityModels(ctx, tx, plan.AccountID, account)
-			changed = true
-			action = "models_removed"
 		case "disable_scheduling":
 			if schedulable {
 				_, err = tx.ExecContext(ctx, `UPDATE accounts SET schedulable=false, updated_at=clock_timestamp() WHERE id=$1`, plan.AccountID)
@@ -217,22 +199,13 @@ func (r *scheduledTestPlanRepository) ApplyQualityOutcome(ctx context.Context, p
 			}
 		}
 	case outcome == "passed" && state.Action != "" && q.AutoRestore:
-		// Match upstream PR #186: group/scheduling rules restore only their owned
-		// mutation without treating a BPS-only account update as a conflict.
-		// The local remove-models action retains its own health guard.
-		if status != "active" || (state.Action == "remove_models" && !recoveryEligible) {
+		// Restore only the mutation owned by this quality rule. Other account or
+		// membership edits must not turn an enabled auto-restore rule into a
+		// manual cleanup task. A non-active account is not safe to reactivate.
+		if status != "active" {
 			return "restore_conflict", nil
 		}
 		switch state.Action {
-		case "remove_models":
-			account, readErr := qualityModelAccount(ctx, tx, plan.AccountID)
-			if readErr != nil {
-				return "", readErr
-			}
-			if !restoreQualityModels(account, state.RemovedModels) {
-				return "restore_conflict", nil
-			}
-			err = writeQualityModels(ctx, tx, plan.AccountID, account)
 		case "disable_scheduling":
 			_, err = tx.ExecContext(ctx, `UPDATE accounts SET schedulable=true, updated_at=clock_timestamp() WHERE id=$1 AND (expires_at IS NULL OR expires_at>NOW())`, plan.AccountID)
 			if err == nil {

@@ -32,7 +32,7 @@ func getShowcaseSettings(t *testing.T, h *SettingHandler) (bool, service.Pelican
 func TestSettingsPelicanShowcaseDefaultsRoundTripAndOmission(t *testing.T) {
 	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
 	enabled, cfg := getShowcaseSettings(t, h)
-	require.True(t, enabled, "gallery is visible on deployment, with no groups published by default")
+	require.False(t, enabled, "the gallery is opt-in")
 	require.Equal(t, service.DefaultPelicanShowcaseConfig(), cfg)
 
 	rec := doUpdateSettings(t, h, map[string]any{
@@ -79,15 +79,4 @@ func TestSettingsPelicanShowcaseRejectsOutOfRangeLimits(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, rec.Code, "%v: %s", bad, rec.Body.String())
 		require.Equal(t, saved, repo.values[service.SettingKeyPelicanShowcaseConfig])
 	}
-}
-
-func TestSettingsPelicanShowcaseLegacySelectionCannotChangePlanVisibility(t *testing.T) {
-	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
-	rec := doUpdateSettings(t, h, map[string]any{"pelican_showcase_config": map[string]any{"group_ids": []int64{2, 3}}}, nil)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	saved := repo.values[service.SettingKeyPelicanShowcaseConfig]
-	rec = doUpdateSettings(t, h, map[string]any{"pelican_showcase_config": map[string]any{"group_ids": []int64{2, 3, 999}}}, nil)
-	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	require.Equal(t, saved, repo.values[service.SettingKeyPelicanShowcaseConfig])
-	require.NotContains(t, saved, "group_ids")
 }

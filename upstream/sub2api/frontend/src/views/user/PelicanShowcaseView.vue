@@ -53,14 +53,6 @@
         </div>
       </section>
 
-      <PelicanShowcaseStatistics
-        v-if="view?.enabled && groups.length"
-        :stats="summaryStats"
-        :stats-window="view.stats_window"
-        :group-name="summaryGroupName"
-        :loading="loading"
-      />
-
       <!-- First load -->
       <div v-if="loading && !view" class="space-y-6">
         <div v-for="row in 2" :key="row" class="flex gap-5 overflow-hidden">
@@ -99,7 +91,7 @@
         class="space-y-4"
         :data-testid="`showcase-group-${group.id}`"
       >
-        <header class="flex min-w-0 flex-wrap items-center gap-3">
+        <header class="flex min-w-0 items-center gap-3">
           <span
             class="grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl ring-1 ring-black/5 dark:ring-white/10"
             :class="platformBadgeLightClass(group.platform)"
@@ -116,19 +108,6 @@
               </template>
             </p>
           </div>
-          <dl
-            class="flex w-full flex-wrap items-center justify-between gap-x-5 gap-y-1 text-xs text-gray-500 dark:text-gray-400 sm:ml-auto sm:w-auto sm:justify-end"
-            :data-testid="`showcase-group-stats-${group.id}`"
-          >
-            <div class="flex items-baseline gap-1.5">
-              <dt>{{ t('pelicanShowcase.statistics.shortCount') }}</dt>
-              <dd class="font-medium tabular-nums text-gray-900 dark:text-gray-100">{{ pelicanStatsCount(groupStatistics(group)) }}</dd>
-            </div>
-            <div class="flex items-baseline gap-1.5">
-              <dt>{{ t('pelicanShowcase.statistics.rate') }}</dt>
-              <dd class="font-medium tabular-nums text-gray-900 dark:text-gray-100">{{ pelicanStatsRate(groupStatistics(group)) }}</dd>
-            </div>
-          </dl>
         </header>
 
         <div
@@ -244,8 +223,6 @@ import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import PelicanArtworkPreview from '@/components/user/pelican/PelicanArtworkPreview.vue'
 import PelicanShowcaseCard from '@/components/user/pelican/PelicanShowcaseCard.vue'
-import PelicanShowcaseStatistics from '@/components/user/pelican/PelicanShowcaseStatistics.vue'
-import { pelicanStatsCount, pelicanStatsRate } from '@/components/user/pelican/pelicanStatistics'
 import PelicanShowcaseRow from '@/components/user/pelican/PelicanShowcaseRow.vue'
 import {
   pelicanDurationLabel,
@@ -281,7 +258,6 @@ const isAdmin = computed(() => authStore.isAdmin)
 
 const view = ref<PelicanShowcaseView | null>(null)
 const loading = ref(false)
-const statsLoadFailed = ref(false)
 const activeGroup = ref<TabKey>('all')
 const bodies = reactive<Record<number, PelicanBody>>({})
 const preview = ref<{ group: PelicanShowcaseGroup; item: PelicanShowcaseItem } | null>(null)
@@ -302,16 +278,6 @@ const tabs = computed(() => [
 const shownGroups = computed(() =>
   activeGroup.value === 'all' ? groups.value : groups.value.filter((group) => group.id === activeGroup.value)
 )
-const summaryGroupName = computed(() => activeGroup.value === 'all'
-  ? t('pelicanShowcase.allGroups')
-  : shownGroups.value[0]?.name || t('pelicanShowcase.allGroups'))
-const summaryStats = computed(() => {
-  if (statsLoadFailed.value || !view.value?.stats_window) return null
-  return activeGroup.value === 'all' ? view.value.stats : shownGroups.value[0]?.stats
-})
-function groupStatistics(group: PelicanShowcaseGroup) {
-  return statsLoadFailed.value || !view.value?.stats_window ? null : group.stats
-}
 const previewBody = computed(() => (preview.value ? bodies[preview.value.item.id] : undefined))
 const previewTitle = computed(() =>
   preview.value
@@ -369,12 +335,10 @@ async function load() {
       if (!kept.has(id) || bodies[id].status === 'error') delete bodies[id]
     }
     view.value = next
-    statsLoadFailed.value = false
     retry.forEach(requestBody)
   } catch (err: unknown) {
     const e = err as { name?: string; code?: string }
     if (e?.name === 'AbortError' || e?.code === 'ERR_CANCELED') return
-    statsLoadFailed.value = true
     appStore.showError(extractApiErrorMessage(err, t('pelicanShowcase.loadError')))
   } finally {
     if (loadController === controller) {
