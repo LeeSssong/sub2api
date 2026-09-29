@@ -20,7 +20,8 @@
 .xq-button.icon-btn img{width:20px;height:20px}
 .xq-ai :focus-visible,.xq-dialog :focus-visible{outline:2px solid var(--xq-accent);outline-offset:3px}
 .xq-ai ::selection,.xq-dialog ::selection{background:#245665;color:var(--xq-text)}
-.xq-ai .page-head{margin-bottom:28px}
+.xq-ai{display:flex;flex-direction:column;min-height:calc(100dvh - var(--xq-top-gutter) - var(--xq-bottom-gutter))}
+.xq-ai .page-head{margin-bottom:14px}
 .xq-ai .page-head h1{font-size:20px;line-height:1.4;font-weight:600;letter-spacing:-.01em}
 .xq-ai .tool-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:34px}
 .xq-ai .tool-card{position:relative;overflow:hidden;display:flex;flex-direction:column;min-width:0;height:250px;padding:20px;border:1px solid rgba(58,118,143,.42);border-radius:14px;background:linear-gradient(150deg,rgba(17,51,74,.88),rgba(8,27,42,.80));transition:border-color .2s,background .2s}
@@ -44,7 +45,7 @@
 .xq-ai .card-bottom>span{font-size:11px;color:#668596}
 .xq-ai .card-bottom button{min-height:34px;padding:0 14px;border-color:rgba(97,201,217,.46);background:linear-gradient(145deg,rgba(29,82,105,.82),rgba(13,47,68,.90));color:#8fe4eb;font-size:12px;font-weight:600}
 .xq-ai .card-bottom button:disabled{background:rgba(10,31,46,.58);border-color:rgba(52,103,124,.24);color:#557483;opacity:.58}
-.xq-ai .lines-panel{padding:24px;min-width:0;background:rgba(5,19,31,.78);border:1px solid rgba(69,135,160,.48);border-radius:14px}
+.xq-ai .lines-panel{flex-grow:1;padding:24px;min-width:0;background:rgba(5,19,31,.78);border:1px solid rgba(69,135,160,.48);border-radius:14px}
 .xq-ai .panel-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
 .xq-ai .route-table-scroll,.xq-dialog .table-scroll{overflow-x:auto;scrollbar-color:var(--xq-border) transparent;scrollbar-width:thin}
 .xq-ai .route-header,.xq-ai .route-row{display:grid;grid-template-columns:minmax(220px,1.55fr) 1.1fr 1.1fr .7fr 135px;gap:16px;align-items:center}
@@ -102,7 +103,7 @@
 .xq-dialog .route-availability{display:flex;align-items:center;gap:6px}
 @media(max-width:1350px){.xq-ai .route-header,.xq-ai .route-row{grid-template-columns:minmax(190px,1.4fr) .9fr .9fr .6fr 112px}}
 @media(max-width:1050px){.xq-ai .tool-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.xq-dialog .xq-route-dialog{width:min(960px,calc(100vw - 32px))}.xq-dialog .detail-section-head{align-items:flex-start;flex-direction:column;gap:12px}.xq-ai .route-table{min-width:860px}}
-@media(max-width:700px){.xq-ai .tool-grid{grid-template-columns:1fr}.xq-ai .lines-panel{padding:18px}.xq-dialog .modal-header{padding:18px}.xq-dialog .modal-body{padding:18px}.xq-dialog .modal-overlay{padding:12px}}
+@media(max-width:700px){.xq-ai .page-head{margin-bottom:10px}.xq-ai .tool-grid{grid-template-columns:1fr}.xq-ai .lines-panel{padding:18px}.xq-dialog .modal-header{padding:18px}.xq-dialog .modal-body{padding:18px}.xq-dialog .modal-overlay{padding:12px}}
 @media(prefers-reduced-motion:reduce){.xq-ai *,.xq-dialog *{transition:none!important;animation:none!important}}
 .xq-dialog .xq-key-dialog{width:min(640px,calc(100vw - 40px));max-width:none}
 .xq-dialog .xq-key-dialog .modal-body{padding:15px 24px 12px}

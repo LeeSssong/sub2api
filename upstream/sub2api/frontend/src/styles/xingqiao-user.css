@@ -1,4 +1,5 @@
 .user-app-shell {
+  --xq-top-gutter: 20px;
   --xq-bottom-gutter: 24px;
   --xq-void: #040a12;
   --xq-canvas: #071421;
@@ -26,11 +27,12 @@
 .user-workspace {
   min-height: 100%;
   box-sizing: border-box;
-  padding: 28px 40px var(--xq-bottom-gutter) !important;
+  padding: var(--xq-top-gutter) 40px var(--xq-bottom-gutter) !important;
   background: radial-gradient(760px 390px at 76% -8%,rgba(68,181,211,.11),transparent 68%),radial-gradient(560px 460px at 2% 92%,rgba(28,99,132,.07),transparent 72%),linear-gradient(180deg,#06111d 0,#040b13 72%) !important;
 }
 .user-page { width: min(100%, 1440px); margin: 0 auto; }
-.user-page-header { margin-bottom: 24px; }
+.user-page-header { margin-bottom: 12px; }
+.user-page-header + * { margin-top: 0 !important; }
 .user-page-header h1 { margin: 0; color: var(--xq-text); font-size: clamp(22px, 2vw, 30px); font-weight: 680; letter-spacing: -.025em; }
 .user-page-header p { margin: 7px 0 0; color: var(--xq-secondary); font-size: 14px; }
 
@@ -96,10 +98,20 @@
   .user-main-frame { margin-left: 200px !important; }
 }
 @media (max-width: 700px) {
-  .user-app-shell { --xq-bottom-gutter: 18px; }
+  .user-app-shell { --xq-top-gutter: 12px; --xq-bottom-gutter: 18px; }
   .user-main-frame { margin-left: 76px !important; }
-  .user-workspace { padding: 20px 14px var(--xq-bottom-gutter) !important; }
-  .user-page-header { margin-bottom: 18px; }
+  .user-workspace { padding: var(--xq-top-gutter) 14px var(--xq-bottom-gutter) !important; }
+  .user-page-header { margin-bottom: 8px; }
+}
+
+.user-page[data-test="recharge-page"]:has(> [data-test="recharge-workspace"]) {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--xq-top-gutter) - var(--xq-bottom-gutter));
+}
+.user-page[data-test="recharge-page"] > [data-test="recharge-workspace"] {
+  flex-grow: 1;
+  height: auto !important;
 }
 
 /* The sidebar owns the viewport edge; the user content owns one matching scroll frame. */
@@ -187,7 +199,7 @@
 }
 
 /* My keys is a viewport-sized inventory: page through rows, never scroll the content vertically. */
-.user-workspace:has(.user-keys-page) { height: 100dvh; min-height: 0; padding-top: 20px !important; padding-bottom: var(--xq-bottom-gutter) !important; overflow: hidden; }
+.user-workspace:has(.user-keys-page) { height: 100dvh; min-height: 0; padding-top: var(--xq-top-gutter) !important; padding-bottom: var(--xq-bottom-gutter) !important; overflow: hidden; }
 .user-keys-page { height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .user-keys-page .user-page-header { flex-shrink: 0; margin-bottom: 12px; }
 .user-app-shell .user-keys-page .keys-work-surface { flex: 1; height: 0; min-height: 0; overflow: hidden !important; padding: 0 16px; }
@@ -223,7 +235,7 @@
   .user-keys-page .keys-toolbar [data-test="keys-actions"] { width: 100%; }
 }
 @media (max-width: 700px) {
-  .user-workspace:has(.user-keys-page) { padding: 12px 8px var(--xq-bottom-gutter) !important; }
+  .user-workspace:has(.user-keys-page) { padding: var(--xq-top-gutter) 8px var(--xq-bottom-gutter) !important; }
   .user-app-shell .user-keys-page .keys-work-surface { padding: 0 8px; }
   .user-keys-page .user-page-header { margin-bottom: 8px; }
   .user-keys-page .keys-toolbar .keys-filters { grid-template-columns: 1fr 1fr; gap: 6px; }
