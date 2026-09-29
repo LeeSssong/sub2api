@@ -1254,7 +1254,7 @@ onBeforeUnmount(() => {
 .user-sidebar {
   width: 242px !important;
   transform: none !important;
-  padding: 24px 18px;
+  padding: 24px 18px var(--xq-bottom-gutter, 24px);
   background: rgba(6,20,33,.96);
   border-right: 1px solid rgba(46,97,119,.42);
   box-shadow: 18px 0 60px rgba(0,0,0,.10);
@@ -1327,7 +1327,7 @@ onBeforeUnmount(() => {
 .user-account-menu-danger { color: #d47e7e; }
 @media (min-width: 701px) and (max-width: 1050px) { .user-sidebar { width: 200px !important; } }
 @media (max-width: 700px) {
-  .user-sidebar { width: 76px !important; padding: 18px 10px; }
+  .user-sidebar { width: 76px !important; padding: 18px 10px var(--xq-bottom-gutter, 18px); }
   .user-sidebar .sidebar-header { padding: 0 12px 22px; }
   .user-sidebar .sidebar-brand, .user-sidebar .sidebar-label,
   .user-recharge-button strong, .user-recharge-button span, .user-account-name { display: none !important; }
