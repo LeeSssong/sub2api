@@ -20,6 +20,17 @@ import (
 
 const frameSrcRefreshTimeout = 5 * time.Second
 
+func shouldServeEmbeddedFrontend(cfg *config.Config) bool {
+	if cfg == nil || cfg.Runtime.Role == config.RuntimeRoleGateway {
+		return false
+	}
+	role := cfg.Server.ProcessRole
+	if role == "" {
+		role = config.ProcessRoleAll
+	}
+	return role.ServesAPI()
+}
+
 // SetupRouter 配置路由器中间件和路由
 func SetupRouter(
 	r *gin.Engine,
@@ -74,7 +85,7 @@ func SetupRouter(
 	r.Use(lab.RequireLabAdmin(lab.Enabled(), gin.HandlerFunc(adminAuth)))
 
 	// Serve embedded frontend with settings injection if available
-	if cfg.RunsBackgroundJobs() && web.HasEmbeddedFrontend() {
+	if shouldServeEmbeddedFrontend(cfg) && web.HasEmbeddedFrontend() {
 		frontendServer, err := web.NewFrontendServer(settingService) //nolint:staticcheck // SA4023: the !embed stub always errors; embed builds can return nil
 		if err != nil {                                              //nolint:staticcheck // SA4023: see above
 			log.Printf("Warning: Failed to create frontend server with settings injection: %v, using legacy mode", err)
