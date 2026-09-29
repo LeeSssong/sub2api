@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -356,6 +357,18 @@ func (s *OpenAIGatewayService) blockAccountSchedulingLocked(account *Account, un
 		// Zero in the stored map means no expiry. Only a deterministic
 		// revocation installs it; ordinary zero-duration calls keep the bridge.
 		blockUntil = time.Time{}
+		if account.IsOpenAIOAuth() && account.GetCredential("access_token") != "" {
+			stamp := openAIRevokedCredential{
+				version:   account.GetCredentialAsInt64("_token_version"),
+				tokenHash: sha256.Sum256([]byte(account.GetCredential("access_token"))),
+			}
+			previous, exists := s.openaiAccountRevokedCredential.Load(account.ID)
+			// A late failure from an older request must not downgrade the
+			// credential version that a later recovery has to supersede.
+			if old, ok := previous.(openAIRevokedCredential); !exists || !ok || stamp.version >= old.version {
+				s.openaiAccountRevokedCredential.Store(account.ID, stamp)
+			}
+		}
 	} else if blockUntil.IsZero() || !blockUntil.After(now) {
 		blockUntil = now.Add(openAIStopSchedulingBridgeCooldown)
 	}
@@ -394,6 +407,7 @@ func (s *OpenAIGatewayService) ClearAccountSchedulingBlock(accountID int64) {
 	mu.Lock()
 	defer mu.Unlock()
 	s.openaiAccountRuntimeBlockUntil.Delete(accountID)
+	s.openaiAccountRevokedCredential.Delete(accountID)
 	s.openaiOAuth429RetryStartedAt.Delete(accountID)
 	s.openaiAccountRuntimeBlockGeneration.Store(accountID, s.openaiAccountRuntimeBlockSequence.Add(1))
 }
@@ -406,6 +420,39 @@ func openAIRuntimeBlockAccountID(account *Account) int64 {
 		return *account.ParentAccountID
 	}
 	return account.ID
+}
+
+type openAIRevokedCredential struct {
+	version   int64
+	tokenHash [sha256.Size]byte
+}
+
+// recoverOpenAIAuthBlockLocked reconciles a process-local revocation with the
+// shared credential snapshot. Reauth may finish in a different worker, so its
+// local ClearAccountSchedulingBlock cannot unblock this API process. Only a
+// healthy account with a strictly newer version AND a changed access token is
+// evidence of recovery; status changes or stale snapshots alone are not.
+// The caller holds the credential owner's runtime-block lock, so a concurrent
+// revocation cannot be erased between checking the stamp and clearing it.
+func (s *OpenAIGatewayService) recoverOpenAIAuthBlockLocked(account *Account) bool {
+	if account == nil || !account.IsOpenAIOAuth() || !account.IsSchedulable() {
+		return false
+	}
+	id := openAIRuntimeBlockAccountID(account)
+	value, ok := s.openaiAccountRevokedCredential.Load(id)
+	stamp, valid := value.(openAIRevokedCredential)
+	if !ok || !valid || account.GetCredentialAsInt64("_token_version") <= stamp.version {
+		return false
+	}
+	token := account.GetCredential("access_token")
+	if token == "" || sha256.Sum256([]byte(token)) == stamp.tokenHash {
+		return false
+	}
+	s.openaiAccountRuntimeBlockUntil.Delete(id)
+	s.openaiAccountRevokedCredential.Delete(id)
+	s.openaiOAuth429RetryStartedAt.Delete(id)
+	s.openaiAccountRuntimeBlockGeneration.Store(id, s.openaiAccountRuntimeBlockSequence.Add(1))
+	return true
 }
 
 func (s *OpenAIGatewayService) isOpenAIAccountRuntimeBlocked(account *Account) bool {
@@ -423,6 +470,9 @@ func (s *OpenAIGatewayService) isOpenAIAccountRuntimeBlocked(account *Account) b
 	if !ok {
 		s.openaiAccountRuntimeBlockUntil.Delete(openAIRuntimeBlockAccountID(account))
 		s.openaiAccountRuntimeBlockGeneration.Store(openAIRuntimeBlockAccountID(account), s.openaiAccountRuntimeBlockSequence.Add(1))
+		return false
+	}
+	if cooldownUntil.IsZero() && s.recoverOpenAIAuthBlockLocked(account) {
 		return false
 	}
 	if cooldownUntil.IsZero() || time.Now().Before(cooldownUntil) {
@@ -529,6 +579,9 @@ func (s *OpenAIGatewayService) peekOpenAIAccountRuntimeBlock(account *Account) o
 		return openAIAccountRuntimeBlockSnapshot{}
 	}
 	until, isTime := value.(time.Time)
+	if isTime && until.IsZero() && s.recoverOpenAIAuthBlockLocked(account) {
+		return openAIAccountRuntimeBlockSnapshot{}
+	}
 	if !isTime || (!until.IsZero() && !time.Now().Before(until)) {
 		s.openaiAccountRuntimeBlockUntil.Delete(openAIRuntimeBlockAccountID(account))
 		s.openaiOAuth429RetryStartedAt.Delete(openAIRuntimeBlockAccountID(account))
@@ -571,7 +624,8 @@ func (s *OpenAIGatewayService) clearOpenAIAccountRuntimeBlockIfUnchanged(account
 // and Excel BPS cooldowns (BPS-routed models only) are left alone. This is
 // fail-open if a DB write failed or the snapshot has
 // not caught up yet: empty cooldown fields drop a temporary local account block.
-// Deterministic authentication revocation is retained until explicit recovery.
+// Deterministic authentication revocation is retained until explicit recovery
+// or a healthy snapshot carrying strictly newer, changed OAuth credentials.
 // requireCompact 必须与 Forward 的 /responses/compact 判定同源（两侧都来自
 // IsOpenAIResponsesCompactPath）：门票门控按真正出站的模型名判定，否则 compact
 // 请求会被按客户端原始模型误拦（见 openAICodexTicketOutboundModel）。
