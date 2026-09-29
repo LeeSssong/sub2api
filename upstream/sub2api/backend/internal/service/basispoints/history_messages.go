@@ -1,6 +1,7 @@
 package basispoints
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -17,17 +18,8 @@ func normalizeHistoryMessage(item object, index int) (object, error) {
 	if !agent && kind != "message" && (kind != "" || text(item["role"]) == "") {
 		return item, nil
 	}
-	// BPS rejects foreign message IDs (for example item_* from client history).
-	// Full message content is replayed here, so an incompatible ID can be omitted.
-	// Keep this BPS-only and never rewrite tool IDs or mutate the source history.
-	if _, exists := item["id"]; !agent && exists && !strings.HasPrefix(text(item["id"]), "msg_") {
-		cleaned := make(object, len(item)-1)
-		for key, value := range item {
-			if key != "id" {
-				cleaned[key] = value
-			}
-		}
-		item = cleaned
+	if !agent {
+		item = omitCompatibilityMessageID(item)
 	}
 	metadata := make(object)
 	for key, value := range item {
@@ -76,4 +68,26 @@ func normalizeHistoryMessage(item object, index int) (object, error) {
 	content = append(content, parts...)
 	out["content"] = content
 	return out, nil
+}
+
+// The compatibility response converter emits local item_<12-byte hex> IDs.
+// They do not identify stored BPS messages. Full inline message content does
+// not need this optional ID, and BPS rejects the local prefix. Omit only that
+// recognized compatibility shape; retain native/unknown IDs and all tool call
+// identities. item_reference and previous_response_id remain unsupported.
+func omitCompatibilityMessageID(item object) object {
+	id := text(item["id"])
+	if len(id) != len("item_")+24 || !strings.HasPrefix(id, "item_") {
+		return item
+	}
+	if _, err := hex.DecodeString(id[len("item_"):]); err != nil {
+		return item
+	}
+	out := make(object, len(item)-1)
+	for key, value := range item {
+		if key != "id" {
+			out[key] = value
+		}
+	}
+	return out
 }

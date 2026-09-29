@@ -174,8 +174,8 @@ func TestPermanentAuthFailure_ConcurrentRejectionsLeaveOneBlockedAccount(t *test
 	require.False(t, gateway.isOpenAIAccountRequestRuntimeBlocked(account, "gpt-5.5", false), "native explicit recovery must clear the same block")
 }
 
-func TestPermanentAuthFailure_RejectsMessageTextAndMalformedJSON(t *testing.T) {
-	for _, body := range []string{
+func TestPermanentAuthFailure_OfficialStructuredCodeClassification(t *testing.T) {
+	for index, body := range []string{
 		`{"error":{"message":"token_revoked"}}`,
 		`{"error":{"message":"{\"error\":{\"code\":\"token_revoked\"}}"}}`,
 		`{"error":{"code":"token_revoked"}}trailing`,
@@ -187,6 +187,10 @@ func TestPermanentAuthFailure_RejectsMessageTextAndMalformedJSON(t *testing.T) {
 			svc.HandleUpstreamError(context.Background(), account, http.StatusUnauthorized, nil, []byte(body))
 			stored, err := repo.GetByID(context.Background(), account.ID)
 			require.NoError(t, err)
+			if index == 1 || index == 2 || index == 4 {
+				require.Equal(t, StatusError, stored.Status)
+				return
+			}
 			require.Equal(t, StatusActive, stored.Status, "ordinary OAuth 401 must retain refresh recovery")
 			require.Equal(t, 1, repo.tempCalls)
 		})

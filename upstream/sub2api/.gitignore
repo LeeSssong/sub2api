@@ -133,6 +133,7 @@ deploy/docker-compose.override.yml
 .gocache/
 vite.config.js
 docs/*
+!docs/openai-ws-sse-acceleration.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
@@ -152,6 +153,7 @@ docs/*
 !docs/legal/*.md
 !docs/screenshots/
 docs/screenshots/*
+!docs/screenshots/ws-sse-acceleration/
 !docs/screenshots/mobile-account-actions-menu.png
 !docs/screenshots/codex-referral-dialog.png
 !docs/screenshots/codex-referral-success.png
@@ -174,3 +176,9 @@ issues/
 
 !docs/account-auto-config.md
 !docs/screenshots/auto-config/
+
+# Runtime credential encryption keys must never enter source control.
+**/credential-operations.key
+**/.credential-key-*
+!docs/credential-encryption.md
+!docs/screenshots/credential-encryption/

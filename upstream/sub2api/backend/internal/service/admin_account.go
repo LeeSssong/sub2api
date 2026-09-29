@@ -620,6 +620,8 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		}
 	}
 
+	recordAutoConfigInitial(ctx, s.accountRepo, account, groupIDs)
+
 	// OAuth 账号：创建后异步设置隐私。
 	// 使用 Ensure（幂等）而非 Force：新建账号 Extra 为空时效果相同，但更安全。
 	if account.Type == AccountTypeOAuth {
@@ -1110,7 +1112,8 @@ func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, upd
 	}
 	_, moveChanged := updates[ExcelBPSAutoMoveOn403Key]
 	_, targetChanged := updates[ExcelBPS403TargetGroupIDKey]
-	if moveChanged || targetChanged {
+	_, bpsChanged := updates["openai_excel_bps"]
+	if moveChanged || targetChanged || bpsChanged {
 		account, err := s.accountRepo.GetByID(ctx, id)
 		if err != nil {
 			return err
@@ -1243,12 +1246,19 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	}
 	_, moveChanged := input.Extra[ExcelBPSAutoMoveOn403Key]
 	_, targetChanged := input.Extra[ExcelBPS403TargetGroupIDKey]
-	if moveChanged || targetChanged {
+	_, bpsChanged := input.Extra["openai_excel_bps"]
+	_, planChanged := input.Credentials["plan_type"]
+	if moveChanged || targetChanged || bpsChanged || planChanged {
 		for _, account := range cachedTargets {
 			if account == nil {
 				continue
 			}
 			merged := *account
+			merged.Credentials = maps.Clone(account.Credentials)
+			if merged.Credentials == nil {
+				merged.Credentials = make(map[string]any)
+			}
+			maps.Copy(merged.Credentials, input.Credentials)
 			merged.Extra = make(map[string]any, len(account.Extra)+len(input.Extra))
 			maps.Copy(merged.Extra, account.Extra)
 			maps.Copy(merged.Extra, input.Extra)

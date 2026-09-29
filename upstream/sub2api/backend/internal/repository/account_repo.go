@@ -808,6 +808,18 @@ func lockAndMergeAccountProbeExtra(
 		extra[service.AccountAdmissionBlockedKey] = gate
 	}
 	extra = service.MergeExcelBPS403Marker(extra, currentExtra)
+	// Omitted cost means an unrelated edit. Keep the value under the row lock,
+	// including a probe update committed after the edit form was loaded.
+	for _, key := range []string{service.AccountCostMultiplierExtraKey, service.AccountCostAutoSyncExtraKey} {
+		if _, provided := extra[key]; !provided {
+			if value, exists := currentExtra[key]; exists {
+				if extra == nil {
+					extra = make(map[string]any)
+				}
+				extra[key] = value
+			}
+		}
+	}
 	delete(extra, service.AutoConfigConcurrencyExtraKey)
 	if state, ok := currentExtra[service.AutoConfigConcurrencyExtraKey]; ok {
 		extra[service.AutoConfigConcurrencyExtraKey] = state
@@ -1174,6 +1186,78 @@ func (r *accountRepository) List(ctx context.Context, params pagination.Paginati
 	return r.ListWithFilters(ctx, params, "", "", "", "", 0, "")
 }
 
+// accountStatusFilterPredicate 把列表的 status 筛选换成查询条件。质量运维等场景
+// 需要一次筛多个状态（如「正常+限流中」），因此支持逗号分隔的多个值，任一命中即可；
+// 单个值的行为与原先完全一致。
+func accountStatusFilterPredicate(status string) dbpredicate.Account {
+	var predicates []dbpredicate.Account
+	for _, value := range strings.Split(status, ",") {
+		if value = strings.TrimSpace(value); value != "" {
+			predicates = append(predicates, accountStatusPredicate(value))
+		}
+	}
+	switch len(predicates) {
+	case 0:
+		return nil
+	case 1:
+		return predicates[0]
+	}
+	return dbaccount.Or(predicates...)
+}
+
+// accountStatusPredicate 是单个状态值的查询条件。除数据库里的真实状态外，还有几个
+// 派生状态：正常 = active 且可调度且不在限流/临时不可调度中；限流中 / 临时不可调度 /
+// 不可调度分别取对应的一段。
+func accountStatusPredicate(status string) dbpredicate.Account {
+	notTempUnschedulable := dbpredicate.Account(func(s *entsql.Selector) {
+		col := s.C("temp_unschedulable_until")
+		s.Where(entsql.Or(
+			entsql.IsNull(col),
+			entsql.LTE(col, entsql.Expr("NOW()")),
+		))
+	})
+	switch status {
+	case service.StatusActive:
+		return dbaccount.And(
+			dbaccount.StatusEQ(status),
+			dbaccount.SchedulableEQ(true),
+			dbaccount.Or(
+				dbaccount.RateLimitResetAtIsNil(),
+				dbaccount.RateLimitResetAtLTE(time.Now()),
+			),
+			notTempUnschedulable,
+		)
+	case "rate_limited":
+		return dbaccount.And(
+			dbaccount.StatusEQ(service.StatusActive),
+			dbaccount.RateLimitResetAtGT(time.Now()),
+			notTempUnschedulable,
+		)
+	case "temp_unschedulable":
+		return dbaccount.And(
+			dbaccount.StatusEQ(service.StatusActive),
+			dbpredicate.Account(func(s *entsql.Selector) {
+				col := s.C("temp_unschedulable_until")
+				s.Where(entsql.And(
+					entsql.Not(entsql.IsNull(col)),
+					entsql.GT(col, entsql.Expr("NOW()")),
+				))
+			}),
+		)
+	case "unschedulable":
+		return dbaccount.And(
+			dbaccount.StatusEQ(service.StatusActive),
+			dbaccount.SchedulableEQ(false),
+			dbaccount.Or(
+				dbaccount.RateLimitResetAtIsNil(),
+				dbaccount.RateLimitResetAtLTE(time.Now()),
+			),
+			notTempUnschedulable,
+		)
+	}
+	return dbaccount.StatusEQ(status)
+}
+
 func (r *accountRepository) accountListFilteredQuery(platform, accountType, status, search string, groupID int64, privacyMode string) *dbent.AccountQuery {
 	q := r.client.Account.Query()
 
@@ -1183,66 +1267,8 @@ func (r *accountRepository) accountListFilteredQuery(platform, accountType, stat
 	if accountType != "" {
 		q = q.Where(dbaccount.TypeEQ(accountType))
 	}
-	if status != "" {
-		switch status {
-		case service.StatusActive:
-			q = q.Where(
-				dbaccount.StatusEQ(status),
-				dbaccount.SchedulableEQ(true),
-				dbaccount.Or(
-					dbaccount.RateLimitResetAtIsNil(),
-					dbaccount.RateLimitResetAtLTE(time.Now()),
-				),
-				dbpredicate.Account(func(s *entsql.Selector) {
-					col := s.C("temp_unschedulable_until")
-					s.Where(entsql.Or(
-						entsql.IsNull(col),
-						entsql.LTE(col, entsql.Expr("NOW()")),
-					))
-				}),
-			)
-		case "rate_limited":
-			q = q.Where(
-				dbaccount.StatusEQ(service.StatusActive),
-				dbaccount.RateLimitResetAtGT(time.Now()),
-				dbpredicate.Account(func(s *entsql.Selector) {
-					col := s.C("temp_unschedulable_until")
-					s.Where(entsql.Or(
-						entsql.IsNull(col),
-						entsql.LTE(col, entsql.Expr("NOW()")),
-					))
-				}),
-			)
-		case "temp_unschedulable":
-			q = q.Where(
-				dbaccount.StatusEQ(service.StatusActive),
-				dbpredicate.Account(func(s *entsql.Selector) {
-					col := s.C("temp_unschedulable_until")
-					s.Where(entsql.And(
-						entsql.Not(entsql.IsNull(col)),
-						entsql.GT(col, entsql.Expr("NOW()")),
-					))
-				}),
-			)
-		case "unschedulable":
-			q = q.Where(
-				dbaccount.StatusEQ(service.StatusActive),
-				dbaccount.SchedulableEQ(false),
-				dbaccount.Or(
-					dbaccount.RateLimitResetAtIsNil(),
-					dbaccount.RateLimitResetAtLTE(time.Now()),
-				),
-				dbpredicate.Account(func(s *entsql.Selector) {
-					col := s.C("temp_unschedulable_until")
-					s.Where(entsql.Or(
-						entsql.IsNull(col),
-						entsql.LTE(col, entsql.Expr("NOW()")),
-					))
-				}),
-			)
-		default:
-			q = q.Where(dbaccount.StatusEQ(status))
-		}
+	if predicate := accountStatusFilterPredicate(status); predicate != nil {
+		q = q.Where(predicate)
 	}
 	if search != "" {
 		q = q.Where(dbaccount.NameContainsFold(search))
@@ -3185,31 +3211,25 @@ func (r *accountRepository) UpdateUpstreamBillingProbeSnapshot(
 	if dbent.TxFromContext(ctx) == nil {
 		tx, err := r.client.Tx(ctx)
 		if errors.Is(err, dbent.ErrTxStarted) {
-			_, err := r.updateUpstreamBillingProbeSnapshotInTx(ctx, account, snapshot, rateMultiplier)
-			return err
+			return r.updateUpstreamBillingProbeSnapshotInTx(ctx, account, snapshot, rateMultiplier)
 		}
 		if err != nil {
 			return err
 		}
 		defer func() { _ = tx.Rollback() }()
 
-		auditEntry, err := r.updateUpstreamBillingProbeSnapshotInTx(dbent.NewTxContext(ctx, tx), account, snapshot, rateMultiplier)
-		if err != nil {
+		if err := r.updateUpstreamBillingProbeSnapshotInTx(dbent.NewTxContext(ctx, tx), account, snapshot, rateMultiplier); err != nil {
 			return err
 		}
 		if err := tx.Commit(); err != nil {
 			return err
-		}
-		if auditEntry != nil && r.auditLog != nil {
-			r.auditLog.Record(auditEntry)
 		}
 		// The durable outbox event is committed with the snapshot. This direct
 		// cache write only reduces visibility latency on the current instance.
 		r.syncSchedulerAccountSnapshot(ctx, account.ID)
 		return nil
 	}
-	_, err := r.updateUpstreamBillingProbeSnapshotInTx(ctx, account, snapshot, rateMultiplier)
-	return err
+	return r.updateUpstreamBillingProbeSnapshotInTx(ctx, account, snapshot, rateMultiplier)
 }
 
 // UpdateAccountMonitorBalance stores display-only balance evidence only while
@@ -3314,14 +3334,20 @@ func (r *accountRepository) updateUpstreamBillingProbeSnapshotInTx(
 	account *service.Account,
 	snapshot *service.UpstreamBillingProbeSnapshot,
 	rateMultiplier *float64,
-) (*service.AuditLog, error) {
-	payload, err := json.Marshal(map[string]any{service.UpstreamBillingProbeExtraKey: snapshot})
+) error {
+	updates := map[string]any{service.UpstreamBillingProbeExtraKey: snapshot}
+	if service.IsUpstreamBillingProbeIdentity(account.Platform, account.Type) {
+		if cost, ok := snapshot.CostMultiplierToSync(); ok {
+			updates[service.AccountCostMultiplierExtraKey] = cost
+		}
+	}
+	payload, err := json.Marshal(updates)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	credentials, err := json.Marshal(account.Credentials)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	var expectedSnapshot any
 	if account.Extra != nil {
@@ -3329,7 +3355,7 @@ func (r *accountRepository) updateUpstreamBillingProbeSnapshotInTx(
 	}
 	expectedSnapshotJSON, err := json.Marshal(expectedSnapshot)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	var expectedEnabled any
 	if account.Extra != nil {
@@ -3337,7 +3363,7 @@ func (r *accountRepository) updateUpstreamBillingProbeSnapshotInTx(
 	}
 	expectedEnabledJSON, err := json.Marshal(expectedEnabled)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	var expectedRateSyncEnabled any
 	if account.Extra != nil {
@@ -3345,31 +3371,36 @@ func (r *accountRepository) updateUpstreamBillingProbeSnapshotInTx(
 	}
 	expectedRateSyncEnabledJSON, err := json.Marshal(expectedRateSyncEnabled)
 	if err != nil {
-		return nil, err
-	}
-	rateSyncEnabled, _ := account.Extra[service.UpstreamBillingRateSyncEnabledExtraKey].(bool)
-	if rateMultiplier == nil || !rateSyncEnabled {
-		rateMultiplier = nil
+		return err
 	}
 	client := clientFromContext(ctx, r.client)
 	proxyMatches, err := lockAndMatchProbeProxyIdentity(ctx, client, account)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if !proxyMatches {
-		return nil, service.ErrUpstreamBillingProbeIdentityChanged
+		return service.ErrUpstreamBillingProbeIdentityChanged
 	}
 	var proxyID any
 	if account.ProxyID != nil {
 		proxyID = *account.ProxyID
 	}
-	extraExpression := "COALESCE(extra, '{}'::jsonb) || $1::jsonb"
-	if snapshot.Status == service.UpstreamBillingProbeStatusOK {
-		extraExpression = "(" + extraExpression + ") - 'newapi_rate_registration'"
-	}
 	result, err := client.ExecContext(ctx, `
 		UPDATE accounts
-		SET extra = `+extraExpression+`, updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+		SET
+			extra = COALESCE(extra, '{}'::jsonb) || CASE
+				WHEN extra @> '{"cost_multiplier_auto_sync": false}'::jsonb
+				THEN $1::jsonb - 'cost_multiplier'
+				ELSE $1::jsonb
+			END,
+			rate_multiplier = CASE
+				WHEN $10::numeric IS NOT NULL
+					AND extra @> '{"upstream_billing_probe_enabled": true}'::jsonb
+					AND extra @> '{"upstream_billing_rate_sync_enabled": true}'::jsonb
+				THEN $10::numeric
+				ELSE rate_multiplier
+			END,
+			updated_at = NOW()
 		WHERE id = $2
 			AND platform = $3
 			AND type = $4
@@ -3379,47 +3410,18 @@ func (r *accountRepository) updateUpstreamBillingProbeSnapshotInTx(
 			AND COALESCE(extra -> 'upstream_billing_probe_enabled', 'null'::jsonb) = $8::jsonb
 			AND COALESCE(extra -> 'upstream_billing_rate_sync_enabled', 'null'::jsonb) = $9::jsonb
 			AND deleted_at IS NULL
-	`, string(payload), account.ID, account.Platform, account.Type, string(credentials), proxyID, string(expectedSnapshotJSON), string(expectedEnabledJSON), string(expectedRateSyncEnabledJSON))
+	`, string(payload), account.ID, account.Platform, account.Type, string(credentials), proxyID, string(expectedSnapshotJSON), string(expectedEnabledJSON), string(expectedRateSyncEnabledJSON), rateMultiplier)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if affected == 0 {
-		return nil, service.ErrUpstreamBillingProbeIdentityChanged
+		return service.ErrUpstreamBillingProbeIdentityChanged
 	}
-
-	var auditEntry *service.AuditLog
-	if rateMultiplier != nil {
-		var expectedRate any
-		if account.RateMultiplier != nil {
-			expectedRate = *account.RateMultiplier
-		}
-		result, err = client.ExecContext(ctx, `
-			UPDATE accounts
-			SET rate_multiplier = $1, updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
-			WHERE id = $2
-				AND rate_multiplier IS NOT DISTINCT FROM $3
-				AND COALESCE((extra ->> 'upstream_billing_rate_sync_enabled')::boolean, false) = true
-				AND deleted_at IS NULL
-		`, *rateMultiplier, account.ID, expectedRate)
-		if err != nil {
-			return nil, err
-		}
-		affected, err = result.RowsAffected()
-		if err != nil {
-			return nil, err
-		}
-		if affected > 0 {
-			auditEntry = newUpstreamBillingRateMultiplierAuditLog(ctx, account, snapshot, account.BillingRateMultiplier(), *rateMultiplier)
-		}
-	}
-	if err := enqueueSchedulerOutbox(ctx, client, service.SchedulerOutboxEventAccountChanged, &account.ID, nil, nil); err != nil {
-		return nil, err
-	}
-	return auditEntry, nil
+	return enqueueSchedulerOutbox(ctx, client, service.SchedulerOutboxEventAccountChanged, &account.ID, nil, nil)
 }
 
 func newUpstreamBillingRateMultiplierAuditLog(ctx context.Context, account *service.Account, snapshot *service.UpstreamBillingProbeSnapshot, oldMultiplier, newMultiplier float64) *service.AuditLog {

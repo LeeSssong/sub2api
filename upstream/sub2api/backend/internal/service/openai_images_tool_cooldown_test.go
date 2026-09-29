@@ -44,8 +44,8 @@ func imagesCooldownAccount() *Account {
 	return &Account{ID: 77, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Name: "img-oauth"}
 }
 
-// The current upstream policy also cools text-only image responses.
-func TestHandleOpenAIImagesOAuthResponseError_TextFallbackCoolsImageScope(t *testing.T) {
+// Official policy retries text-only responses without parking the account.
+func TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolImageScope(t *testing.T) {
 	c, _ := newImagesCooldownContext(t)
 	repo := &countingModelRateLimitRepo{}
 	svc := &OpenAIGatewayService{accountRepo: repo}
@@ -61,8 +61,8 @@ func TestHandleOpenAIImagesOAuthResponseError_TextFallbackCoolsImageScope(t *tes
 		OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), upstreamErr,
 	)
 
-	require.Equal(t, 1, repo.calls)
-	require.Equal(t, []string{openAIImageGenerationRateLimitKey}, repo.scopes)
+	require.Zero(t, repo.calls)
+	require.Empty(t, repo.scopes)
 
 	// Cooldown still permits the handler to fail over to another account.
 	var failover *UpstreamFailoverError

@@ -57,9 +57,7 @@ func ProvideBatchImageWorkerRuntime(
 		StaleAfter: NewBatchImageWorkerOptionsFromConfig(cfg).StaleActiveAfter,
 		Limit:      NewBatchImageWorkerOptionsFromConfig(cfg).RecoverLimit,
 	}
-	if shouldStartSingleton(cfg) {
-		runtime.Start()
-	}
+	startBackgroundService(cfg, runtime)
 	return runtime
 }
 

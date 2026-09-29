@@ -96,6 +96,7 @@ const DefaultUpstreamResponseReadMaxBytes int64 = 128 * 1024 * 1024
 const DefaultModelsListReadMaxBytes int64 = 8 * 1024 * 1024
 
 type Config struct {
+	Runtime                 RuntimeConfig                 `mapstructure:"runtime"`
 	Server                  ServerConfig                  `mapstructure:"server"`
 	Log                     LogConfig                     `mapstructure:"log"`
 	CORS                    CORSConfig                    `mapstructure:"cors"`
@@ -715,10 +716,12 @@ type PricingConfig struct {
 }
 
 type ServerConfig struct {
+	ProcessRole              ProcessRole `mapstructure:"process_role"`
+	GracefulShutdownTimeout  int         `mapstructure:"graceful_shutdown_timeout"` // seconds; 0 preserves the legacy 5s budget
+	ShutdownDrainDelay       int         `mapstructure:"shutdown_drain_delay"`      // seconds to withdraw from load balancers before closing the listener
 	Host                     string      `mapstructure:"host"`
 	Port                     int         `mapstructure:"port"`
-	Mode                     string      `mapstructure:"mode"` // debug/release
-	ProcessRole              ProcessRole `mapstructure:"process_role"`
+	Mode                     string      `mapstructure:"mode"`                  // debug/release
 	EnableServerTiming       bool        `mapstructure:"enable_server_timing"`  // Admin UI Server-Timing response header
 	FrontendURL              string      `mapstructure:"frontend_url"`          // 前端基础 URL，用于生成邮件中的外部链接
 	ReadHeaderTimeout        int         `mapstructure:"read_header_timeout"`   // 读取请求头超时（秒）
@@ -2059,6 +2062,9 @@ func configureConfigSource(setConfigFile, addConfigPath func(string)) {
 }
 
 func setDefaults() {
+	viper.SetDefault("runtime.role", RuntimeRoleFull)
+	viper.SetDefault("server.graceful_shutdown_timeout", 5)
+	viper.SetDefault("server.shutdown_drain_delay", 0)
 	viper.SetDefault("run_mode", RunModeStandard)
 	viper.SetDefault("simple_mode.auto_create_default_groups", true)
 	viper.SetDefault("simple_mode_key_rate_limit_enabled", false)
@@ -2740,7 +2746,12 @@ func (c *Config) Validate() error {
 		return err
 	}
 	c.Server.ProcessRole = processRole
-
+	if processRole == ProcessRoleAPI {
+		c.Runtime.Role = RuntimeRoleGateway
+	}
+	if err := c.validateRuntime(); err != nil {
+		return err
+	}
 	forwardedClientIPHeaders, err := NormalizeForwardedClientIPHeaders(c.Security.ForwardedClientIPHeaders)
 	if err != nil {
 		return fmt.Errorf("security.forwarded_client_ip_headers: %w", err)
