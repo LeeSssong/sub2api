@@ -2746,9 +2746,6 @@ func (c *Config) Validate() error {
 		return err
 	}
 	c.Server.ProcessRole = processRole
-	if processRole == ProcessRoleAPI {
-		c.Runtime.Role = RuntimeRoleGateway
-	}
 	if err := c.validateRuntime(); err != nil {
 		return err
 	}

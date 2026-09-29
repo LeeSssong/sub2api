@@ -17,7 +17,9 @@ type RuntimeConfig struct {
 }
 
 func (c *Config) RunsBackgroundJobs() bool {
-	return c == nil || c.Runtime.Role != RuntimeRoleGateway
+	// Blue-green API instances serve panel routes but leave singleton jobs to
+	// the worker. Official gateway-only replicas retain their existing behavior.
+	return c == nil || (c.Server.ProcessRole != ProcessRoleAPI && c.Runtime.Role != RuntimeRoleGateway)
 }
 
 func (c *Config) validateRuntime() error {

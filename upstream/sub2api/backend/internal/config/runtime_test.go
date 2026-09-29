@@ -53,5 +53,6 @@ func TestRuntimeRoleBridgeForBlueGreenAPI(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	require.Equal(t, ProcessRoleAPI, cfg.Server.ProcessRole)
+	require.Equal(t, RuntimeRoleFull, cfg.Runtime.Role, "API process must retain panel routes; background ownership is independent")
 	require.False(t, cfg.RunsBackgroundJobs(), "both API slots must avoid singleton jobs during blue-green overlap")
 }
