@@ -359,7 +359,8 @@ func (s *OpenAIOAuthReauthService) SaveCredentialConfig(ctx context.Context, acc
 	if err := s.ensureDurableEncryption(); err != nil {
 		return nil, err
 	}
-	if _, err := s.accountFor(ctx, accountID); err != nil {
+	account, err := s.accountFor(ctx, accountID)
+	if err != nil {
 		return nil, err
 	}
 	existing, err := s.repo.GetConfig(ctx, accountID)
@@ -387,6 +388,13 @@ func (s *OpenAIOAuthReauthService) SaveCredentialConfig(ctx context.Context, acc
 	email, err := normalizeReauthEmail(input.LoginEmail)
 	if err != nil {
 		return nil, err
+	}
+	identity := OpenAIOAuthStoredIdentity(account)
+	if identity.Email == "" {
+		return nil, infraerrors.BadRequest("OPENAI_REAUTH_IDENTITY_MISSING", "account login email cannot be verified; import OAuth credentials with an email first")
+	}
+	if !strings.EqualFold(identity.Email, email) {
+		return nil, infraerrors.Conflict("OPENAI_REAUTH_EMAIL_MISMATCH", "login email does not match the account OAuth identity")
 	}
 	mode := strings.TrimSpace(input.CredentialMode)
 	if mode == "" {
@@ -977,16 +985,17 @@ func validateReauthToken(account *Account, tokenInfo *OpenAITokenInfo) error {
 	if account == nil || tokenInfo == nil {
 		return infraerrors.BadRequest("OPENAI_REAUTH_IDENTITY_MISMATCH", "OpenAI token identity is missing")
 	}
+	identity := OpenAIOAuthStoredIdentity(account)
 	hasStoredIdentity := false
-	oldAccountID := strings.TrimSpace(account.GetCredential("chatgpt_account_id"))
+	oldAccountID := identity.ChatGPTAccountID
 	newAccountID := strings.TrimSpace(tokenInfo.ChatGPTAccountID)
 	if oldAccountID != "" {
-		hasStoredIdentity = true
+		// A workspace can be shared by different members; it is not member identity.
 		if newAccountID == "" || subtle.ConstantTimeCompare([]byte(oldAccountID), []byte(newAccountID)) != 1 {
 			return infraerrors.Conflict("OPENAI_REAUTH_IDENTITY_MISMATCH", "new OAuth login belongs to a different ChatGPT account")
 		}
 	}
-	oldUserID := strings.TrimSpace(account.GetCredential("chatgpt_user_id"))
+	oldUserID := identity.ChatGPTUserID
 	newUserID := strings.TrimSpace(tokenInfo.ChatGPTUserID)
 	if oldUserID != "" {
 		hasStoredIdentity = true
@@ -994,7 +1003,7 @@ func validateReauthToken(account *Account, tokenInfo *OpenAITokenInfo) error {
 			return infraerrors.Conflict("OPENAI_REAUTH_IDENTITY_MISMATCH", "new OAuth login belongs to a different ChatGPT user")
 		}
 	}
-	oldEmail := strings.ToLower(strings.TrimSpace(account.GetCredential("email")))
+	oldEmail := strings.ToLower(identity.Email)
 	newEmail := strings.ToLower(strings.TrimSpace(tokenInfo.Email))
 	if oldEmail != "" {
 		hasStoredIdentity = true

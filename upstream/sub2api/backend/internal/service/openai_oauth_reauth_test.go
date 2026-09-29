@@ -728,3 +728,66 @@ func cloneReauthMap(source map[string]any) map[string]any {
 	}
 	return clone
 }
+
+func TestOpenAIOAuthReauthRejectsConfigForDifferentMember(t *testing.T) {
+	for _, source := range []string{"stored", "access_token", "id_token", "unknown"} {
+		t.Run(source, func(t *testing.T) {
+			svc, reader, repo, _, _, _ := newReauthTestService("acct-1")
+			if source != "stored" {
+				delete(reader.account.Credentials, "email")
+				delete(reader.account.Credentials, "chatgpt_user_id")
+				if source != "unknown" {
+					reader.account.Credentials[source] = reauthTestJWT(map[string]any{
+						"exp":                            time.Now().Add(-time.Hour).Unix(),
+						"https://api.openai.com/profile": map[string]any{"email": "user@example.com"},
+						"https://api.openai.com/auth":    map[string]any{"chatgpt_account_id": "acct-1", "chatgpt_user_id": "user-1"},
+					})
+				}
+			}
+			original := reauthEmailConfig(42, "user@example.com", "encrypted:https://mail.example.com/code")
+			require.NoError(t, repo.UpsertConfig(context.Background(), original))
+			_, err := svc.SaveCredentialConfig(context.Background(), 42, OpenAIOAuthReauthConfigInput{
+				LoginEmail: "other@example.com", CredentialMode: OpenAIOAuthReauthModePasswordTOTP, Password: "new-password", TOTPSecret: "new-totp",
+			})
+			require.Error(t, err)
+			require.Equal(t, original, repo.config, "mismatched save must preserve the existing encrypted configuration")
+		})
+	}
+}
+
+func TestOpenAIOAuthReauthAcceptsLegacyProfileEmail(t *testing.T) {
+	svc, reader, repo, _, _, _ := newReauthTestService("acct-1")
+	delete(reader.account.Credentials, "email")
+	reader.account.Credentials["access_token"] = reauthTestJWT(map[string]any{
+		"exp":                            time.Now().Add(-time.Hour).Unix(),
+		"https://api.openai.com/profile": map[string]any{"email": "user@example.com"},
+	})
+	_, err := svc.SaveCredentialConfig(context.Background(), 42, OpenAIOAuthReauthConfigInput{
+		LoginEmail: "User@Example.com", CredentialMode: OpenAIOAuthReauthModePasswordTOTP, Password: "new-password", TOTPSecret: "new-totp",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "user@example.com", repo.config.LoginEmail)
+}
+
+func TestValidateReauthTokenRejectsDifferentLegacyTeamMember(t *testing.T) {
+	_, reader, _, _, _, _ := newReauthTestService("acct-1")
+	delete(reader.account.Credentials, "email")
+	delete(reader.account.Credentials, "chatgpt_user_id")
+	reader.account.Credentials["access_token"] = reauthTestJWT(map[string]any{
+		"https://api.openai.com/profile": map[string]any{"email": "user@example.com"},
+		"https://api.openai.com/auth":    map[string]any{"chatgpt_account_id": "acct-1", "chatgpt_user_id": "user-1"},
+	})
+	err := validateReauthToken(reader.account, &OpenAITokenInfo{ChatGPTAccountID: "acct-1", ChatGPTUserID: "other-user", Email: "other@example.com"})
+	require.Error(t, err)
+}
+
+func TestValidateReauthTokenRejectsWorkspaceOnlyLegacyIdentity(t *testing.T) {
+	for _, token := range []string{"opaque-access", "malformed.jwt.token", reauthTestJWT(map[string]any{
+		"https://api.openai.com/auth": map[string]any{"chatgpt_account_id": "acct-1"},
+	})} {
+		account := &Account{Credentials: map[string]any{"chatgpt_account_id": "acct-1", "access_token": token}}
+		err := validateReauthToken(account, &OpenAITokenInfo{ChatGPTAccountID: "acct-1", ChatGPTUserID: "other-member", Email: "other@example.com"})
+		require.Error(t, err, "a shared workspace cannot verify the member for an existing or pending re-login task")
+		require.Equal(t, "OPENAI_REAUTH_IDENTITY_MISSING", infraerrors.Reason(err))
+	}
+}

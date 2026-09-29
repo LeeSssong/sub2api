@@ -251,7 +251,10 @@ type IDTokenClaims struct {
 	Iat           int64    `json:"iat"`
 
 	// OpenAI specific claims (nested under https://api.openai.com/auth)
-	OpenAIAuth *OpenAIAuthClaims `json:"https://api.openai.com/auth,omitempty"`
+	OpenAIAuth    *OpenAIAuthClaims `json:"https://api.openai.com/auth,omitempty"`
+	OpenAIProfile *struct {
+		Email string `json:"email"`
+	} `json:"https://api.openai.com/profile,omitempty"`
 }
 
 // OpenAIAuthClaims represents the OpenAI specific auth claims
@@ -390,6 +393,9 @@ func (c *IDTokenClaims) GetUserInfo() *UserInfo {
 		Email: c.Email,
 	}
 
+	if info.Email == "" && c.OpenAIProfile != nil {
+		info.Email = c.OpenAIProfile.Email
+	}
 	if c.OpenAIAuth != nil {
 		info.ChatGPTAccountID = c.OpenAIAuth.ChatGPTAccountID
 		info.ChatGPTUserID = c.OpenAIAuth.ChatGPTUserID

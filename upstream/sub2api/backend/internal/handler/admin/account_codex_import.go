@@ -97,11 +97,14 @@ type codexImportAccount struct {
 }
 
 type codexJWTClaims struct {
-	Sub        string                `json:"sub"`
-	Email      string                `json:"email"`
-	Exp        int64                 `json:"exp"`
-	Iat        int64                 `json:"iat"`
-	OpenAIAuth *codexJWTOpenAIClaims `json:"https://api.openai.com/auth,omitempty"`
+	Sub           string                `json:"sub"`
+	Email         string                `json:"email"`
+	Exp           int64                 `json:"exp"`
+	Iat           int64                 `json:"iat"`
+	OpenAIAuth    *codexJWTOpenAIClaims `json:"https://api.openai.com/auth,omitempty"`
+	OpenAIProfile *struct {
+		Email string `json:"email"`
+	} `json:"https://api.openai.com/profile,omitempty"`
 }
 
 type codexJWTOpenAIClaims struct {
@@ -257,6 +260,13 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 		markCodexIdentitySeen(seenIdentity, item.IdentityKeys, entry.Index, item.UserID)
 
 		existing, matchedKey := index.Find(item.IdentityKeys, item.UserID)
+		// 2FA uses skip-existing before saving re-login secrets. A workspace alone
+		// cannot establish that the login belongs to this existing member.
+		if existing != nil && req.SkipExisting && !item.IsAgentIdentity && strings.HasPrefix(matchedKey, "account:") &&
+			(item.UserID == "" || codexCredentialString(existing.Credentials, "chatgpt_user_id") == "") {
+			existing = nil
+		}
+
 		if existing != nil && req.SkipExisting {
 			result.Skipped++
 			result.Items = append(result.Items, CodexSessionImportItem{
@@ -697,6 +707,9 @@ func enrichCodexImportAccountFromJWT(item *codexImportAccount, token string, val
 	if item.Email == "" {
 		item.Email = strings.TrimSpace(claims.Email)
 	}
+	if item.Email == "" && claims.OpenAIProfile != nil {
+		item.Email = strings.TrimSpace(claims.OpenAIProfile.Email)
+	}
 	if claims.OpenAIAuth == nil {
 		if item.UserID == "" {
 			item.UserID = strings.TrimSpace(claims.Sub)
@@ -974,6 +987,23 @@ func (i *codexAccountIndex) Add(account service.Account) {
 	if i.keysByAccountID == nil {
 		i.keysByAccountID = map[int64]map[string]struct{}{}
 	}
+	// Older OAuth rows lack identity fields. Decode their stored token even if
+	// expired; this is local identity comparison, not token authentication.
+	identity := service.OpenAIOAuthStoredIdentity(&account)
+	credentials := make(map[string]any, len(account.Credentials)+3)
+	for key, value := range account.Credentials {
+		credentials[key] = value
+	}
+	for key, value := range map[string]string{
+		"chatgpt_account_id": identity.ChatGPTAccountID,
+		"chatgpt_user_id":    identity.ChatGPTUserID,
+		"email":              identity.Email,
+	} {
+		if codexCredentialString(credentials, key) == "" && value != "" {
+			credentials[key] = value
+		}
+	}
+	account.Credentials = credentials
 	keys := buildCodexStoredIdentityKeys(
 		codexCredentialString(account.Credentials, "chatgpt_account_id"),
 		codexCredentialString(account.Credentials, "chatgpt_user_id"),

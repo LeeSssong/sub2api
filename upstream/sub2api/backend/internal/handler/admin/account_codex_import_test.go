@@ -1075,3 +1075,51 @@ func TestImportCodexSessionsSkipExistingPreservesAccount(t *testing.T) {
 		t.Fatal("legacy create-only behavior changed")
 	}
 }
+
+func TestImportCodexSessionsSkipExistingResolvesLegacyMember(t *testing.T) {
+	for _, tc := range []struct {
+		name, storedUser         string
+		opaque                   bool
+		wantCreated, wantSkipped int
+	}{
+		{"different member", "user-old", false, 1, 0},
+		{"same member", "user-new", false, 0, 1},
+		{"unknown member", "", true, 1, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			token := "opaque-old-token"
+			if !tc.opaque {
+				token = buildCodexAccessToken(t, "workspace-1", tc.storedUser, time.Now().Add(-time.Hour))
+			}
+			credentials := map[string]any{"chatgpt_account_id": "workspace-1", "access_token": token, "refresh_token": "refresh-old"}
+			svc := newCodexImportMemoryAdminService([]service.Account{{ID: 11, Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Credentials: credentials}})
+			h := NewAccountHandler(svc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+			req := CodexSessionImportRequest{SkipDefaultGroupBind: boolPtr(true), UpdateExisting: boolPtr(false), SkipExisting: true}
+			entries := []codexImportEntry{{Index: 1, Value: buildCodexRefreshImportValue(t, "workspace-1", "user-new", "refresh-new")}}
+			result, err := h.importCodexSessions(context.Background(), req, entries)
+			if err != nil || result.Created != tc.wantCreated || result.Skipped != tc.wantSkipped || result.Failed != 0 {
+				t.Fatalf("result=%+v err=%v", result, err)
+			}
+			if len(svc.updatedAccounts) != 0 {
+				t.Fatal("skip-existing changed the legacy account")
+			}
+			if _, ok := credentials["chatgpt_user_id"]; ok {
+				t.Fatal("index mutated stored credentials")
+			}
+		})
+	}
+}
+
+func TestNormalizeCodexImportReadsProfileEmail(t *testing.T) {
+	token := buildCodexImportTestJWT(t, time.Now().Add(time.Hour), map[string]any{
+		"https://api.openai.com/profile": map[string]any{"email": "member@example.com"},
+		"https://api.openai.com/auth":    map[string]any{"chatgpt_account_id": "workspace-1", "chatgpt_user_id": "user-new"},
+	})
+	item, err := normalizeCodexImportEntry(codexImportEntry{Index: 1, Value: map[string]any{"access_token": token, "refresh_token": "refresh"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Credentials["email"] != "member@example.com" {
+		t.Fatalf("email=%v", item.Credentials["email"])
+	}
+}
