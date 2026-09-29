@@ -14,6 +14,8 @@ import (
 
 const quality5xxSource = "upstream_5xx"
 const quality5xxPendingKey = "quality:5xx:pending"
+const quality5xxTempUnschedReason = "quality_5xx"
+const quality5xxTempUnschedDuration = 10 * time.Minute
 
 type qualityProbeContextKey struct{}
 
@@ -126,6 +128,22 @@ func (s *ScheduledTestRunnerService) runQualityTriggeredAccount(ctx context.Cont
 	if err != nil {
 		return err
 	}
+	qualityPlan := false
+	for _, plan := range plans {
+		if plan != nil && plan.Enabled && plan.PelicanConfig != nil && plan.PelicanConfig.Quality != nil && plan.PelicanConfig.Quality.TriggerOnUpstream5xx {
+			qualityPlan = true
+			break
+		}
+	}
+	if qualityPlan && s.rateLimitSvc != nil && s.accountTestSvc != nil {
+		account, lookupErr := s.accountTestSvc.accountRepo.GetByID(ctx, accountID)
+		if lookupErr != nil || account == nil {
+			return fmt.Errorf("quality 5xx account %d could not be loaded", accountID)
+		}
+		if s.rateLimitSvc.temporarilyUnscheduleQuality5xx(ctx, account) {
+			return fmt.Errorf("quality 5xx account %d is cooling down", accountID)
+		}
+	}
 	for _, plan := range plans {
 		if !plan.Enabled || plan.PelicanConfig == nil || plan.PelicanConfig.Quality == nil || !plan.PelicanConfig.Quality.TriggerOnUpstream5xx {
 			continue
@@ -175,6 +193,35 @@ func (s *RateLimitService) observeQualityStatus(ctx context.Context, account *Ac
 	if s != nil {
 		s.qualityTrigger.Observe(ctx, account, status)
 	}
+}
+
+// temporarilyUnscheduleQuality5xx follows the native account runtime-state
+// path. It removes the account from new selection immediately while preserving
+// the lease and context of requests that are already in flight. The queued
+// quality run remains pending and is allowed to execute after the cooldown.
+func (s *RateLimitService) temporarilyUnscheduleQuality5xx(ctx context.Context, account *Account) bool {
+	if s == nil || s.accountRepo == nil || account == nil || account.ID <= 0 || account.Type != AccountTypeOAuth {
+		return false
+	}
+	now := time.Now()
+	if account.TempUnschedulableUntil != nil && account.TempUnschedulableUntil.After(now) {
+		return true
+	}
+	if account.TempUnschedulableReason == quality5xxTempUnschedReason {
+		return false
+	}
+	until := now.Add(quality5xxTempUnschedDuration)
+	account.TempUnschedulableUntil = &until
+	account.TempUnschedulableReason = quality5xxTempUnschedReason
+	s.notifyAccountSchedulingBlocked(account, until, quality5xxTempUnschedReason)
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
+	defer cancel()
+	if err := s.accountRepo.SetTempUnschedulable(persistCtx, account.ID, until, quality5xxTempUnschedReason); err != nil {
+		slog.Warn("quality_5xx_temp_unschedulable_failed", "account_id", account.ID, "error", err)
+		return true
+	}
+	slog.Warn("quality_5xx_temp_unschedulable", "account_id", account.ID, "until", until)
+	return true
 }
 
 // Select an execution-only test for the account's actual model route. Never

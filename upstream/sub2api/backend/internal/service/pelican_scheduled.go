@@ -91,6 +91,9 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 		if lookupErr != nil || triggeredAccount == nil {
 			return false // Keep the queued signal; no completed run has taken place.
 		}
+		if triggeredAccount.TempUnschedulableUntil != nil && triggeredAccount.TempUnschedulableUntil.After(time.Now()) {
+			return false // Let the native cooldown drain before probing the account again.
+		}
 	}
 	now := time.Now()
 	next, err := nextPlanRun(plan, now)

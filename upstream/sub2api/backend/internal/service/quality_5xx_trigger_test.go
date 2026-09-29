@@ -101,6 +101,77 @@ func TestQuality5xxOnlyObservesActualHTTPFailures(t *testing.T) {
 	require.Equal(t, []string{"21"}, client.ZRange(ctx, quality5xxPendingKey, 0, -1).Val(), "successful retry must not erase initial 503")
 }
 
+type quality5xxTempUnschedRepo struct {
+	AccountRepository
+	account *Account
+	until   time.Time
+	reason  string
+}
+
+func (r *quality5xxTempUnschedRepo) SetTempUnschedulable(_ context.Context, id int64, until time.Time, reason string) error {
+	r.account.ID = id
+	r.account.TempUnschedulableUntil = &until
+	r.account.TempUnschedulableReason = reason
+	r.until = until
+	r.reason = reason
+	return nil
+}
+
+type quality5xxRuntimeBlocker struct {
+	account *Account
+	until   time.Time
+	reason  string
+}
+
+func (b *quality5xxRuntimeBlocker) BlockAccountScheduling(account *Account, until time.Time, reason string) {
+	b.account = account
+	b.until = until
+	b.reason = reason
+}
+func (*quality5xxRuntimeBlocker) ClearAccountSchedulingBlock(int64) {}
+
+func TestQuality5xxTemporarilyUnschedulesOAuthAccountBeforeProbe(t *testing.T) {
+	account := &Account{ID: 21, Type: AccountTypeOAuth, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true}
+	repo := &quality5xxTempUnschedRepo{account: account}
+	blocker := &quality5xxRuntimeBlocker{}
+	limiter := &RateLimitService{accountRepo: repo, runtimeBlocker: blocker}
+
+	limiter.temporarilyUnscheduleQuality5xx(context.Background(), account)
+
+	require.True(t, repo.until.After(time.Now()))
+	require.Equal(t, quality5xxTempUnschedReason, repo.reason)
+	require.Same(t, account, blocker.account)
+	require.Equal(t, quality5xxTempUnschedReason, blocker.reason)
+	expired := time.Now().Add(-time.Minute)
+	account.TempUnschedulableUntil = &expired
+	require.False(t, limiter.temporarilyUnscheduleQuality5xx(context.Background(), account), "an expired quality cooldown must allow the recovery probe")
+}
+
+func TestQuality5xxTriggeredPlanDoesNotProbeDuringTempUnschedulableWindow(t *testing.T) {
+	account := &Account{ID: 42, Type: AccountTypeOAuth, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true}
+	plan := pelicanPlan()
+	plan.AccountID = account.ID
+	plan.TriggerSource = quality5xxSource
+	plan.PelicanConfig.QuestionKind = OpenAICodexStateProbeQuestionKind
+	plan.PelicanConfig.Quality = &QualityPolicy{TriggerOnUpstream5xx: true, Action: "disable_scheduling"}
+	repo := &qualityClaimFailureRepo{plan: plan}
+	accountRepo := &stateProbeAccountRepo{account: account}
+	limiter := &RateLimitService{accountRepo: &quality5xxTempUnschedRepo{account: account}}
+	runner := &ScheduledTestRunnerService{
+		planRepo:       repo,
+		accountTestSvc: &AccountTestService{accountRepo: accountRepo},
+		rateLimitSvc:   limiter,
+	}
+	runner.runPelican = func(context.Context, int64, string, *PelicanTestConfig) (*ScheduledTestResult, error) {
+		t.Fatal("quality probe must wait for the official temp-unschedulable window")
+		return nil, nil
+	}
+
+	require.Error(t, runner.runQualityTriggeredAccount(context.Background(), account.ID, time.Now()))
+	require.NotNil(t, account.TempUnschedulableUntil)
+	require.True(t, account.TempUnschedulableUntil.After(time.Now()))
+}
+
 type qualityClaimFailureRepo struct {
 	ScheduledTestPlanRepository
 	plan   *ScheduledTestPlan
