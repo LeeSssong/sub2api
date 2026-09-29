@@ -20,10 +20,11 @@
 }
 
 .user-app-shell .bg-mesh-gradient { display: none; }
-.user-main-frame { margin-left: 242px !important; }
+.user-main-frame { margin-left: 242px !important; min-height: 100vh; height: 100vh; overflow-y: auto; overflow-x: hidden; }
 .user-mobile-header { display: none !important; }
 .user-workspace {
-  min-height: 100vh;
+  min-height: 100%;
+  box-sizing: border-box;
   padding: 28px 40px 48px !important;
   background: radial-gradient(760px 390px at 76% -8%,rgba(68,181,211,.11),transparent 68%),radial-gradient(560px 460px at 2% 92%,rgba(28,99,132,.07),transparent 72%),linear-gradient(180deg,#06111d 0,#040b13 72%) !important;
 }
@@ -98,6 +99,11 @@
   .user-workspace { padding: 20px 14px 36px !important; }
   .user-page-header { margin-bottom: 18px; }
 }
+
+/* The sidebar owns the viewport edge; the user content owns one matching scroll frame. */
+.user-sidebar { height: 100vh; max-height: 100vh; }
+.user-main-frame > .user-mobile-header + .user-workspace,
+.user-main-frame > .user-workspace { min-height: calc(100% - 0px); }
 
 /* Key inventory: continuous page flow, with horizontal overflow only for extra columns. */
 .user-app-shell .user-keys-page .keys-work-surface {
