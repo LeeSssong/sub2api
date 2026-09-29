@@ -12,7 +12,7 @@
         </div>
         <div data-test="account-metric" class="min-w-0 border-l border-[rgba(63,119,140,0.28)] px-3 sm:min-w-[170px] sm:px-7">
           <p class="text-[11px] leading-[18px] text-[#708c9e]">并发上限</p>
-          <p class="mt-0.5 text-[22px] font-semibold leading-[28px] tabular-nums text-[#f1f9f9]">{{ concurrency }}<span class="ml-1 text-[11px] font-normal text-[#708c9e]">路</span></p>
+          <p class="mt-0.5 text-[22px] font-semibold leading-[28px] tabular-nums text-[#f1f9f9]">{{ concurrency }}</p>
         </div>
       </div>
     </section>
