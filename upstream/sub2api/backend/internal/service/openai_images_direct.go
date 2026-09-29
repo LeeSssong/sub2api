@@ -92,7 +92,7 @@ func buildOpenAIImagesOAuthPayload(parsed *OpenAIImagesRequest, model string) ([
 		endpoint = "/images/edits"
 		images := make([]map[string]string, 0, len(parsed.InputImageURLs)+len(parsed.Uploads))
 		for _, imageURL := range parsed.InputImageURLs {
-			if imageURL = strings.TrimSpace(imageURL); imageURL != "" {
+			if imageURL = normalizeOpenAIImageDataURL(imageURL); imageURL != "" {
 				images = append(images, map[string]string{"image_url": imageURL})
 			}
 		}
@@ -107,7 +107,7 @@ func buildOpenAIImagesOAuthPayload(parsed *OpenAIImagesRequest, model string) ([
 			return nil, "", fmt.Errorf("image input is required")
 		}
 		payload["images"] = images
-		mask := strings.TrimSpace(parsed.MaskImageURL)
+		mask := normalizeOpenAIImageDataURL(parsed.MaskImageURL)
 		if parsed.MaskUpload != nil {
 			var err error
 			mask, err = openAIImageUploadToDataURL(*parsed.MaskUpload)

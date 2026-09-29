@@ -898,7 +898,7 @@ func rewriteOpenAIImagesModel(body []byte, contentType string, model string) ([]
 	if err != nil {
 		return nil, "", fmt.Errorf("rewrite image request model: %w", err)
 	}
-	return rewritten, contentType, nil
+	return rewriteOpenAIImagesJSONFallbackMIME(rewritten), contentType, nil
 }
 
 func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model string) ([]byte, string, error) {
@@ -926,27 +926,26 @@ func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model st
 		}
 
 		formName := strings.TrimSpace(part.FormName())
+		fileName := strings.TrimSpace(part.FileName())
 		partHeader := cloneMultipartHeader(part.Header)
+		data, err := io.ReadAll(part)
+		_ = part.Close()
+		if err != nil {
+			return nil, "", fmt.Errorf("read multipart part: %w", err)
+		}
+		if formName == "model" && fileName == "" {
+			data = []byte(model)
+			modelWritten = true
+		} else {
+			rewriteOpenAIImagePartContentType(partHeader, formName, fileName, data)
+		}
 		target, err := writer.CreatePart(partHeader)
 		if err != nil {
-			_ = part.Close()
 			return nil, "", fmt.Errorf("create multipart part: %w", err)
 		}
-
-		if formName == "model" && part.FileName() == "" {
-			if _, err := target.Write([]byte(model)); err != nil {
-				_ = part.Close()
-				return nil, "", fmt.Errorf("rewrite multipart model: %w", err)
-			}
-			modelWritten = true
-			_ = part.Close()
-			continue
-		}
-		if _, err := io.Copy(target, part); err != nil {
-			_ = part.Close()
+		if _, err := target.Write(data); err != nil {
 			return nil, "", fmt.Errorf("copy multipart part: %w", err)
 		}
-		_ = part.Close()
 	}
 
 	if !modelWritten {
@@ -958,6 +957,61 @@ func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model st
 		return nil, "", fmt.Errorf("finalize multipart body: %w", err)
 	}
 	return buffer.Bytes(), writer.FormDataContentType(), nil
+}
+
+func rewriteOpenAIImagesJSONFallbackMIME(body []byte) []byte {
+	if !gjson.ValidBytes(body) {
+		return body
+	}
+	images := gjson.GetBytes(body, "images")
+	if images.IsArray() {
+		for i, item := range images.Array() {
+			raw := strings.TrimSpace(item.Get("image_url").String())
+			if raw == "" {
+				continue
+			}
+			next := normalizeOpenAIImageDataURL(raw)
+			if next == raw {
+				continue
+			}
+			updated, err := sjson.SetBytes(body, fmt.Sprintf("images.%d.image_url", i), next)
+			if err == nil {
+				body = updated
+			}
+		}
+	}
+	rawMask := strings.TrimSpace(gjson.GetBytes(body, "mask.image_url").String())
+	if rawMask != "" {
+		next := normalizeOpenAIImageDataURL(rawMask)
+		if next != rawMask {
+			if updated, err := sjson.SetBytes(body, "mask.image_url", next); err == nil {
+				body = updated
+			}
+		}
+	}
+	return body
+}
+
+func rewriteOpenAIImagePartContentType(header textproto.MIMEHeader, formName, fileName string, data []byte) {
+	if fileName == "" || len(data) == 0 {
+		return
+	}
+	if formName != "mask" && formName != "image" && !strings.HasPrefix(formName, "image[") {
+		return
+	}
+	contentType := strings.TrimSpace(header.Get("Content-Type"))
+	normalizedType := contentType
+	if parsedType, _, err := mime.ParseMediaType(contentType); err == nil {
+		normalizedType = parsedType
+	}
+	if contentType != "" && !strings.EqualFold(normalizedType, "application/octet-stream") {
+		return
+	}
+	sniffed, ok := sniffedOpenAIImageContentType(data)
+	if !ok {
+		return
+	}
+	header.Set("Content-Type", sniffed)
 }
 
 func cloneMultipartHeader(src textproto.MIMEHeader) textproto.MIMEHeader {

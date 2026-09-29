@@ -320,14 +320,59 @@ func openAIImageOutputMIMEType(outputFormat string) string {
 }
 
 func openAIImageUploadToDataURL(upload OpenAIImagesUpload) (string, error) {
-	if len(upload.Data) == 0 {
-		return "", fmt.Errorf("upload %q is empty", strings.TrimSpace(upload.FileName))
+	return openAIResponsesImageUploadToDataURL(upload)
+}
+
+// normalizeOpenAIImageDataURL rewrites data URLs whose media type is missing or
+// application/octet-stream when the payload bytes are a recognized image.
+// Remote URLs and explicit image/* data URLs are left unchanged.
+func normalizeOpenAIImageDataURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if !strings.HasPrefix(strings.ToLower(raw), "data:") {
+		return raw
 	}
-	contentType := strings.TrimSpace(upload.ContentType)
-	if contentType == "" {
-		contentType = http.DetectContentType(upload.Data)
+	comma := strings.Index(raw, ",")
+	if comma < 0 {
+		return raw
 	}
-	return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(upload.Data), nil
+	meta := raw[len("data:"):comma]
+	payload := raw[comma+1:]
+	mediaType := meta
+	base64Encoded := false
+	if idx := strings.Index(strings.ToLower(meta), ";base64"); idx >= 0 {
+		mediaType = strings.TrimSpace(meta[:idx])
+		base64Encoded = true
+	}
+	if !base64Encoded {
+		return raw
+	}
+	if mediaType != "" && !strings.EqualFold(mediaType, "application/octet-stream") {
+		return raw
+	}
+	decoded, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		decoded, err = base64.RawStdEncoding.DecodeString(strings.TrimRight(payload, "="))
+		if err != nil {
+			return raw
+		}
+	}
+	contentType, ok := sniffedOpenAIImageContentType(decoded)
+	if !ok {
+		return raw
+	}
+	return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(decoded)
+}
+
+func sniffedOpenAIImageContentType(data []byte) (string, bool) {
+	contentType := http.DetectContentType(data)
+	normalizedType := contentType
+	if parsedType, _, err := mime.ParseMediaType(contentType); err == nil {
+		normalizedType = parsedType
+	}
+	if !strings.HasPrefix(strings.ToLower(normalizedType), "image/") {
+		return "", false
+	}
+	return contentType, true
 }
 
 func openAIResponsesImageUploadToDataURL(upload OpenAIImagesUpload) (string, error) {
@@ -384,7 +429,7 @@ func buildOpenAIImagesResponsesRequest(parsed *OpenAIImagesRequest, toolModel st
 	inputImages := make([]string, 0, len(parsed.InputImageURLs)+len(parsed.Uploads))
 	for _, imageURL := range parsed.InputImageURLs {
 		if trimmed := strings.TrimSpace(imageURL); trimmed != "" {
-			inputImages = append(inputImages, trimmed)
+			inputImages = append(inputImages, normalizeOpenAIImageDataURL(trimmed))
 		}
 	}
 	for _, upload := range parsed.Uploads {
@@ -444,7 +489,7 @@ func buildOpenAIImagesResponsesRequest(parsed *OpenAIImagesRequest, toolModel st
 		tool, _ = sjson.SetBytes(tool, "partial_images", *parsed.PartialImages)
 	}
 
-	maskImageURL := strings.TrimSpace(parsed.MaskImageURL)
+	maskImageURL := normalizeOpenAIImageDataURL(parsed.MaskImageURL)
 	if parsed.MaskUpload != nil {
 		dataURL, err := openAIResponsesImageUploadToDataURL(*parsed.MaskUpload)
 		if err != nil {
