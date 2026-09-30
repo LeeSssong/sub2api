@@ -31,6 +31,7 @@ const (
 )
 
 type bpsNodeHealth struct {
+	proxyLatency      time.Duration
 	lastFailureReason string
 	lastProbe         time.Time
 	windowStarted     time.Time
@@ -291,11 +292,14 @@ func (m *Manager) checkBPSHealth(ctx context.Context, node, proxy string, force 
 			needed = 2
 		}
 		var probeErr error
+		var latency time.Duration
 		// Confirm a first probe failure before cooldown; recovery always requires
 		// two consecutive successes. Three network calls is the hard upper bound.
 		for n := 0; n < 3; n++ {
 			probeCtx, cancel := context.WithTimeout(candidateCtx, bpsProbeTimeout)
+			probeStart := time.Now()
 			probeErr = probe(probeCtx, proxy)
+			latency = time.Since(probeStart)
 			if probeErr == nil {
 				probeErr = probeCtx.Err()
 			}
@@ -330,6 +334,11 @@ func (m *Manager) checkBPSHealth(ctx context.Context, node, proxy string, force 
 		}
 		if !canceled && !stale {
 			if probeErr == nil && successes >= needed {
+				if h.proxyLatency == 0 {
+					h.proxyLatency = latency
+				} else {
+					h.proxyLatency = (h.proxyLatency*3 + latency) / 4
+				}
 				h.failures = 0
 				h.lastFailureReason = ""
 				h.retryAfter = time.Time{}

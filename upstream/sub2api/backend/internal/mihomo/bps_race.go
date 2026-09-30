@@ -55,7 +55,7 @@ func (m *Manager) bpsProbeCandidates(scope string, excluded map[string]bool) ([]
 			proxy = fmt.Sprintf("http://127.0.0.1:%d", port)
 		}
 		h := m.bpsHealthAtLocked(node, now)
-		candidate := bpsCandidate{failed: h.failures > 0, subscription: !m.bpsStaticMode && !m.bpsDynamic[node], lastProbe: h.lastProbe, node: node, proxy: proxy, generation: h.generation, score: m.bpsQualityScoreLocked(node, activeLoads[node], loads[node], now), verified: now.Before(h.verifiedUntil)}
+		candidate := bpsCandidate{failed: h.failures > 0, subscription: !regularProxyScope(scope) && !m.bpsStaticMode && !m.bpsDynamic[node], lastProbe: h.lastProbe, node: node, proxy: proxy, generation: h.generation, score: m.sessionProxyScoreLocked(scope, node, activeLoads[node], loads[node], now), verified: now.Before(h.verifiedUntil)}
 		if binding != nil && binding.node == node && !binding.failed && (binding.active > 0 || candidate.verified) {
 			// Preserve a verified affinity and all in-flight requests. An idle,
 			// unverified binding may compete with alternative candidates.

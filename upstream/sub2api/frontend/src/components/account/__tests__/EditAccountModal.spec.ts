@@ -370,6 +370,32 @@ describe('EditAccountModal', () => {
 
   afterEach(() => vi.useRealTimers())
 
+  it('saves regular proxy independently of BPS and restores the IP pool selection', async () => {
+    const account = buildAccount()
+    account.type = 'oauth'
+    account.extra = { unrelated: 'preserve' }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+    await wrapper.get('[data-testid="openai-session-proxy"]').setValue(true)
+    await wrapper.get('input[value="ip_pool"]').setValue(true)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    const extra = updateAccountMock.mock.calls[0]?.[1]?.extra
+    expect(extra.openai_session_proxy).toBe(true)
+    expect(extra.openai_session_proxy_source).toBe('ip_pool')
+    expect(extra.openai_excel_bps).toBeUndefined()
+    expect(extra.unrelated).toBe('preserve')
+    wrapper.unmount()
+    const restored = mountModal({ ...account, extra })
+    expect(restored.get<HTMLInputElement>('input[value="ip_pool"]').element.checked).toBe(true)
+    await restored.get('[data-testid="openai-session-proxy"]').setValue(false)
+    await restored.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateAccountMock.mock.calls[1]?.[1]?.extra?.openai_session_proxy).toBeUndefined()
+    restored.unmount()
+  })
+
   it('persists the BPS session proxy toggle and clears it when BPS is disabled', async () => {
     const account = buildAccount()
     account.type = 'oauth'

@@ -3,7 +3,7 @@
  *
  * 首 Token（TTFT）：10s 内正常，10-30s 偏慢，30-60s 缓慢，60s 及以上严重。
  * 总耗时：流式请求整体时长天然更长，阈值放宽为 1min / 3min / 5min。
- * 输出速度（TPS）：越高越好，只分三档——20 t/s 及以上正常，10-20 偏慢，10 以下严重。
+ * 输出速度（TPS）：越高越好，只分三档——8 t/s 及以上正常，5-8 偏慢，5 以下严重。
  */
 export type LatencySeverity = 'good' | 'warn' | 'slow' | 'critical'
 
@@ -39,8 +39,8 @@ export const durationSeverity = (ms: number): LatencySeverity =>
   classify(ms, DURATION_THRESHOLDS_MS)
 
 export const TPS_THRESHOLDS = {
-  warn: 20,
-  critical: 10,
+  warn: 8,
+  critical: 5,
 } as const
 
 export const tpsSeverity = (tps: number): LatencySeverity => {

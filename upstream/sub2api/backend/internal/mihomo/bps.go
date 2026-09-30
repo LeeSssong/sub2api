@@ -156,9 +156,9 @@ func (m *Manager) acquireBPSPreferredSession(scope string, now time.Time, exclud
 			} else if _, ok := m.bpsPorts[id]; !ok {
 				continue
 			}
-			score := m.bpsQualityScoreLocked(id, activeLoads[id], loads[id], now)
-			subscription := !m.bpsStaticMode && !m.bpsDynamic[id]
-			bestSubscription := !m.bpsStaticMode && !m.bpsDynamic[node]
+			score := m.sessionProxyScoreLocked(scope, id, activeLoads[id], loads[id], now)
+			subscription := !regularProxyScope(scope) && !m.bpsStaticMode && !m.bpsDynamic[id]
+			bestSubscription := !regularProxyScope(scope) && !m.bpsStaticMode && !m.bpsDynamic[node]
 			if node == "" || (subscription && !bestSubscription) || (subscription == bestSubscription && (score > bestScore || (score == bestScore && id < node))) {
 				node, bestScore = id, score
 			}

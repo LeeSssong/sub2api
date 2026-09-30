@@ -697,6 +697,7 @@ export default {
         excelBPSIgnoreImagesDesc: 'Disabled by default. Only applies while Excel / BPS image support is off in system settings. Replaces every image in current and historical messages and tool results with an unavailable notice before forwarding, preserving text and tool call pairing so old screenshots cannot repeatedly block the conversation. Even mixed text/image results tell the model it cannot see the image and should not retry view_image or other image-reading tools while image support is disabled. Enabling image support restores normal image handling.',
         excelBPSCacheCreationAsInput: 'Bill cache creation as regular input',
         excelBPSMihomo: 'BPS session proxy (use with caution)',
+        sessionProxy: 'Regular channel session proxy',
         excelBPSProxySource: 'Exit source',
         excelBPSProxySourceMihomo: 'Mihomo pool',
         excelBPSProxySourceIPPool: 'IP management pool',

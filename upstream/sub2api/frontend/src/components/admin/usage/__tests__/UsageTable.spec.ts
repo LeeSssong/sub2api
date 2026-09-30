@@ -900,21 +900,21 @@ describe('admin UsageTable latency TPS', () => {
     expect(cell.classes()).toContain('text-emerald-600')
   })
 
-  it('colors the TPS text and the bottom bar segment red below 10 t/s and yellow below 20 t/s', () => {
+  it('colors the TPS text and the bottom bar segment red below 5 t/s and yellow below 8 t/s', () => {
     const wrapper = mountLatency([
-      // first token 12s (warn), total 17s (good), 5 t/s (critical)
-      { request_id: 'req-tps-slow', output_tokens: 25, duration_ms: 17_000, first_token_ms: 12_000 },
-      // first token 2s (good), total 12s (good), 15 t/s (warn)
-      { request_id: 'req-tps-mid', output_tokens: 150, duration_ms: 12_000, first_token_ms: 2_000 },
+      // first token 12s (warn), total 17s (good), 4 t/s (critical)
+      { request_id: 'req-tps-slow', output_tokens: 20, duration_ms: 17_000, first_token_ms: 12_000 },
+      // first token 2s (good), total 12s (good), 7.5 t/s (warn)
+      { request_id: 'req-tps-mid', output_tokens: 75, duration_ms: 12_000, first_token_ms: 2_000 },
     ])
 
-    expect(tpsCell(wrapper, 'req-tps-slow').text()).toBe('5.0 t/s')
+    expect(tpsCell(wrapper, 'req-tps-slow').text()).toBe('4.0 t/s')
     expect(tpsCell(wrapper, 'req-tps-slow').classes()).toContain('text-red-600')
     expect(barClasses(wrapper, 'req-tps-slow')).toEqual(
       expect.arrayContaining(['from-amber-400', 'via-emerald-500', 'to-red-500']),
     )
 
-    expect(tpsCell(wrapper, 'req-tps-mid').text()).toBe('15.0 t/s')
+    expect(tpsCell(wrapper, 'req-tps-mid').text()).toBe('7.5 t/s')
     expect(tpsCell(wrapper, 'req-tps-mid').classes()).toContain('text-amber-600')
     expect(barClasses(wrapper, 'req-tps-mid')).toEqual(
       expect.arrayContaining(['from-emerald-500', 'via-emerald-500', 'to-amber-400']),

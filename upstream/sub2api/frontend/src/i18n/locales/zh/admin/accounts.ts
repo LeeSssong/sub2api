@@ -815,6 +815,7 @@ export default {
         excelBPSIgnoreImagesDesc: '默认关闭。仅在系统设置中的 Excel / BPS 图片支持关闭时生效：转发前将当前及历史消息、工具结果中的每张图片替换为不可用提示，保留文本和工具调用关系，避免历史截图反复报错导致会话无法继续。图片混合文本的结果也会明确告知模型无法看到图片，图片支持关闭期间不要重试 view_image 或其他读图工具。重新开启图片支持后恢复正常图片处理。',
         excelBPSCacheCreationAsInput: '创建缓存按普通输入计费',
         excelBPSMihomo: 'BPS 会话代理（谨慎开启）',
+        sessionProxy: '常规通道会话代理',
         excelBPSProxySource: '出口来源',
         excelBPSProxySourceMihomo: 'Mihomo 代理池',
         excelBPSProxySourceIPPool: 'IP 管理代理池',

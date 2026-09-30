@@ -2,6 +2,7 @@ package mihomo
 
 import (
 	"math"
+	"strings"
 	"time"
 )
 
@@ -78,4 +79,20 @@ func (l *BPSLease) ReportUpstreamFailure() {
 			h.modelQuality.observe(false, now)
 		}
 	})
+}
+
+// Regular traffic ranks verified nodes by recent HTTPS latency, retaining the
+// existing eligibility, cooldown and affinity rules. BPS ranking is unchanged.
+func regularProxyScope(scope string) bool {
+	return strings.HasPrefix(strings.TrimPrefix(scope, "transient:"), "regular:")
+}
+func (m *Manager) sessionProxyScoreLocked(scope, node string, active, sessions int, now time.Time) float64 {
+	if !regularProxyScope(scope) {
+		return m.bpsQualityScoreLocked(node, active, sessions, now)
+	}
+	latency := m.bpsHealthAtLocked(node, now).proxyLatency.Seconds()
+	if latency <= 0 {
+		latency = 5
+	}
+	return 1 / (latency * (1 + 0.15*float64(active) + 0.02*float64(sessions)))
 }

@@ -19,6 +19,7 @@ func (m *Manager) bpsHealthAtLocked(node string, now time.Time) *bpsNodeHealth {
 		return h
 	}
 	if h.windowStarted.IsZero() || now.Sub(h.windowStarted) >= bpsDynamicWindow {
+		h.proxyLatency = 0
 		h.windowStarted = now
 		h.generation++
 		h.revision++

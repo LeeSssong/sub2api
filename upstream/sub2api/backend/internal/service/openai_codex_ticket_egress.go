@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -320,6 +321,16 @@ func (s *OpenAIGatewayService) pinCodexTicketEgress(req *http.Request, account *
 }
 
 func (s *OpenAIGatewayService) pinCodexTicketWSAcquire(ctx context.Context, headers http.Header, account *Account) (string, func(), error) {
+	if account.IsOpenAISessionProxyEnabled() {
+		if s.boundCodexTicketFromHeader(ctx, headers, account) != nil {
+			return "", func() {}, errors.New("session proxy conflicts with ticket-bound egress")
+		}
+		lease, err := acquireRegularProxy(ctx, account)
+		if err != nil {
+			return "", func() {}, errors.New("session proxy unavailable")
+		}
+		return lease.ProxyURL, lease.Release, nil
+	}
 	s.restoreBoundCodexTicketHarvestIdentity(ctx, headers, account)
 	return s.pinCodexTicketEgressFromHeader(ctx, headers, account, openAIAccountProxyURL(account))
 }

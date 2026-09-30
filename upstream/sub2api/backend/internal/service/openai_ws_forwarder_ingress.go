@@ -106,6 +106,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		return admissionErr
 	}
 	account = latest
+	ctx = withRegularProxyScope(ctx, c, account, firstClientMessage)
 	if account.IsExcelBPSEnabledForModel(extractOpenAICodexTicketModel(firstClientMessage)) {
 		return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "Excel BPS models require HTTP/SSE", nil)
 	}
@@ -988,7 +989,11 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		}
 		req.ProxyURL = proxyURL
 		lease, acquireErr := pool.Acquire(acquireCtx, req)
-		releaseHarvest()
+		if acquireErr != nil {
+			releaseHarvest()
+		} else {
+			lease.egressRelease = releaseHarvest
+		}
 		acquireCancel()
 		var dialErr *openAIWSDialError
 		if acquireErr != nil && s.isAgentIdentityAccount(ctx, account) && errors.As(acquireErr, &dialErr) && isAgentIdentityTaskInvalidWSDialError(dialErr) && !agentTaskRecoveryTried {

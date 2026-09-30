@@ -1774,6 +1774,17 @@
         <div><label class="input-label mb-0">自动模型检测</label><p class="mt-1 text-xs text-gray-500 dark:text-gray-400">关闭后不再执行定时模型检测。</p></div>
         <Toggle v-model="modelDetectionEnabled" data-testid="model-detection-enabled" aria-label="自动模型检测" />
       </div>
+        <div v-if="account?.platform === 'openai' && account?.type === 'oauth' && !isSparkShadow" class="mt-4 border-t border-gray-200 pt-3 dark:border-dark-600">
+          <label class="flex items-center gap-2">
+            <input v-model="openAISessionProxyEnabled" type="checkbox" data-testid="openai-session-proxy" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500" />
+            <span class="text-sm">{{ t('admin.accounts.openai.sessionProxy') }}</span>
+          </label>
+          <div v-if="openAISessionProxyEnabled" class="mt-2 flex flex-wrap items-center gap-4" role="radiogroup">
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.openai.excelBPSProxySource') }}</span>
+            <label class="flex items-center gap-1.5 text-sm"><input v-model="openAISessionProxySource" type="radio" value="mihomo" class="h-4 w-4" />{{ t('admin.accounts.openai.excelBPSProxySourceMihomo') }}</label>
+            <label class="flex items-center gap-1.5 text-sm"><input v-model="openAISessionProxySource" type="radio" value="ip_pool" class="h-4 w-4" />{{ t('admin.accounts.openai.excelBPSProxySourceIPPool') }}</label>
+          </div>
+        </div>
       <!-- OpenAI OAuth RPM limit -->
       <div
         v-if="account?.platform === 'openai' && account?.type === 'oauth'"
@@ -3927,6 +3938,8 @@ const excelBPSAllModels = ref(false)
 const excelBPSModels = ref<string[]>([...DEFAULT_EXCEL_BPS_MODELS])
 const excelBPSMihomo = ref(false)
 const excelBPSProxySource = ref<'mihomo' | 'ip_pool'>('mihomo')
+const openAISessionProxyEnabled = ref(false)
+const openAISessionProxySource = ref<'mihomo' | 'ip_pool'>('mihomo')
 const excelBPSCacheCreationAsInput = ref(false)
 const excelBPSAutoDisableOn403 = ref(false)
 const excelBPSAutoRecoverOn403 = ref(false)
@@ -4469,6 +4482,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   excelBPSModels.value = [...DEFAULT_EXCEL_BPS_MODELS]
   excelBPSMihomo.value = false
   excelBPSProxySource.value = 'mihomo'
+  openAISessionProxyEnabled.value = false
+  openAISessionProxySource.value = 'mihomo'
   excelBPSCacheCreationAsInput.value = false
   excelBPSAutoDisableOn403.value = false
   excelBPSAutoRecoverOn403.value = false
@@ -4508,6 +4523,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     }
     excelBPSMihomo.value = newAccount.type === 'oauth' && extra?.openai_excel_bps_mihomo === true
     excelBPSProxySource.value = extra?.openai_excel_bps_proxy_source === 'ip_pool' ? 'ip_pool' : 'mihomo'
+    openAISessionProxyEnabled.value = extra?.openai_session_proxy === true
+    openAISessionProxySource.value = extra?.openai_session_proxy_source === 'ip_pool' ? 'ip_pool' : 'mihomo'
     excelBPSCacheCreationAsInput.value = newAccount.type === 'apikey' && !newAccount.parent_account_id
       ? (Object.prototype.hasOwnProperty.call(extra ?? {}, 'openai_apikey_cache_creation_as_input')
         ? extra?.openai_apikey_cache_creation_as_input === true
@@ -6062,6 +6079,13 @@ const handleSubmit = async () => {
         newExtra.openai_excel_bps_mihomo = true
       } else {
         delete newExtra.openai_excel_bps_mihomo
+      }
+      if (openAISessionProxyEnabled.value) {
+        newExtra.openai_session_proxy = true
+        newExtra.openai_session_proxy_source = openAISessionProxySource.value
+      } else {
+        delete newExtra.openai_session_proxy
+        delete newExtra.openai_session_proxy_source
       }
       if (props.account.type === 'apikey' && !isSparkShadow.value) {
         newExtra.openai_apikey_cache_creation_as_input = excelBPSCacheCreationAsInput.value

@@ -23,12 +23,12 @@ describe('latencyHealth', () => {
     expect(durationSeverity(300_000)).toBe('critical')
   })
 
-  it('classifies output speed at 10/20 t/s boundaries (higher is better)', () => {
+  it('classifies output speed at 5/8 t/s boundaries (higher is better)', () => {
     expect(tpsSeverity(0)).toBe('critical')
-    expect(tpsSeverity(9.99)).toBe('critical')
-    expect(tpsSeverity(10)).toBe('warn')
-    expect(tpsSeverity(19.99)).toBe('warn')
-    expect(tpsSeverity(20)).toBe('good')
+    expect(tpsSeverity(4.99)).toBe('critical')
+    expect(tpsSeverity(5)).toBe('warn')
+    expect(tpsSeverity(7.99)).toBe('warn')
+    expect(tpsSeverity(8)).toBe('good')
     expect(tpsSeverity(500)).toBe('good')
   })
 })

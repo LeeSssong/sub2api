@@ -24,13 +24,14 @@ func excelBPSWarmTargets(accounts []Account) (managed, static int) {
 			probe.Concurrency = 1
 			a = &probe
 		}
-		if !a.IsActive() || !a.Schedulable || !a.IsExcelBPSMihomoEnabled() {
+		if !a.IsActive() || !a.Schedulable || (!a.IsExcelBPSMihomoEnabled() && !a.IsOpenAISessionProxyEnabled()) {
 			continue
 		}
 		target := max(1, min(a.Concurrency, excelBPSWarmMaxTarget))
-		if a.ExcelBPSProxySource() == ExcelBPSProxySourceIPPool {
+		if (a.IsExcelBPSMihomoEnabled() && a.ExcelBPSProxySource() == ExcelBPSProxySourceIPPool) || (a.IsOpenAISessionProxyEnabled() && a.OpenAISessionProxySource() == ExcelBPSProxySourceIPPool) {
 			static = min(excelBPSWarmMaxTarget, static+target)
-		} else {
+		}
+		if (a.IsExcelBPSMihomoEnabled() && a.ExcelBPSProxySource() == ExcelBPSProxySourceMihomo) || (a.IsOpenAISessionProxyEnabled() && a.OpenAISessionProxySource() == ExcelBPSProxySourceMihomo) {
 			managed = min(excelBPSWarmMaxTarget, managed+target)
 		}
 	}

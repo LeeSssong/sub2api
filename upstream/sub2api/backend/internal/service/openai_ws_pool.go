@@ -98,15 +98,16 @@ type openAIWSHandshakeCompatibilityKey struct {
 }
 
 type openAIWSConnLease struct {
-	pool       *openAIWSConnPool
-	accountID  int64
-	conn       *openAIWSConn
-	queueWait  time.Duration
-	connPick   time.Duration
-	idleBefore time.Duration
-	ageBefore  time.Duration
-	reused     bool
-	released   atomic.Bool
+	egressRelease func()
+	pool          *openAIWSConnPool
+	accountID     int64
+	conn          *openAIWSConn
+	queueWait     time.Duration
+	connPick      time.Duration
+	idleBefore    time.Duration
+	ageBefore     time.Duration
+	reused        bool
+	released      atomic.Bool
 }
 
 func (l *openAIWSConnLease) activeConn() (*openAIWSConn, error) {
@@ -275,6 +276,9 @@ func (l *openAIWSConnLease) Release() {
 	}
 	if !l.released.CompareAndSwap(false, true) {
 		return
+	}
+	if l.egressRelease != nil {
+		defer l.egressRelease()
 	}
 	l.conn.release()
 	if l.pool != nil {
