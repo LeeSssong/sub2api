@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/oauthobs"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
@@ -543,6 +544,13 @@ func ProvideDeferredService(accountRepo AccountRepository, timingWheel *TimingWh
 // ProvideConcurrencyService creates ConcurrencyService and starts slot cleanup worker.
 func ProvideConcurrencyService(cache ConcurrencyCache, accountRepo AccountRepository, cfg *config.Config) *ConcurrencyService {
 	svc := NewConcurrencyService(cache)
+	if store, ok := accountRepo.(oauthobs.Store); ok {
+		svc.observations = oauthobs.New(store, "", 4096)
+		if cfg != nil {
+			svc.observationSlotTTL = time.Duration(cfg.Gateway.ConcurrencySlotTTLMinutes) * time.Minute
+		}
+		svc.observations.Start()
+	}
 	if shouldStartRequestLocal(cfg) {
 		if err := svc.CleanupStaleProcessSlots(context.Background()); err != nil {
 			logger.LegacyPrintf("service.concurrency", "Warning: startup cleanup stale process slots failed: %v", err)

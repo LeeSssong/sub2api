@@ -143,6 +143,11 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 	}
 	runCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
+	observationTrigger := "scheduled"
+	if plan.TriggerSource == quality5xxSource {
+		observationTrigger = "upstream_5xx"
+	}
+	runCtx = context.WithValue(runCtx, oauthProbeRuleKey{}, oauthProbeRule{id: plan.ID, roundID: until.Format(time.RFC3339Nano), triggerSource: observationTrigger})
 	results := make([]*ScheduledTestResult, plan.PelicanConfig.ParallelCount)
 	var wg sync.WaitGroup
 	for i := range results {

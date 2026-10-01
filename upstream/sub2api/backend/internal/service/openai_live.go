@@ -188,12 +188,14 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 			true,
 		)
 		if acquireErr != nil || !acquired {
+			s.observeLiveSlot(account.ID, "slot_denied", leaseID, account.Concurrency)
 			selection.ReleaseFunc()
 			if acquireErr != nil {
 				return nil, acquireErr
 			}
 			return nil, ErrLiveConcurrencyFull
 		}
+		s.observeLiveSlot(account.ID, "slot_acquired", leaseID, account.Concurrency)
 
 		created, createErr := s.createUpstreamLiveCall(ctx, account, request, attestation)
 		selection.ReleaseFunc()
@@ -781,6 +783,9 @@ func (s *OpenAIGatewayService) refreshLiveLease(record *LiveCallRecord) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
 	defer cancel()
 	refreshed, err := cache.RefreshLiveLease(ctx, record.AccountID, record.UserID, record.APIKeyID, record.LeaseID)
+	if err == nil && refreshed {
+		s.observeLiveSlot(record.AccountID, "slot_refreshed", record.LeaseID, 0)
+	}
 	return err == nil && refreshed
 }
 
@@ -791,7 +796,11 @@ func (s *OpenAIGatewayService) releaseLiveLease(accountID, userID, apiKeyID int6
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
 	defer cancel()
-	_ = cache.ReleaseLiveLease(ctx, accountID, userID, apiKeyID, leaseID)
+	if err := cache.ReleaseLiveLease(ctx, accountID, userID, apiKeyID, leaseID); err != nil {
+		s.observeLiveSlot(accountID, "slot_release_failed", leaseID, 0)
+	} else {
+		s.observeLiveSlot(accountID, "slot_released", leaseID, 0)
+	}
 }
 
 func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {

@@ -1329,6 +1329,7 @@ func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAISelectionOrderWithBudget
 		}
 		if candidate.loadKnown && candidate.account.Concurrency > 0 &&
 			candidate.loadInfo.CurrentConcurrency >= candidate.account.Concurrency {
+			s.service.observeOAuthFilter(candidate.account, req, "concurrency_full")
 			continue
 		}
 
@@ -1601,47 +1602,48 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	rpmEligible := 0
 	for i := range accounts {
 		account := &accounts[i]
+		exclude := func(reason string) { filterStats.exclude(reason); s.service.observeOAuthFilter(account, req, reason) }
 		if req.ExcludedIDs != nil {
 			if _, excluded := req.ExcludedIDs[account.ID]; excluded {
-				filterStats.exclude("excluded")
+				exclude("excluded")
 				continue
 			}
 		}
 		if !account.IsSchedulable() {
-			filterStats.exclude("not_schedulable")
+			exclude("not_schedulable")
 			continue
 		}
 		if account.Platform != NormalizeOpenAICompatiblePlatform(req.Platform) || !account.IsOpenAICompatible() {
-			filterStats.exclude("platform_mismatch")
+			exclude("platform_mismatch")
 			continue
 		}
 		if s.service.isExcelBPSCoolingDown(account, req.RequestedModel) {
-			filterStats.exclude(excelBPSRateLimitedFilterReason)
+			exclude(excelBPSRateLimitedFilterReason)
 			continue
 		}
 		if s.service.isOpenAIAccountRequestRuntimeBlocked(account, req.RequestedModel, req.RequireCompact) {
-			filterStats.exclude("runtime_blocked")
+			exclude("runtime_blocked")
 			continue
 		}
 		// require_privacy_set is a group-scoped eligibility gate. Do not mutate the
 		// shared account: another group may intentionally allow accounts whose
 		// upstream privacy setting has not been confirmed.
 		if schedGroup != nil && schedGroup.RequirePrivacySet && !account.IsPrivacySet() {
-			filterStats.exclude("privacy_not_set")
+			exclude("privacy_not_set")
 			continue
 		}
 		if compatible, reason := s.isAccountRequestCompatibleReason(ctx, account, req); !compatible {
-			filterStats.exclude(reason)
+			exclude(reason)
 			continue
 		}
 		if !s.isAccountTransportCompatible(account, req.RequiredTransport, req.RequestedModel) {
-			filterStats.exclude("transport_incompatible")
+			exclude("transport_incompatible")
 			continue
 		}
 		if rpm, ok := accountRPMStateFromContext(ctx, account); ok && account.IsOpenAIOAuth() {
 			rpmEligible++
 			if account.CheckRPMSchedulability(rpm.Current) == WindowCostNotSchedulable {
-				filterStats.exclude("oauth_rpm_exhausted")
+				exclude("oauth_rpm_exhausted")
 				continue
 			}
 		}
@@ -2391,6 +2393,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	previousResponseCanMove bool,
 	useUpstreamTokenCost bool,
 ) (selection *AccountSelectionResult, decision OpenAIAccountScheduleDecision, err error) {
+	defer func() { s.observeOAuthSelection(selection, decision, groupID, requestedModel, excludedIDs) }()
 	selection, decision, err = s.selectAccountWithSchedulerOnce(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
 	if err == nil || openAIProxyStreamQuarantineBypassed(ctx) {
 		return selection, decision, err
@@ -2768,6 +2771,7 @@ func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *Accou
 }
 
 func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(account *Account, model string, success bool, firstTokenMs *int, observedErr ...error) bool {
+	s.observeOAuthOutcome(account, model, success, firstTokenMs, observedErr)
 	if account == nil {
 		return false
 	}

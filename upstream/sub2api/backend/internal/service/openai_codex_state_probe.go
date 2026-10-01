@@ -111,6 +111,7 @@ func (s *OpenAIGatewayService) probeOpenAICodexState(ctx context.Context, accoun
 		if result.Reason == "" {
 			result.Reason = openAICodexStateVerdictReason(result.Verdict)
 		}
+		s.observeOAuthProbe(ctx, account, result)
 	}()
 	if account != nil {
 		result.AccountID = account.ID

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/oauthobs"
 	"go.uber.org/zap"
 	"golang.org/x/sync/singleflight"
 )
@@ -229,7 +230,9 @@ const (
 
 // ConcurrencyService 管理账号和用户的并发限制。
 type ConcurrencyService struct {
-	cache ConcurrencyCache
+	cache              ConcurrencyCache
+	observations       *oauthobs.Recorder
+	observationSlotTTL time.Duration
 
 	accountLoadCacheTTL atomic.Int64
 	accountLoadCacheMu  sync.RWMutex
@@ -353,22 +356,29 @@ func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID i
 
 	acquired, err := s.cache.AcquireAccountSlot(ctx, accountID, maxConcurrency, requestID)
 	if err != nil {
+		s.observeSlot(accountID, "slot_acquire_failed", requestID, maxConcurrency)
 		return nil, err
 	}
 
 	if acquired {
+		s.observeSlot(accountID, "slot_acquired", requestID, maxConcurrency)
+		var observationOnce sync.Once
 		return &AcquireResult{
 			Acquired: true,
 			ReleaseFunc: func() {
 				bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				if err := s.cache.ReleaseAccountSlot(bgCtx, accountID, requestID); err != nil {
+					observationOnce.Do(func() { s.observeSlot(accountID, "slot_release_failed", requestID, maxConcurrency) })
 					logger.LegacyPrintf("service.concurrency", "Warning: failed to release account slot for %d (req=%s): %v", accountID, requestID, err)
+				} else {
+					observationOnce.Do(func() { s.observeSlot(accountID, "slot_released", requestID, maxConcurrency) })
 				}
 			},
 		}, nil
 	}
 
+	s.observeSlot(accountID, "slot_denied", requestID, maxConcurrency)
 	return &AcquireResult{
 		Acquired:    false,
 		ReleaseFunc: nil,
@@ -534,6 +544,9 @@ func (s *ConcurrencyService) IncrementAccountWaitCount(ctx context.Context, acco
 		logger.LegacyPrintf("service.concurrency", "Warning: increment wait count failed for account %d: %v", accountID, err)
 		return true, nil
 	}
+	if result {
+		s.observations.Emit(oauthobs.Event{AccountID: accountID, Type: "queue_enter", Payload: oauthobs.Payload{QueueDelta: 1, Limit: maxWait}})
+	}
 	return result, nil
 }
 
@@ -548,6 +561,8 @@ func (s *ConcurrencyService) DecrementAccountWaitCount(ctx context.Context, acco
 
 	if err := s.cache.DecrementAccountWaitCount(bgCtx, accountID); err != nil {
 		logger.LegacyPrintf("service.concurrency", "Warning: decrement wait count failed for account %d: %v", accountID, err)
+	} else {
+		s.observations.Emit(oauthobs.Event{AccountID: accountID, Type: "queue_leave", Payload: oauthobs.Payload{QueueDelta: -1}})
 	}
 }
 

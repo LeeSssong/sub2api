@@ -134,6 +134,9 @@ func applyQualityBPSOutcome(ctx context.Context, tx *sql.Tx, plan *service.Sched
 	}
 	// 开启即确认之前的 403 自动关闭记录，与账号编辑页开启 BPS 的行为一致。
 	remove = append(remove, service.ExcelBPS403DisabledAtKey)
+	if _, err = tx.ExecContext(ctx, `SELECT set_config('oauth_observation.bps_trigger',$1,true)`, trigger); err != nil {
+		return "", err
+	}
 	if err := qualityBPSPatchExtra(ctx, tx, plan.AccountID, set, remove); err != nil {
 		return "", err
 	}

@@ -882,6 +882,12 @@ func provideCleanup(
 		}
 
 		infraSteps := []cleanupStep{
+			{"OAuthObservations", func() error {
+				if openAIGateway != nil {
+					return openAIGateway.StopOAuthObservations(ctx)
+				}
+				return nil
+			}},
 			{"RequestTiming", func() error {
 				if closer, ok := usageLogRepo.(interface{ CloseRequestTiming(context.Context) error }); ok {
 					return closer.CloseRequestTiming(ctx)
