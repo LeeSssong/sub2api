@@ -2393,7 +2393,8 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	previousResponseCanMove bool,
 	useUpstreamTokenCost bool,
 ) (selection *AccountSelectionResult, decision OpenAIAccountScheduleDecision, err error) {
-	defer func() { s.observeOAuthSelection(selection, decision, groupID, requestedModel, excludedIDs) }()
+	ctx = withOAuthObservationRequestSlotMetadata(ctx, requestedModel)
+	defer func() { s.observeOAuthSelection(ctx, selection, decision, groupID, requestedModel, excludedIDs) }()
 	selection, decision, err = s.selectAccountWithSchedulerOnce(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)
 	if err == nil || openAIProxyStreamQuarantineBypassed(ctx) {
 		return selection, decision, err
@@ -2771,7 +2772,13 @@ func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *Accou
 }
 
 func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(account *Account, model string, success bool, firstTokenMs *int, observedErr ...error) bool {
-	s.observeOAuthOutcome(account, model, success, firstTokenMs, observedErr)
+	return s.ReportOpenAIAccountScheduleResultWithContext(context.Background(), account, model, success, firstTokenMs, observedErr...)
+}
+
+// ReportOpenAIAccountScheduleResultWithContext keeps the native scheduling
+// behavior while attaching a server-owned observation attempt when available.
+func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResultWithContext(ctx context.Context, account *Account, model string, success bool, firstTokenMs *int, observedErr ...error) bool {
+	s.observeOAuthOutcome(ctx, account, model, success, firstTokenMs, observedErr)
 	if account == nil {
 		return false
 	}

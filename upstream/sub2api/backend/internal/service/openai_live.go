@@ -147,6 +147,13 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 	// Live 按通话时长计费，不属于 token 利润门的语义范围：显式豁免，避免
 	// 防御性装门按文本 D 过滤 Live 账号池且门与计费时刻不同源。
 	ctx = WithOpenAIProfitControlSuppressed(ctx)
+	observationModel := strings.TrimSpace(gjson.GetBytes(request.Session, "model").String())
+	if observationModel == "" {
+		observationModel = "gpt-live"
+	}
+	ctx = WithOAuthObservationAttempt(ctx)
+	ctx = WithOAuthObservationSlotMetadata(ctx, observationModel, "live", "live_admission")
+	attemptID := OAuthObservationAttemptID(ctx)
 	var lastErr error
 	for attempt := 0; attempt <= 3; attempt++ {
 		selection, _, selectErr := s.SelectAccountWithSchedulerForCapability(
@@ -188,19 +195,20 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 			true,
 		)
 		if acquireErr != nil || !acquired {
-			s.observeLiveSlot(account.ID, "slot_denied", leaseID, account.Concurrency)
+			s.observeLiveSlot(account.ID, "slot_denied", leaseID, account.Concurrency, observationModel, attemptID)
 			selection.ReleaseFunc()
 			if acquireErr != nil {
 				return nil, acquireErr
 			}
 			return nil, ErrLiveConcurrencyFull
 		}
-		s.observeLiveSlot(account.ID, "slot_acquired", leaseID, account.Concurrency)
+		s.observeLiveSlot(account.ID, "slot_acquired", leaseID, account.Concurrency, observationModel, attemptID)
 
 		created, createErr := s.createUpstreamLiveCall(ctx, account, request, attestation)
 		selection.ReleaseFunc()
 		if createErr != nil {
-			s.releaseLiveLease(account.ID, identity.UserID, identity.APIKeyID, leaseID)
+			s.releaseLiveLease(account.ID, identity.UserID, identity.APIKeyID, leaseID, observationModel, attemptID)
+			s.observeLiveOutcome(account, observationModel, attemptID, false, createErr)
 			if !s.shouldFailoverLiveCreateError(account, createErr) {
 				return nil, createErr
 			}
@@ -210,10 +218,7 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 		}
 
 		now := time.Now()
-		model := strings.TrimSpace(gjson.GetBytes(request.Session, "model").String())
-		if model == "" {
-			model = "gpt-live"
-		}
+		model := observationModel
 		record := &LiveCallRecord{
 			CallID:                created.CallID,
 			CallHash:              hashLiveCallID(created.CallID),
@@ -231,12 +236,15 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 			IPAddress:             identity.IPAddress,
 			InboundEndpoint:       identity.InboundEndpoint,
 			AttestationCiphertext: attestationCiphertext,
+			observationAttemptID:  attemptID,
 		}
 		mappingTTL := s.liveMaxSessionDuration() + 5*time.Minute
 		if saveErr := store.SaveLiveCall(ctx, record, mappingTTL); saveErr != nil {
-			s.releaseLiveLease(account.ID, identity.UserID, identity.APIKeyID, leaseID)
+			s.releaseLiveLease(account.ID, identity.UserID, identity.APIKeyID, leaseID, observationModel, attemptID)
+			s.observeLiveOutcome(account, observationModel, attemptID, false, saveErr)
 			return nil, fmt.Errorf("save live call mapping: %w", saveErr)
 		}
+		s.observeLiveOutcome(account, observationModel, attemptID, true, nil)
 		created.Account = account
 		go s.observeLiveCall(record)
 		return created, nil
@@ -784,12 +792,12 @@ func (s *OpenAIGatewayService) refreshLiveLease(record *LiveCallRecord) bool {
 	defer cancel()
 	refreshed, err := cache.RefreshLiveLease(ctx, record.AccountID, record.UserID, record.APIKeyID, record.LeaseID)
 	if err == nil && refreshed {
-		s.observeLiveSlot(record.AccountID, "slot_refreshed", record.LeaseID, 0)
+		s.observeLiveSlot(record.AccountID, "slot_refreshed", record.LeaseID, 0, record.Model, record.observationAttemptID)
 	}
 	return err == nil && refreshed
 }
 
-func (s *OpenAIGatewayService) releaseLiveLease(accountID, userID, apiKeyID int64, leaseID string) {
+func (s *OpenAIGatewayService) releaseLiveLease(accountID, userID, apiKeyID int64, leaseID, model, attemptID string) {
 	cache, err := s.liveConcurrencyCache()
 	if err != nil {
 		return
@@ -797,9 +805,9 @@ func (s *OpenAIGatewayService) releaseLiveLease(accountID, userID, apiKeyID int6
 	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
 	defer cancel()
 	if err := cache.ReleaseLiveLease(ctx, accountID, userID, apiKeyID, leaseID); err != nil {
-		s.observeLiveSlot(accountID, "slot_release_failed", leaseID, 0)
+		s.observeLiveSlot(accountID, "slot_release_failed", leaseID, 0, model, attemptID)
 	} else {
-		s.observeLiveSlot(accountID, "slot_released", leaseID, 0)
+		s.observeLiveSlot(accountID, "slot_released", leaseID, 0, model, attemptID)
 	}
 }
 
@@ -817,7 +825,7 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 	if err != nil || !first {
 		return
 	}
-	s.releaseLiveLease(record.AccountID, record.UserID, record.APIKeyID, record.LeaseID)
+	s.releaseLiveLease(record.AccountID, record.UserID, record.APIKeyID, record.LeaseID, record.Model, record.observationAttemptID)
 	if s.usageLogRepo == nil {
 		return
 	}

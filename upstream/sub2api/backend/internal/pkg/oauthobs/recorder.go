@@ -32,6 +32,8 @@ type Payload struct {
 	MintStatus        int        `json:"mint_status,omitempty"`
 	ContinueStatus    int        `json:"continue_status,omitempty"`
 	SlotID            string     `json:"slot_id,omitempty"`
+	SlotRole          string     `json:"slot_role,omitempty"`
+	AttemptID         string     `json:"attempt_id,omitempty"`
 	Limit             int        `json:"limit,omitempty"`
 	ExpiresAt         *time.Time `json:"expires_at,omitempty"`
 	Layer             string     `json:"layer,omitempty"`
@@ -71,6 +73,8 @@ type Recorder struct {
 	instanceID  string
 	queue       chan Event
 	done        chan struct{}
+	writerCtx   context.Context
+	stopWriter  context.CancelFunc
 	mu          sync.RWMutex
 	closed      bool
 	startOnce   sync.Once
@@ -87,7 +91,8 @@ func New(store Store, instanceID string, capacity int) *Recorder {
 	if instanceID == "" {
 		instanceID = uuid.NewString()
 	}
-	return &Recorder{store: store, instanceID: instanceID, queue: make(chan Event, capacity), done: make(chan struct{})}
+	writerCtx, stopWriter := context.WithCancel(context.Background())
+	return &Recorder{store: store, instanceID: instanceID, queue: make(chan Event, capacity), done: make(chan struct{}), writerCtx: writerCtx, stopWriter: stopWriter}
 }
 
 func prepare(e Event) Event {
@@ -198,39 +203,59 @@ func (r *Recorder) Stop(ctx context.Context) error {
 		close(r.queue)
 	}
 	r.mu.Unlock()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	select {
 	case <-r.done:
 		return nil
 	case <-ctx.Done():
+		r.stopWriter()
+		<-r.done
 		return ctx.Err()
 	}
 }
 
-func (r *Recorder) flush(events []Event) {
+func (r *Recorder) flush(events []Event) bool {
 	if len(events) == 0 {
-		return
+		return true
 	}
 	for attempt := 0; attempt < 3; attempt++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(r.writerCtx, 2*time.Second)
 		err := r.store.WriteOAuthObservations(ctx, events)
 		cancel()
 		if err == nil {
 			r.persisted.Add(int64(len(events)))
-			return
+			return true
 		}
 		r.writeErrors.Add(1)
+		if r.writerCtx.Err() != nil {
+			break
+		}
 	}
 	r.dropped.Add(int64(len(events)))
 	slog.Warn("oauth_observation_batch_lost", "instance_id", r.instanceID, "events", len(events))
+	return false
 }
 
-func (r *Recorder) health() {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+func (r *Recorder) health() bool {
+	if r.writerCtx.Err() != nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(r.writerCtx, 2*time.Second)
 	defer cancel()
 	h := r.Health()
 	if err := r.store.WriteOAuthObservationHealth(ctx, h); err != nil {
 		r.writeErrors.Add(1)
 		slog.Warn("oauth_observation_health_unavailable", "instance_id", r.instanceID, "dropped", h.Dropped, "write_errors", h.WriteErrors, "queue_depth", h.QueueDepth)
+	}
+	return r.writerCtx.Err() == nil
+}
+
+func (r *Recorder) dropQueued(events []Event) {
+	r.dropped.Add(int64(len(events)))
+	for range r.queue {
+		r.dropped.Add(1)
 	}
 }
 
@@ -248,22 +273,29 @@ func (r *Recorder) run() {
 		select {
 		case e, ok := <-r.queue:
 			if !ok {
-				r.flush(batch)
-				r.health()
+				if r.flush(batch) {
+					r.health()
+				}
 				return
 			}
 			batch = append(batch, e)
 			if len(batch) == 128 {
-				r.flush(batch)
+				if !r.flush(batch) {
+					r.dropQueued(nil)
+					return
+				}
 				batch = batch[:0]
 			}
 		case <-tick.C:
-			r.flush(batch)
+			if !r.flush(batch) {
+				r.dropQueued(nil)
+				return
+			}
 			batch = batch[:0]
 		case <-healthTick.C:
 			r.health()
 		case <-pruneTick.C:
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(r.writerCtx, 5*time.Second)
 			if err := r.store.PruneOAuthObservations(ctx); err != nil {
 				r.writeErrors.Add(1)
 				slog.Warn("oauth_observation_retention_failed", "instance_id", r.instanceID)
