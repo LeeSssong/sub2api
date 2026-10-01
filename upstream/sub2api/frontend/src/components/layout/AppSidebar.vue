@@ -46,7 +46,7 @@
                   'sidebar-link-active': isGroupActive(item) && !isGroupExpanded(item),
                   'sidebar-link-collapsed': sidebarCollapsed
                 }"
-                :title="item.label" :aria-label="item.label"
+                :title="sidebarCollapsed ? item.label : undefined" :aria-label="item.label"
                 @click="handleGroupClick(item)"
               >
                 <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
@@ -83,7 +83,7 @@
               :to="item.path"
               class="sidebar-link mb-1"
               :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-              :title="item.label" :aria-label="item.label"
+              :title="sidebarCollapsed ? item.label : undefined" :aria-label="item.label"
               :id="
                 item.path === '/admin/accounts'
                   ? 'sidebar-channel-manage'
@@ -116,7 +116,7 @@
             :to="item.path"
             class="sidebar-link mb-1"
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="item.label" :aria-label="item.label"
+            :title="sidebarCollapsed ? item.label : undefined" :aria-label="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
@@ -1280,7 +1280,7 @@ onBeforeUnmount(() => {
   font-size: 13px; font-weight: 500; background: transparent;
   transition: color .18s ease, background .18s ease, border-color .18s ease;
 }
-.user-sidebar .sidebar-link:hover { color: var(--xq-text); background: var(--xq-raised); border-color: var(--xq-accent); }
+.user-sidebar .sidebar-link:hover { color: var(--xq-text); background: color-mix(in srgb, var(--xq-raised) 42%, transparent); border-color: var(--xq-border); }
 .user-sidebar .sidebar-link-active {
   color: var(--xq-text); background: var(--xq-raised);
   border-color: var(--xq-border); box-shadow: inset 3px 0 var(--xq-accent);
