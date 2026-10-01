@@ -273,3 +273,8 @@
 .user-locale-switch button:hover { color: var(--xq-text); }
 .user-locale-switch button:disabled { cursor: wait; }
 @media (max-width: 700px) { .user-locale-switch button { padding: 0 4px; } }
+
+.user-topbar-title { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.shell-menu-toggle { display: none; flex-shrink: 0; align-items: center; justify-content: center; width: 24px; height: 32px; color: var(--xq-secondary); border-radius: 6px; }
+.shell-menu-toggle:focus-visible { outline: 2px solid var(--xq-accent); }
+@media (max-width: 700px) { .shell-menu-toggle { display: inline-flex; } }

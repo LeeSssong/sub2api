@@ -1,6 +1,11 @@
 <template>
   <header class="user-topbar">
-    <h1 :title="pageTitle">{{ pageTitle }}</h1>
+    <div class="user-topbar-title">
+      <button v-if="showMenu" type="button" class="shell-menu-toggle" :aria-label="t('common.toggleMenu')" :aria-expanded="appStore.mobileOpen" @click="appStore.toggleMobileSidebar()">
+        <Icon name="menu" size="sm" />
+      </button>
+      <h1 :title="title || pageTitle">{{ title || pageTitle }}</h1>
+    </div>
     <nav class="user-topbar-actions brand-header-actions" :aria-label="t('nav.docs')">
       <AnnouncementBell show-label />
       <a v-if="docUrl" :href="docUrl" target="_blank" rel="noopener noreferrer" class="user-doc-link">
@@ -23,6 +28,8 @@ import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
+
+defineProps<{ title?: string; showMenu?: boolean }>()
 
 const route = useRoute()
 const { t } = useI18n()

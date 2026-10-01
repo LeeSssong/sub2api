@@ -1,9 +1,9 @@
 <template>
   <aside
-    class="sidebar"
+    class="sidebar user-sidebar dark"
     :class="[
       sidebarCollapsed ? 'w-[72px]' : 'w-64',
-      { '-translate-x-full lg:translate-x-0': !mobileOpen, 'user-sidebar': !isAdmin }
+      { 'admin-sidebar': isAdmin, 'admin-sidebar-collapsed': sidebarCollapsed, 'admin-sidebar-open': isAdmin && mobileOpen }
     ]"
   >
     <!-- Logo/Brand -->
@@ -46,7 +46,7 @@
                   'sidebar-link-active': isGroupActive(item) && !isGroupExpanded(item),
                   'sidebar-link-collapsed': sidebarCollapsed
                 }"
-                :title="sidebarCollapsed ? item.label : undefined"
+                :title="item.label" :aria-label="item.label"
                 @click="handleGroupClick(item)"
               >
                 <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
@@ -83,7 +83,7 @@
               :to="item.path"
               class="sidebar-link mb-1"
               :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-              :title="sidebarCollapsed ? item.label : undefined"
+              :title="item.label" :aria-label="item.label"
               :id="
                 item.path === '/admin/accounts'
                   ? 'sidebar-channel-manage'
@@ -116,7 +116,7 @@
             :to="item.path"
             class="sidebar-link mb-1"
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="sidebarCollapsed ? item.label : undefined"
+            :title="item.label" :aria-label="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
@@ -148,36 +148,8 @@
       </template>
     </nav>
 
-    <!-- Bottom Section -->
-    <div v-if="isAdmin" class="mt-auto border-t border-gray-100 p-3 dark:border-dark-800">
-      <!-- Theme Toggle -->
-      <button
-        @click="toggleTheme"
-        class="sidebar-link mb-2 w-full"
-        :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
-        :title="sidebarCollapsed ? (isDark ? t('nav.lightMode') : t('nav.darkMode')) : undefined"
-      >
-        <SunIcon v-if="isDark" class="h-5 w-5 flex-shrink-0 text-amber-500" />
-        <MoonIcon v-else class="h-5 w-5 flex-shrink-0" />
-        <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{
-          isDark ? t('nav.lightMode') : t('nav.darkMode')
-        }}</span>
-      </button>
-
-      <!-- Collapse Button -->
-      <button
-        @click="toggleSidebar"
-        class="sidebar-link w-full"
-        :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
-        :title="sidebarCollapsed ? t('nav.expand') : t('nav.collapse')"
-      >
-        <ChevronDoubleLeftIcon v-if="!sidebarCollapsed" class="h-5 w-5 flex-shrink-0" />
-        <ChevronDoubleRightIcon v-else class="h-5 w-5 flex-shrink-0" />
-        <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ t('nav.collapse') }}</span>
-      </button>
-    </div>
-
-    <div v-else class="user-sidebar-bottom">
+    <!-- Shared fixed account area, outside the scrollable navigation. -->
+    <div class="user-sidebar-bottom">
       <router-link
         :to="rechargeEntryPath"
         class="user-recharge-button"
@@ -222,14 +194,30 @@
               <strong>{{ displayName }}</strong>
               <span>{{ user?.email }}</span>
             </div>
-            <router-link to="/profile" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu">
+            <router-link to="/profile" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu(); closeMobile()">
               <UserIcon class="h-4 w-4" />
               <span>{{ t('nav.profile') }}</span>
             </router-link>
-            <router-link to="/keys" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu">
+            <router-link to="/keys" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu(); closeMobile()">
               <KeyIcon class="h-4 w-4" />
               <span>{{ t('nav.apiKeys') }}</span>
             </router-link>
+            <template v-if="isAdmin">
+              <router-link v-if="modelPlazaEnabled" :to="{ path: '/model-plaza', query: { embedded: '1' } }" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu(); closeMobile()">
+                <span>{{ t('nav.modelPlaza') }}</span>
+              </router-link>
+              <button type="button" class="user-account-menu-item" role="menuitem" @click="toggleTheme">
+                <SunIcon v-if="isDark" class="h-4 w-4" /><MoonIcon v-else class="h-4 w-4" />
+                <span>{{ isDark ? t('nav.lightMode') : t('nav.darkMode') }}</span>
+              </button>
+              <button type="button" class="user-account-menu-item shell-collapse-action" role="menuitem" @click="toggleSidebar(); closeAccountMenu()">
+                <ChevronDoubleRightIcon v-if="sidebarCollapsed" class="h-4 w-4" /><ChevronDoubleLeftIcon v-else class="h-4 w-4" />
+                <span>{{ sidebarCollapsed ? t('nav.expand') : t('nav.collapse') }}</span>
+              </button>
+              <button type="button" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu(); onboardingStore.replay()">
+                <span>{{ t('onboarding.restartTour') }}</span>
+              </button>
+            </template>
             <button type="button" class="user-account-menu-item user-account-menu-danger" role="menuitem" @click="handleLogout">
               <LogoutIcon class="h-4 w-4" />
               <span>{{ t('nav.logout') }}</span>
@@ -245,8 +233,8 @@
   <!-- Mobile Overlay -->
   <transition name="fade">
     <div
-      v-if="mobileOpen"
-      class="fixed inset-0 z-30 bg-black/50 lg:hidden"
+      v-if="isAdmin && mobileOpen"
+      class="fixed inset-0 z-40 bg-black/50 min-[701px]:hidden"
       @click="closeMobile"
     ></div>
   </transition>
@@ -261,7 +249,7 @@ import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { DEFAULT_SITE_LOGO } from '@/utils/branding'
-import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
+import { FeatureFlags, makeSidebarFlag, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 import ContactSupportDialog from './ContactSupportDialog.vue'
 
@@ -312,7 +300,7 @@ const adminSettingsStore = useAdminSettingsStore()
 const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 
 const isAdmin = computed(() => authStore.isAdmin)
-const sidebarCollapsed = computed(() => isAdmin.value && appStore.sidebarCollapsed)
+const sidebarCollapsed = computed(() => isAdmin.value && appStore.sidebarCollapsed && !mobileOpen.value)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const sidebarNavRef = ref<HTMLElement | null>(null)
 const isDark = ref(document.documentElement.classList.contains('dark'))
@@ -333,6 +321,7 @@ const siteName = computed(() => appStore.siteName)
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const siteVersion = computed(() => appStore.siteVersion)
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
+const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
 const user = computed(() => authStore.user)
 const userBalance = computed(() => Number(user.value?.balance || 0))
 const rechargeEntryPath = computed(() => appStore.cachedPublicSettings?.payment_enabled === false ? '/redeem' : '/purchase')
@@ -853,7 +842,7 @@ const userNavItems = computed((): NavItem[] => buildUserNavItems())
 // Personal navigation items (for admin's "My Account" section, without Dashboard).
 // Admins access 可用渠道 from this section just like regular users — there is no
 // separate admin entry, since the page is purely a user-facing view.
-const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)))
+const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)).filter(item => !['/purchase', '/redeem', '/profile'].includes(item.path)))
 
 // Custom menu items filtered by visibility
 const customMenuItemsForUser = computed(() => {
@@ -1065,6 +1054,9 @@ function toggleGroup(item: NavItem) {
  *   (router-link semantics) and ensure the group is expanded.
  */
 function handleGroupClick(item: NavItem) {
+  if (window.matchMedia('(max-width: 700px)').matches && !mobileOpen.value) {
+    appStore.setMobileOpen(true)
+  }
   if (sidebarCollapsed.value) return
   if (item.expandOnly) {
     toggleGroup(item)
@@ -1250,7 +1242,7 @@ onBeforeUnmount(() => {
   height: 1.25rem;
 }
 
-/* User shell mirrors the confirmed interactive prototype; admin styles stay above. */
+/* Shared chrome uses the confirmed user shell; admin navigation keeps its groups. */
 .user-sidebar {
   width: 242px !important;
   transform: none !important;
@@ -1272,7 +1264,7 @@ onBeforeUnmount(() => {
 .user-sidebar .sidebar-brand { min-width: 0; }
 .user-sidebar .sidebar-brand-title { color: #f1f9f9; font-size: 16px; line-height: 1.6; white-space: nowrap; }
 .user-brand-version { display: block; font-size: 10px; margin-top: 4px; color: #708c9e; }
-.user-sidebar .sidebar-nav { padding: 0; }
+.user-sidebar .sidebar-nav { min-height: 0; padding: 0; }
 .user-sidebar .sidebar-section { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; }
 .user-sidebar .sidebar-link {
   position: relative; height: 42px; min-height: 42px; margin: 0; padding: 0 12px; gap: 16px;
@@ -1286,7 +1278,7 @@ onBeforeUnmount(() => {
   border-color: rgba(97,201,217,.18); box-shadow: inset 3px 0 #61c9d9;
 }
 .user-nav-icon { width: 20px; height: 20px; flex-shrink: 0; }
-.user-sidebar-bottom { position: relative; margin-top: auto; }
+.user-sidebar-bottom { position: relative; margin-top: auto; flex-shrink: 0; }
 .user-recharge-button {
   display: flex; width: 100%; height: 58px; padding: 0 12px;
   align-items: center; justify-content: space-between; margin: 20px 0 24px;
@@ -1336,5 +1328,36 @@ onBeforeUnmount(() => {
   .user-recharge-button::after { content: "充值"; font-size: 12px; }
   .user-sidebar-actions { flex-direction: column; }
   .user-account-menu { left: 58px; bottom: 0; }
+}
+.admin-sidebar { z-index: 50; }
+.admin-sidebar .sidebar-section + .sidebar-section { margin-top: 20px; }
+.admin-sidebar .sidebar-section-title { flex-shrink: 0; }
+.admin-sidebar .sidebar-link { flex-shrink: 0; }
+@media (min-width: 701px) {
+  .admin-sidebar-collapsed { width: 76px !important; padding-left: 10px; padding-right: 10px; }
+  .admin-sidebar-collapsed .sidebar-header { padding-left: 12px; padding-right: 12px; }
+  .admin-sidebar-collapsed .sidebar-link { justify-content: center; padding: 0; }
+  .admin-sidebar-collapsed .user-recharge-button { justify-content: center; padding: 0; }
+  .admin-sidebar-collapsed .user-recharge-button strong, .admin-sidebar-collapsed .user-recharge-button span,
+  .admin-sidebar-collapsed .user-account-name { display: none; }
+  .admin-sidebar-collapsed .user-recharge-button::after { content: "充值"; font-size: 12px; }
+  .admin-sidebar-collapsed .user-sidebar-actions { flex-direction: column; }
+  .admin-sidebar-collapsed .user-account-menu { left: 58px; bottom: 0; }
+}
+@media (max-width: 700px) {
+  .shell-collapse-action { display: none; }
+  .admin-sidebar:not(.admin-sidebar-open) .sidebar-section-title { display: none; }
+  .admin-sidebar:not(.admin-sidebar-open) .sidebar-link > span:not(.sidebar-svg-icon),
+  .admin-sidebar:not(.admin-sidebar-open) .sidebar-section > div { display: none; }
+  .admin-sidebar-open { width: 242px !important; padding: 18px 18px var(--xq-bottom-gutter, 18px); }
+  .admin-sidebar-open .sidebar-brand, .admin-sidebar-open .sidebar-label,
+  .admin-sidebar-open .user-recharge-button strong, .admin-sidebar-open .user-recharge-button span,
+  .admin-sidebar-open .user-account-name { display: block !important; }
+  .admin-sidebar-open .sidebar-label-flex { display: flex !important; }
+  .admin-sidebar-open .sidebar-link { justify-content: flex-start; padding: 0 12px; }
+  .admin-sidebar-open .user-recharge-button { justify-content: space-between; padding: 0 12px; }
+  .admin-sidebar-open .user-recharge-button::after { content: none; }
+  .admin-sidebar-open .user-sidebar-actions { flex-direction: row; }
+  .admin-sidebar-open .user-account-menu { left: 0; bottom: 48px; }
 }
 </style>

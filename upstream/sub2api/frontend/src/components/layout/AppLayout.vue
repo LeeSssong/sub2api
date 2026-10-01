@@ -9,7 +9,7 @@
     <!-- Main Content Area -->
     <div
       class="relative min-h-screen transition-all duration-300"
-      :class="isAdmin ? [sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-64'] : 'user-main-frame'"
+      :class="isAdmin ? ['admin-main-frame', { 'admin-main-collapsed': sidebarCollapsed }] : 'user-main-frame'"
     >
       <!-- Header -->
       <AppHeader v-if="isAdmin" />
@@ -17,7 +17,7 @@
       <UserHeader v-else />
 
       <!-- Main Content -->
-      <main class="p-4 md:p-6 lg:p-8" :class="{ 'user-workspace': !isAdmin }">
+      <main class="p-4 md:p-6 lg:p-8" :class="{ 'user-workspace': !isAdmin, 'admin-workspace': isAdmin }">
         <slot />
       </main>
     </div>
