@@ -4,6 +4,13 @@ import { mount } from '@vue/test-utils'
 import TokenUsageTrend from '../TokenUsageTrend.vue'
 
 const messages: Record<string, string> = {
+  'usage.in': 'Input',
+  'usage.out': 'Output',
+  'usage.cacheCreationTokensLabel': 'Cache Creation',
+  'usage.cacheReadTokensLabel': 'Cache Read',
+  'usage.cacheHitRate': 'Cache Hit Rate',
+  'usage.detail.actualCost': 'Actual',
+  'usage.detail.standardCost': 'Standard',
   'admin.dashboard.tokenUsageTrend': 'Token Usage Trend',
   'admin.dashboard.noDataAvailable': 'No data available',
 }
