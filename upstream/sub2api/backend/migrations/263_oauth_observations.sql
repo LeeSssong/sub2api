@@ -241,8 +241,8 @@ DECLARE r JSONB := to_jsonb(CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END); s
 BEGIN
   IF lower(r->>'platform') <> 'openai' OR lower(r->>'type') <> 'oauth' THEN RETURN COALESCE(NEW, OLD); END IF;
   PERFORM oauth_observation_ensure_episode((r->>'id')::BIGINT);
-  snap := jsonb_strip_nulls(jsonb_build_object('observation_schema_version','263','source',COALESCE(NULLIF(current_setting('oauth_observation.source',true),''),'unknown'),'rule_id',NULLIF(current_setting('oauth_observation.rule_id',true),''),'quality_outcome',NULLIF(current_setting('oauth_observation.outcome',true),''),'bps_trigger',NULLIF(current_setting('oauth_observation.bps_trigger',true),''),'priority',r->'priority','concurrency',r->'concurrency','load_factor',r->'load_factor','status',r->'status','schedulable',r->'schedulable','expires_at',r->'expires_at','proxy_id',r->'proxy_id','plan_type',r->'credentials'->'plan_type','bps_enabled',r->'credentials'->'bps_enabled','bps_mode',r->'credentials'->'bps_mode','bps_disabled',r->'credentials'->'bps_disabled','usage_quota',r->'credentials'->'usage_quota','quota_remaining',r->'credentials'->'quota_remaining','quota_reset_at',r->'credentials'->'quota_reset_at'));
-  IF TG_OP <> 'UPDATE' OR (to_jsonb(OLD) - ARRAY['credentials','extra','error_message']) IS DISTINCT FROM (to_jsonb(NEW) - ARRAY['credentials','extra','error_message']) OR ((to_jsonb(OLD)->'credentials') - ARRAY['access_token','refresh_token','id_token','email']) IS DISTINCT FROM ((to_jsonb(NEW)->'credentials') - ARRAY['access_token','refresh_token','id_token','email']) THEN
+  snap := jsonb_strip_nulls(jsonb_build_object('observation_schema_version','263','source',COALESCE(NULLIF(current_setting('oauth_observation.source',true),''),'unknown'),'rule_id',NULLIF(current_setting('oauth_observation.rule_id',true),''),'quality_outcome',NULLIF(current_setting('oauth_observation.outcome',true),''),'bps_trigger',NULLIF(current_setting('oauth_observation.bps_trigger',true),''),'priority',r->'priority','concurrency',r->'concurrency','load_factor',r->'load_factor','status',r->'status','schedulable',r->'schedulable','expires_at',r->'expires_at','proxy_id',r->'proxy_id','plan_type',r->'credentials'->'plan_type','credential_expiry',r->'credentials'->'expires_at','bps_enabled',r->'extra'->'openai_excel_bps','bps_models',r->'extra'->'openai_excel_bps_models','codex_5h',r->'extra'->'codex_5h','codex_7d',r->'extra'->'codex_7d','quota_remaining',r->'extra'->'quota_remaining'));
+  IF TG_OP <> 'UPDATE' OR (to_jsonb(OLD) - ARRAY['credentials','extra','error_message','updated_at','last_used_at']) IS DISTINCT FROM (to_jsonb(NEW) - ARRAY['credentials','extra','error_message','updated_at','last_used_at']) OR (to_jsonb(OLD)->'extra'->'openai_excel_bps') IS DISTINCT FROM (to_jsonb(NEW)->'extra'->'openai_excel_bps') OR (to_jsonb(OLD)->'extra'->'openai_excel_bps_models') IS DISTINCT FROM (to_jsonb(NEW)->'extra'->'openai_excel_bps_models') OR ((to_jsonb(OLD)->'credentials') - ARRAY['access_token','refresh_token','id_token','email']) IS DISTINCT FROM ((to_jsonb(NEW)->'credentials') - ARRAY['access_token','refresh_token','id_token','email']) THEN
     INSERT INTO oauth_observation_archives(subject_type,subject_key,operation,snapshot) VALUES ('account',r->>'id',lower(TG_OP),snap);
   END IF;
   RETURN COALESCE(NEW, OLD);
@@ -280,8 +280,10 @@ END $$;
 
 CREATE OR REPLACE FUNCTION oauth_observation_archive_audit_mutation()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog AS $$
-DECLARE account BIGINT := NULLIF(NEW.extra->'params'->>'id','')::BIGINT; row JSONB;
+DECLARE account BIGINT; row JSONB;
 BEGIN
+  IF COALESCE(NEW.extra->'params'->>'id','') !~ '^[0-9]+$' THEN RETURN NEW; END IF;
+  account := (NEW.extra->'params'->>'id')::BIGINT;
   IF NEW.status_code < 200 OR NEW.status_code >= 300 OR NEW.method NOT IN ('POST','PUT','PATCH','DELETE')
      OR NEW.actor_role NOT IN ('admin','super_admin') OR NEW.actor_user_id IS NULL
      OR NEW.action NOT LIKE 'admin.accounts.%' OR account IS NULL THEN RETURN NEW; END IF;
@@ -289,7 +291,7 @@ BEGIN
   SELECT to_jsonb(a) INTO row FROM accounts a WHERE a.id=account;
   INSERT INTO oauth_observation_archives(subject_type,subject_key,operation,snapshot) VALUES
     ('admin_account_mutation',account::TEXT,'insert',jsonb_strip_nulls(jsonb_build_object(
-      'actor_type',NEW.actor_role,'actor_id',NEW.actor_user_id,'action',NEW.action,'reason','admin_api',
+      'actor_type',NEW.actor_role,'actor_id',NEW.actor_user_id,'action',NEW.action,'reason','admin_api','observation_kind','post_hoc_audit_observed',
       'priority',row->'priority','concurrency',row->'concurrency','load_factor',row->'load_factor','status',row->'status','schedulable',row->'schedulable','expires_at',row->'expires_at','proxy_id',row->'proxy_id',
       'plan_type',row->'credentials'->'plan_type','bps_enabled',row->'credentials'->'bps_enabled','usage_quota',row->'credentials'->'usage_quota','quota_remaining',row->'credentials'->'quota_remaining')));
   RETURN NEW;
@@ -330,6 +332,7 @@ BEGIN
   DELETE FROM oauth_observation_usage_contributions WHERE usage_log_id IN (SELECT usage_log_id FROM oauth_observation_usage_contributions WHERE minute_at < clock_timestamp()-INTERVAL '180 days' ORDER BY usage_log_id LIMIT 5000);
   DELETE FROM oauth_observation_usage_minutes WHERE ctid IN (SELECT ctid FROM oauth_observation_usage_minutes WHERE minute_at < clock_timestamp()-INTERVAL '180 days' LIMIT 5000);
   DELETE FROM oauth_observation_recorder_health WHERE instance_id IN (SELECT instance_id FROM oauth_observation_recorder_health WHERE observed_at < clock_timestamp()-INTERVAL '90 days' LIMIT 5000);
+  DELETE FROM oauth_observation_archives WHERE id IN (SELECT id FROM oauth_observation_archives WHERE observed_at < clock_timestamp()-INTERVAL '365 days' ORDER BY id LIMIT 5000);
 END $$;
 
 COMMENT ON TABLE oauth_observation_probe_lifetimes IS 'First healthy native turn-state probe through first later degraded probe; inconclusive, expiry, quota and scheduling transitions never terminate it.';
