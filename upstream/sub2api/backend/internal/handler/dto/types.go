@@ -368,6 +368,7 @@ type AccountListItem struct {
 	LoadFactor              *int       `json:"load_factor,omitempty"`
 	Priority                int        `json:"priority"`
 	RateMultiplier          float64    `json:"rate_multiplier"`
+	ProcurementCostCNY      *float64   `json:"procurement_cost_cny"`
 	GroupRateMultiplier     float64    `json:"group_rate_multiplier"`
 	Status                  string     `json:"status"`
 	ErrorMessage            string     `json:"error_message"`

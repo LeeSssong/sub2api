@@ -94,6 +94,24 @@ func TestUpdateAccountProcurementCostTransitions(t *testing.T) {
 	})
 }
 
+func TestBuildAccountForCreateStoresProcurementCostWithoutEstimatedQuota(t *testing.T) {
+	cost := 1.25
+	before := time.Now().UTC()
+	account, err := buildAccountForCreate(&CreateAccountInput{
+		Name: "imported", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+		Credentials: map[string]any{"access_token": "token"}, ProcurementCostCNY: &cost,
+	}, map[string]any{})
+	after := time.Now().UTC()
+
+	require.NoError(t, err)
+	require.NotNil(t, account.ProcurementCostCNY)
+	require.Equal(t, 1.25, *account.ProcurementCostCNY)
+	require.Nil(t, account.EstimatedUsableQuotaUSD)
+	require.NotNil(t, account.ProcurementCostEffectiveAt)
+	require.False(t, account.ProcurementCostEffectiveAt.Before(before))
+	require.False(t, account.ProcurementCostEffectiveAt.After(after))
+}
+
 func TestUpdateAccountRejectsPriorityBelowOne(t *testing.T) {
 	initialPriority := 7
 	repo := &procurementCostAccountRepoStub{account: &Account{

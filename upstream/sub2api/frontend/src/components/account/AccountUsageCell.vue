@@ -596,6 +596,15 @@
     <template v-else>
       <div class="text-xs text-gray-400">-</div>
     </template>
+    <div
+      data-testid="account-purchase-cost"
+      class="mt-1 flex items-center gap-1 text-[10px] leading-4 text-gray-500 dark:text-gray-400"
+    >
+      <span>{{ t('admin.accounts.purchaseCost.listLabel') }}</span>
+      <span class="font-medium text-gray-700 dark:text-gray-300">
+        {{ account.procurement_cost_cny == null ? '—' : `¥${account.procurement_cost_cny.toFixed(2)}` }}
+      </span>
+    </div>
   </div>
 
   <!-- Non-OAuth/Setup-Token accounts -->
@@ -678,6 +687,15 @@
         class="text-xs text-gray-400"
       >-</div>
     </div>
+    <div
+      data-testid="account-purchase-cost"
+      class="mt-1 flex items-center gap-1 text-[10px] leading-4 text-gray-500 dark:text-gray-400"
+    >
+      <span>{{ t('admin.accounts.purchaseCost.listLabel') }}</span>
+      <span class="font-medium text-gray-700 dark:text-gray-300">
+        {{ account.procurement_cost_cny == null ? '—' : `¥${account.procurement_cost_cny.toFixed(2)}` }}
+      </span>
+    </div>
   </div>
 </template>
 
@@ -755,12 +773,11 @@ let desktopViewportMediaQuery: MediaQueryList | null = null
 let desktopViewportListener: ((event: MediaQueryListEvent) => void) | null = null
 let visibilityObserver: IntersectionObserver | null = null
 
-// Show usage windows for OAuth and Setup Token accounts
+// Show usage windows for OAuth and Setup Token accounts.
 const showUsageWindows = computed(() => {
-  // Gemini: we can always compute local usage windows from DB logs (simulated quotas).
+  // Gemini usage can always be derived from local logs.
   if (props.account.platform === 'gemini') return true
-  // CN providers: apikey 账号也有滚动用量窗口（coding plan）或余额（payg），
-  // 由 CNProviderQuotaCell / CNProviderBalanceCell 自行探测与展示。
+  // CN provider API keys can expose rolling quotas or balances in this cell.
   if (
     props.account.platform === 'kimi' ||
     props.account.platform === 'zhipu' ||

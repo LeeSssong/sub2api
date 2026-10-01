@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +33,7 @@ type CodexSessionImportRequest struct {
 	Concurrency             *int                           `json:"concurrency"`
 	Priority                *int                           `json:"priority"`
 	RateMultiplier          *float64                       `json:"rate_multiplier"`
+	ProcurementCostCNY      *float64                       `json:"procurement_cost_cny"`
 	LoadFactor              *int                           `json:"load_factor"`
 	ExpiresAt               *int64                         `json:"expires_at"`
 	AutoPauseOnExpired      *bool                          `json:"auto_pause_on_expired"`
@@ -141,6 +143,10 @@ func (h *AccountHandler) ImportCodexSession(c *gin.Context) {
 	}
 	if req.RateMultiplier != nil && *req.RateMultiplier < 0 {
 		response.BadRequest(c, "rate_multiplier must be >= 0")
+		return
+	}
+	if req.ProcurementCostCNY != nil && (math.IsNaN(*req.ProcurementCostCNY) || math.IsInf(*req.ProcurementCostCNY, 0) || *req.ProcurementCostCNY < 0) {
+		response.BadRequest(c, "procurement_cost_cny must be a finite value >= 0")
 		return
 	}
 	if req.LoadFactor != nil && *req.LoadFactor > 10000 {
@@ -365,6 +371,7 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 			Concurrency:             concurrency,
 			Priority:                priority,
 			RateMultiplier:          req.RateMultiplier,
+			ProcurementCostCNY:      req.ProcurementCostCNY,
 			LoadFactor:              req.LoadFactor,
 			GroupIDs:                req.GroupIDs,
 			Admission:               req.Admission,

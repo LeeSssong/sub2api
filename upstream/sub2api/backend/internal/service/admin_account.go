@@ -506,6 +506,14 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 		}
 		account.RateMultiplier = input.RateMultiplier
 	}
+	if input.ProcurementCostCNY != nil {
+		if math.IsNaN(*input.ProcurementCostCNY) || math.IsInf(*input.ProcurementCostCNY, 0) || *input.ProcurementCostCNY < 0 {
+			return nil, errors.New("procurement_cost_cny must be a finite value >= 0")
+		}
+		account.ProcurementCostCNY = input.ProcurementCostCNY
+		effectiveAt := time.Now().UTC()
+		account.ProcurementCostEffectiveAt = &effectiveAt
+	}
 	if err := applyEffectiveCostConfiguration(account, input.EffectiveCostModel, input.UpstreamActualCost, input.UpstreamObtainedQuota); err != nil {
 		return nil, err
 	}

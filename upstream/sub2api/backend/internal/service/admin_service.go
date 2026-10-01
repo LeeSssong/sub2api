@@ -444,6 +444,7 @@ type CreateAccountInput struct {
 	Concurrency             int
 	Priority                int
 	RateMultiplier          *float64 // 账号计费倍率（>=0，允许 0）
+	ProcurementCostCNY      *float64 // 一次性购买成本（人民币，>=0）
 	EffectiveCostModel      string
 	UpstreamActualCost      *float64
 	UpstreamObtainedQuota   *float64

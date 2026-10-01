@@ -180,6 +180,81 @@ describe('ImportDataModal', () => {
     expect(showSuccess).toHaveBeenCalledWith('admin.accounts.dataImportSuccess')
   })
 
+  it('sends the optional batch purchase cost without redistributing failed accounts', async () => {
+    const { adminAPI } = await import('@/api/admin')
+    vi.mocked(adminAPI.accounts.importData).mockResolvedValue({
+      proxy_created: 0,
+      proxy_reused: 0,
+      proxy_failed: 0,
+      account_created: 2,
+      account_failed: 1
+    })
+
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="file"]')
+    setInputFiles(input.element, [
+      makeJsonFile(
+        'three-accounts.json',
+        JSON.stringify({
+          exported_at: '2026-10-02T00:00:00Z',
+          proxies: [],
+          accounts: [{ name: 'a' }, { name: 'b' }, { name: 'invalid' }]
+        })
+      )
+    ])
+    await input.trigger('change')
+    await wrapper.get('[data-testid="data-import-total-cost"]').setValue('3')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(adminAPI.accounts.importData).toHaveBeenCalledWith({
+      data: expect.objectContaining({ accounts: [{ name: 'a' }, { name: 'b' }, { name: 'invalid' }] }),
+      skip_default_group_bind: true,
+      total_procurement_cost_cny: 3
+    })
+  })
+
+  it('omits batch purchase cost when the field is blank', async () => {
+    const { adminAPI } = await import('@/api/admin')
+    vi.mocked(adminAPI.accounts.importData).mockResolvedValue({
+      proxy_created: 0,
+      proxy_reused: 0,
+      proxy_failed: 0,
+      account_created: 1,
+      account_failed: 0
+    })
+
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="file"]')
+    setInputFiles(input.element, [
+      makeJsonFile('one-account.json', JSON.stringify({ proxies: [], accounts: [{ name: 'a' }] }))
+    ])
+    await input.trigger('change')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(adminAPI.accounts.importData).toHaveBeenCalledWith({
+      data: expect.objectContaining({ accounts: [{ name: 'a' }] }),
+      skip_default_group_bind: true
+    })
+  })
+
+  it('rejects a negative batch purchase cost before importing', async () => {
+    const { adminAPI } = await import('@/api/admin')
+    const wrapper = mountModal()
+    const input = wrapper.find('input[type="file"]')
+    setInputFiles(input.element, [
+      makeJsonFile('one-account.json', JSON.stringify({ proxies: [], accounts: [{ name: 'a' }] }))
+    ])
+    await input.trigger('change')
+    await wrapper.get('[data-testid="data-import-total-cost"]').setValue('-0.01')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(showError).toHaveBeenCalledWith('admin.accounts.purchaseCost.invalid')
+    expect(adminAPI.accounts.importData).not.toHaveBeenCalled()
+  })
+
   it('部分成功时关闭弹窗仍通知父组件刷新', async () => {
     const { adminAPI } = await import('@/api/admin')
     vi.mocked(adminAPI.accounts.importData).mockResolvedValue({

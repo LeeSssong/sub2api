@@ -815,12 +815,16 @@ export async function importData(payload: {
   group_ids?: number[]
   skip_default_group_bind?: boolean
   admission?: AccountAdmissionConfig
+  total_procurement_cost_cny?: number
 }): Promise<AdminDataImportResult> {
   const { data } = await apiClient.post<AdminDataImportResult>('/admin/accounts/data', {
     data: payload.data,
     skip_default_group_bind: payload.skip_default_group_bind,
     ...(payload.group_ids !== undefined ? { group_ids: payload.group_ids } : {}),
-    ...(payload.admission ? { admission: payload.admission } : {})
+    ...(payload.admission ? { admission: payload.admission } : {}),
+    ...(payload.total_procurement_cost_cny !== undefined
+      ? { total_procurement_cost_cny: payload.total_procurement_cost_cny }
+      : {})
   })
   return data
 }

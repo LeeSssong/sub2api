@@ -1327,6 +1327,7 @@ export interface Account {
   scheduler_scores?: AccountSchedulerGroupScore[] | null
   priority: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
+  procurement_cost_cny?: number | null
   effective_cost_model?: 'direct_multiplier' | 'ratio_based_upstream' | 'self_owned'
   upstream_actual_cost?: number | null
   upstream_obtained_quota?: number | null
@@ -1793,6 +1794,7 @@ export interface CodexSessionImportRequest {
   concurrency?: number
   priority?: number
   rate_multiplier?: number
+  procurement_cost_cny?: number
   load_factor?: number | null
   expires_at?: number | null
   auto_pause_on_expired?: boolean

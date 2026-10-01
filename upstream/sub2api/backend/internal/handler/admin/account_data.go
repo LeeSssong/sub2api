@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -74,9 +75,10 @@ type DataAccount struct {
 }
 
 type DataImportRequest struct {
-	GroupIDs             []int64     `json:"group_ids"`
-	Data                 DataPayload `json:"data"`
-	SkipDefaultGroupBind *bool       `json:"skip_default_group_bind"`
+	GroupIDs                []int64     `json:"group_ids"`
+	Data                    DataPayload `json:"data"`
+	SkipDefaultGroupBind    *bool       `json:"skip_default_group_bind"`
+	TotalProcurementCostCNY *float64    `json:"total_procurement_cost_cny"`
 }
 
 type DataImportResult struct {
@@ -260,6 +262,16 @@ func (h *AccountHandler) ImportData(c *gin.Context) {
 		response.BadRequest(c, err.Error())
 		return
 	}
+	if req.TotalProcurementCostCNY != nil {
+		if math.IsNaN(*req.TotalProcurementCostCNY) || math.IsInf(*req.TotalProcurementCostCNY, 0) || *req.TotalProcurementCostCNY < 0 {
+			response.BadRequest(c, "total_procurement_cost_cny must be a finite value >= 0")
+			return
+		}
+		if countValidDataAccounts(req.Data.Accounts) == 0 {
+			response.BadRequest(c, "total_procurement_cost_cny requires at least one valid account")
+			return
+		}
+	}
 
 	executeAdminIdempotentJSON(c, "admin.accounts.import_data", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		return h.importData(ctx, req)
@@ -274,6 +286,15 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 
 	dataPayload := req.Data
 	result := DataImportResult{}
+	var perAccountProcurementCostCNY *float64
+	if req.TotalProcurementCostCNY != nil {
+		validAccountCount := countValidDataAccounts(dataPayload.Accounts)
+		if validAccountCount == 0 {
+			return result, errors.New("total_procurement_cost_cny requires at least one valid account")
+		}
+		value := *req.TotalProcurementCostCNY / float64(validAccountCount)
+		perAccountProcurementCostCNY = &value
+	}
 
 	existingProxies, err := h.listAllProxies(ctx)
 	if err != nil {
@@ -468,6 +489,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			Concurrency:          item.Concurrency,
 			Priority:             item.Priority,
 			RateMultiplier:       item.RateMultiplier,
+			ProcurementCostCNY:   perAccountProcurementCostCNY,
 			GroupRateMultiplier:  item.GroupRateMultiplier,
 			GroupIDs:             req.GroupIDs,
 			ExpiresAt:            item.ExpiresAt,
@@ -516,6 +538,16 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 	}
 
 	return result, nil
+}
+
+func countValidDataAccounts(accounts []DataAccount) int {
+	count := 0
+	for i := range accounts {
+		if validateDataAccount(accounts[i]) == nil {
+			count++
+		}
+	}
+	return count
 }
 
 func (h *AccountHandler) listAllProxies(ctx context.Context) ([]service.Proxy, error) {

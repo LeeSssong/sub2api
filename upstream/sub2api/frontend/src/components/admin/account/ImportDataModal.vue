@@ -8,7 +8,7 @@
   >
     <form id="import-data-form" class="space-y-4" @submit.prevent="handleImport">
       <div v-if="authStore.isObserver" class="space-y-2">
-        <GroupSelector v-model="groupIDs" :groups="groups" />
+        <GroupSelector v-model="groupIDs" :groups="observerGroups" />
         <p class="input-hint">{{ t('admin.users.observerImportHint') }}</p>
       </div>
       <div class="text-sm text-gray-600 dark:text-dark-300">
@@ -55,16 +55,37 @@
         />
       </div>
 
-      <label class="flex cursor-pointer items-center gap-2">
-        <input
-          v-model="admissionEnabled"
-          type="checkbox"
-          data-testid="data-admission-enabled"
-          :disabled="importing"
-          class="h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
-        />
-        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.accounts.admission.enabled') }}</span>
-      </label>
+      <div class="grid gap-4 md:grid-cols-2 md:items-end">
+        <label class="flex min-h-10 cursor-pointer items-center gap-2">
+          <input
+            v-model="admissionEnabled"
+            type="checkbox"
+            data-testid="data-admission-enabled"
+            :disabled="importing"
+            class="h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
+          />
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.accounts.admission.enabled') }}</span>
+        </label>
+        <div>
+          <label for="data-import-total-cost" class="input-label">{{ t('admin.accounts.purchaseCost.batchLabel') }}</label>
+          <div class="relative">
+            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-gray-500">¥</span>
+            <input
+              id="data-import-total-cost"
+              v-model="totalProcurementCostCNY"
+              data-testid="data-import-total-cost"
+              type="number"
+              min="0"
+              step="0.01"
+              inputmode="decimal"
+              class="input pl-7"
+              :placeholder="t('admin.accounts.purchaseCost.optionalPlaceholder')"
+              :disabled="importing"
+            />
+          </div>
+          <p class="input-hint">{{ t('admin.accounts.purchaseCost.batchHint') }}</p>
+        </div>
+      </div>
       <div v-if="admissionEnabled" class="space-y-4">
         <div>
           <label for="data-admission-test-group" class="input-label">{{ t('admin.accounts.admission.testGroup') }}</label>
@@ -159,15 +180,16 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const groupIDs = ref<number[]>([])
-const groups = ref<Group[]>([])
+const observerGroups = ref<Group[]>([])
 watch(() => props.show, async (show) => {
   if (show && authStore.isObserver) {
-    groups.value = await adminAPI.groups.getAllIncludingInactive().catch(() => [])
-    groupIDs.value = groupIDs.value.filter(id => groups.value.some(group => group.id === id))
+    observerGroups.value = await adminAPI.groups.getAllIncludingInactive().catch(() => [])
+    groupIDs.value = groupIDs.value.filter(id => observerGroups.value.some(group => group.id === id))
   }
 })
 
 const admissionEnabled = ref(false)
+const totalProcurementCostCNY = ref('')
 const admissionTestGroupId = ref<number | null>(null)
 const targetGroupIds = ref<number[]>([])
 const filePlatforms = ref<AccountPlatform[]>([])
@@ -200,6 +222,7 @@ watch(
   (open) => {
     if (open) {
       admissionEnabled.value = false
+      totalProcurementCostCNY.value = ''
       admissionTestGroupId.value = null
       targetGroupIds.value = []
       files.value = []
@@ -376,6 +399,12 @@ const handleImport = async () => {
       dataPayloads.push(parsed)
     }
     const dataPayload = mergeDataPayloads(dataPayloads)
+    const trimmedCost = String(totalProcurementCostCNY.value).trim()
+    const totalCost = trimmedCost === '' ? undefined : Number(trimmedCost)
+    if (totalCost !== undefined && (!Number.isFinite(totalCost) || totalCost < 0)) {
+      appStore.showError(t('admin.accounts.purchaseCost.invalid'))
+      return
+    }
     const admissionError = getAccountAdmissionError({
       enabled: admissionEnabled.value,
       testGroupId: admissionTestGroupId.value,
@@ -393,7 +422,8 @@ const handleImport = async () => {
       data: dataPayload,
       group_ids: admission ? targetGroupIds.value : authStore.isObserver ? groupIDs.value : undefined,
       skip_default_group_bind: true,
-      ...(admission ? { admission } : {})
+      ...(admission ? { admission } : {}),
+      ...(totalCost !== undefined ? { total_procurement_cost_cny: totalCost } : {})
     })
 
     result.value = res

@@ -74,6 +74,13 @@ export default {
       dataImportErrors: '失败详情',
       dataImportSuccess: '导入完成：账号 {account_created}，失败 {account_failed}',
       dataImportCompletedWithErrors: '导入完成但有错误：账号失败 {account_failed}，代理失败 {proxy_failed}',
+      purchaseCost: {
+        batchLabel: '批次购买成本（人民币）',
+        optionalPlaceholder: '选填',
+        batchHint: '按本批次账号总数平均分摊；失败或跳过的份额不重新分摊。',
+        invalid: '购买成本必须是大于或等于 0 的有效金额',
+        listLabel: '购买成本'
+      },
       syncFromCrsTitle: '从 CRS 同步账号',
       syncFromCrsDesc:
         '将 claude-relay-service（CRS）中的账号同步到当前系统（不会在浏览器侧直接请求 CRS）。',

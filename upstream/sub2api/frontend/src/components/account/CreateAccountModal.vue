@@ -6529,7 +6529,12 @@ const isAgentIdentityImportContent = (content: string) => {
 }
 
 // Reuse Session import normalization and identity deduplication after 2FA login.
-const importTwoFACredential = async (credential: Record<string, unknown>, email: string, login: TokenGuardReloginAccount): Promise<'created' | 'skipped'> => {
+const importTwoFACredential = async (
+  credential: Record<string, unknown>,
+  email: string,
+  login: TokenGuardReloginAccount,
+  procurementCostCNY?: number
+): Promise<'created' | 'skipped'> => {
   const credentialExtras = buildOpenAICodexImportCredentialExtras()
   if (credentialExtras === null) throw new Error('invalid_account_settings')
   const result = await adminAPI.accounts.importCodexSession({
@@ -6541,6 +6546,7 @@ const importTwoFACredential = async (credential: Record<string, unknown>, email:
     load_factor: form.load_factor ?? undefined,
     priority: form.priority,
     rate_multiplier: form.rate_multiplier,
+    ...(procurementCostCNY !== undefined ? { procurement_cost_cny: procurementCostCNY } : {}),
     group_ids: form.group_ids,
     expires_at: form.expires_at,
     auto_pause_on_expired: autoPauseOnExpired.value,

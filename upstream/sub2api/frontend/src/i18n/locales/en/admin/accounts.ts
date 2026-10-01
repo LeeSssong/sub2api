@@ -74,6 +74,13 @@ export default {
       dataImportErrors: 'Error Details',
       dataImportSuccess: 'Import completed: accounts {account_created}, failed {account_failed}',
       dataImportCompletedWithErrors: 'Import completed with errors: account failed {account_failed}, proxy failed {proxy_failed}',
+      purchaseCost: {
+        batchLabel: 'Batch purchase cost (CNY)',
+        optionalPlaceholder: 'Optional',
+        batchHint: 'Divided by all accounts in the batch; failed or skipped shares are not redistributed.',
+        invalid: 'Purchase cost must be a valid amount greater than or equal to 0',
+        listLabel: 'Purchase cost'
+      },
       syncFromCrsTitle: 'Sync Accounts from CRS',
       syncFromCrsDesc:
         'Sync accounts from claude-relay-service (CRS) into this system (CRS is called server-to-server).',

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -675,6 +676,32 @@ func TestImportCodexSessionsAccessTokenOnlySameWorkspaceDifferentUsersCreatesTwo
 	}
 	if svc.createdAccounts[0].Credentials["chatgpt_user_id"] == svc.createdAccounts[1].Credentials["chatgpt_user_id"] {
 		t.Fatalf("created accounts share user id: %v", svc.createdAccounts)
+	}
+}
+
+func TestImportCodexSessionsCarriesPerAccountProcurementCostOnlyToCreatedAccount(t *testing.T) {
+	svc := newCodexImportMemoryAdminService(nil)
+	handler := NewAccountHandler(svc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	reqValue := reflect.ValueOf(&CodexSessionImportRequest{}).Elem()
+	costField := reqValue.FieldByName("ProcurementCostCNY")
+	if !costField.IsValid() {
+		t.Fatal("CodexSessionImportRequest must carry procurement cost")
+	}
+	cost := 1.25
+	costField.Set(reflect.ValueOf(&cost))
+	req := reqValue.Interface().(CodexSessionImportRequest)
+	entries := []codexImportEntry{{Index: 1, Value: buildCodexAccessOnlyImportValue(t, "workspace-1", "user-1")}}
+
+	result, err := handler.importCodexSessions(context.Background(), req, entries)
+	if err != nil {
+		t.Fatalf("importCodexSessions error = %v", err)
+	}
+	if result.Created != 1 || len(svc.createdAccounts) != 1 {
+		t.Fatalf("result = %+v, created inputs = %d", result, len(svc.createdAccounts))
+	}
+	createdValue := reflect.ValueOf(svc.createdAccounts[0]).Elem().FieldByName("ProcurementCostCNY")
+	if !createdValue.IsValid() || createdValue.IsNil() || createdValue.Elem().Float() != 1.25 {
+		t.Fatalf("created procurement cost = %v, want 1.25", createdValue)
 	}
 }
 

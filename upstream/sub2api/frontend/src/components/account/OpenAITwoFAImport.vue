@@ -6,6 +6,25 @@
       {{ t('tokenGuard.twoFA.settings') }}
     </a>
     <template v-if="!rows.length">
+      <div>
+        <label for="two-fa-total-cost" class="input-label">{{ t('tokenGuard.twoFA.purchaseCostLabel') }}</label>
+        <div class="relative">
+          <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-gray-500">¥</span>
+          <input
+            id="two-fa-total-cost"
+            v-model="totalProcurementCostCNY"
+            data-testid="two-fa-total-cost"
+            type="number"
+            min="0"
+            step="0.01"
+            inputmode="decimal"
+            class="input pl-7"
+            :placeholder="t('tokenGuard.twoFA.purchaseCostPlaceholder')"
+            :disabled="busy"
+          />
+        </div>
+        <p class="input-hint">{{ t('tokenGuard.twoFA.purchaseCostHint') }}</p>
+      </div>
       <label for="two-fa-credentials" class="input-label">{{ t('tokenGuard.twoFA.credentials') }}</label>
       <textarea id="two-fa-credentials" v-model="raw" class="input font-mono" rows="6"
         autocomplete="off" autocapitalize="off" :spellcheck="false" :disabled="busy"
@@ -40,7 +59,7 @@ import { deleteTwoFALogin, getTwoFALogin, parseTwoFALoginText, startTwoFALogin }
 import type { TokenGuardReloginAccount } from '@/api/admin/accountTokenGuard'
 
 const props = defineProps<{
-  importCredential: (credential: Record<string, unknown>, email: string, login: TokenGuardReloginAccount) => Promise<'created' | 'skipped'>
+  importCredential: (credential: Record<string, unknown>, email: string, login: TokenGuardReloginAccount, procurementCostCNY?: number) => Promise<'created' | 'skipped'>
 }>()
 const emit = defineEmits<{ busy: [value: boolean] }>()
 const { t } = useI18n()
@@ -49,8 +68,10 @@ type Row = {
   status: 'pending' | 'login' | 'importing' | 'created' | 'skipped' | 'failed' | 'importFailed'
   credential?: Record<string, unknown>
   jobId?: string
+  procurementCostCNY?: number
 }
 const raw = ref('')
+const totalProcurementCostCNY = ref('')
 const encryptionReady = ref(false)
 const error = ref('')
 const rows = ref<Row[]>([])
@@ -71,12 +92,22 @@ async function run() {
   if (busy.value || !encryptionReady.value) return
   error.value = ''
   if (!rows.value.length) {
+    const trimmedCost = String(totalProcurementCostCNY.value).trim()
+    const totalCost = trimmedCost === '' ? undefined : Number(trimmedCost)
+    if (totalCost !== undefined && (!Number.isFinite(totalCost) || totalCost < 0)) {
+      error.value = t('tokenGuard.twoFA.purchaseCostInvalid')
+      return
+    }
     try {
       rows.value = parseTwoFALoginText(raw.value).map(entry => ({ entry, status: 'pending' }))
       raw.value = ''
     } catch {
       error.value = t('tokenGuard.twoFA.invalid')
       return
+    }
+    if (totalCost !== undefined) {
+      const perAccountCost = totalCost / rows.value.length
+      rows.value.forEach(row => { row.procurementCostCNY = perAccountCost })
     }
   }
   busy.value = true
@@ -113,7 +144,7 @@ async function run() {
         row.status = 'importing'
         // Keep the input in memory until encrypted credential-operations
         // enrollment succeeds. An import/enrollment retry reuses this login.
-        row.status = await props.importCredential(row.credential, row.entry.email, { ...row.entry })
+        row.status = await props.importCredential(row.credential, row.entry.email, { ...row.entry }, row.procurementCostCNY)
         row.credential = undefined
         row.entry.password = ''
         row.entry.mfa_secret = ''
@@ -134,6 +165,7 @@ function reset() {
   for (const row of rows.value) void discardJob(row)
   rows.value = []
   raw.value = ''
+  totalProcurementCostCNY.value = ''
   error.value = ''
 }
 

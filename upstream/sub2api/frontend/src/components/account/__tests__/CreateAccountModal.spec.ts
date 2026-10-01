@@ -272,10 +272,10 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(wrapper.findComponent(OAuthAuthorizationFlowStub).exists()).toBe(false)
     const credential = { access_token: 'test-access', refresh_token: 'test-refresh', account_id: 'test-workspace' }
     const login = { email: 'user@example.com', password: 'test-password', mfa_secret: 'test-secret' }
-    await expect(importer.props('importCredential')(credential, login.email, login)).resolves.toBe('created')
+    await expect(importer.props('importCredential')(credential, login.email, login, 1.25)).resolves.toBe('created')
     expect(importCodexSessionMock).toHaveBeenCalledWith(expect.objectContaining({
       content: JSON.stringify(credential), name: 'user@example.com', update_existing: false, skip_existing: true,
-      concurrency: 10, group_ids: [], proxy_id: null,
+      concurrency: 10, group_ids: [], proxy_id: null, procurement_cost_cny: 1.25,
     }))
     expect(wrapper.emitted('created')).toHaveLength(1)
     expect(wrapper.emitted('close')).toBeUndefined()

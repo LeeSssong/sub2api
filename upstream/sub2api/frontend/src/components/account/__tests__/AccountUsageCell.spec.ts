@@ -130,6 +130,22 @@ describe('AccountUsageCell', () => {
     })
   })
 
+  it('shows the account purchase cost in CNY and distinguishes a missing cost', async () => {
+    const withCost = mount(AccountUsageCell, {
+      props: { account: makeAccount({ procurement_cost_cny: 12.5 }) },
+      global: { stubs: { UsageProgressBar: true, AccountQuotaInfo: true } }
+    })
+    await flushPromises()
+    expect(withCost.get('[data-testid="account-purchase-cost"]').text()).toContain('¥12.50')
+
+    const withoutCost = mount(AccountUsageCell, {
+      props: { account: makeAccount({ procurement_cost_cny: null }) },
+      global: { stubs: { UsageProgressBar: true, AccountQuotaInfo: true } }
+    })
+    await flushPromises()
+    expect(withoutCost.get('[data-testid="account-purchase-cost"]').text()).toContain('—')
+  })
+
   it.each(['oauth', 'setup-token'] as const)('renders Codex ticket status for OpenAI %s accounts', async (type) => {
     getUsage.mockResolvedValue({})
     const wrapper = mount(AccountUsageCell, {
@@ -1639,7 +1655,8 @@ describe('AccountUsageCell', () => {
 
 		await flushPromises()
 
-		expect(wrapper.text().trim()).toBe('-')
+  expect(wrapper.text()).toContain('-')
+  expect(wrapper.get('[data-testid="account-purchase-cost"]').text()).toContain('—')
   })
 
   it('Vertex 账号会在 Gemini 用量窗口里展示 today stats 徽章', async () => {

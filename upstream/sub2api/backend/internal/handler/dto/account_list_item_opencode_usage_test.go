@@ -55,3 +55,18 @@ func TestAccountListItemFromAccount_CarriesOpenCodeGoUsage(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(plainRaw), `"opencode_go_usage"`)
 }
+
+func TestAccountListItemFromAccountCarriesProcurementCost(t *testing.T) {
+	cost := 12.5
+	account := &service.Account{
+		ID: 7, Name: "purchased", Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth,
+		Status: service.StatusActive, ProcurementCostCNY: &cost,
+	}
+
+	item := AccountListItemFromAccount(AccountFromServiceShallow(account))
+	require.NotNil(t, item.ProcurementCostCNY)
+	require.Equal(t, 12.5, *item.ProcurementCostCNY)
+	raw, err := json.Marshal(item)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `"procurement_cost_cny":12.5`)
+}

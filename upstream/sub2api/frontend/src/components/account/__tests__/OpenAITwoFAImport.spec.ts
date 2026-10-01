@@ -52,6 +52,40 @@ describe('OpenAI initial 2FA import', () => {
     expect(wrapper.emitted('busy')).toEqual([[true], [false], [true], [false]])
   })
 
+  it('divides the total purchase cost by all valid rows before any import result is known', async () => {
+    const importCredential = vi.fn()
+      .mockResolvedValueOnce('created')
+      .mockRejectedValueOnce(new Error('import failed'))
+      .mockResolvedValueOnce('created')
+    const wrapper = mount(OpenAITwoFAImport, { props: { importCredential } })
+    await flushPromises()
+    await wrapper.get('[data-testid="two-fa-total-cost"]').setValue('3')
+    await start(wrapper, 'a@example.com----p1----s1\nb@example.com----p2----s2\nc@example.com----p3----s3')
+
+    expect(importCredential).toHaveBeenCalledTimes(3)
+    expect(importCredential.mock.calls.map(call => call[3])).toEqual([1, 1, 1])
+  })
+
+  it('passes no purchase cost when the optional field is blank', async () => {
+    const importCredential = vi.fn().mockResolvedValue('created')
+    const wrapper = mount(OpenAITwoFAImport, { props: { importCredential } })
+    await start(wrapper, 'a@example.com----p----s')
+
+    expect(importCredential.mock.calls[0]?.[3]).toBeUndefined()
+  })
+
+  it('rejects a negative purchase cost before starting any login', async () => {
+    const importCredential = vi.fn()
+    const wrapper = mount(OpenAITwoFAImport, { props: { importCredential } })
+    await flushPromises()
+    await wrapper.get('[data-testid="two-fa-total-cost"]').setValue('-0.01')
+    await start(wrapper, 'a@example.com----p----s')
+
+    expect(wrapper.get('[role="alert"]').text()).toBe('tokenGuard.twoFA.purchaseCostInvalid')
+    expect(startTwoFALogin).not.toHaveBeenCalled()
+    expect(importCredential).not.toHaveBeenCalled()
+  })
+
   it('never imports when login fails, and rejects malformed batch lines before sending anything', async () => {
     const importCredential = vi.fn()
     const wrapper = mount(OpenAITwoFAImport, { props: { importCredential } })
