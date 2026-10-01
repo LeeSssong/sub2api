@@ -1,5 +1,10 @@
 <template>
-  <div class="relative" ref="dropdownRef">
+  <div v-if="compact" class="user-locale-switch" role="group" :aria-label="locale === 'zh' ? '语言' : 'Language'">
+    <button v-for="option in [...availableLocales].reverse()" :key="option.code" type="button"
+      :aria-pressed="option.code === currentLocaleCode" :disabled="switching"
+      @click="selectLocale(option.code)">{{ option.code === 'zh' ? '中文' : 'EN' }}</button>
+  </div>
+  <div v-else class="relative" ref="dropdownRef">
     <button
       @click="toggleDropdown"
       :disabled="switching"
@@ -47,6 +52,7 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { setLocale, availableLocales } from '@/i18n'
 
+withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
 const { locale } = useI18n()
 
 const isOpen = ref(false)

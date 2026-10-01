@@ -9,7 +9,7 @@
       <button v-else type="button" disabled class="user-doc-link" :title="t('common.docsNotConfigured')">
         <Icon name="book" size="sm" /><span>{{ t('nav.docs') }}</span>
       </button>
-      <LocaleSwitcher />
+      <LocaleSwitcher compact />
     </nav>
   </header>
 </template>
