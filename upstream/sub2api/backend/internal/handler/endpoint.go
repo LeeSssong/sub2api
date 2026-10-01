@@ -280,6 +280,17 @@ func InboundEndpointMiddleware() gin.HandlerFunc {
 	}
 }
 
+// OAuthObservationAttemptMiddleware attaches a fresh server-generated opaque
+// correlation ID. It neither reads nor derives from client request headers.
+func OAuthObservationAttemptMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.Request != nil {
+			c.Request = c.Request.WithContext(service.WithOAuthObservationAttempt(c.Request.Context()))
+		}
+		c.Next()
+	}
+}
+
 // ──────────────────────────────────────────────────────────
 // Context helpers — used by handlers before building
 // RecordUsageInput.

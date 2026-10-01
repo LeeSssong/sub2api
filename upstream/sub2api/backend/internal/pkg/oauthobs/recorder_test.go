@@ -133,3 +133,47 @@ func TestRecorderCopiesCallerOwnedPayload(t *testing.T) {
 		t.Fatalf("caller modified queued event: %+v", p)
 	}
 }
+
+func TestRecorderStopDeadlineCancelsWriterAndAccountsForQueuedEvents(t *testing.T) {
+	store := &blockingStore{entered: make(chan struct{})}
+	r := New(store, "test", 4)
+	for i := 0; i < 3; i++ {
+		requireEmit(t, r, Event{AccountID: 1, Type: "selected"})
+	}
+	r.Start()
+	<-store.entered
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	if err := r.Stop(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Stop error = %v, want deadline exceeded", err)
+	}
+	select {
+	case <-r.done:
+	case <-time.After(time.Second):
+		t.Fatal("recorder writer continued after shutdown deadline")
+	}
+	h := r.Health()
+	if h.Dropped != 3 {
+		t.Fatalf("queued events must be visible as dropped: %+v", h)
+	}
+}
+
+type blockingStore struct{ entered chan struct{} }
+
+func (s *blockingStore) WriteOAuthObservations(ctx context.Context, _ []Event) error {
+	select {
+	case s.entered <- struct{}{}:
+	default:
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+func (*blockingStore) WriteOAuthObservationHealth(context.Context, Health) error { return nil }
+func (*blockingStore) PruneOAuthObservations(context.Context) error              { return nil }
+
+func requireEmit(t *testing.T, r *Recorder, event Event) {
+	t.Helper()
+	if !r.Emit(event) {
+		t.Fatal("enqueue")
+	}
+}

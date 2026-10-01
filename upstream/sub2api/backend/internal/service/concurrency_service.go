@@ -356,12 +356,12 @@ func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID i
 
 	acquired, err := s.cache.AcquireAccountSlot(ctx, accountID, maxConcurrency, requestID)
 	if err != nil {
-		s.observeSlot(accountID, "slot_acquire_failed", requestID, maxConcurrency)
+		s.observeSlot(ctx, accountID, "slot_acquire_failed", requestID, maxConcurrency)
 		return nil, err
 	}
 
 	if acquired {
-		s.observeSlot(accountID, "slot_acquired", requestID, maxConcurrency)
+		s.observeSlot(ctx, accountID, "slot_acquired", requestID, maxConcurrency)
 		var observationOnce sync.Once
 		return &AcquireResult{
 			Acquired: true,
@@ -369,16 +369,16 @@ func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID i
 				bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				if err := s.cache.ReleaseAccountSlot(bgCtx, accountID, requestID); err != nil {
-					observationOnce.Do(func() { s.observeSlot(accountID, "slot_release_failed", requestID, maxConcurrency) })
+					observationOnce.Do(func() { s.observeSlot(ctx, accountID, "slot_release_failed", requestID, maxConcurrency) })
 					logger.LegacyPrintf("service.concurrency", "Warning: failed to release account slot for %d (req=%s): %v", accountID, requestID, err)
 				} else {
-					observationOnce.Do(func() { s.observeSlot(accountID, "slot_released", requestID, maxConcurrency) })
+					observationOnce.Do(func() { s.observeSlot(ctx, accountID, "slot_released", requestID, maxConcurrency) })
 				}
 			},
 		}, nil
 	}
 
-	s.observeSlot(accountID, "slot_denied", requestID, maxConcurrency)
+	s.observeSlot(ctx, accountID, "slot_denied", requestID, maxConcurrency)
 	return &AcquireResult{
 		Acquired:    false,
 		ReleaseFunc: nil,

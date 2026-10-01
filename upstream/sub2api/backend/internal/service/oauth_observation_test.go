@@ -73,6 +73,34 @@ func TestOAuthObservationSlotsPreserveAcquireAndTrackFailure(t *testing.T) {
 	}
 }
 
+func TestOAuthObservationAttemptCorrelatesSlotsAndOutcome(t *testing.T) {
+	sink := &observationStoreTest{}
+	cache := &stubConcurrencyCacheForTest{acquireResult: true}
+	concurrency := NewConcurrencyService(cache)
+	concurrency.observations = oauthobs.New(sink, "test", 10)
+	concurrency.observations.Start()
+
+	ctx := WithOAuthObservationAttempt(context.Background())
+	ctx = WithOAuthObservationSlotMetadata(ctx, "gpt-6-astra", "native", "request")
+	result, err := concurrency.AcquireAccountSlot(ctx, 42, 3)
+	require.NoError(t, err)
+	require.NotEmpty(t, OAuthObservationAttemptID(ctx))
+	result.ReleaseFunc()
+
+	gateway := &OpenAIGatewayService{concurrencyService: concurrency}
+	gateway.ReportOpenAIAccountScheduleResultWithContext(ctx, stateProbeAccount(), "gpt-6-astra", true, nil)
+	finishObservationTest(t, concurrency.observations)
+
+	require.Len(t, sink.events, 3)
+	for _, event := range sink.events {
+		require.Equal(t, OAuthObservationAttemptID(ctx), event.Payload.AttemptID)
+	}
+	require.Equal(t, "request", sink.events[0].Payload.SlotRole)
+	require.Equal(t, "gpt-6-astra", sink.events[0].Payload.Model)
+	require.Equal(t, "native", sink.events[0].Payload.Protocol)
+	require.Equal(t, "request_outcome", sink.events[2].Type)
+}
+
 func TestOAuthObservationManualProbePreservesVerdictAndPrivacy(t *testing.T) {
 	sink := &observationStoreTest{}
 	r := oauthobs.New(sink, "test", 10)
@@ -116,13 +144,17 @@ func TestOAuthObservationLiveLeaseRefreshAndRelease(t *testing.T) {
 	cache := &liveTestConcurrencyCache{}
 	gateway := &OpenAIGatewayService{concurrencyService: NewConcurrencyService(cache)}
 	gateway.concurrencyService.observations = r
-	record := &LiveCallRecord{AccountID: 42, LeaseID: "internal-lease"}
+	ctx := WithOAuthObservationAttempt(context.Background())
+	record := &LiveCallRecord{AccountID: 42, LeaseID: "internal-lease", Model: "gpt-live", observationAttemptID: OAuthObservationAttemptID(ctx)}
 	require.True(t, gateway.refreshLiveLease(record))
-	gateway.releaseLiveLease(42, 0, 0, "internal-lease")
+	gateway.releaseLiveLease(42, 0, 0, "internal-lease", record.Model, record.observationAttemptID)
 	finishObservationTest(t, r)
 	require.Len(t, sink.events, 2)
 	require.Equal(t, "slot_refreshed", sink.events[0].Type)
 	require.Equal(t, "live", sink.events[0].Payload.Protocol)
+	require.Equal(t, "live_lease", sink.events[0].Payload.SlotRole)
+	require.Equal(t, "gpt-live", sink.events[0].Payload.Model)
+	require.Equal(t, OAuthObservationAttemptID(ctx), sink.events[0].Payload.AttemptID)
 	require.Equal(t, "slot_released", sink.events[1].Type)
 }
 

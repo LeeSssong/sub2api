@@ -9,14 +9,62 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/oauthobs"
+	"github.com/google/uuid"
 )
 
 type oauthProbeSourceKey struct{}
 type oauthProbeRuleKey struct{}
+type oauthObservationAttemptKey struct{}
+type oauthObservationSlotMetadataKey struct{}
+
+type oauthObservationSlotMetadata struct {
+	model    string
+	protocol string
+	role     string
+}
 type oauthProbeRule struct {
 	id            int64
 	roundID       string
 	triggerSource string
+}
+
+// WithOAuthObservationAttempt creates an opaque, server-generated correlation
+// ID. It is unrelated to client, billing, or upstream request identifiers.
+func WithOAuthObservationAttempt(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, oauthObservationAttemptKey{}, uuid.NewString())
+}
+
+func OAuthObservationAttemptID(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	v, _ := ctx.Value(oauthObservationAttemptKey{}).(string)
+	return v
+}
+
+func WithOAuthObservationSlotMetadata(ctx context.Context, model, protocol, role string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, oauthObservationSlotMetadataKey{}, oauthObservationSlotMetadata{model: observationModel(model), protocol: protocol, role: role})
+}
+
+func oauthObservationSlotMetadataFromContext(ctx context.Context) oauthObservationSlotMetadata {
+	if ctx == nil {
+		return oauthObservationSlotMetadata{}
+	}
+	v, _ := ctx.Value(oauthObservationSlotMetadataKey{}).(oauthObservationSlotMetadata)
+	return v
+}
+
+func withOAuthObservationRequestSlotMetadata(ctx context.Context, model string) context.Context {
+	if metadata := oauthObservationSlotMetadataFromContext(ctx); metadata.model != "" || metadata.role != "" {
+		return ctx
+	}
+	return WithOAuthObservationSlotMetadata(ctx, model, "", "request")
 }
 
 func (s *OpenAIGatewayService) oauthRecorder() *oauthobs.Recorder {
@@ -60,7 +108,7 @@ func observationProtocol(account *Account, model string) string {
 	return "native"
 }
 
-func (s *OpenAIGatewayService) observeOAuthSelection(selection *AccountSelectionResult, decision OpenAIAccountScheduleDecision, groupID *int64, model string, excluded map[int64]struct{}) {
+func (s *OpenAIGatewayService) observeOAuthSelection(ctx context.Context, selection *AccountSelectionResult, decision OpenAIAccountScheduleDecision, groupID *int64, model string, excluded map[int64]struct{}) {
 	r := s.oauthRecorder()
 	if r == nil || selection == nil || selection.Account == nil {
 		return
@@ -70,14 +118,22 @@ func (s *OpenAIGatewayService) observeOAuthSelection(selection *AccountSelection
 	if !selection.Acquired {
 		kind = "wait_selected"
 	}
-	p := oauthobs.Payload{Model: observationModel(model), Protocol: observationProtocol(a, model), Layer: decision.Layer, GroupID: groupID, ExcludedCount: len(excluded)}
+	metadata := oauthObservationSlotMetadataFromContext(ctx)
+	if metadata.model != "" {
+		model = metadata.model
+	}
+	protocol := observationProtocol(a, model)
+	if metadata.protocol != "" {
+		protocol = metadata.protocol
+	}
+	p := oauthobs.Payload{AttemptID: OAuthObservationAttemptID(ctx), Model: observationModel(model), Protocol: protocol, Layer: decision.Layer, GroupID: groupID, ExcludedCount: len(excluded)}
 	r.Emit(oauthobs.Event{AccountID: a.ID, Type: kind, Payload: p})
 	for id := range excluded {
-		r.Emit(oauthobs.Event{AccountID: id, Type: "fallback", Payload: oauthobs.Payload{Model: observationModel(model), GroupID: groupID, ErrorClass: "retry_excluded", SelectedAccountID: a.ID}})
+		r.Emit(oauthobs.Event{AccountID: id, Type: "fallback", Payload: oauthobs.Payload{AttemptID: OAuthObservationAttemptID(ctx), Model: observationModel(model), GroupID: groupID, ErrorClass: "retry_excluded", SelectedAccountID: a.ID}})
 	}
 }
 
-func (s *OpenAIGatewayService) observeOAuthOutcome(account *Account, model string, success bool, firstTokenMS *int, observedErr []error) {
+func (s *OpenAIGatewayService) observeOAuthOutcome(ctx context.Context, account *Account, model string, success bool, firstTokenMS *int, observedErr []error) {
 	if account == nil || !account.IsOpenAIOAuth() {
 		return
 	}
@@ -89,7 +145,7 @@ func (s *OpenAIGatewayService) observeOAuthOutcome(account *Account, model strin
 	if success {
 		class = "success"
 	}
-	s.oauthRecorder().Emit(oauthobs.Event{AccountID: account.ID, Type: "request_outcome", Payload: oauthobs.Payload{Model: observationModel(model), Protocol: observationProtocol(account, model), Success: &success, FirstTokenMS: firstTokenMS, HTTPStatus: status, ErrorClass: class}})
+	s.oauthRecorder().Emit(oauthobs.Event{AccountID: account.ID, Type: "request_outcome", Payload: oauthobs.Payload{AttemptID: OAuthObservationAttemptID(ctx), Model: observationModel(model), Protocol: observationProtocol(account, model), Success: &success, FirstTokenMS: firstTokenMS, HTTPStatus: status, ErrorClass: class}})
 }
 
 func (s *OpenAIGatewayService) observeOAuthFilter(account *Account, req OpenAIAccountScheduleRequest, reason string) {
@@ -131,12 +187,13 @@ func oauthObservationError(err error) (int, string) {
 	return 0, "unknown"
 }
 
-func (s *ConcurrencyService) observeSlot(accountID int64, eventType, slotID string, limit int) {
+func (s *ConcurrencyService) observeSlot(ctx context.Context, accountID int64, eventType, slotID string, limit int) {
 	if s.observations == nil {
 		return
 	}
 	now := time.Now().UTC()
-	p := oauthobs.Payload{SlotID: slotID, Limit: limit}
+	metadata := oauthObservationSlotMetadataFromContext(ctx)
+	p := oauthobs.Payload{AttemptID: OAuthObservationAttemptID(ctx), Model: metadata.model, Protocol: metadata.protocol, SlotID: slotID, SlotRole: metadata.role, Limit: limit}
 	if eventType == "slot_acquired" {
 		ttl := s.observationSlotTTL
 		if ttl <= 0 {
@@ -148,9 +205,9 @@ func (s *ConcurrencyService) observeSlot(accountID int64, eventType, slotID stri
 	s.observations.Emit(oauthobs.Event{AccountID: accountID, Type: eventType, OccurredAt: now, Payload: p})
 }
 
-func (s *OpenAIGatewayService) observeLiveSlot(accountID int64, eventType, slotID string, limit int) {
+func (s *OpenAIGatewayService) observeLiveSlot(accountID int64, eventType, slotID string, limit int, model, attemptID string) {
 	now := time.Now().UTC()
-	p := oauthobs.Payload{Protocol: "live", SlotID: slotID, Limit: limit}
+	p := oauthobs.Payload{AttemptID: attemptID, Model: observationModel(model), Protocol: "live", SlotID: slotID, SlotRole: "live_lease", Limit: limit}
 	// Matches the distributed Live lease's fixed 60s TTL. Refreshes extend the
 	// observed interval; a failed release remains incomplete until lease expiry.
 	if eventType == "slot_acquired" || eventType == "slot_refreshed" {
@@ -158,4 +215,15 @@ func (s *OpenAIGatewayService) observeLiveSlot(accountID int64, eventType, slotI
 		p.ExpiresAt = &expires
 	}
 	s.oauthRecorder().Emit(oauthobs.Event{AccountID: accountID, OccurredAt: now, Type: eventType, Payload: p})
+}
+
+func (s *OpenAIGatewayService) observeLiveOutcome(account *Account, model, attemptID string, success bool, observedErr error) {
+	if account == nil || !account.IsOpenAIOAuth() {
+		return
+	}
+	status, class := oauthObservationError(observedErr)
+	if success {
+		class = "success"
+	}
+	s.oauthRecorder().Emit(oauthobs.Event{AccountID: account.ID, Type: "live_call_outcome", Payload: oauthobs.Payload{AttemptID: attemptID, Model: observationModel(model), Protocol: "live", Success: &success, HTTPStatus: status, ErrorClass: class}})
 }
