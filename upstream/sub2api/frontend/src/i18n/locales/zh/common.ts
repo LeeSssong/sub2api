@@ -1,5 +1,6 @@
 export default {
   common: {
+    docsNotConfigured: '文档暂未配置',
     loading: '加载中...',
     submitting: '提交中...',
     justNow: '刚刚',

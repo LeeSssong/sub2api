@@ -20,7 +20,7 @@
 .xq-button.icon-btn img{width:20px;height:20px}
 .xq-ai :focus-visible,.xq-dialog :focus-visible{outline:2px solid var(--xq-accent);outline-offset:3px}
 .xq-ai ::selection,.xq-dialog ::selection{background:#245665;color:var(--xq-text)}
-.xq-ai{display:flex;flex-direction:column;min-height:calc(100dvh - var(--xq-top-gutter) - var(--xq-bottom-gutter))}
+.xq-ai{display:flex;flex-direction:column;min-height:calc(100dvh - var(--xq-header-height) - var(--xq-top-gutter) - var(--xq-bottom-gutter))}
 .xq-ai .page-head{margin-bottom:14px}
 .xq-ai .page-head h1{font-size:20px;line-height:1.4;font-weight:600;letter-spacing:-.01em}
 .xq-ai .tool-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:34px}

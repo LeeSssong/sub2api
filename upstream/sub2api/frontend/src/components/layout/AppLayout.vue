@@ -14,16 +14,7 @@
       <!-- Header -->
       <AppHeader v-if="isAdmin" />
 
-      <div v-else class="user-mobile-header sticky top-0 z-30 flex h-14 items-center border-b border-gray-200 bg-white/95 px-4 backdrop-blur dark:border-dark-700 dark:bg-dark-900/95 lg:hidden">
-        <button
-          type="button"
-          class="btn-ghost btn-icon"
-          :aria-label="$t('common.toggleMenu')"
-          @click="appStore.toggleMobileSidebar()"
-        >
-          <Icon name="menu" size="md" />
-        </button>
-      </div>
+      <UserHeader v-else />
 
       <!-- Main Content -->
       <main class="p-4 md:p-6 lg:p-8" :class="{ 'user-workspace': !isAdmin }">
@@ -44,7 +35,7 @@ import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useOnboardingStore } from '@/stores/onboarding'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
-import Icon from '@/components/icons/Icon.vue'
+import UserHeader from './UserHeader.vue'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
@@ -72,7 +63,7 @@ defineExpose({ replayTour })
 }
 
 .user-workspace {
-  min-height: 100vh;
+  min-height: 0;
   background: #040b17;
 }
 </style>

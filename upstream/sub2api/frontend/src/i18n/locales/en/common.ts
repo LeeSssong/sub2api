@@ -1,5 +1,6 @@
 export default {
   common: {
+    docsNotConfigured: 'Documentation is not configured',
     loading: 'Loading...',
     submitting: 'Submitting...',
     justNow: 'just now',
