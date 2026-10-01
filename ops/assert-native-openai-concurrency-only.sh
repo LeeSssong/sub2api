@@ -78,6 +78,12 @@ custom_admission_call = /\.(?:Acquire|Renew|Release|Record|Has)[A-Za-z0-9_]*(?:A
 runtime_sources.each do |path|
   body = File.binread(path).force_encoding(Encoding::UTF_8)
   abort "native_concurrency_guard status=failed: runtime source is not valid UTF-8: #{path}" unless body.valid_encoding?
+  # Official API-key lease ownership preserves cancellation lifetime; it does
+  # not add a second OpenAI account admission gate. Allow only this exact call
+  # in its reviewed upstream handler, retaining the scan for all other calls.
+  if path == File.join(handler_dir, 'gateway_helper.go')
+    body = body.gsub('service.HasAPIKeyAdmissionOwner(', '')
+  end
   match = body.match(custom_admission_call)
   abort "native_concurrency_guard status=failed: custom admission-like call #{match[0]} found in #{path}" if match
 end

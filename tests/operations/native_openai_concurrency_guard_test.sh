@@ -24,6 +24,8 @@ cp "$ROOT/upstream/sub2api/backend/internal/handler/openai_gateway_handler.go" \
   "$FIXTURE/upstream/sub2api/backend/internal/handler/openai_gateway_handler.go"
 cp "$ROOT/upstream/sub2api/backend/internal/handler/gateway_handler.go" \
   "$FIXTURE/upstream/sub2api/backend/internal/handler/gateway_handler.go"
+cp "$ROOT/upstream/sub2api/backend/internal/handler/gateway_helper.go" \
+  "$FIXTURE/upstream/sub2api/backend/internal/handler/gateway_helper.go"
 
 "$GUARD" --worktree "$FIXTURE" >/dev/null || fail 'current native-only source was rejected'
 legacy_noop
