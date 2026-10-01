@@ -551,6 +551,12 @@ func ProvideConcurrencyService(cache ConcurrencyCache, accountRepo AccountReposi
 		}
 		svc.observations.Start()
 	}
+	if cfg != nil {
+		svc.SetAPIKeyQueuePolicy(APIKeyQueuePolicy{
+			MaxWaiting: cfg.Gateway.APIKeyQueue.MaxWaiting,
+			Timeout:    cfg.Gateway.APIKeyQueue.Timeout(),
+		})
+	}
 	if shouldStartRequestLocal(cfg) {
 		if err := svc.CleanupStaleProcessSlots(context.Background()); err != nil {
 			logger.LegacyPrintf("service.concurrency", "Warning: startup cleanup stale process slots failed: %v", err)

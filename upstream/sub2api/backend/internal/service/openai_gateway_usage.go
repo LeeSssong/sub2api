@@ -143,6 +143,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if result == nil {
 		return errors.New("openai usage result is nil")
 	}
+	if result.UsageUnavailable {
+		return errors.New("upstream usage unavailable; token usage was not recorded and request was not billed")
+	}
 	attemptMetadata := result.AttemptMetadata
 	if strings.TrimSpace(input.AttemptMetadata.LogicalRequestID) != "" {
 		attemptMetadata.LogicalRequestID = input.AttemptMetadata.LogicalRequestID
