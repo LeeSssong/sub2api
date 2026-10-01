@@ -15,7 +15,7 @@
           </article>
         </div>
         <section class="lines-panel" aria-labelledby="routes-title">
-          <div class="panel-head"><h2 id="routes-title">我的 AI 线路</h2><button class="xq-button icon-btn" aria-label="检查线路" title="检查线路" :disabled="checking || !routeRows.some(g=>g.status==='active')" @click="runChecks"><img src="/xingqiao/refresh.svg" alt="" :class="{'is-checking':checking}" /></button></div>
+          <div class="panel-head"><h2 id="routes-title">我的 AI 线路</h2><button class="xq-button route-check-button" aria-label="检查线路" title="检查线路" :disabled="checking || !routeRows.some(g=>g.status==='active')" @click="runChecks"><img src="/xingqiao/refresh.svg" alt="" :class="{'is-checking':checking}" /><span>检查线路</span></button></div>
           <div v-if="checkError" class="workspace-error" role="alert">{{ checkError }}</div>
           <div class="route-table-scroll">
             <div class="route-table" role="table" aria-label="我的 AI 线路">

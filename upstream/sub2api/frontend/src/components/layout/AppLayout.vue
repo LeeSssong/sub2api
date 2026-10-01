@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen" :class="isAdmin ? 'bg-gray-50 dark:bg-dark-950' : 'dark user-app-shell bg-[#040b17]'">
+  <div class="min-h-screen" :class="isAdmin ? 'brand-admin-shell bg-gray-50 dark:bg-dark-950' : 'dark user-app-shell bg-[#040b17]'">
     <!-- Background Decoration -->
     <div class="pointer-events-none fixed inset-0 bg-mesh-gradient"></div>
 
@@ -26,6 +26,7 @@
 
 <script setup lang="ts">
 import '@/styles/onboarding.css'
+import '@/styles/xingqiao-brand.css'
 import '@/styles/xingqiao-user.css'
 import '@/styles/xingqiao-ai.css'
 import { computed, onMounted, provide } from 'vue'

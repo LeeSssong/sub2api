@@ -1,7 +1,7 @@
 <template>
   <header class="user-topbar">
     <h1 :title="pageTitle">{{ pageTitle }}</h1>
-    <nav class="user-topbar-actions" :aria-label="t('nav.docs')">
+    <nav class="user-topbar-actions brand-header-actions" :aria-label="t('nav.docs')">
       <AnnouncementBell show-label />
       <a v-if="docUrl" :href="docUrl" target="_blank" rel="noopener noreferrer" class="user-doc-link">
         <Icon name="book" size="sm" /><span>{{ t('nav.docs') }}</span>
