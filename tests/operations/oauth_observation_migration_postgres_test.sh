@@ -79,11 +79,15 @@ SELECT oauth_observation_append(1, 'unknown', '2026-01-01 00:02:00+00', 'probe_r
 DO $$ BEGIN
   IF (SELECT count(*) FROM oauth_observation_events WHERE event_key = 'healthy') <> 1 THEN RAISE EXCEPTION 'duplicate key recorded'; END IF;
 END $$;
+-- A degraded event can arrive first while an earlier healthy timestamp arrives later.
+SELECT oauth_observation_append(1, 'arrival-first-degraded', '2025-12-31 23:00:00+00', 'probe_result', '{"model":"gpt-6","protocol":"native","probe_version":"turn_state_v1","verdict":"degraded"}');
+SELECT oauth_observation_append(1, 'arrival-late-earlier-healthy', '2025-12-31 22:00:00+00', 'probe_result', '{"model":"gpt-6","protocol":"native","probe_version":"turn_state_v1","verdict":"healthy"}');
+DO $$ BEGIN IF (SELECT first_degraded_at FROM oauth_observation_probe_lifetimes WHERE model='gpt-6') <> '2025-12-31 23:00:00+00'::timestamptz THEN RAISE EXCEPTION 'out-of-order probe result not reconciled'; END IF; END $$;
 -- Out-of-order terminal result is evaluated by observed time, not arrival order.
 SELECT oauth_observation_append(1, 'late-arrival', '2026-01-01 00:03:00+00', 'probe_result',
   '{"model":"gpt-4","protocol":"native","probe_version":"turn_state_v1","verdict":"degraded","failure":"upstream_5xx"}');
 DO $$ BEGIN
-  IF (SELECT first_degraded_at FROM oauth_observation_episode_lifetimes) <> '2026-01-01 00:03:00+00'::timestamptz THEN RAISE EXCEPTION 'account-level terminal time missing'; END IF;
+  IF (SELECT first_degraded_at FROM oauth_observation_episode_lifetimes) <> '2025-12-31 23:00:00+00'::timestamptz THEN RAISE EXCEPTION 'account-level terminal time missing'; END IF;
   IF EXISTS (SELECT 1 FROM oauth_observation_probe_lifetimes WHERE model = 'gpt-5' AND first_degraded_at IS NOT NULL) THEN RAISE EXCEPTION 'per-model detail was overwritten by another model'; END IF;
 END $$;
 -- Raw credential values must never be copied to observation data.
@@ -120,5 +124,10 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM oauth_observation_archives WHERE subject_type = 'admin_account_mutation' AND snapshot->>'actor_id' = '77' AND snapshot->>'reason' = 'admin_api') THEN RAISE EXCEPTION 'admin mutation archive missing'; END IF;
   IF EXISTS (SELECT 1 FROM oauth_observation_archives WHERE subject_type = 'admin_account_mutation' AND snapshot::text LIKE '%never-copy%') THEN RAISE EXCEPTION 'audit privacy whitelist failed'; END IF;
 END $$;
+-- Pruning raw rows cannot reset the compact lifetime extrema.
+UPDATE oauth_observation_events SET recorded_at=clock_timestamp()-INTERVAL '91 days';
+SELECT oauth_observation_prune();
+SELECT oauth_observation_append(1, 'after-prune-healthy', '2026-02-01 00:00:00+00', 'probe_result', '{"model":"gpt-5","protocol":"native","probe_version":"turn_state_v1","verdict":"healthy"}');
+DO $$ BEGIN IF (SELECT first_healthy_at FROM oauth_observation_episode_lifetimes WHERE episode_account_id=1) <> '2025-12-31 22:00:00+00'::timestamptz OR (SELECT first_degraded_at FROM oauth_observation_episode_lifetimes WHERE episode_account_id=1) <> '2025-12-31 23:00:00+00'::timestamptz THEN RAISE EXCEPTION 'retention reset lifetime extrema'; END IF; END $$;
 SELECT 'oauth observation migration behavioral checks passed' AS result;
 SQL

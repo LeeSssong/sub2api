@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS oauth_observation_events (
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_observation_events_episode_time ON oauth_observation_events(episode_account_id, occurred_at);
 CREATE INDEX IF NOT EXISTS idx_oauth_observation_events_type_time ON oauth_observation_events(event_type, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_oauth_observation_events_recorded_at ON oauth_observation_events(recorded_at);
+CREATE INDEX IF NOT EXISTS idx_oauth_observation_probe_events_episode_time ON oauth_observation_events(episode_account_id, occurred_at) WHERE event_type='probe_result';
 
 CREATE TABLE IF NOT EXISTS oauth_observation_probe_lifetimes (
     episode_account_id BIGINT NOT NULL,
@@ -64,12 +66,15 @@ CREATE TABLE IF NOT EXISTS oauth_observation_slots (
     acquired_at TIMESTAMPTZ NOT NULL,
     released_at TIMESTAMPTZ,
     release_state TEXT NOT NULL DEFAULT 'open' CHECK (release_state IN ('open', 'released', 'release_failed')),
+    protocol TEXT NOT NULL DEFAULT 'unknown',
     slot_limit INTEGER,
     expires_at TIMESTAMPTZ,
     recorded_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS uq_oauth_observation_slots_episode_slot ON oauth_observation_slots(episode_account_id, slot_id);
 CREATE INDEX IF NOT EXISTS idx_oauth_observation_slots_episode_acquired ON oauth_observation_slots(episode_account_id, acquired_at);
 CREATE INDEX IF NOT EXISTS idx_oauth_observation_slots_open ON oauth_observation_slots(acquired_at) WHERE released_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_oauth_observation_slots_recorded_at ON oauth_observation_slots(recorded_at);
 
 CREATE TABLE IF NOT EXISTS oauth_observation_usage_contributions (
     usage_log_id BIGINT PRIMARY KEY,
@@ -82,8 +87,13 @@ CREATE TABLE IF NOT EXISTS oauth_observation_usage_contributions (
     cache_creation_tokens BIGINT NOT NULL,
     cache_read_tokens BIGINT NOT NULL,
     actual_cost NUMERIC(20,10) NOT NULL,
+    total_cost NUMERIC(20,10) NOT NULL,
     duration_ms BIGINT,
-    first_token_ms BIGINT
+    first_token_ms BIGINT,
+    reasoning_effort TEXT,
+    service_tier TEXT,
+    long_context_billing_applied BOOLEAN NOT NULL DEFAULT FALSE,
+    usage_completeness TEXT NOT NULL DEFAULT 'unknown'
 );
 CREATE TABLE IF NOT EXISTS oauth_observation_usage_minutes (
     account_id BIGINT NOT NULL,
@@ -96,10 +106,14 @@ CREATE TABLE IF NOT EXISTS oauth_observation_usage_minutes (
     cache_creation_tokens BIGINT NOT NULL DEFAULT 0,
     cache_read_tokens BIGINT NOT NULL DEFAULT 0,
     actual_cost NUMERIC(20,10) NOT NULL DEFAULT 0,
+    total_cost NUMERIC(20,10) NOT NULL DEFAULT 0,
     latency_count BIGINT NOT NULL DEFAULT 0,
     latency_ms_total BIGINT NOT NULL DEFAULT 0,
     first_token_count BIGINT NOT NULL DEFAULT 0,
     first_token_ms_total BIGINT NOT NULL DEFAULT 0,
+    complete_requests BIGINT NOT NULL DEFAULT 0,
+    partial_requests BIGINT NOT NULL DEFAULT 0,
+    unknown_requests BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (account_id, minute_at, model, protocol)
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_observation_usage_minutes_time ON oauth_observation_usage_minutes(minute_at);
@@ -113,6 +127,7 @@ CREATE TABLE IF NOT EXISTS oauth_observation_archives (
     snapshot JSONB NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_oauth_observation_archives_subject_time ON oauth_observation_archives(subject_type, subject_key, observed_at);
+CREATE INDEX IF NOT EXISTS idx_oauth_observation_archives_observed_at ON oauth_observation_archives(observed_at);
 
 CREATE TABLE IF NOT EXISTS oauth_observation_recorder_health (
     instance_id TEXT PRIMARY KEY,
@@ -132,13 +147,14 @@ RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
     )
 $$;
 
-CREATE OR REPLACE FUNCTION oauth_observation_ensure_episode(p_account_id BIGINT)
-RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog AS $$
+CREATE OR REPLACE FUNCTION oauth_observation_ensure_episode(p_account_id BIGINT, p_refresh_identity BOOLEAN DEFAULT FALSE)
+RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     identity_value BYTEA;
     subject BIGINT;
     creds JSONB;
 BEGIN
+    IF NOT p_refresh_identity AND EXISTS (SELECT 1 FROM oauth_observation_episodes WHERE account_id = p_account_id) THEN RETURN p_account_id; END IF;
     SELECT credentials INTO creds FROM accounts WHERE id = p_account_id;
     IF FOUND THEN
         IF NOT oauth_observation_account_is_eligible(p_account_id) THEN RETURN NULL; END IF;
@@ -158,36 +174,28 @@ BEGIN
 END $$;
 
 CREATE OR REPLACE FUNCTION oauth_observation_recompute_lifetime(p_episode BIGINT, p_model TEXT, p_protocol TEXT, p_version TEXT)
-RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog AS $$
-DECLARE healthy_at TIMESTAMPTZ; degraded_at TIMESTAMPTZ; global_healthy_at TIMESTAMPTZ; global_degraded_at TIMESTAMPTZ;
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE healthy_at TIMESTAMPTZ; degraded_at TIMESTAMPTZ; old_healthy TIMESTAMPTZ; old_degraded TIMESTAMPTZ;
 BEGIN
-    SELECT min(occurred_at) INTO global_healthy_at FROM oauth_observation_events
-     WHERE episode_account_id = p_episode AND event_type = 'probe_result' AND payload->>'verdict' = 'healthy';
-    IF global_healthy_at IS NOT NULL THEN
-      SELECT min(occurred_at) INTO global_degraded_at FROM oauth_observation_events
-       WHERE episode_account_id = p_episode AND event_type = 'probe_result' AND payload->>'verdict' = 'degraded' AND occurred_at > global_healthy_at;
-      INSERT INTO oauth_observation_episode_lifetimes(episode_account_id, first_healthy_at, first_degraded_at, updated_at)
-        VALUES (p_episode, global_healthy_at, global_degraded_at, clock_timestamp())
-        ON CONFLICT (episode_account_id) DO UPDATE SET first_healthy_at=EXCLUDED.first_healthy_at, first_degraded_at=EXCLUDED.first_degraded_at, updated_at=EXCLUDED.updated_at;
-    END IF;
-    SELECT min(occurred_at) INTO healthy_at FROM oauth_observation_events
-     WHERE episode_account_id = p_episode AND event_type = 'probe_result'
-       AND payload->>'model' = p_model AND payload->>'protocol' = p_protocol
-       AND payload->>'probe_version' = p_version AND payload->>'verdict' = 'healthy';
-    IF healthy_at IS NULL THEN RETURN; END IF;
-    SELECT min(occurred_at) INTO degraded_at FROM oauth_observation_events
-     WHERE episode_account_id = p_episode AND event_type = 'probe_result'
-       AND payload->>'model' = p_model AND payload->>'protocol' = p_protocol
-       AND payload->>'probe_version' = p_version AND payload->>'verdict' = 'degraded'
-       AND occurred_at > healthy_at;
-    INSERT INTO oauth_observation_probe_lifetimes(episode_account_id, model, protocol, probe_version, first_healthy_at, first_degraded_at, updated_at)
-      VALUES (p_episode, p_model, p_protocol, p_version, healthy_at, degraded_at, clock_timestamp())
-      ON CONFLICT (episode_account_id, model, protocol, probe_version) DO UPDATE
-      SET first_healthy_at = EXCLUDED.first_healthy_at, first_degraded_at = EXCLUDED.first_degraded_at, updated_at = EXCLUDED.updated_at;
+  -- Compact summaries are authoritative retained extrema after raw events are pruned.
+  SELECT first_healthy_at, first_degraded_at INTO old_healthy, old_degraded
+    FROM oauth_observation_episode_lifetimes WHERE episode_account_id=p_episode;
+  SELECT min(x) INTO healthy_at FROM (SELECT old_healthy x UNION ALL SELECT occurred_at FROM oauth_observation_events WHERE episode_account_id=p_episode AND event_type='probe_result' AND payload->>'verdict'='healthy') q;
+  IF healthy_at IS NOT NULL THEN
+    SELECT min(x) INTO degraded_at FROM (SELECT old_degraded x WHERE old_degraded > healthy_at UNION ALL SELECT occurred_at FROM oauth_observation_events WHERE episode_account_id=p_episode AND event_type='probe_result' AND payload->>'verdict'='degraded' AND occurred_at > healthy_at) q;
+    INSERT INTO oauth_observation_episode_lifetimes VALUES (p_episode,healthy_at,degraded_at,clock_timestamp())
+    ON CONFLICT (episode_account_id) DO UPDATE SET first_healthy_at=EXCLUDED.first_healthy_at,first_degraded_at=EXCLUDED.first_degraded_at,updated_at=EXCLUDED.updated_at;
+  END IF;
+  SELECT first_healthy_at, first_degraded_at INTO old_healthy, old_degraded FROM oauth_observation_probe_lifetimes WHERE episode_account_id=p_episode AND model=p_model AND protocol=p_protocol AND probe_version=p_version;
+  SELECT min(x) INTO healthy_at FROM (SELECT old_healthy x UNION ALL SELECT occurred_at FROM oauth_observation_events WHERE episode_account_id=p_episode AND event_type='probe_result' AND payload->>'model'=p_model AND payload->>'protocol'=p_protocol AND payload->>'probe_version'=p_version AND payload->>'verdict'='healthy') q;
+  IF healthy_at IS NULL THEN RETURN; END IF;
+  SELECT min(x) INTO degraded_at FROM (SELECT old_degraded x WHERE old_degraded > healthy_at UNION ALL SELECT occurred_at FROM oauth_observation_events WHERE episode_account_id=p_episode AND event_type='probe_result' AND payload->>'model'=p_model AND payload->>'protocol'=p_protocol AND payload->>'probe_version'=p_version AND payload->>'verdict'='degraded' AND occurred_at > healthy_at) q;
+  INSERT INTO oauth_observation_probe_lifetimes VALUES (p_episode,p_model,p_protocol,p_version,healthy_at,degraded_at,clock_timestamp())
+  ON CONFLICT (episode_account_id,model,protocol,probe_version) DO UPDATE SET first_healthy_at=EXCLUDED.first_healthy_at,first_degraded_at=EXCLUDED.first_degraded_at,updated_at=EXCLUDED.updated_at;
 END $$;
 
 CREATE OR REPLACE FUNCTION oauth_observation_append(p_account_id BIGINT, p_event_key TEXT, p_occurred_at TIMESTAMPTZ, p_event_type TEXT, p_payload JSONB)
-RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_catalog AS $$
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE episode BIGINT; clean JSONB; inserted_rows INTEGER; slot TEXT;
 BEGIN
     IF p_event_key IS NULL OR length(p_event_key) = 0 OR length(p_event_key) > 256 OR p_occurred_at IS NULL THEN RETURN; END IF;
@@ -196,11 +204,12 @@ BEGIN
     IF p_event_type = 'probe_result' THEN
       clean := jsonb_strip_nulls(jsonb_build_object('model',p_payload->'model','protocol',p_payload->'protocol','probe_version',p_payload->'probe_version','verdict',p_payload->'verdict','failure',p_payload->'failure','latency_ms',p_payload->'latency_ms','started_at',p_payload->'started_at','finished_at',p_payload->'finished_at','source',p_payload->'source','mint_status',p_payload->'mint_status','continue_status',p_payload->'continue_status','program_version',p_payload->'program_version'));
       IF clean->>'model' IS NULL OR clean->>'protocol' <> 'native' OR clean->>'probe_version' <> 'turn_state_v1' OR clean->>'verdict' NOT IN ('healthy','degraded','inconclusive') THEN RETURN; END IF;
-    ELSIF p_event_type IN ('slot_acquired','slot_released','slot_release_failed') THEN
-      clean := jsonb_strip_nulls(jsonb_build_object('slot_id',p_payload->'slot_id','limit',p_payload->'limit','expires_at',p_payload->'expires_at','program_version',p_payload->'program_version'));
+    ELSIF p_event_type IN ('slot_acquired','slot_refreshed','slot_released','slot_release_failed') THEN
+      clean := jsonb_strip_nulls(jsonb_build_object('slot_id',p_payload->'slot_id','limit',p_payload->'limit','expires_at',p_payload->'expires_at','protocol',p_payload->'protocol','program_version',p_payload->'program_version'));
       IF clean->>'slot_id' IS NULL THEN RETURN; END IF;
     ELSIF p_event_type IN ('slot_denied','slot_acquire_failed') THEN clean := jsonb_strip_nulls(jsonb_build_object('limit',p_payload->'limit','program_version',p_payload->'program_version'));
     ELSIF p_event_type IN ('selected','wait_selected') THEN clean := jsonb_strip_nulls(jsonb_build_object('model',p_payload->'model','protocol',p_payload->'protocol','layer',p_payload->'layer','group_id',p_payload->'group_id','selected_account_id',p_payload->'selected_account_id','program_version',p_payload->'program_version'));
+    ELSIF p_event_type = 'candidate_filtered' THEN clean := jsonb_strip_nulls(jsonb_build_object('model',p_payload->'model','protocol',p_payload->'protocol','group_id',p_payload->'group_id','error_class',p_payload->'error_class','limit',p_payload->'limit','program_version',p_payload->'program_version'));
     ELSIF p_event_type IN ('request_outcome','fallback') THEN clean := jsonb_strip_nulls(jsonb_build_object('model',p_payload->'model','protocol',p_payload->'protocol','success',p_payload->'success','first_token_ms',p_payload->'first_token_ms','http_status',p_payload->'http_status','error_class',p_payload->'error_class','excluded_count',p_payload->'excluded_count','program_version',p_payload->'program_version'));
     ELSIF p_event_type IN ('queue_enter','queue_leave') THEN clean := jsonb_strip_nulls(jsonb_build_object('wait_id',p_payload->'wait_id','limit',p_payload->'limit','queue_delta',p_payload->'queue_delta','program_version',p_payload->'program_version'));
     ELSE RETURN;
@@ -212,15 +221,16 @@ BEGIN
     IF p_event_type = 'probe_result' THEN
       PERFORM oauth_observation_recompute_lifetime(episode, clean->>'model', clean->>'protocol', clean->>'probe_version');
     ELSIF p_event_type = 'slot_acquired' THEN
-      INSERT INTO oauth_observation_slots(event_key,account_id,episode_account_id,slot_id,acquired_at,slot_limit,expires_at)
-      VALUES (p_event_key,p_account_id,episode,clean->>'slot_id',p_occurred_at,NULLIF(clean->>'limit','')::INTEGER,NULLIF(clean->>'expires_at','')::TIMESTAMPTZ)
+      INSERT INTO oauth_observation_slots(event_key,account_id,episode_account_id,slot_id,acquired_at,slot_limit,expires_at,protocol)
+      VALUES (p_event_key,p_account_id,episode,clean->>'slot_id',p_occurred_at,NULLIF(clean->>'limit','')::INTEGER,NULLIF(clean->>'expires_at','')::TIMESTAMPTZ,COALESCE(clean->>'protocol','unknown'))
       ON CONFLICT (event_key) DO NOTHING;
-      UPDATE oauth_observation_slots s SET released_at = GREATEST(s.acquired_at, e.occurred_at), release_state = CASE WHEN e.event_type = 'slot_released' THEN 'released' ELSE 'release_failed' END
-      FROM oauth_observation_events e WHERE s.event_key = p_event_key AND e.episode_account_id = episode AND e.event_type IN ('slot_released','slot_release_failed') AND e.payload->>'slot_id' = s.slot_id AND e.occurred_at >= s.acquired_at;
-    ELSIF p_event_type IN ('slot_released','slot_release_failed') THEN
+      UPDATE oauth_observation_slots s SET released_at=(SELECT min(e.occurred_at) FROM oauth_observation_events e WHERE e.episode_account_id=episode AND e.event_type='slot_released' AND e.payload->>'slot_id'=s.slot_id AND e.occurred_at>=s.acquired_at),release_state='released' WHERE s.event_key=p_event_key AND EXISTS (SELECT 1 FROM oauth_observation_events e WHERE e.episode_account_id=episode AND e.event_type='slot_released' AND e.payload->>'slot_id'=s.slot_id AND e.occurred_at>=s.acquired_at);
+    ELSIF p_event_type = 'slot_refreshed' THEN
+      UPDATE oauth_observation_slots SET expires_at=GREATEST(COALESCE(expires_at,'-infinity'::timestamptz),NULLIF(clean->>'expires_at','')::timestamptz),slot_limit=COALESCE(NULLIF(clean->>'limit','')::INTEGER,slot_limit),protocol=COALESCE(clean->>'protocol',protocol) WHERE episode_account_id=episode AND slot_id=clean->>'slot_id';
+    ELSIF p_event_type = 'slot_released' THEN
       slot := clean->>'slot_id';
       UPDATE oauth_observation_slots SET released_at = GREATEST(acquired_at, p_occurred_at),
-          release_state = CASE WHEN p_event_type = 'slot_released' THEN 'released' ELSE 'release_failed' END
+          release_state = 'released'
         WHERE id = (SELECT id FROM oauth_observation_slots WHERE episode_account_id = episode AND slot_id = slot AND released_at IS NULL ORDER BY acquired_at DESC LIMIT 1);
     END IF;
 END $$;
