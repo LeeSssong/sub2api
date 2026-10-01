@@ -941,14 +941,14 @@ watch(endpointDistributionSource, () => {
 .usage-overview,
 .usage-analysis,
 .usage-records {
-  border: 1px solid var(--color-border, rgba(56, 112, 135, .38));
+  border: 1px solid var(--xq-border);
   border-radius: 14px;
-  background: var(--color-surface, rgba(7, 25, 39, .76));
+  background: var(--xq-surface);
 }
 
 .usage-time-toolbar {
   padding: 10px 20px;
-  border-bottom: 1px solid rgba(56, 112, 135, .28);
+  border-bottom: 1px solid var(--xq-line);
 }
 
 .usage-time-controls {
@@ -1027,7 +1027,7 @@ watch(endpointDistributionSource, () => {
   bottom: 20px;
   left: 0;
   width: 1px;
-  background: rgba(56, 112, 135, .28);
+  background: var(--xq-line);
   content: '';
 }
 
@@ -1068,16 +1068,16 @@ watch(endpointDistributionSource, () => {
 }
 
 .usage-analysis-grid :deep(> .usage-chart:nth-child(odd)) {
-  border-right: 1px solid rgba(56, 112, 135, .28);
+  border-right: 1px solid var(--xq-line);
 }
 
 .usage-analysis-grid :deep(> .usage-chart:nth-child(-n+2)) {
-  border-bottom: 1px solid rgba(56, 112, 135, .28);
+  border-bottom: 1px solid var(--xq-line);
 }
 
 .usage-records-controls {
   padding: 20px;
-  border-bottom: 1px solid rgba(56, 112, 135, .28);
+  border-bottom: 1px solid var(--xq-line);
 }
 
 .usage-filter-grid {
@@ -1122,7 +1122,7 @@ watch(endpointDistributionSource, () => {
 
 .usage-filter-actions .btn:hover:not(:disabled) {
   border-color: var(--xq-border) !important;
-  background: #143047 !important;
+  background: var(--xq-depth) !important;
   color: var(--xq-text) !important;
 }
 
@@ -1152,7 +1152,7 @@ watch(endpointDistributionSource, () => {
   }
 
   .usage-stats :deep(> .card:nth-child(-n+2)) {
-    border-bottom: 1px solid rgba(56, 112, 135, .28);
+    border-bottom: 1px solid var(--xq-line);
   }
 
   .usage-analysis-grid {
@@ -1172,7 +1172,7 @@ watch(endpointDistributionSource, () => {
   }
 
   .usage-analysis-grid :deep(> .usage-chart:not(:last-child)) {
-    border-bottom: 1px solid rgba(56, 112, 135, .28);
+    border-bottom: 1px solid var(--xq-line);
   }
 
   .usage-filter-grid {
