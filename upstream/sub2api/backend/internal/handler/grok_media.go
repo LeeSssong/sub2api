@@ -132,6 +132,7 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 			h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
 			return
 		}
+		requireAPIKeyQueueCapability(c, service.APIKeyQueueCapabilityImageGeneration)
 		if moderationBody := requestInfo.ModerationBody(); len(moderationBody) > 0 {
 			decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIImages, requestModel, moderationBody)
 			if decision != nil && !decision.AllowNextStage {
@@ -155,7 +156,7 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
 
-	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, false, &streamStarted, reqLog)
+	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, apiKey.ID, apiKey.ConcurrencyLimit, false, &streamStarted, reqLog)
 	if !acquired {
 		return
 	}
@@ -398,7 +399,7 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 					return
 				}
 				if failoverErr.ShouldReportAccountScheduleFailure() {
-					h.gatewayService.ReportOpenAIAccountScheduleResult(account, grokMediaScheduleModel(account, routingModel, nil), false, nil)
+					h.gatewayService.ReportOpenAIAccountScheduleResultWithContext(c.Request.Context(), account, grokMediaScheduleModel(account, routingModel, nil), false, nil)
 				}
 				if c.Writer.Size() != writerSizeBeforeForward {
 					h.handleFailoverExhausted(c, failoverErr, true)
@@ -452,7 +453,7 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 				)
 				continue
 			}
-			h.gatewayService.ReportOpenAIAccountScheduleResult(account, grokMediaScheduleModel(account, routingModel, nil), false, nil)
+			h.gatewayService.ReportOpenAIAccountScheduleResultWithContext(c.Request.Context(), account, grokMediaScheduleModel(account, routingModel, nil), false, nil)
 			if !service.IsResponseCommitted(c) && c.Writer.Size() == writerSizeBeforeForward {
 				h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 			}
@@ -463,7 +464,7 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 			return
 		}
 
-		h.gatewayService.ReportOpenAIAccountScheduleResult(account, grokMediaScheduleModel(account, routingModel, result), true, nil)
+		h.gatewayService.ReportOpenAIAccountScheduleResultWithContext(c.Request.Context(), account, grokMediaScheduleModel(account, routingModel, result), true, nil)
 		if isGrokVideoCreateEndpoint(endpoint) && strings.TrimSpace(result.ResponseID) != "" {
 			if err := h.gatewayService.BindGrokMediaVideoRequestAccount(
 				requestCtx, apiKey.GroupID, result.ResponseID, subject.UserID, apiKey.ID, account.ID,

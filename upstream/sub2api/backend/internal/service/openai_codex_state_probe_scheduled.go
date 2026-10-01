@@ -27,6 +27,7 @@ func isOpenAICodexStateProbePlan(cfg *PelicanTestConfig) bool {
 // 满血 = success；降智 = failed + state_degraded；无法判断 = failed + 失败分类（不算降智证据）。
 // 质量规则场景下同时写入 QualityJudgment（correct/incorrect/unknown），不经过判题模型。
 func (s *AccountTestService) runOpenAICodexStateProbeScheduled(ctx context.Context, accountID int64, model string, cfg *PelicanTestConfig) (*ScheduledTestResult, error) {
+	ctx = context.WithValue(ctx, oauthProbeSourceKey{}, "scheduled")
 	started := time.Now()
 	// 「降智后开 BPS」规则要在 BPS 开启后继续探直连通道，决定何时恢复。
 	ignoreBPS := cfg.Quality != nil && (cfg.Quality.Action == QualityActionEnableBPS || cfg.BPSRecoveryPending)

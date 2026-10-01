@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -83,6 +84,12 @@ func (r *scheduledTestPlanRepository) ApplyQualityOutcome(ctx context.Context, p
 			return "", err
 		}
 		return "observed", nil
+	}
+	// Transaction-local provenance is consumed by the observation triggers and
+	// cannot leak into another request through the connection pool.
+	if _, err = tx.ExecContext(ctx, `SELECT set_config('oauth_observation.source','quality_policy',true),
+ set_config('oauth_observation.rule_id',$1,true),set_config('oauth_observation.outcome',$2,true)`, strconv.FormatInt(plan.ID, 10), outcome); err != nil {
+		return "", err
 	}
 	var version time.Time
 	var schedulable bool

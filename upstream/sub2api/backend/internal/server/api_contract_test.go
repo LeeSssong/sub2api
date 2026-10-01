@@ -237,6 +237,7 @@ func TestAPIContracts(t *testing.T) {
 					"last_used_at": null,
 					"last_used_ip": null,
 					"current_concurrency": 0,
+					"concurrency_limit":   0,
 					"quota": 0,
 					"quota_used": 0,
 					"rate_limit_5h": 0,
@@ -288,6 +289,7 @@ func TestAPIContracts(t *testing.T) {
 							"last_used_at": null,
 							"last_used_ip": null,
 							"current_concurrency": 0,
+							"concurrency_limit":   0,
 							"quota": 0,
 							"quota_used": 0,
 							"rate_limit_5h": 0,
@@ -1799,8 +1801,8 @@ func (stubApiKeyCache) IncrementCreateAttemptCount(ctx context.Context, userID i
 	return nil
 }
 
-func (stubApiKeyCache) DeleteCreateAttemptCount(ctx context.Context, userID int64) error {
-	return nil
+func (stubApiKeyCache) IncrementCreateCount(ctx context.Context, userID int64, window time.Duration) (int64, error) {
+	return 0, nil
 }
 
 func (stubApiKeyCache) IncrementDailyUsage(ctx context.Context, apiKey string) error {
