@@ -1,4 +1,4 @@
--- OAuth observation reports. These are read-only examples; bind time windows at execution.
+-- OAuth observation reports. Execute with psql variables: -v from='2026-01-01T00:00:00Z' -v to='2026-01-02T00:00:00Z'.
 -- Account labels require an authorized join to accounts outside this file. Never join credentials.
 
 -- Primary account-episode lifetime: only a degraded probe strictly after the first healthy probe is terminal.
