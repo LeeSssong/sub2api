@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 migration="$repo_root/upstream/sub2api/backend/migrations/263_oauth_observations.sql"
-image="postgres:16-alpine"
+image="postgres:18-alpine"
 container=""
 
 cleanup() {
@@ -14,14 +14,14 @@ cleanup() {
 trap cleanup EXIT
 
 [[ -f "$migration" ]] || { echo "missing migration: $migration" >&2; exit 1; }
-container="$(docker run -d --tmpfs /var/lib/postgresql/data:rw,size=256m -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=observations -P "$image")"
+container="$(docker run -d --tmpfs /var/lib/postgresql:rw,size=256m -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=observations "$image")"
 for _ in $(seq 1 60); do
-  if docker exec "$container" pg_isready -U postgres -d observations >/dev/null 2>&1; then break; fi
+  if docker exec "$container" psql -h 127.0.0.1 -U postgres -d observations -Atc 'SELECT 1' >/dev/null 2>&1; then break; fi
   sleep 1
 done
 docker exec "$container" pg_isready -U postgres -d observations >/dev/null
 
-psql() { docker exec -i "$container" psql -X -q -v ON_ERROR_STOP=1 -U postgres -d observations "$@"; }
+psql() { docker exec -i -e 'PGOPTIONS=-c lock_timeout=100ms -c statement_timeout=2s' "$container" psql -X -q -v ON_ERROR_STOP=1 -U postgres -d observations "$@"; }
 
 psql <<'SQL'
 CREATE TABLE accounts (
@@ -32,6 +32,8 @@ CREATE TABLE accounts (
   priority INTEGER, concurrency INTEGER, load_factor INTEGER, status TEXT,
   schedulable BOOLEAN, expires_at TIMESTAMPTZ, proxy_id BIGINT
 );
+CREATE TABLE api_keys (id BIGINT PRIMARY KEY);
+INSERT INTO api_keys VALUES (1);
 CREATE TABLE account_groups (account_id BIGINT NOT NULL, group_id BIGINT NOT NULL, priority INTEGER, PRIMARY KEY(account_id, group_id));
 CREATE TABLE scheduled_test_plans (
   id BIGINT PRIMARY KEY, account_id BIGINT NOT NULL, model_id TEXT, cron_expression TEXT,
@@ -73,7 +75,15 @@ ALTER TABLE usage_logs ADD long_context_billing_applied BOOLEAN DEFAULT FALSE;
 ALTER TABLE usage_logs ADD usage_completeness TEXT DEFAULT 'complete';
 SQL
 docker cp "$migration" "$container:/tmp/263_oauth_observations.sql"
-psql -f /tmp/263_oauth_observations.sql
+docker cp "$repo_root/upstream/sub2api/backend/migrations/237_add_api_key_concurrency_limit.sql" "$container:/tmp/237_add_api_key_concurrency_limit.sql"
+psql -1 -f /tmp/237_add_api_key_concurrency_limit.sql
+psql -1 -f /tmp/263_oauth_observations.sql
+psql <<'SQL'
+INSERT INTO api_keys(id) VALUES (2);
+DO $$ BEGIN
+ IF (SELECT count(*) FROM api_keys WHERE concurrency_limit=0)<>2 THEN RAISE EXCEPTION 'legacy key writes incompatible'; END IF;
+END $$;
+SQL
 
 psql <<'SQL'
 -- A failed probe before the first healthy probe never closes a lifetime.
