@@ -1,8 +1,9 @@
+/* Xingqiao daylight: the same ocean-blue hierarchy, translated into mist and ice. */
 :root {
-  --xq-void: #f3f8fa; --xq-canvas: #f8fcfd; --xq-depth: #f0f7fa;
-  --xq-surface: #fff; --xq-raised: #e5f2f6; --xq-border: #bfd6df;
-  --xq-line: #d5e5eb; --xq-text: #123044; --xq-secondary: #426374;
-  --xq-muted: #577687; --xq-accent: #237b90; --xq-core: #123d51;
+  --xq-void: #e4eded; --xq-canvas: #eaf1f1; --xq-depth: #dce8e9;
+  --xq-surface: #f0f5f4; --xq-raised: #d1e7e7; --xq-border: #b7cecf;
+  --xq-line: #cddddd; --xq-text: #183b45; --xq-secondary: #486670;
+  --xq-muted: #59747c; --xq-accent: #287f87; --xq-core: #143e53;
   --xq-success: #16765b; --xq-warning: #976112; --xq-danger: #bd4350;
 }
 .dark, .user-app-shell {
@@ -61,4 +62,73 @@
 @media (max-width: 700px) {
   .brand-admin-shell { --xq-header-height: 56px; --xq-bottom-gutter: 18px; }
   .admin-main-frame { margin-left: 76px; }
+}
+
+/* Brand controls use the same roles in light and dark mode. */
+.brand-admin-shell :is(.input, .select-trigger) {
+  background: var(--xq-surface); color: var(--xq-text); border-color: var(--xq-border);
+}
+.brand-admin-shell :is(.input, .select-trigger):hover { border-color: var(--xq-accent); }
+.brand-admin-shell :is(.input, .select-trigger):focus-visible { border-color: var(--xq-accent); outline-color: var(--xq-accent); }
+.brand-admin-shell :is(.input-error, .select-trigger-error) { border-color: var(--xq-danger); }
+.brand-admin-shell .btn-secondary { background: var(--xq-surface); color: var(--xq-secondary); border-color: var(--xq-border); }
+.brand-admin-shell .btn-secondary:hover { background: var(--xq-raised); border-color: var(--xq-accent); color: var(--xq-text); }
+.brand-admin-shell .btn-primary { background: var(--xq-core); color: var(--xq-void); border-color: var(--xq-core); }
+.modal-content { background: var(--xq-surface); color: var(--xq-text); border: 1px solid var(--xq-border); }
+.modal-header, .modal-footer { background: var(--xq-surface); border-color: var(--xq-line); }
+
+/* Light mode keeps the brand's blue atmosphere instead of neutral white panels. */
+:root:not(.dark) .brand-admin-shell .admin-workspace {
+  background: radial-gradient(ellipse at 85% 0%, rgb(97 201 217 / 14%), transparent 55%), var(--xq-void);
+}
+:root:not(.dark) .brand-admin-shell :is(.text-gray-900, .text-gray-800, .text-gray-700) { color: var(--xq-text); }
+:root:not(.dark) .brand-admin-shell :is(.text-gray-600, .text-gray-500, .text-gray-400) { color: var(--xq-muted); }
+:root:not(.dark) .brand-admin-shell :is(.bg-gray-50, .bg-gray-100) { background-color: var(--xq-depth); }
+
+/* Daylight study derived from the brand's S1/S2 roles, not a new brand standard. */
+:root:not(.dark) .admin-dashboard { --reading-divider: var(--xq-line); }
+:root:not(.dark) .admin-dashboard .dashboard-readings {
+  gap: 0; padding-block: 8px;
+  border-bottom: 1px solid var(--reading-divider);
+}
+:root:not(.dark) .admin-dashboard .dashboard-readings > .card {
+  border: 0; border-radius: 0; background: transparent; padding: 16px 20px;
+}
+:root:not(.dark) .admin-dashboard .dashboard-readings > .card + .card { border-left: 1px solid var(--reading-divider); }
+:root:not(.dark) .admin-dashboard .dashboard-readings .rounded-lg {
+  padding: 0; background: none;
+}
+:root:not(.dark) .admin-dashboard .dashboard-readings .rounded-lg svg { color: var(--xq-muted); width: 18px; height: 18px; }
+:root:not(.dark) .admin-dashboard .dashboard-readings .text-xl { font-size: 24px; font-weight: 600; line-height: 1.4; font-variant-numeric: tabular-nums; }
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px;
+  border: 0; border-radius: 0; background: transparent; padding: 0 20px;
+}
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts > .mb-3 { margin: 0; }
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts > .grid { display: flex; flex-wrap: wrap; gap: 16px; }
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts button { background: transparent; padding: 8px 0; }
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts button:hover { color: var(--xq-accent); }
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts button > .rounded-lg {
+  background: transparent; color: var(--xq-accent); width: 24px; height: 24px;
+}
+:root:not(.dark) .admin-dashboard .dashboard-analysis {
+  background: var(--xq-surface); border: 1px solid var(--xq-border); border-radius: 14px;
+  padding: 20px; margin-top: 32px;
+}
+:root:not(.dark) .admin-dashboard .dashboard-analysis .card {
+  background: transparent; border: 0; border-radius: 0;
+}
+:root:not(.dark) .admin-dashboard .dashboard-analysis-toolbar { border-bottom: 1px solid var(--xq-line); padding: 0 0 20px; }
+:root:not(.dark) .admin-dashboard .dashboard-analysis > .grid > :first-child { border-right: 1px solid var(--xq-line); }
+:root:not(.dark) .admin-dashboard .dashboard-analysis > .card { border-top: 1px solid var(--xq-line); }
+@media (max-width: 1023px) {
+  :root:not(.dark) .admin-dashboard .dashboard-readings > .card:nth-child(odd) { border-left: 0; }
+  :root:not(.dark) .admin-dashboard .dashboard-readings > .card:nth-child(n+3) { border-top: 1px solid var(--xq-line); }
+  :root:not(.dark) .admin-dashboard .dashboard-analysis > .grid > :first-child { border-right: 0; border-bottom: 1px solid var(--xq-line); }
+}
+@media (max-width: 479px) {
+  :root:not(.dark) .admin-dashboard .dashboard-readings > .card + .card { border-left: 0; border-top: 1px solid var(--xq-line); }
+  :root:not(.dark) .admin-dashboard .dashboard-readings > .card { padding: 12px 8px; }
+  :root:not(.dark) .admin-dashboard .dashboard-analysis { padding: 12px; }
+  :root:not(.dark) .admin-dashboard .dashboard-shortcuts { padding: 0 8px; }
 }

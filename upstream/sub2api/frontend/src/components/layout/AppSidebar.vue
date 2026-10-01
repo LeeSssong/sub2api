@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="sidebar user-sidebar dark"
+    class="sidebar user-sidebar"
     :class="[
       sidebarCollapsed ? 'w-[72px]' : 'w-64',
       { 'admin-sidebar': isAdmin, 'admin-sidebar-collapsed': sidebarCollapsed, 'admin-sidebar-open': isAdmin && mobileOpen }
@@ -31,7 +31,7 @@
     </div>
 
     <!-- Navigation -->
-    <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
+    <nav ref="sidebarNavRef" class="sidebar-nav">
       <!-- Admin View: Admin menu first, then personal menu -->
       <template v-if="isAdmin">
         <!-- Admin Section -->
@@ -173,7 +173,7 @@
           @click.stop="toggleAccountMenu"
         >
           <img v-if="userAvatarUrl" :src="userAvatarUrl" :alt="displayName" />
-          <span v-else class="user-account-avatar"><img src="/xingqiao/user.svg" alt="" aria-hidden="true" /></span>
+          <span v-else class="user-account-avatar"><Icon name="user" size="md" aria-hidden="true" /></span>
           <span class="user-account-name">{{ displayName }}</span>
         </button>
 
@@ -185,7 +185,7 @@
           :title="t('common.contactSupport')"
           @click="supportDialogOpen = true"
         >
-          <img src="/xingqiao/support.svg" class="user-nav-icon" alt="" aria-hidden="true" />
+          <Icon name="questionCircle" size="md" aria-hidden="true" />
         </button>
 
         <transition name="dropdown">
@@ -245,6 +245,7 @@ import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'v
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
+import Icon from '@/components/icons/Icon.vue'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
@@ -1247,80 +1248,94 @@ onBeforeUnmount(() => {
   width: 242px !important;
   transform: none !important;
   padding: 24px 18px var(--xq-bottom-gutter, 24px);
-  background: rgba(6,20,33,.96);
-  border-right: 1px solid rgba(46,97,119,.42);
-  box-shadow: 18px 0 60px rgba(0,0,0,.10);
-  color: var(--xq-text, #f1f9f9);
+  background: var(--xq-canvas);
+  border-right: 1px solid var(--xq-line);
+  box-shadow: none;
+  color: var(--xq-text);
 }
 .user-sidebar .sidebar-header {
   height: auto; min-height: 0; flex-shrink: 0; align-items: flex-start;
   gap: 12px; padding: 2px 10px 12px; margin-bottom: 28px;
-  border-bottom: 1px solid rgba(59,111,133,.25);
+  border-bottom: 1px solid var(--xq-line);
 }
 .user-sidebar .sidebar-logo {
   width: 24px; min-width: 24px; height: 24px; margin-top: 2px; flex: 0 0 24px;
   border-radius: 5px; background: #040a12; box-shadow: none;
 }
 .user-sidebar .sidebar-brand { min-width: 0; }
-.user-sidebar .sidebar-brand-title { color: #f1f9f9; font-size: 16px; line-height: 1.6; white-space: nowrap; }
-.user-brand-version { display: block; font-size: 10px; margin-top: 4px; color: #708c9e; }
-.user-sidebar .sidebar-nav { min-height: 0; padding: 0; }
+.user-sidebar .sidebar-brand-title { color: var(--xq-text); font-size: 16px; line-height: 1.6; white-space: nowrap; }
+.user-brand-version { display: block; font-size: 10px; margin-top: 4px; color: var(--xq-muted); }
+.user-sidebar .sidebar-nav {
+  min-height: 0; padding: 0 0 16px; margin-bottom: 12px;
+  scroll-padding-block: 12px; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--xq-border) transparent;
+}
+.user-sidebar .sidebar-nav::-webkit-scrollbar { width: 4px; }
+.user-sidebar .sidebar-nav::-webkit-scrollbar-thumb { background: var(--xq-border); border-radius: 4px; }
+.user-sidebar .sidebar-section-title { color: var(--xq-muted); }
 .user-sidebar .sidebar-section { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; }
 .user-sidebar .sidebar-link {
   position: relative; height: 42px; min-height: 42px; margin: 0; padding: 0 12px; gap: 16px;
-  border: 1px solid transparent; border-radius: 9px; color: #809aa8;
+  border: 1px solid transparent; border-radius: 9px; color: var(--xq-secondary);
   font-size: 13px; font-weight: 500; background: transparent;
   transition: color .18s ease, background .18s ease, border-color .18s ease;
 }
-.user-sidebar .sidebar-link:hover { color: #f1f9f9; background: #143047; border-color: #61c9d9; }
+.user-sidebar .sidebar-link:hover { color: var(--xq-text); background: var(--xq-raised); border-color: var(--xq-accent); }
 .user-sidebar .sidebar-link-active {
-  color: #f1f9f9; background: linear-gradient(90deg,rgba(39,112,143,.24),rgba(16,45,66,.50));
-  border-color: rgba(97,201,217,.18); box-shadow: inset 3px 0 #61c9d9;
+  color: var(--xq-text); background: var(--xq-raised);
+  border-color: var(--xq-border); box-shadow: inset 3px 0 var(--xq-accent);
 }
 .user-nav-icon { width: 20px; height: 20px; flex-shrink: 0; }
-.user-sidebar-bottom { position: relative; margin-top: auto; flex-shrink: 0; }
+.user-sidebar-bottom {
+  position: relative; flex-shrink: 0; margin: auto -18px calc(-1 * var(--xq-bottom-gutter, 24px));
+  padding: 16px 18px var(--xq-bottom-gutter, 24px);
+  border-top: 1px solid var(--xq-border); background: var(--xq-depth);
+}
+.user-sidebar-bottom :is(button, a):focus-visible { outline: 2px solid var(--xq-accent); outline-offset: 3px; }
 .user-recharge-button {
   display: flex; width: 100%; height: 58px; padding: 0 12px;
-  align-items: center; justify-content: space-between; margin: 20px 0 24px;
-  border: 1px solid rgba(97,201,217,.22); border-radius: 9px;
-  background: linear-gradient(145deg,rgba(17,54,77,.88),rgba(10,34,51,.9));
-  color: #a1b8c2; text-decoration: none;
+  align-items: center; justify-content: space-between; margin: 0 0 16px;
+  border: 1px solid var(--xq-border); border-radius: 9px;
+  background: var(--xq-surface);
+  color: var(--xq-secondary); text-decoration: none;
 }
-.user-recharge-button strong { color: #f1f9f9; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.user-recharge-button span { color: #a1b8c2; font-size: 12px; }
+.user-recharge-button strong { color: var(--xq-text); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.user-recharge-button span { color: var(--xq-secondary); font-size: 12px; }
 .user-sidebar-actions { position: relative; display: flex; gap: 8px; align-items: center; }
 .user-account-button {
   display: flex; flex: 1; min-width: 0; padding: 0; gap: 10px; align-items: center;
-  border: 0; background: none; text-align: left; color: #a1b8c2; font-size: 12px;
+  border: 0; background: none; text-align: left; color: var(--xq-secondary); font-size: 12px;
 }
 .user-account-button > img, .user-account-avatar {
   display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
-  flex-shrink: 0; border: 1px solid #1b4055; border-radius: 50%; background: #10283d;
-  color: #61c9d9; overflow: hidden; object-fit: cover;
+  flex-shrink: 0; border: 1px solid var(--xq-border); border-radius: 50%; background: var(--xq-raised);
+  color: var(--xq-accent); overflow: hidden; object-fit: cover;
 }
-.user-account-avatar img { width: 20px; height: 20px; }
+
 .user-account-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-support-button {
   display: inline-flex; align-items: center; justify-content: center; width: 40px; min-height: 38px;
-  flex-shrink: 0; padding: 0; border: 1px solid #1b4055; border-radius: 9px; background: #10283d; color: #a1b8c2;
+  flex-shrink: 0; padding: 0; border: 1px solid var(--xq-border); border-radius: 9px; background: var(--xq-raised); color: var(--xq-secondary);
 }
-.user-recharge-button:hover, .user-support-button:hover { border-color: #61c9d9; background: #143047; color: #f1f9f9; }
+.user-recharge-button:hover, .user-support-button:hover { border-color: var(--xq-accent); background: var(--xq-raised); color: var(--xq-text); }
 .user-account-menu {
   position: absolute; bottom: 48px; left: 0; width: 210px; z-index: 40;
-  border: 1px solid #1b4055; border-radius: 10px; padding: 6px;
-  background: #10283d; box-shadow: 0 16px 40px #0005;
+  border: 1px solid var(--xq-border); border-radius: 10px; padding: 6px;
+  background: var(--xq-surface); box-shadow: 0 12px 32px rgb(4 10 18 / 12%);
+  max-height: calc(100dvh - 130px); overflow-y: auto;
 }
-.user-account-summary { padding: 8px 10px; border-bottom: 1px solid #153246; }
+.user-account-summary { padding: 8px 10px; border-bottom: 1px solid var(--xq-line); }
 .user-account-summary strong, .user-account-summary span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.user-account-summary strong { color: #f1f9f9; font-size: 12px; }
-.user-account-summary span { color: #708c9e; font-size: 11px; }
-.user-account-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 0 10px; border: 0; background: none; color: #a1b8c2; font-size: 12px; text-align: left; border-radius: 6px; }
-.user-account-menu-item:hover { background: #143047; color: #f1f9f9; }
-.user-account-menu-danger { color: #d47e7e; }
+.user-account-summary strong { color: var(--xq-text); font-size: 12px; }
+.user-account-summary span { color: var(--xq-muted); font-size: 11px; }
+.user-account-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 0 10px; border: 0; background: none; color: var(--xq-secondary); font-size: 12px; text-align: left; border-radius: 6px; }
+.user-account-menu-item:hover { background: var(--xq-raised); color: var(--xq-text); }
+.user-account-menu-danger { color: var(--xq-danger); }
 @media (min-width: 701px) and (max-width: 1050px) { .user-sidebar { width: 200px !important; } }
 @media (max-width: 700px) {
   .user-sidebar { width: 76px !important; padding: 18px 10px var(--xq-bottom-gutter, 18px); }
   .user-sidebar .sidebar-header { padding: 0 12px 22px; }
+  .user-sidebar-bottom { margin-left: -10px; margin-right: -10px; padding-left: 10px; padding-right: 10px; }
   .user-sidebar .sidebar-brand, .user-sidebar .sidebar-label,
   .user-recharge-button strong, .user-recharge-button span, .user-account-name { display: none !important; }
   .user-sidebar .sidebar-link { justify-content: center; padding: 0; }
@@ -1335,6 +1350,7 @@ onBeforeUnmount(() => {
 .admin-sidebar .sidebar-link { flex-shrink: 0; }
 @media (min-width: 701px) {
   .admin-sidebar-collapsed { width: 76px !important; padding-left: 10px; padding-right: 10px; }
+  .admin-sidebar-collapsed .user-sidebar-bottom { margin-left: -10px; margin-right: -10px; padding-left: 10px; padding-right: 10px; }
   .admin-sidebar-collapsed .sidebar-header { padding-left: 12px; padding-right: 12px; }
   .admin-sidebar-collapsed .sidebar-link { justify-content: center; padding: 0; }
   .admin-sidebar-collapsed .user-recharge-button { justify-content: center; padding: 0; }
@@ -1350,6 +1366,7 @@ onBeforeUnmount(() => {
   .admin-sidebar:not(.admin-sidebar-open) .sidebar-link > span:not(.sidebar-svg-icon),
   .admin-sidebar:not(.admin-sidebar-open) .sidebar-section > div { display: none; }
   .admin-sidebar-open { width: 242px !important; padding: 18px 18px var(--xq-bottom-gutter, 18px); }
+  .admin-sidebar-open .user-sidebar-bottom { margin-left: -18px; margin-right: -18px; padding-left: 18px; padding-right: 18px; }
   .admin-sidebar-open .sidebar-brand, .admin-sidebar-open .sidebar-label,
   .admin-sidebar-open .user-recharge-button strong, .admin-sidebar-open .user-recharge-button span,
   .admin-sidebar-open .user-account-name { display: block !important; }

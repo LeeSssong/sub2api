@@ -1,5 +1,5 @@
 <template>
-  <UserHeader :title="pageTitle" show-menu class="dark" />
+  <UserHeader :title="pageTitle" show-menu />
 </template>
 
 <script setup lang="ts">
