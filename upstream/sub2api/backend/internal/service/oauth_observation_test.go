@@ -137,6 +137,14 @@ func TestOAuthObservationErrorClassification(t *testing.T) {
 	}
 }
 
+func TestOAuthObservationRejectsClientTextInModel(t *testing.T) {
+	for _, model := range []string{"sk-sensitive@example.invalid", "please store this private text", "gpt-6-astra-sk-secret"} {
+		require.Equal(t, "other_model", observationModel(model))
+	}
+	require.Equal(t, "gpt-6-astra", observationModel("gpt-6-astra"))
+	require.Equal(t, "gpt-5.6-sol", observationModel("gpt-5.6-sol"))
+}
+
 func TestOAuthObservationLiveLeaseRefreshAndRelease(t *testing.T) {
 	sink := &observationStoreTest{}
 	r := oauthobs.New(sink, "live-test", 8)

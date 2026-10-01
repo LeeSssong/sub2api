@@ -62,4 +62,13 @@ func TestOAuthObservationNativeSchemaRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT first_healthy_at,first_degraded_at FROM oauth_observation_episode_lifetimes WHERE episode_account_id=$1`, accountID).Scan(&healthy, &degraded))
 	require.True(t, degraded.Equal(at.Add(time.Minute)))
+	healthID := fmt.Sprintf("native-integration-%d", accountID)
+	healthAt := at.Truncate(time.Minute).Add(time.Second)
+	require.NoError(t, r.WriteOAuthObservationHealth(ctx, oauthobs.Health{InstanceID: healthID, ObservedAt: healthAt, Enqueued: 8, Persisted: 3, QueueDepth: 5}))
+	require.NoError(t, r.WriteOAuthObservationHealth(ctx, oauthobs.Health{InstanceID: healthID, ObservedAt: healthAt.Add(time.Second), Enqueued: 8, Persisted: 8, QueueDepth: 0}))
+	var peakQueue, currentQueue int
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT queue_depth FROM oauth_observation_recorder_health WHERE instance_id=$1`, healthID).Scan(&currentQueue))
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT queue_depth FROM oauth_observation_recorder_health_minutes WHERE instance_id=$1`, healthID).Scan(&peakQueue))
+	require.Equal(t, 0, currentQueue)
+	require.Equal(t, 5, peakQueue)
 }

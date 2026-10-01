@@ -164,9 +164,15 @@ DO $$ DECLARE n BIGINT; BEGIN
 END $$;
 INSERT INTO account_groups(account_id,group_id,priority,allowed_models) VALUES(3,90,1,'["gpt-6-astra"]');
 INSERT INTO scheduled_test_plans VALUES (18,3,'gpt-6-astra','*/2 * * * *',true,100,'{"question_kind":"state_probe","parallel_count":1,"quality":{"action":"enable_bps","bps":{"failure_threshold":2,"usage_percent":90,"require_all":false},"expected_answer":"DO_NOT_CAPTURE"}}');
+ALTER TABLE scheduled_test_results ADD quality_round_id TEXT;
+ALTER TABLE scheduled_test_results ADD pelican_config JSONB;
+INSERT INTO scheduled_test_results(id,plan_id,status,quality_action,quality_round_id,pelican_config)
+ VALUES(19,18,'failed','bps_enabled','round-18','{"question_kind":"state_probe","quality":{"action":"enable_bps","expected_answer":"DO_NOT_CAPTURE","bps":{"failure_threshold":2}}}');
 DO $$ BEGIN
  IF NOT EXISTS(SELECT 1 FROM oauth_observation_archives WHERE subject_type='scheduled_test_plan' AND subject_key='18' AND snapshot->'after'->'quality'->'bps'->>'failure_threshold'='2') THEN RAISE EXCEPTION 'BPS threshold missing'; END IF;
  IF NOT EXISTS(SELECT 1 FROM oauth_observation_archives WHERE subject_type='account_group' AND snapshot->'after'->'allowed_models'='["gpt-6-astra"]'::jsonb) THEN RAISE EXCEPTION 'model allowlist missing'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM oauth_observation_archives WHERE subject_type='scheduled_test_result' AND snapshot->>'round_id'='round-18' AND snapshot->'rule_snapshot'->'quality'->'bps'->>'failure_threshold'='2') THEN RAISE EXCEPTION 'quality round correlation missing'; END IF;
+ IF EXISTS(SELECT 1 FROM oauth_observation_archives WHERE snapshot::text LIKE '%DO_NOT_CAPTURE%') THEN RAISE EXCEPTION 'quality rule content leaked'; END IF;
 END $$;
 -- Release failure is not a successful release, including reordered delivery.
 SELECT oauth_observation_append(3,'slot-fail','2026-10-01 01:00:30Z','slot_release_failed','{"slot_id":"lease-a"}');
@@ -178,6 +184,13 @@ END $$;
 -- Neither arbitrary audit route ids nor long digits may abort unrelated logging.
 INSERT INTO audit_logs(id,extra) VALUES(20,'{"params":{"id":"not-a-number"}}'),(21,'{"params":{"id":"999999999999999999999999999999"}}');
 SELECT 'extended observation checks passed' AS result;
+INSERT INTO usage_logs(id,account_id,model,total_cost,reasoning_effort,service_tier)
+ VALUES(22,3,'sk-client-secret@example.invalid',1,'sk-client-secret@example.invalid','sk-client-secret@example.invalid');
+SELECT oauth_observation_append(3,'untrusted-model',now(),'probe_result','{"model":"sk-client-secret@example.invalid","protocol":"native","probe_version":"turn_state_v1","verdict":"inconclusive"}');
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM oauth_observation_usage_contributions WHERE model LIKE '%sk-client-secret%' OR reasoning_effort LIKE '%sk-client-secret%' OR service_tier LIKE '%sk-client-secret%') THEN RAISE EXCEPTION 'client label leaked into usage observations'; END IF;
+ IF EXISTS(SELECT 1 FROM oauth_observation_events WHERE payload::text LIKE '%sk-client-secret%') THEN RAISE EXCEPTION 'client model leaked into event'; END IF;
+END $$;
 SQL
 
 psql <<'SQL'

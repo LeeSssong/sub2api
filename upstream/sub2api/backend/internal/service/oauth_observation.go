@@ -94,11 +94,20 @@ func (s *OpenAIGatewayService) observeOAuthProbe(ctx context.Context, account *A
 }
 
 func observationModel(model string) string {
-	model = strings.TrimSpace(model)
-	if len(model) > 200 {
-		return "oversized_model"
+	model = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(model)), "openai/")
+	// Exact catalog labels only. Unknown client strings can contain credentials
+	// or arbitrary text; telemetry deliberately loses that label instead.
+	switch model {
+	case "gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna",
+		"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.5-pro",
+		"gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.3-codex", "gpt-5.3-codex-spark",
+		"gpt-5.2", "gpt-5.2-codex", "gpt-5.1", "gpt-5", "gpt-5-mini", "gpt-5-nano",
+		"gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini",
+		"o3", "o3-mini", "o4-mini", "gpt-image-1", "gpt-image-1.5", "gpt-image-2",
+		"gpt-live", "text-embedding-3-small", "text-embedding-3-large":
+		return model
 	}
-	return model
+	return "other_model"
 }
 
 func observationProtocol(account *Account, model string) string {

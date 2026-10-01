@@ -1,6 +1,18 @@
 -- Additive, privacy-preserving observations for OpenAI OAuth account episodes.
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+CREATE OR REPLACE FUNCTION oauth_observation_model(raw TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,public,pg_temp AS $$
+ SELECT CASE WHEN m IN('gpt-6-astra','gpt-6.1-sol','gpt-6-sol','gpt-6-luna',
+ 'gpt-5.6-sol','gpt-5.6-terra','gpt-5.6-luna','gpt-5.5','gpt-5.5-pro',
+ 'gpt-5.4','gpt-5.4-mini','gpt-5.4-nano','gpt-5.3-codex','gpt-5.3-codex-spark',
+ 'gpt-5.2','gpt-5.2-codex','gpt-5.1','gpt-5','gpt-5-mini','gpt-5-nano',
+ 'gpt-4.1','gpt-4.1-mini','gpt-4.1-nano','gpt-4o','gpt-4o-mini',
+ 'o3','o3-mini','o4-mini','gpt-image-1','gpt-image-1.5','gpt-image-2','gpt-live',
+ 'text-embedding-3-small','text-embedding-3-large') THEN m ELSE 'other_model' END
+ FROM (SELECT regexp_replace(lower(btrim(raw)),'^openai/','') m) x
+$$;
+
 CREATE TABLE IF NOT EXISTS oauth_observation_identity_secrets (
     id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id),
     secret BYTEA NOT NULL,
@@ -244,6 +256,7 @@ BEGIN
     ELSE RETURN;
     END IF;
     clean:=clean||jsonb_strip_nulls(jsonb_build_object('attempt_id',p_payload->'attempt_id','slot_role',p_payload->'slot_role','model',p_payload->'model'));
+    IF clean ? 'model' THEN clean:=jsonb_set(clean,'{model}',to_jsonb(oauth_observation_model(clean->>'model'))); END IF;
     IF p_event_type='probe_result' OR p_event_type IN('slot_acquired','slot_released','slot_release_failed','slot_refreshed') THEN
       -- Serialize state projections across API/worker instances. Batch writers
       -- sort account IDs before calling this function to avoid crossed locks.
@@ -360,7 +373,7 @@ END $$;
 
 CREATE OR REPLACE FUNCTION oauth_observation_rule_snapshot(r JSONB)
 RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,public,pg_temp AS $$
- SELECT jsonb_strip_nulls(jsonb_build_object('account_id',r->'account_id','model_id',r->'model_id',
+ SELECT jsonb_strip_nulls(jsonb_build_object('account_id',r->'account_id','model_id',oauth_observation_model(r->>'model_id'),
  'cron_expression',r->'cron_expression','enabled',r->'enabled','max_results',r->'max_results',
  'question_kind',r->'pelican_config'->'question_kind','test_channel',r->'pelican_config'->'test_channel',
  'parallel_count',r->'pelican_config'->'parallel_count','reasoning_effort',r->'pelican_config'->'reasoning_effort',
@@ -383,9 +396,9 @@ BEGIN
  IF oauth_observation_ensure_episode((r->>'account_id')::BIGINT) IS NULL THEN RETURN COALESCE(NEW,OLD); END IF;
  IF TG_OP<>'INSERT' THEN b:=oauth_observation_rule_snapshot(to_jsonb(OLD)); END IF;
  IF TG_OP<>'DELETE' THEN a:=oauth_observation_rule_snapshot(to_jsonb(NEW)); END IF;
- IF b IS NOT DISTINCT FROM a AND (TG_OP<>'UPDATE' OR OLD.pelican_config IS NOT DISTINCT FROM NEW.pelican_config) THEN RETURN COALESCE(NEW,OLD); END IF;
+ IF b IS NOT DISTINCT FROM a AND (TG_OP<>'UPDATE' OR (OLD.pelican_config IS NOT DISTINCT FROM NEW.pelican_config AND OLD.model_id IS NOT DISTINCT FROM NEW.model_id)) THEN RETURN COALESCE(NEW,OLD); END IF;
  -- The digest includes sensitive prompt/config changes but never stores their contents.
- SELECT encode(hmac(convert_to(COALESCE(r->'pelican_config','{}'::jsonb)::text,'UTF8'),secret,'sha256'),'hex')
+ SELECT encode(hmac(convert_to(jsonb_build_object('model',r->'model_id','config',r->'pelican_config')::text,'UTF8'),secret,'sha256'),'hex')
  INTO version FROM oauth_observation_identity_secrets WHERE id;
  INSERT INTO oauth_observation_archives(subject_type,subject_key,operation,snapshot)
  VALUES('scheduled_test_plan',r->>'id',lower(TG_OP),oauth_observation_provenance()||
@@ -400,7 +413,7 @@ BEGIN
   SELECT account_id INTO account FROM scheduled_test_plans WHERE id=(r->>'plan_id')::BIGINT;
   IF account IS NULL THEN SELECT (snapshot->>'account_id')::BIGINT INTO account FROM oauth_observation_archives WHERE subject_type='scheduled_test_plan' AND subject_key=r->>'plan_id' ORDER BY id DESC LIMIT 1; END IF;
   IF account IS NULL OR (NOT oauth_observation_account_is_eligible(account) AND NOT EXISTS (SELECT 1 FROM oauth_observation_episodes WHERE account_id=account)) THEN RETURN COALESCE(NEW,OLD); END IF;
-  INSERT INTO oauth_observation_archives(subject_type,subject_key,operation,snapshot) VALUES ('scheduled_test_result',r->>'id',lower(TG_OP),jsonb_strip_nulls(jsonb_build_object('source',COALESCE(NULLIF(current_setting('oauth_observation.source',true),''),'unknown'),'rule_id',NULLIF(current_setting('oauth_observation.rule_id',true),''),'quality_outcome',NULLIF(current_setting('oauth_observation.outcome',true),''),'bps_trigger',NULLIF(current_setting('oauth_observation.bps_trigger',true),''),'plan_id',r->'plan_id','account_id',to_jsonb(account),'status',r->'status','latency_ms',r->'latency_ms','started_at',r->'started_at','finished_at',r->'finished_at','quality_action',r->'quality_action','verdict',r->'quality_judgment'->'verdict')));
+  INSERT INTO oauth_observation_archives(subject_type,subject_key,operation,snapshot) VALUES ('scheduled_test_result',r->>'id',lower(TG_OP),jsonb_strip_nulls(jsonb_build_object('source',COALESCE(NULLIF(current_setting('oauth_observation.source',true),''),'unknown'),'rule_id',NULLIF(current_setting('oauth_observation.rule_id',true),''),'quality_outcome',NULLIF(current_setting('oauth_observation.outcome',true),''),'bps_trigger',NULLIF(current_setting('oauth_observation.bps_trigger',true),''),'plan_id',r->'plan_id','account_id',to_jsonb(account),'status',r->'status','latency_ms',r->'latency_ms','started_at',r->'started_at','finished_at',r->'finished_at','quality_action',r->'quality_action','round_id',r->'quality_round_id','rule_snapshot',oauth_observation_rule_snapshot(jsonb_build_object('account_id',account,'pelican_config',r->'pelican_config')),'verdict',r->'quality_judgment'->'verdict')));
   RETURN COALESCE(NEW,OLD);
 END $$;
 
@@ -438,7 +451,7 @@ BEGIN
    item.usage_log_id:=uid; item.account_id:=aid;
    item.occurred_at:=(p_row->>'created_at')::timestamptz;
    item.minute_at:=date_trunc('minute',(p_row->>'created_at')::timestamptz);
-   item.model:=COALESCE(NULLIF(p_row->>'upstream_model',''),p_row->>'model');
+   item.model:=oauth_observation_model(COALESCE(NULLIF(p_row->>'upstream_model',''),p_row->>'model'));
    item.protocol:=CASE
      WHEN p_row->>'upstream_endpoint' LIKE '/basispoints/%' THEN 'bps'
      WHEN p_row->>'upstream_endpoint' LIKE '%/live%' THEN 'live'
@@ -452,9 +465,10 @@ BEGIN
    item.duration_ms:=NULLIF(p_row->>'duration_ms','')::bigint;
    IF item.duration_ms<=0 THEN item.duration_ms:=NULL; END IF;
    item.first_token_ms:=NULLIF(p_row->>'first_token_ms','')::bigint;
-   item.reasoning_effort:=p_row->>'reasoning_effort';item.service_tier:=p_row->>'service_tier';
+   item.reasoning_effort:=CASE WHEN p_row->>'reasoning_effort' IN('none','minimal','low','medium','high','xhigh','max','ultra') THEN p_row->>'reasoning_effort' ELSE 'unknown' END;
+   item.service_tier:=CASE WHEN p_row->>'service_tier' IN('default','auto','standard','priority','flex','batch') THEN p_row->>'service_tier' ELSE 'unknown' END;
    item.long_context_billing_applied:=COALESCE((p_row->>'long_context_billing_applied')::boolean,false);
-   item.usage_completeness:=COALESCE(NULLIF(p_row->>'usage_completeness',''),'unknown');
+   item.usage_completeness:=CASE WHEN p_row->>'usage_completeness' IN('complete','partial') THEN p_row->>'usage_completeness' ELSE 'unknown' END;
    INSERT INTO oauth_observation_usage_contributions SELECT item.* ON CONFLICT(usage_log_id) DO NOTHING;
    IF NOT FOUND THEN RETURN; END IF;
  END IF;
