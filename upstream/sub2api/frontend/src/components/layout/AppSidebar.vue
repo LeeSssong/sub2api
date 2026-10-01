@@ -29,14 +29,7 @@
       </div>
     </div>
 
-    <div
-      v-if="!isAdmin"
-      class="user-locale-row"
-      :class="{ 'user-locale-row-collapsed': sidebarCollapsed }"
-      data-testid="user-sidebar-locale"
-    >
-      <LocaleSwitcher :compact="sidebarCollapsed" />
-    </div>
+    <FeatureSearch v-if="isAdmin" :items="searchNavItems" :collapsed="sidebarCollapsed" @navigate="handleMenuItemClick" />
 
     <!-- Navigation -->
     <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
@@ -282,7 +275,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
-import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
+import FeatureSearch from './FeatureSearch.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
@@ -1073,6 +1066,12 @@ const adminNavItems = computed((): NavItem[] => {
   }
   return visible
 })
+
+// Use exactly the visible navigation, including the personal section only when shown.
+const searchNavItems = computed(() => [
+  ...adminNavItems.value,
+  ...(authStore.isSimpleMode ? [] : personalNavItems.value)
+])
 
 function toggleSidebar() {
   appStore.toggleSidebar()

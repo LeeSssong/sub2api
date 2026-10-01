@@ -51,6 +51,57 @@ function makeAccount(overrides: Partial<Account>): Account {
 }
 
 describe('AccountStatusIndicator', () => {
+  it.each([
+    [{}, 'active'],
+    [{ status: 'error', error_message: 'Upstream unavailable' }, 'error'],
+    [{ rate_limit_reset_at: '2099-01-01T00:00:00Z' }, 'rateLimited'],
+    [{ overload_until: '2099-01-01T00:00:00Z' }, 'overloaded'],
+    [{ temp_unschedulable_until: '2099-01-01T00:00:00Z' }, 'tempUnschedulable'],
+    [{ schedulable: false }, 'paused'],
+  ] as [Partial<Account>, string][])('keeps the BPS badge above the %s status', (overrides, status) => {
+    const wrapper = mount(AccountStatusIndicator, {
+      props: { account: makeAccount({ platform: 'openai', extra: { openai_excel_bps: true }, ...overrides }) },
+      global: { stubs: { Icon: true } },
+    })
+
+    const badge = wrapper.get('[data-testid="bps-status-badge"]')
+    expect(badge.text()).toBe('bps')
+    expect(badge.attributes('title')).toBe('admin.accounts.openai.excelBPS')
+    expect(wrapper.element.firstElementChild).toBe(badge.element)
+    expect(badge.element.nextElementSibling?.textContent).toContain(`admin.accounts.status.${status}`)
+  })
+
+  it.each([
+    { extra: undefined },
+    { extra: { openai_excel_bps: false } },
+    { extra: { openai_excel_bps: 'true' } },
+    { platform: 'anthropic' },
+    { type: 'apikey' },
+    { parent_account_id: 2 },
+    { credentials: { plan_type: ' Free ' } },
+    { credentials: { auth_mode: ' agentIdentity ' } },
+    { credentials: { auth_mode: 'personalAccessToken' } },
+    { credentials: { openai_auth_mode: ' PERSONAL_ACCESS_TOKEN ' } },
+  ] as Partial<Account>[])('hides BPS for disabled or unsupported accounts: %j', overrides => {
+    const wrapper = mount(AccountStatusIndicator, {
+      props: { account: makeAccount({ platform: 'openai', extra: { openai_excel_bps: true }, ...overrides }) },
+    })
+
+    expect(wrapper.find('[data-testid="bps-status-badge"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('admin.accounts.status.active')
+  })
+
+  it('updates the BPS badge when the account setting changes', async () => {
+    const account = makeAccount({ platform: 'openai', extra: { openai_excel_bps: false } })
+    const wrapper = mount(AccountStatusIndicator, { props: { account } })
+    expect(wrapper.find('[data-testid="bps-status-badge"]').exists()).toBe(false)
+
+    await wrapper.setProps({ account: { ...account, extra: { openai_excel_bps: true } } })
+    expect(wrapper.find('[data-testid="bps-status-badge"]').exists()).toBe(true)
+
+    await wrapper.setProps({ account })
+    expect(wrapper.find('[data-testid="bps-status-badge"]').exists()).toBe(false)
+  })
 
   it('shows the RPM pause reason and clears it when refreshed after reset', async () => {
     const account = makeAccount({ platform: 'openai', base_rpm: 10, current_rpm: 10, rpm_paused: true, rpm_reset_at: 1_900_000_020 })
@@ -90,7 +141,7 @@ describe('AccountStatusIndicator', () => {
     expect(wrapper.text()).not.toContain('claude-sonnet-5')
   })
 
-  it('临时不可调度时优先显示 Sub 原生临时不可调度标签，即使残留 429 字段', () => {
+  it('按官方优先级显示有效的 429 状态，即使同时临时不可调度', () => {
     const wrapper = mount(AccountStatusIndicator, {
       props: {
         account: makeAccount({
@@ -110,8 +161,8 @@ describe('AccountStatusIndicator', () => {
       }
     })
 
-    expect(wrapper.find('button.badge-warning').text()).toBe('admin.accounts.status.tempUnschedulable')
-    expect(wrapper.text()).toContain('admin.accounts.status.tempUnschedulableUntil')
+    expect(wrapper.find('span.badge-warning').text()).toBe('admin.accounts.status.rateLimited')
+    expect(wrapper.find('button.badge-warning').exists()).toBe(false)
     expect(wrapper.text()).toContain('admin.accounts.status.rateLimitedUntil')
   })
 

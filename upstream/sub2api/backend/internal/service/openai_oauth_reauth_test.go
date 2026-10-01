@@ -136,6 +136,18 @@ func (r *reauthTestRepo) ClaimNextTask(_ context.Context, workerID string, _ tim
 	r.task.Attempt++
 	return r.task, nil
 }
+func (r *reauthTestRepo) ClaimNextTaskForEngines(ctx context.Context, workerID string, stale time.Duration, mode string, engines []string) (*OpenAIOAuthReauthTaskRecord, error) {
+	if r.config == nil || (mode != "" && r.config.CredentialMode != mode) {
+		return nil, nil
+	}
+	for _, engine := range engines {
+		if normalizedReauthEngine(r.config.Engine) == engine {
+			return r.ClaimNextTask(ctx, workerID, stale)
+		}
+	}
+	return nil, nil
+}
+
 func (r *reauthTestRepo) SetSession(_ context.Context, _ int64, workerID, sessionID string) error {
 	if r.task == nil || r.task.WorkerID != workerID {
 		return errors.New("worker mismatch")
@@ -729,7 +741,7 @@ func cloneReauthMap(source map[string]any) map[string]any {
 	return clone
 }
 
-func TestOpenAIOAuthReauthRejectsConfigForDifferentMember(t *testing.T) {
+func TestOpenAIOAuthReauthSavesConfigWithoutRequiringStoredEmail(t *testing.T) {
 	for _, source := range []string{"stored", "access_token", "id_token", "unknown"} {
 		t.Run(source, func(t *testing.T) {
 			svc, reader, repo, _, _, _ := newReauthTestService("acct-1")
@@ -749,8 +761,10 @@ func TestOpenAIOAuthReauthRejectsConfigForDifferentMember(t *testing.T) {
 			_, err := svc.SaveCredentialConfig(context.Background(), 42, OpenAIOAuthReauthConfigInput{
 				LoginEmail: "other@example.com", CredentialMode: OpenAIOAuthReauthModePasswordTOTP, Password: "new-password", TOTPSecret: "new-totp",
 			})
-			require.Error(t, err)
-			require.Equal(t, original, repo.config, "mismatched save must preserve the existing encrypted configuration")
+			require.NoError(t, err)
+			require.Equal(t, "other@example.com", repo.config.LoginEmail)
+			require.Equal(t, OpenAIOAuthReauthModePasswordTOTP, repo.config.CredentialMode)
+			require.NotEmpty(t, repo.config.PasswordCiphertext)
 		})
 	}
 }

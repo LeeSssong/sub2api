@@ -861,6 +861,26 @@ func mappingHasWildcardForModel(mapping map[string]string, model string) bool {
 	return false
 }
 
+// resolveGrokMediaFallbackModel preserves official media alias eligibility.
+func (a *Account) resolveGrokMediaFallbackModel(requestedModel string) (string, bool) {
+	if a == nil || !a.IsGrok() {
+		return "", false
+	}
+	defaultMapping := xai.DefaultModelMapping()
+	mappedModel, matched := resolveRequestedModelInMapping(defaultMapping, requestedModel)
+	if !matched || !xai.IsGrokImagineModel(requestedModel) {
+		return "", false
+	}
+	eligible, reason := a.GrokMediaGenerationEligibility()
+	if !eligible && reason != "billing_unobserved" {
+		return "", false
+	}
+	if strings.TrimSpace(mappedModel) == "" {
+		return "", false
+	}
+	return mappedModel, true
+}
+
 func normalizeRequestedModelForLookup(platform, requestedModel string) string {
 	trimmed := strings.TrimSpace(requestedModel)
 	if trimmed == "" {
@@ -934,7 +954,14 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 		return true
 	}
 	normalized := normalizeRequestedModelForLookup(a.Platform, requestedModel)
-	return normalized != requestedModel && mappingSupportsRequestedModel(mapping, normalized)
+	if normalized != requestedModel && mappingSupportsRequestedModel(mapping, normalized) {
+		return true
+	}
+	if a.IsOpenAIModelMappingAliases() {
+		return isOpenAIOAuthServableModel(requestedModel)
+	}
+	_, fallback := a.resolveGrokMediaFallbackModel(requestedModel)
+	return fallback
 }
 
 // GetMappedModel 获取映射后的模型名（支持通配符，最长优先匹配）
@@ -959,6 +986,9 @@ func (a *Account) ResolveMappedModel(requestedModel string) (mappedModel string,
 		if mappedModel, matched := resolveRequestedModelInMapping(mapping, normalized); matched {
 			return mappedModel, true
 		}
+	}
+	if mappedModel, matched := a.resolveGrokMediaFallbackModel(requestedModel); matched {
+		return mappedModel, true
 	}
 	return requestedModel, false
 }
@@ -2192,18 +2222,6 @@ func (a *Account) IsExcelBPSEnabled() bool {
 		return false
 	}
 	enabled, _ := a.Extra["openai_excel_bps"].(bool)
-	return enabled
-}
-
-const ExcelBPSIgnoreImagesKey = "openai_excel_bps_ignore_images"
-
-// IsExcelBPSIgnoreImagesEnabled opts into text-only forwarding when global BPS
-// image support is disabled. The forwarding path checks that global setting.
-func (a *Account) IsExcelBPSIgnoreImagesEnabled() bool {
-	if !a.IsExcelBPSEnabled() {
-		return false
-	}
-	enabled, _ := a.Extra[ExcelBPSIgnoreImagesKey].(bool)
 	return enabled
 }
 
