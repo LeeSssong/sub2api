@@ -6,7 +6,7 @@
   --xq-muted: #59747c; --xq-accent: #287f87; --xq-core: #143e53;
   --xq-success: #16765b; --xq-warning: #976112; --xq-danger: #bd4350;
 }
-.dark, .user-app-shell {
+.dark {
   --xq-void: #040a12;
   --xq-canvas: #071421;
   --xq-depth: #091a2b;

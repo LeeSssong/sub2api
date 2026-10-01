@@ -260,11 +260,11 @@
   .user-topbar .user-doc-link svg { display: none; }
 }
 
-.user-announcement-modal > div { background: #091b2b !important; color: #e8f3fb; border: 1px solid #1c4253; border-radius: 12px; }
+.user-announcement-modal > div { background: var(--xq-surface) !important; color: var(--xq-text); border: 1px solid var(--xq-border); border-radius: 12px; }
 .user-announcement-modal [class*="bg-gradient"] { background-image: none; }
-.user-announcement-modal [class*="dark:bg-dark"] { background-color: #091b2b; }
-.user-announcement-modal [class*="border-gray"] { border-color: #1c4253; }
-.user-announcement-modal [class*="text-blue"], .user-announcement-modal [class*="text-indigo"] { color: #61c9d9; }
+.user-announcement-modal [class*="dark:bg-dark"] { background-color: var(--xq-surface); }
+.user-announcement-modal [class*="border-gray"] { border-color: var(--xq-border); }
+.user-announcement-modal [class*="text-blue"], .user-announcement-modal [class*="text-indigo"] { color: var(--xq-accent); }
 
 .brand-header-actions .announcement-labelled svg, .user-doc-link svg { width: 14px; height: 14px; flex-shrink: 0; }
 .user-locale-switch { display: inline-flex; height: 32px; padding: 3px; gap: 2px; border: 1px solid var(--xq-border); border-radius: 8px; background: var(--xq-depth); }
@@ -278,3 +278,16 @@
 .shell-menu-toggle { display: none; flex-shrink: 0; align-items: center; justify-content: center; width: 24px; height: 32px; color: var(--xq-secondary); border-radius: 6px; }
 .shell-menu-toggle:focus-visible { outline: 2px solid var(--xq-accent); }
 @media (max-width: 700px) { .shell-menu-toggle { display: inline-flex; } }
+
+/* Daylight uses the approved brand roles across the complete user workspace. */
+:root:not(.dark) .user-workspace {
+  background: radial-gradient(ellipse at 85% 0%, rgb(97 201 217 / 14%), transparent 55%), var(--xq-void) !important;
+}
+:root:not(.dark) .user-app-shell .user-keys-page .keys-work-surface { background: var(--xq-surface); }
+:root:not(.dark) .user-app-shell tbody tr:hover { background: var(--xq-raised) !important; }
+:root:not(.dark) .user-app-shell .btn-primary:hover { background: var(--xq-text) !important; }
+:root:not(.dark) .user-app-shell :is(.bg-white, .bg-gray-50) { background-color: var(--xq-surface); }
+:root:not(.dark) .user-app-shell .bg-gray-100 { background-color: var(--xq-depth); }
+
+/* Bundled monochrome navigation assets were drawn for the dark canvas. */
+:root:not(.dark) .user-nav-icon { filter: brightness(.45); }

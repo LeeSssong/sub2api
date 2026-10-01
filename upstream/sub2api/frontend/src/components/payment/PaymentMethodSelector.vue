@@ -31,14 +31,14 @@
             <img :src="methodIcon(method.type)" :alt="methodLabel(method)" class="h-6 w-6 object-contain" />
           </span>
           <span class="ml-3 flex min-w-0 flex-1 flex-col items-start">
-            <span data-testid="payment-method-label" class="block w-full truncate text-sm font-semibold text-[#f1f9f9]">
+            <span data-testid="payment-method-label" class="block w-full truncate text-sm font-semibold text-[var(--xq-text)]">
               {{ methodLabel(method) }}
             </span>
-            <span v-if="!isBuiltInAlipayMethod(method.type)" class="mt-0.5 text-[10px] text-[#8cdfc4]">
+            <span v-if="!isBuiltInAlipayMethod(method.type)" class="mt-0.5 text-[10px] text-[var(--xq-success)]">
               {{ method.available ? '当前可用' : '当前不可用' }}
             </span>
           </span>
-          <span v-if="selected === method.type" data-testid="payment-method-selected-mark" class="ml-2 text-sm font-bold text-[#8cdfc4]">✓</span>
+          <span v-if="selected === method.type" data-testid="payment-method-selected-mark" class="ml-2 text-sm font-bold text-[var(--xq-success)]">✓</span>
         </template>
         <span v-else class="flex w-full min-w-0 items-center justify-center gap-2">
           <img :src="methodIcon(method.type)" :alt="methodLabel(method)" class="h-7 w-7 shrink-0 object-contain" />
@@ -119,7 +119,7 @@ function methodSelectedClass(type: string): string {
 
 function selectedClass(type: string): string {
   if (props.variant === 'recharge') {
-    return 'border-[rgba(97,201,217,0.46)] bg-[linear-gradient(169deg,rgba(23,69,91,0.72),rgba(11,38,56,0.82))] text-[#f1f9f9]'
+    return 'border-[var(--xq-accent)] bg-[var(--xq-raised)] dark:bg-[linear-gradient(169deg,rgba(23,69,91,0.72),rgba(11,38,56,0.82))] text-[var(--xq-text)]'
   }
   return methodSelectedClass(type)
 }

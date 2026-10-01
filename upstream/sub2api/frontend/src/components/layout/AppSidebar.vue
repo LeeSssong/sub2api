@@ -202,14 +202,15 @@
               <KeyIcon class="h-4 w-4" />
               <span>{{ t('nav.apiKeys') }}</span>
             </router-link>
-            <template v-if="isAdmin">
-              <router-link v-if="modelPlazaEnabled" :to="{ path: '/model-plaza', query: { embedded: '1' } }" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu(); closeMobile()">
-                <span>{{ t('nav.modelPlaza') }}</span>
-              </router-link>
               <button type="button" class="user-account-menu-item" role="menuitem" @click="toggleTheme">
                 <SunIcon v-if="isDark" class="h-4 w-4" /><MoonIcon v-else class="h-4 w-4" />
                 <span>{{ isDark ? t('nav.lightMode') : t('nav.darkMode') }}</span>
               </button>
+            <template v-if="isAdmin">
+              <router-link v-if="modelPlazaEnabled" :to="{ path: '/model-plaza', query: { embedded: '1' } }" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu(); closeMobile()">
+                <span>{{ t('nav.modelPlaza') }}</span>
+              </router-link>
+
               <button type="button" class="user-account-menu-item shell-collapse-action" role="menuitem" @click="toggleSidebar(); closeAccountMenu()">
                 <ChevronDoubleRightIcon v-if="sidebarCollapsed" class="h-4 w-4" /><ChevronDoubleLeftIcon v-else class="h-4 w-4" />
                 <span>{{ sidebarCollapsed ? t('nav.expand') : t('nav.collapse') }}</span>
@@ -1070,15 +1071,10 @@ function handleGroupClick(item: NavItem) {
   groupExpandOverrides.value.set(item.path, true)
 }
 
-// Initialize theme
+// Restore the same preference used before app mount; first visits start dark.
 const savedTheme = localStorage.getItem('theme')
-if (
-  savedTheme === 'dark' ||
-  (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-) {
-  isDark.value = true
-  document.documentElement.classList.add('dark')
-}
+isDark.value = savedTheme !== 'light'
+document.documentElement.classList.toggle('dark', isDark.value)
 
 // Fetch admin settings (for feature-gated nav items like Ops).
 watch(

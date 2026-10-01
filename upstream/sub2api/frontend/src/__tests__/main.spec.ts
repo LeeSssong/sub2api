@@ -28,6 +28,8 @@ vi.mock('@/utils/device', () => ({ isIOSDevice: vi.fn(() => false) }))
 
 describe('frontend bootstrap', () => {
   beforeEach(() => {
+    localStorage.clear()
+    document.documentElement.classList.remove('dark')
     mount.mockClear()
     isReady.mockReset()
     initI18n.mockReset()
@@ -77,4 +79,19 @@ describe('frontend bootstrap', () => {
 
     expect(updateFavicon).toHaveBeenCalledWith('data:image/png;base64,ADMIN')
   })
+  it('defaults to dark before mount even on a light system', async () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
+    const { bootstrap } = await import('../main')
+    await bootstrap()
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    vi.unstubAllGlobals()
+  })
+
+  it.each(['light', 'dark'])('restores the saved %s preference', async (theme) => {
+    localStorage.setItem('theme', theme)
+    const { bootstrap } = await import('../main')
+    await bootstrap()
+    expect(document.documentElement.classList.contains('dark')).toBe(theme === 'dark')
+  })
+
 })

@@ -1,5 +1,5 @@
 /* Frozen prototype layout, scoped to the AI workspace and its teleported dialogs. */
-.xq-ai,.xq-dialog{font:14px/1.6 Inter,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--xq-text);font-variant-numeric:tabular-nums;color-scheme:dark}
+.xq-ai,.xq-dialog{font:14px/1.6 Inter,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--xq-text);font-variant-numeric:tabular-nums;color-scheme:inherit}
 .xq-ai h1,.xq-ai h2,.xq-ai h3,.xq-ai p,.xq-dialog p{margin:0}
 .xq-ai h2{font-size:17px;font-weight:600;line-height:1.4}
 .xq-ai small,.xq-dialog small{font-size:12px;color:var(--xq-muted)}
@@ -114,3 +114,18 @@
 
 .xq-ai .route-check-button { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .xq-ai .route-check-button img { width: 16px; height: 16px; }
+
+:root:not(.dark) .xq-ai .tool-card { background: var(--xq-surface); border-color: var(--xq-border); }
+:root:not(.dark) .xq-ai .tool-card:hover { background: var(--xq-raised); border-color: var(--xq-accent); }
+:root:not(.dark) .xq-ai .lines-panel { background: var(--xq-surface); border-color: var(--xq-border); }
+:root:not(.dark) .xq-ai :is(.tool-type, .tool-status, .tool-card > small, .best, .card-bottom > span) { color: var(--xq-muted); }
+:root:not(.dark) .xq-ai .card-bottom button { background: var(--xq-depth); color: var(--xq-text); border-color: var(--xq-border); }
+:root:not(.dark) .xq-ai .card-bottom button:disabled { background: var(--xq-depth); color: var(--xq-muted); }
+:root:not(.dark) .xq-ai .route-row:hover,
+:root:not(.dark) .xq-button:hover:not(:disabled) { background: var(--xq-raised); }
+:root:not(.dark) :is(.xq-ai, .xq-dialog) ::selection { background: var(--xq-raised); color: var(--xq-text); }
+
+:root:not(.dark) .xq-dialog .route-metrics-table th { background: var(--xq-depth); }
+
+:root:not(.dark) :is(.user-app-shell, .xq-dialog) .provider-logo,
+:root:not(.dark) .xq-ai :is(.icon-btn, .route-check-button) img { filter: brightness(.4); }

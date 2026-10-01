@@ -14,8 +14,8 @@
             'min-h-12 border px-3 text-center text-sm font-medium transition-colors',
             variant === 'recharge' ? 'rounded-[9px]' : 'rounded-lg py-3',
             modelValue === amt
-              ? 'border-[#61c9d9] bg-[linear-gradient(167deg,rgba(31,87,110,0.82),rgba(15,48,69,0.9))] text-[#eaf9f9] shadow-[0_12px_30px_rgba(27,112,139,0.12)]'
-              : 'border-[rgba(54,111,134,0.44)] bg-[#091a2b] text-[#a1b8c2] hover:border-[#3a6c87] hover:text-white',
+              ? 'border-[var(--xq-accent)] bg-[var(--xq-raised)] dark:bg-[linear-gradient(167deg,rgba(31,87,110,0.82),rgba(15,48,69,0.9))] text-[var(--xq-core)] dark:shadow-[0_12px_30px_rgba(27,112,139,0.12)]'
+              : 'border-[var(--xq-border)] bg-[var(--xq-depth)] text-[var(--xq-secondary)] hover:border-[var(--xq-accent)] hover:text-[var(--xq-text)]',
           ]"
           @click="selectAmount(amt)"
         >
@@ -26,7 +26,7 @@
 
     <!-- Custom Amount Input -->
     <div>
-      <label :class="variant === 'recharge' ? 'mb-2 block text-xs text-[#a1b8c2]' : 'mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300'">
+      <label :class="variant === 'recharge' ? 'mb-2 block text-xs text-[var(--xq-secondary)]' : 'mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300'">
         {{ variant === 'recharge' ? '自定义额度' : t('payment.customAmount') }}
       </label>
       <div class="relative">

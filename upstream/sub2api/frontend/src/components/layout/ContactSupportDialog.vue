@@ -23,7 +23,7 @@
       </p>
 
       <div
-        class="support-group flex flex-col items-stretch gap-3 rounded-lg border border-gray-200 bg-[#091a2b] p-3 dark:border-dark-600 sm:flex-row sm:items-center"
+        class="support-group flex flex-col items-stretch gap-3 rounded-lg border border-gray-200 bg-[var(--xq-depth)] p-3 dark:border-dark-600 sm:flex-row sm:items-center"
       >
         <div class="min-w-0 flex-1">
           <span class="support-group-label block text-xs text-gray-700 dark:text-gray-200">

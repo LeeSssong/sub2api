@@ -88,7 +88,7 @@ describe('ContactSupportDialog', () => {
     expect(label?.classList.contains('text-gray-700')).toBe(true)
     expect(group?.classList.contains('flex-col')).toBe(true)
     expect(group?.classList.contains('sm:flex-row')).toBe(true)
-    expect(group?.classList.contains('bg-[#091a2b]')).toBe(true)
+    expect(group?.classList.contains('bg-[var(--xq-depth)]')).toBe(true)
     expect(number?.classList.contains('break-all')).toBe(true)
     expect(button?.classList.contains('w-full')).toBe(true)
     expect(button?.classList.contains('sm:w-auto')).toBe(true)

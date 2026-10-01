@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen" :class="isAdmin ? 'brand-admin-shell bg-gray-50 dark:bg-dark-950' : 'dark user-app-shell bg-[#040b17]'">
+  <div class="min-h-screen" :class="isAdmin ? 'brand-admin-shell bg-gray-50 dark:bg-dark-950' : 'user-app-shell'">
     <!-- Background Decoration -->
     <div class="pointer-events-none fixed inset-0 bg-mesh-gradient"></div>
 
@@ -60,11 +60,11 @@ defineExpose({ replayTour })
 
 <style scoped>
 .user-app-shell {
-  color: #e8f3fb;
+  color: var(--xq-text);
 }
 
 .user-workspace {
   min-height: 0;
-  background: #040b17;
+  background: var(--xq-void);
 }
 </style>
