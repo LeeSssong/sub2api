@@ -78,6 +78,7 @@ type Recorder struct {
 	mu          sync.RWMutex
 	closed      bool
 	startOnce   sync.Once
+	criticalWG  sync.WaitGroup
 	enqueued    atomic.Int64
 	persisted   atomic.Int64
 	dropped     atomic.Int64
@@ -161,11 +162,17 @@ func (r *Recorder) Critical(ctx context.Context, e Event) {
 	if r == nil || r.store == nil {
 		return
 	}
-	e = prepare(e)
-	if ctx == nil {
-		ctx = context.Background()
+	r.mu.RLock()
+	if r.closed {
+		r.mu.RUnlock()
+		r.dropped.Add(1)
+		return
 	}
-	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	r.criticalWG.Add(1)
+	r.mu.RUnlock()
+	defer r.criticalWG.Done()
+	e = prepare(e)
+	writeCtx, cancel := context.WithTimeout(r.writerCtx, 2*time.Second)
 	err := r.store.WriteOAuthObservations(writeCtx, []Event{e})
 	cancel()
 	if err == nil {
@@ -208,6 +215,7 @@ func (r *Recorder) Stop(ctx context.Context) error {
 	}
 	select {
 	case <-r.done:
+		r.stopWriter()
 		return nil
 	case <-ctx.Done():
 		r.stopWriter()
@@ -260,7 +268,7 @@ func (r *Recorder) dropQueued(events []Event) {
 }
 
 func (r *Recorder) run() {
-	defer close(r.done)
+	defer func() { r.criticalWG.Wait(); close(r.done) }()
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	healthTick := time.NewTicker(10 * time.Second)
@@ -280,15 +288,17 @@ func (r *Recorder) run() {
 			}
 			batch = append(batch, e)
 			if len(batch) == 128 {
-				if !r.flush(batch) {
+				if !r.flush(batch) && r.writerCtx.Err() != nil {
 					r.dropQueued(nil)
+					slog.Warn("oauth_observation_shutdown_loss", "instance_id", r.instanceID, "dropped", r.dropped.Load())
 					return
 				}
 				batch = batch[:0]
 			}
 		case <-tick.C:
-			if !r.flush(batch) {
+			if !r.flush(batch) && r.writerCtx.Err() != nil {
 				r.dropQueued(nil)
+				slog.Warn("oauth_observation_shutdown_loss", "instance_id", r.instanceID, "dropped", r.dropped.Load())
 				return
 			}
 			batch = batch[:0]

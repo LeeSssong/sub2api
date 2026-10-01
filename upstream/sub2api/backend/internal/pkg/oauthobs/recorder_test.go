@@ -134,6 +134,37 @@ func TestRecorderCopiesCallerOwnedPayload(t *testing.T) {
 	}
 }
 
+func TestRecorderResumesAfterBatchFailure(t *testing.T) {
+	s := &memoryStore{fail: 3}
+	r := New(s, "recovery", 512)
+	r.Start()
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = r.Stop(ctx)
+	}()
+	for i := 0; i < 128; i++ {
+		r.Emit(Event{AccountID: 1, Type: "slot_denied"})
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for r.Health().Dropped < 128 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if r.Health().Dropped != 128 {
+		t.Fatal("failed batch was not accounted")
+	}
+	for i := 0; i < 128; i++ {
+		r.Emit(Event{AccountID: 1, Type: "slot_denied"})
+	}
+	deadline = time.Now().Add(2 * time.Second)
+	for r.Health().Persisted < 128 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if r.Health().Persisted != 128 {
+		t.Fatalf("recorder failed to recover: %+v", r.Health())
+	}
+}
+
 func TestRecorderStopDeadlineCancelsWriterAndAccountsForQueuedEvents(t *testing.T) {
 	store := &blockingStore{entered: make(chan struct{})}
 	r := New(store, "test", 4)
