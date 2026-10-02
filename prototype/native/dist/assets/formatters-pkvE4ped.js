@@ -1,0 +1,1 @@
+function i(r){return r>=1e6?`${(r/1e6).toFixed(1)}M`:r>=1e3?`${(r/1e3).toFixed(1)}K`:r.toLocaleString()}function t(r){if(r==null||!Number.isFinite(r))return"倍率暂不可用";const e=Number(r.toPrecision(15));return`${Number.isInteger(e)?e.toFixed(1):String(e)}x倍率`}export{i as a,t as f};

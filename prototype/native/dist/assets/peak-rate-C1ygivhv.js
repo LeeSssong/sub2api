@@ -1,0 +1,1 @@
+import{f as t}from"./formatters-pkvE4ped.js";function n(a){return!!(a!=null&&a.peak_rate_enabled&&a.peak_start&&a.peak_end)}function p(a){return a?`UTC${a}`:""}function k(a,r){if(!n(a)||!a)return"";const e=`${a.peak_start}-${a.peak_end} ${t(a.peak_rate_multiplier??1)}`;return r?`${e} (${r})`:e}export{k as f,n as h,p as s};
