@@ -1250,12 +1250,12 @@ onBeforeUnmount(() => {
   color: var(--xq-text);
 }
 .user-sidebar .sidebar-header {
-  height: auto; min-height: 0; flex-shrink: 0; align-items: flex-start;
+  height: auto; min-height: 0; flex-shrink: 0; align-items: center;
   gap: 12px; padding: 2px 10px 12px; margin-bottom: 28px;
   border-bottom: 1px solid var(--xq-line);
 }
 .user-sidebar .sidebar-logo {
-  width: 24px; min-width: 24px; height: 24px; margin-top: 2px; flex: 0 0 24px;
+  width: 32px; min-width: 32px; height: 32px; margin-top: 0; flex: 0 0 32px;
   border-radius: 5px; background: #040a12; box-shadow: none;
 }
 .user-sidebar .sidebar-brand { min-width: 0; }
