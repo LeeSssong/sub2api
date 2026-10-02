@@ -427,6 +427,7 @@ type SystemSettings struct {
 	AdminRechargeRebateEnabled        bool
 	DefaultUserRPMLimit               int
 	DefaultSubscriptions              []DefaultSubscriptionSetting
+	CyberPolicyUserAllowlist          string
 	MonitorPageRefreshIntervalSeconds int
 	CyberSessionIdentityStrictEnabled bool
 

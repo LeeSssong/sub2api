@@ -627,6 +627,12 @@ func (s *RateLimitService) handleDeterministicUpstreamFailure(ctx context.Contex
 	case deterministicBalanceClass:
 		return true, s.handleDeterministicBalanceFailureWithReason(ctx, account, reason)
 	case deterministicCredentialClass:
+		if account.Platform == PlatformTypeSafe {
+			if err := s.accountRepo.SetError(ctx, account.ID, reason); err != nil {
+				slog.Warn("typesafe_credential_set_error_failed", "account_id", account.ID, "error", err)
+			}
+			return true, true
+		}
 		if account.IsOAuth() {
 			if err := s.accountRepo.SetError(ctx, account.ID, reason); err != nil {
 				slog.Warn("deterministic_credential_set_error_failed", "account_id", account.ID, "error", err)

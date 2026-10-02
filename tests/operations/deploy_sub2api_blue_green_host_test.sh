@@ -236,7 +236,13 @@ scenario=${FAKE_SCENARIO:-success}
 case "$*" in
   *'exec postgres-id sh -c '*'pg_dump'*) printf 'fixture custom archive\n' ;;
   *'exec -i postgres-id pg_restore -l'*) [[ "$scenario" != pelican_backup_validation_failure ]] ;;
-  *'exec postgres-id sh -c '*'report-receipts'*) printf '%s\n' "${FAKE_REPORT_RECEIPT_HASH:-${EXPECTED_MIGRATIONS_HASH:?}}" ;;
+  *'exec -i postgres-id sh -c '*'pg_restore --clean'*) cat >/dev/null; touch "${FAKE_EVENT_LOG}.database-restored" ;;
+  *'exec postgres-id sh -c '*'report-receipts'*)
+    if [[ -e "${FAKE_EVENT_LOG}.database-restored" ]]; then
+      printf '%s\n' 600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea
+    else
+      printf '%s\n' "${FAKE_REPORT_RECEIPT_HASH:-${EXPECTED_MIGRATIONS_HASH:?}}"
+    fi ;;
   exec\ blue-id\ sh\ -c\ *|exec\ green-id\ sh\ -c\ *)
     if [[ "$scenario" == drain_reverted && ! -f "${FAKE_EVENT_LOG}.drain-seen" ]]; then
       [[ ! -d "$(dirname "$RELEASE_STATE")/records/.blue-green.lock" ]] || exit 1
@@ -398,7 +404,7 @@ JSON
   'inspect worker-id --format {{.State.Running}}'|'inspect green-id --format {{.State.Running}}') printf 'false\n' ;;
   *'september28-compat'*) printf '%s\n' "${FAKE_SEPTEMBER28_COMPAT:-t}" ;;
   *'fusion-receipts'*) if [[ "$scenario" == fusion_partial_migration || "$scenario" == september26_receipt_mismatch ]]; then printf '%064d\n' 7; else printf '%s\n' "${EXPECTED_MIGRATIONS_HASH:?}"; fi ;;
-  *' -migrate-only') [[ "$scenario" != fusion_partial_migration ]] || exit 1 ;;
+  *' -migrate-only') [[ "$scenario" != fusion_partial_migration && "$scenario" != official297_migration_failure ]] || exit 1 ;;
   *'exec -T postgres '*'schema_migrations'*) printf '%s\n' "${FAKE_ROLLBACK_SCHEMA_COMPAT:-t}" ;;
   *'exec -T postgres '*'openai_scheduler_logs'*) printf '%s\n' "${FAKE_RETIRED_SCHEDULER_ARTIFACTS:-0}" ;;
   *'exec -T postgres '*'psql'*) printf '%s\n' "${FAKE_DB_HEADROOM:-30}" ;;
@@ -1420,6 +1426,21 @@ test_verified_production_maintenance_transition() {
     || fail "verified production maintenance transition failed: $(cat "$CASE_DIR/stderr")"
   grep -q 'maintenance stop api-worker' "$EVENT_LOG" \
     || fail 'verified production transition did not enter the bounded maintenance path'
+}
+
+test_official297_migration_failure_restores_database() {
+  setup_case official297_migration_failure
+  write_meminfo
+  MIGRATIONS_HASH=406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b
+  local previous_hash=600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea
+  "$REAL_JQ" --arg hash "$previous_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"
+  chmod 0600 "$CASE_DIR/state.json"
+  MAINTENANCE_MODE=true MAINTENANCE_FROM_HASH=$previous_hash \
+    expect_failure official297_migration_failure run_executor FAKE_SCENARIO=official297_migration_failure
+  [[ -e "${EVENT_LOG}.database-restored" ]] || fail 'migration failure did not restore the database'
+  [[ "$("$REAL_JQ" -r '.migrations_hash' "$CASE_DIR/state.json")" == "$previous_hash" ]] || fail 'restored database checkpoint differs from predecessor'
+  grep -q 'start model-detector' "$EVENT_LOG" || fail 'detector was not resumed after recovery'
 }
 
 test_pelican_report_maintenance_backup() {
@@ -3495,6 +3516,7 @@ test_review_concurrent_dead_pid_observers_fail_closed() {
 }
 
 case "${ONLY_TEST:-all}" in
+  official297-recovery) test_official297_migration_failure_restores_database ;;
   september28-online) test_september28_online_transition ;;
   all)
     assert_rehearsal_topology_ready

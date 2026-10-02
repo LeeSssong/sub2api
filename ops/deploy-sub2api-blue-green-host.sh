@@ -515,7 +515,8 @@ fi
 
 approved_maintenance_transition() {
   local from_hash=$1 to_hash=$2
-  [[ "$from_hash" == "$MAINTENANCE_1_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_1_NEW_MIGRATIONS_HASH" \
+  [[ "$from_hash" == 600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea && "$to_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b \
+    || "$from_hash" == "$MAINTENANCE_1_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_1_NEW_MIGRATIONS_HASH" \
     || "$from_hash" == "$MAINTENANCE_2_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_2_NEW_MIGRATIONS_HASH" \
     || "$from_hash" == "$MAINTENANCE_3_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_3_NEW_MIGRATIONS_HASH" \
     || "$from_hash" == "$MAINTENANCE_4_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_4_NEW_MIGRATIONS_HASH" \
@@ -904,6 +905,8 @@ maintenance_transition=false
 online_migration_transition=false
 maintenance_stopped=false
 additive_migration_started=false
+official297_restore_needed=false
+official297_detector_stopped=false
 maintenance_identity_refresh=false
 preserve_worker=${PRESERVE_WORKER:-false}
 [[ "$preserve_worker" == true || "$preserve_worker" == false ]] || fail 'PRESERVE_WORKER must be true or false'
@@ -1467,6 +1470,12 @@ restore_previous() {
   [[ "${migration_receipts_unknown:-false}" != true ]] || return 1
   local rollback_ok=true current_blue current_green previous_previous
   rollback_in_progress=true
+  if [[ "$official297_restore_needed" == true ]]; then
+    run_post_stop_command docker exec -i "$rollback_postgres_id" sh -c \
+      'exec pg_restore --clean --if-exists --exit-on-error -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+      <"$maintenance_backup" || return 1
+    official297_restore_needed=false
+  fi
   if [[ -e "$record_root/.$attempt_id.worker-stop" ]]; then
     worker_update_started=true
   fi
@@ -1603,6 +1612,9 @@ on_exit() {
   if ! reauth_lifecycle resume; then
     printf 'Reauth resume failed; inspect dedicated worker before next release\n' >&2
     status=1
+  fi
+  if [[ "$official297_detector_stopped" == true && ( "$record_finalized" == true && ( "$status" == 0 || "$rollback_completed" == true ) ) ]]; then
+    "${compose_current[@]}" start model-detector >/dev/null || status=1
   fi
   cleanup_lock
   exit "$status"
@@ -2193,7 +2205,12 @@ fi
 failure_reason=candidate_pull_failed
 if [[ "$maintenance_transition" == true ]]; then
   maintenance_requested_window_seconds=${MAINTENANCE_UNAVAILABLE_SECONDS:-300}
-  [[ "$maintenance_requested_window_seconds" =~ ^[1-9][0-9]*$ && "$maintenance_requested_window_seconds" -le 300 ]] \
+  maintenance_maximum_seconds=300
+  if [[ "$migrations_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b ]]; then
+    maintenance_requested_window_seconds=600
+    maintenance_maximum_seconds=600
+  fi
+  [[ "$maintenance_requested_window_seconds" =~ ^[1-9][0-9]*$ && "$maintenance_requested_window_seconds" -le "$maintenance_maximum_seconds" ]] \
     || fail 'MAINTENANCE_UNAVAILABLE_SECONDS must be an integer between 1 and 300'
   maintenance_started_epoch=$(date -u +%s) || fail 'maintenance deadline clock failed'
   maintenance_end_to_end_remaining=$((deadline_epoch - maintenance_started_epoch))
@@ -2221,6 +2238,9 @@ if [[ "$maintenance_transition" == true ]]; then
     maintenance_recovery_reserve_seconds=4
   fi
   (( maintenance_recovery_reserve_seconds > 60 )) && maintenance_recovery_reserve_seconds=60
+  if [[ "$migrations_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b ]]; then
+    maintenance_recovery_reserve_seconds=240
+  fi
   maintenance_finalization_reserve_seconds=$(((maintenance_recovery_reserve_seconds + 11) / 12))
   # A one-second finalization budget races the hard watchdog after a bounded
   # rollback command is terminated. Keep two seconds for the final record and
@@ -2255,6 +2275,10 @@ if [[ "$maintenance_transition" == true ]]; then
   trace_event 'maintenance stop api-worker'
   maintenance_stopped=true
   run_post_stop_command "${compose_current[@]}" stop sub2api-blue sub2api-green sub2api-worker >/dev/null
+  if [[ "$migrations_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b ]]; then
+    official297_detector_stopped=true
+    run_post_stop_command "${compose_current[@]}" stop model-detector >/dev/null
+  fi
   # Rebase the process watchdog after the stop command so its duration tracks
   # the remaining absolute forward budget rather than double-counting setup.
   now=$(date -u +%s)
@@ -2265,7 +2289,9 @@ if [[ "$maintenance_transition" == true ]]; then
   if [[ "$state_migrations_hash" == "$PELICAN_REPORT_OLD_MIGRATIONS_HASH" \
       && "$migrations_hash" == "$PELICAN_REPORT_NEW_MIGRATIONS_HASH" \
       || "$state_migrations_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" \
-      && "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ]]; then
+      && "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" \
+      || "$state_migrations_hash" == 600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea \
+      && "$migrations_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b ]]; then
     failure_reason=maintenance_backup_failed
     maintenance_backup="$record_root/$attempt_id.pre-migration.dump"
     run_post_stop_operation '
@@ -2282,6 +2308,13 @@ if [[ "$maintenance_transition" == true ]]; then
     trace_event 'maintenance backup verified'
     schema_receipt_sql="SELECT encode(sha256(string_agg(convert_to(filename,'UTF8') || decode('00','hex') || convert_to(checksum || chr(10),'UTF8'), ''::bytea ORDER BY filename)), 'hex') FROM schema_migrations"
     additive_migration_started=true
+  fi
+  if [[ "$migrations_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b ]]; then
+    official297_restore_needed=true
+    run_post_stop_command "${compose_candidate[@]}" run --rm --no-deps "${compose_pull_args[@]+${compose_pull_args[@]}}" \
+      --entrypoint /app/sub2api sub2api-worker -migrate-only >/dev/null \
+      || fail 'official v2.9.7 migration failed; restoring pre-migration database'
+    official297_restore_needed=false
   fi
   trace_event 'maintenance start worker for migrations'
   if [[ "$preloaded_image" == false ]]; then
