@@ -123,13 +123,13 @@
 .user-keys-page .keys-work-surface .table-scroll-container { height: auto; overflow: visible; }
 .user-keys-page .keys-work-surface .table-wrapper { flex: none; overflow-x: auto; overflow-y: hidden; scrollbar-gutter: auto; }
 .user-keys-page .keys-work-surface table { min-width: 1100px !important; table-layout: fixed; }
-.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(1) { width: 9%; }
-.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(2) { width: 14%; }
-.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(3) { width: 20%; }
-.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(4) { width: 9%; }
-.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(5) { width: 14%; }
-.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(6) { width: 9%; }
-.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(7) { width: 25%; }
+.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(2) { width: 9%; }
+.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(3) { width: 14%; }
+.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(4) { width: 20%; }
+.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(5) { width: 9%; }
+.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(6) { width: 14%; }
+.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(7) { width: 9%; }
+.user-keys-page .keys-inventory:not(.keys-expanded) th:nth-child(8) { width: 25%; }
 .user-keys-page .keys-expanded table { min-width: max-content !important; table-layout: auto; }
 .user-keys-page .keys-work-surface th,
 .user-keys-page .keys-work-surface td { padding: 12px 10px; }
@@ -153,7 +153,7 @@
 .user-keys-page .keys-row-actions button svg { display: none; }
 .user-app-shell .user-keys-page .keys-row-actions .keys-action-danger { color: var(--xq-danger) !important; }
 .user-keys-page .keys-work-surface td button { max-width: 100%; }
-.user-keys-page .keys-inventory:not(.keys-expanded) td:nth-child(5) .flex { white-space: nowrap; }
+.user-keys-page .keys-inventory:not(.keys-expanded) td:nth-child(6) .flex { white-space: nowrap; }
 @media (max-width: 800px) {
   .user-keys-page .keys-work-surface .keys-filters { grid-template-columns: minmax(0, 1fr); }
 }
@@ -291,3 +291,5 @@
 
 /* Bundled monochrome navigation assets were drawn for the dark canvas. */
 :root:not(.dark) .user-nav-icon { filter: brightness(.45); }
+
+.user-keys-page .keys-inventory th:first-child, .user-keys-page .keys-inventory td:first-child { width: 44px; min-width: 44px; }

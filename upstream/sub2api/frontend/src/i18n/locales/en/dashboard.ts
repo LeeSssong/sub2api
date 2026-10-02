@@ -117,6 +117,15 @@ export default {
 
   // API Keys
   keys: {
+    bulk: {
+      edit: 'Batch edit', selected: '{count} keys selected', cancel: 'Clear selection', hint: 'Only checked fields will change. Selection applies to the current page.',
+      group: 'Line', status: 'Enable / disable', quota: 'Quota', expiry: 'Expiration', rate: 'Rate limits', ip: 'IP restrictions',
+      apply: 'Apply to {count} keys', working: 'Updating…', unchanged: 'Keep unchanged', unlimited: '0 means unlimited quota; an empty expiration means never expires.',
+      whitelist: 'IP whitelist (one IP or CIDR per line)', blacklist: 'IP blacklist (one IP or CIDR per line)', ipHint: 'Checked lists replace existing values. Empty lists clear the corresponding restrictions.',
+      result: '{success} succeeded, {failed} failed.', failed: 'Keys not updated: {ids}. Check fields and permissions, then retry.', retry: 'Retry failed keys',
+      chooseField: 'Select at least one field to change.', chooseGroup: 'Select a line to bind.', invalidNumber: 'Quota and rate limits must be non-negative numbers.', invalidExpiry: 'Choose a future expiration time.',
+      row: 'Select key {name}', rate5h: '5-hour quota (USD)', rate1d: '1-day quota (USD)', rate7d: '7-day quota (USD)',
+    },
     title: 'API Keys',
     description: 'Manage your API keys and access tokens',
     searchPlaceholder: 'Search name or key...',

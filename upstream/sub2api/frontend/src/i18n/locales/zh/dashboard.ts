@@ -117,6 +117,15 @@ export default {
 
   // API Keys
   keys: {
+    bulk: {
+      edit: '批量编辑', selected: '已选择 {count} 个密钥', cancel: '取消选择', hint: '仅修改勾选的字段，其他设置保持不变。选择范围为当前页。',
+      group: '线路', status: '启用 / 停用', quota: '额度限制', expiry: '有效期', rate: '速率限制', ip: 'IP 限制',
+      apply: '应用到 {count} 个密钥', working: '正在更新…', unchanged: '不修改', unlimited: '0 表示不限额；留空有效期表示永久有效。',
+      whitelist: 'IP 白名单（每行一个 IP 或 CIDR）', blacklist: 'IP 黑名单（每行一个 IP 或 CIDR）', ipHint: '勾选后替换原有列表，留空表示清除对应限制。',
+      result: '成功 {success} 个，失败 {failed} 个。', failed: '未更新的密钥：{ids}。请检查字段和权限后重试。', retry: '重试失败项',
+      chooseField: '请至少勾选一个需要修改的字段。', chooseGroup: '请选择要绑定的线路。', invalidNumber: '额度和速率限制必须是非负数字。', invalidExpiry: '请选择未来的有效时间。',
+      row: '选择密钥 {name}', rate5h: '5 小时额度（USD）', rate1d: '1 天额度（USD）', rate7d: '7 天额度（USD）',
+    },
     title: 'API 密钥',
     description: '管理您的 API 密钥和访问令牌',
     searchPlaceholder: '搜索名称或Key...',

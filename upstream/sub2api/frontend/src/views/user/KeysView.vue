@@ -109,8 +109,17 @@
           <span>{{ t('keys.usageUnavailable') }}</span>
           <button type="button" class="btn btn-secondary" @click="loadApiKeys"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
         </div>
+        <div v-if="selectedKeyIds.length" class="keys-bulk-toolbar" role="region" :aria-label="t('keys.bulk.edit')">
+          <span aria-live="polite">{{ t('keys.bulk.selected', { count: selectedKeyIds.length }) }}</span>
+          <button class="btn btn-primary" type="button" :disabled="loading" @click="showBulkEdit = true">{{ t('keys.bulk.edit') }}</button>
+          <button class="btn btn-secondary" type="button" @click="selectedKeyIds = []">{{ t('keys.bulk.cancel') }}</button>
+        </div>
         <div ref="inventoryRef" class="keys-inventory" :class="{ 'keys-expanded': columns.length > 7 }">
         <DataTable
+          selectable
+          row-key="id"
+          v-model:selected-keys="selectedKeyIds"
+          :selection-label="(row: ApiKey) => t('keys.bulk.row', { name: row.name })"
           table-only
           :columns="columns"
           :data="apiKeys"
@@ -506,6 +515,7 @@
     />
 
     <!-- Edit Modal -->
+    <BulkKeyEditDialog :show="showBulkEdit" :ids="selectedKeyIds.map(Number)" :groups="groups" @close="showBulkEdit = false" @finished="handleBulkFinished" />
     <BaseDialog
       :show="showEditModal"
       :title="t('keys.editKey')"
@@ -1176,6 +1186,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import { fitKeyRows, placeKeyMenu } from '@/components/keys/keysViewport'
 import { providerIcon } from '@/features/ai-tools/model'
 import LineSelect from '@/components/keys/LineSelect.vue'
+import BulkKeyEditDialog from '@/components/keys/BulkKeyEditDialog.vue'
 import CreateLineKeyDialog from '@/features/ai-tools/CreateLineKeyDialog.vue'
 import { linkedCounts } from '@/features/ai-tools/model'
 import { getHybridPerformanceSnapshot } from '@/features/monitor-v4/api'
@@ -1296,6 +1307,13 @@ const columns = computed<Column[]>(() =>
 )
 
 const apiKeys = ref<ApiKey[]>([])
+const selectedKeyIds = ref<Array<string | number>>([])
+const showBulkEdit = ref(false)
+async function handleBulkFinished(failed: number[]) {
+  selectedKeyIds.value = failed
+  if (!failed.length) appStore.showSuccess(t('keys.keyUpdatedSuccess'))
+  await loadApiKeys(true)
+}
 const groups = ref<Group[]>([])
 const loading = ref(false)
 const listLoadError = ref(false)
@@ -1486,7 +1504,8 @@ const isAbortError = (error: unknown) => {
   return name === 'AbortError' || code === 'ERR_CANCELED'
 }
 
-const loadApiKeys = async () => {
+const loadApiKeys = async (preserveSelection: unknown = false) => {
+  if (preserveSelection !== true) selectedKeyIds.value = []
   abortController?.abort()
   const controller = new AbortController()
   abortController = controller
@@ -1514,6 +1533,7 @@ const loadApiKeys = async () => {
     })
     if (signal.aborted) return
     apiKeys.value = response.items
+    selectedKeyIds.value = selectedKeyIds.value.filter(id => response.items.some(key => key.id === id))
     pagination.value.total = response.total
     pagination.value.pages = response.pages
 
@@ -2019,7 +2039,7 @@ const fitInventory = () => {
     pagination.value.page_size = size
     pagination.value.page = Math.floor(firstItem / size) + 1
     groupSelectorKeyId.value = null
-    void loadApiKeys()
+    void loadApiKeys(true)
   }
 }
 const scheduleFitInventory = () => {
@@ -2030,7 +2050,7 @@ const handleViewportResize = () => {
   groupSelectorKeyId.value = null
   scheduleFitInventory()
 }
-watch([loading, columns], () => { void nextTick(scheduleFitInventory) })
+watch([loading, columns, selectedKeyIds], () => { void nextTick(scheduleFitInventory) })
 
 onMounted(() => {
   const requestedGroupId = new URLSearchParams(window.location.search).get('group_id')
@@ -2060,6 +2080,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.keys-inventory :deep(input[type="checkbox"]) { accent-color: var(--xq-accent); }
+.keys-bulk-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--xq-line); color:var(--xq-secondary); font-size:13px; flex-shrink:0; }
+.keys-bulk-toolbar .btn { min-height:32px; padding:4px 12px; font-size:12px; }
+
 .keys-line-popup{display:flex;flex-direction:column;}
 .keys-line-popup-search{flex-shrink:0;}
 .keys-line-trigger {
