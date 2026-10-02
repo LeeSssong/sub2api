@@ -3,6 +3,10 @@ set -euo pipefail
 
 umask 077
 
+# User-authorized v2.9.7 online transition; additive order column and platform superset.
+readonly OCTOBER_03_OLD_MIGRATIONS_HASH=600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea
+readonly OCTOBER_03_NEW_MIGRATIONS_HASH=406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b
+
 # October 2: additive API key limit and OAuth observations; this release only.
 readonly OCTOBER_02_OLD_MIGRATIONS_HASH=6019a46ac500e6a669c8d6b26cc001f3cc96a093f199fece56405df926cb6768
 readonly OCTOBER_02_NEW_MIGRATIONS_HASH=600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea
@@ -73,7 +77,7 @@ done
 [[ "$maintenance_authorized" == false || "$mode" == production ]] || fail '--maintenance-authorized is only valid in production mode'
 [[ -z "$online_migrations_from_hash" || ( "$mode" == production && "$maintenance_authorized" == false ) ]] \
   || fail 'online migrations require production mode without maintenance'
-[[ -z "$online_migrations_from_hash" || "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 || "$online_migrations_from_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b || "$online_migrations_from_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" ]] \
+[[ -z "$online_migrations_from_hash" || "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 || "$online_migrations_from_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b || "$online_migrations_from_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" ]] \
   || fail 'online migration source hash is not a reviewed predecessor'
 maintenance_from_hash=${RELEASE_MAINTENANCE_FROM_HASH:-}
 if [[ "$maintenance_authorized" == true ]]; then
@@ -157,6 +161,11 @@ fi
 if [[ "$online_migrations_from_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" ]]; then
   [[ "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
     || fail 'October 1 requires exact reviewed migrations, new worker, and preserved detector'
+fi
+
+if [[ "$online_migrations_from_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" ]]; then
+  [[ "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
+    || fail 'v2.9.7 requires exact reviewed migrations, new worker, and preserved detector'
 fi
 
 if [[ "$online_migrations_from_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" ]]; then

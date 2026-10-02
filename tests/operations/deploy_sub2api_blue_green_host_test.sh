@@ -2859,6 +2859,63 @@ test_october01_online_transition() {
   done
 }
 
+test_october03_online_transition() {
+  local old_hash=600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea
+  local new_hash
+  new_hash=$(sed -n 's/^readonly OCTOBER_03_NEW_MIGRATIONS_HASH=//p' "$EXECUTOR")
+  [[ "$new_hash" =~ ^[a-f0-9]{64}$ ]] || fail 'September 28 target hash is not finalized for this test'
+  local scenario record previous line pattern
+  for scenario in drain_empty fusion_public_failure fusion_partial_migration wrong_target worker_update_failure; do
+    setup_case "bps_observer_$scenario"
+    write_meminfo
+    MIGRATIONS_HASH=$new_hash
+    [[ "$scenario" != wrong_target ]] || MIGRATIONS_HASH=$(printf '%064d' 4)
+    "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+    mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+    if [[ "$scenario" == drain_empty || "$scenario" == post_incompatible ]]; then
+      ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash \
+        run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=drain_empty >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+        || fail "BPS online release failed: $(cat "$CASE_DIR/stderr")"
+      previous=0
+      for pattern in ' -migrate-only' 'fusion-receipts' 'up --no-deps -d sub2api-green' 'docker stop --time 60 worker-id' 'up --no-deps -d --force-recreate sub2api-worker' 'caddy caddy reload' 'curl .*https://example.invalid/health' 'docker stop'; do
+        line=$(awk -v pattern="$pattern" -v after="$previous" 'NR > after && $0 ~ pattern { print NR; exit }' "$EVENT_LOG")
+        [[ -n "$line" && "$line" -gt "$previous" ]] || fail "BPS online ordering missing: $pattern"
+        previous=$line
+      done
+      ! grep -Eq 'maintenance stop api-worker|compose .* (stop|restart).*sub2api-blue|compose .* (up|pull|stop|restart).*model-detector' "$EVENT_LOG" || fail 'BPS online release interrupted active API or detector'
+      "$REAL_JQ" -e --arg hash "$new_hash" '.active_slot == "green" and .migrations_hash == $hash' "$CASE_DIR/state.json" >/dev/null || fail 'BPS online state is incomplete'
+      record=$(find "$CASE_DIR/records" -name '*.json' -print -quit)
+      if [[ "$scenario" == post_incompatible ]]; then
+        ROLLBACK_RECORD=$record expect_failure explicit_incompatible run_executor FAKE_SCENARIO=post_success_rollback FAKE_SEPTEMBER28_COMPAT=f
+        [[ -d "$CASE_DIR/records/.blue-green.lock" ]] || fail 'incompatible explicit rollback released recovery lock'
+        [[ "$(grep -c 'up --no-deps -d --force-recreate sub2api-worker' "$EVENT_LOG")" == 1 ]] || fail 'explicit rollback started old worker on new BPS data'
+        continue
+      fi
+      ROLLBACK_RECORD=$record run_executor FAKE_SCENARIO=post_success_rollback >"$CASE_DIR/rollback.stdout" 2>"$CASE_DIR/rollback.stderr" || fail 'BPS reader rollback failed'
+      "$REAL_JQ" -e --arg hash "$new_hash" '.active_slot == "blue" and .migrations_hash == $hash' "$CASE_DIR/state.json" >/dev/null || fail 'BPS rollback lost expanded schema'
+    elif [[ "$scenario" == incompatible_bps ]]; then
+      ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash \
+        expect_failure incompatible_bps run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=fusion_public_failure FAKE_SEPTEMBER28_COMPAT=f
+      record=$(find "$CASE_DIR/records" -name '*.json' -print -quit)
+      "$REAL_JQ" -e '.state == "rollback_failed" and .reason == "september28_bps_compatibility_recovery_required"' "$record" >/dev/null || fail 'unsafe BPS rollback not identified'
+      [[ "$(grep -c 'up --no-deps -d --force-recreate sub2api-worker' "$EVENT_LOG")" == 1 ]] || fail 'old worker was started against BPS data'
+      grep -q 'stop --time 300 green-id' "$EVENT_LOG" || fail 'candidate not drained before compatibility probe'
+    else
+      ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash \
+        expect_failure "bps_$scenario" run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=$scenario
+      if [[ "$scenario" == pelican_backup_validation_failure || "$scenario" == wrong_target ]]; then
+        ! grep -q ' -migrate-only' "$EVENT_LOG" || fail 'BPS migration ran after failed preflight'
+      elif [[ "$scenario" == fusion_public_failure ]]; then
+        "$REAL_JQ" -e --arg hash "$new_hash" '.active_slot == "blue" and .migrations_hash == $hash' "$CASE_DIR/state.json" >/dev/null || fail 'BPS automatic rollback lost expanded schema'
+        grep -q 'stop --time 300 green-id' "$EVENT_LOG" || fail 'candidate rollback drain missing'
+        : # Additive rollback is compatible with the prior worker.
+      else
+        ! grep -q 'SUB2API_ACTIVE_UPSTREAM=sub2api-green:8080 caddy caddy reload' "$EVENT_LOG" || fail 'BPS incomplete migration cut over'
+      fi
+    fi
+  done
+}
+
 test_october02_online_transition() {
   local old_hash=6019a46ac500e6a669c8d6b26cc001f3cc96a093f199fece56405df926cb6768
   local new_hash
@@ -3686,6 +3743,7 @@ case "${ONLY_TEST:-all}" in
   preserve-detector) test_preserve_detector_updates_worker ;;
   september26-online) test_september26_online_transition ;;
   october02-online) test_october02_online_transition ;;
+  october03-online) test_october03_online_transition ;;
   october01-online) test_october01_online_transition ;;
   september30-online) test_september30_online_transition ;;
   september29-online) test_september29_online_transition ;;
