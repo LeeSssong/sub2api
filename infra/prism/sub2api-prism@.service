@@ -1,0 +1,28 @@
+[Unit]
+Description=Prism adapter in Sub2API %i network namespace
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=sub2api-prism
+Group=sub2api-prism
+Slice=sub2api-prism.slice
+WorkingDirectory=/opt/sub2api-prism/current
+EnvironmentFile=/etc/sub2api-prism.env
+Environment=PRISM_ADAPTER_STATE_DIR=/var/lib/sub2api-prism/%i
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/sub2api-prism/runtime/venv/bin/python /opt/sub2api-prism/current/server.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=300
+NoNewPrivileges=no
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/sub2api-prism/%i
+BindReadOnlyPaths=/run/systemd/resolve/resolv.conf:/etc/resolv.conf
+UMask=0077
+StandardOutput=null
+StandardError=journal
+

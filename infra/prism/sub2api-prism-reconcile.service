@@ -1,0 +1,8 @@
+[Unit]
+Description=Bind Prism adapters to current Sub2API container namespaces
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/sub2api-prism-reconcile.py
+TimeoutStartSec=340
