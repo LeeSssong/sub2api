@@ -413,7 +413,7 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	}
 
 	if account.IsOpenAI() {
-		if accountHasPrismBrowser(account) {
+		if account.IsPrismBrowserEnabledForModel(modelID) {
 			if normalizeAccountTestMode(mode) != AccountTestModeDefault || testOpts.ImageDataURL != "" || testOpts.AudioDataURL != "" {
 				return s.sendErrorAndEnd(c, "Prism supports the default text test only")
 			}
@@ -453,6 +453,7 @@ func (s *AccountTestService) testPrismBrowserConnection(c *gin.Context, account 
 	if modelID == "" {
 		modelID = "gpt-5.6-sol"
 	}
+	modelID = account.GetMappedModel(modelID)
 	if prompt == "" {
 		prompt = "hi"
 	}

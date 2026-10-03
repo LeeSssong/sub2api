@@ -718,6 +718,7 @@ type PricingConfig struct {
 }
 
 type ServerConfig struct {
+	ReadinessTimeoutSeconds  int         `mapstructure:"readiness_timeout_seconds"` // dependency probe budget; 0 preserves the 1s default
 	ProcessRole              ProcessRole `mapstructure:"process_role"`
 	GracefulShutdownTimeout  int         `mapstructure:"graceful_shutdown_timeout"` // seconds; 0 preserves the legacy 5s budget
 	ShutdownDrainDelay       int         `mapstructure:"shutdown_drain_delay"`      // seconds to withdraw from load balancers before closing the listener
@@ -2206,7 +2207,8 @@ func setDefaults() {
 	viper.SetDefault("server.process_role", ProcessRoleAll)
 	viper.SetDefault("server.enable_server_timing", false)
 	viper.SetDefault("server.frontend_url", "")
-	viper.SetDefault("server.read_header_timeout", 10) // 10秒读取请求头
+	viper.SetDefault("server.read_header_timeout", 10)      // 10秒读取请求头
+	viper.SetDefault("server.readiness_timeout_seconds", 0) // 依赖探测超时，0 保持 1 秒默认值
 	viper.SetDefault("server.max_header_bytes", 64*1024)
 	viper.SetDefault("server.idle_timeout", 120) // 120秒空闲超时
 	viper.SetDefault("server.max_request_body_size", int64(256*1024*1024))
@@ -2908,6 +2910,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Server.ReadHeaderTimeout < 1 || c.Server.ReadHeaderTimeout > 60 {
 		return fmt.Errorf("server.read_header_timeout must be between 1 and 60 seconds")
+	}
+	if c.Server.ReadinessTimeoutSeconds < 0 || c.Server.ReadinessTimeoutSeconds > 60 {
+		return fmt.Errorf("server.readiness_timeout_seconds must be between 0 and 60 seconds")
 	}
 	if c.Server.MaxHeaderBytes < 8*1024 || c.Server.MaxHeaderBytes > 1024*1024 {
 		return fmt.Errorf("server.max_header_bytes must be between 8192 and 1048576 bytes")

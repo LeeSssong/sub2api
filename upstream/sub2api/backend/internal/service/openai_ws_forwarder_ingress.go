@@ -600,7 +600,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	}
 	account = latest
 	ctx = withRegularProxyScope(ctx, c, account, firstClientMessage)
-	if accountHasPrismBrowser(account) {
+	if account.IsPrismBrowserEnabledForModel(extractOpenAICodexTicketModel(firstClientMessage)) {
 		return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "Prism accounts require HTTP/SSE", nil)
 	}
 	if account.IsExcelBPSEnabledForModel(extractOpenAICodexTicketModel(firstClientMessage)) {
