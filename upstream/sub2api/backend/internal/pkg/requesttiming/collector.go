@@ -57,6 +57,7 @@ type Snapshot struct {
 	Events            map[string]float64 `json:"events"`
 	Spans             []Span             `json:"spans"`
 	Attempts          []Attempt          `json:"attempts"`
+	Diagnostics       map[string]string  `json:"diagnostics,omitempty"`
 }
 type Collector struct {
 	mu        sync.Mutex
@@ -67,7 +68,7 @@ type Collector struct {
 }
 
 func New(start time.Time, expected int64) *Collector {
-	return &Collector{start: start, data: Snapshot{Version: 1, TraceID: uuid.NewString(), StartedAt: start, BodyExpected: expected, Events: map[string]float64{}, Spans: []Span{}, Attempts: []Attempt{}}}
+	return &Collector{start: start, data: Snapshot{Version: 1, TraceID: uuid.NewString(), StartedAt: start, BodyExpected: expected, Events: map[string]float64{}, Spans: []Span{}, Attempts: []Attempt{}, Diagnostics: map[string]string{}}}
 }
 func With(ctx context.Context, c *Collector) context.Context {
 	if c == nil {
@@ -176,11 +177,31 @@ func Mode(ctx context.Context, mode string) {
 		c.data.TTFTMode = mode
 	}
 }
+
+// SetDiagnostic records bounded, non-sensitive request metadata. Callers must
+// pass hashes, lengths, counts, or enum values rather than request contents.
+func SetDiagnostic(ctx context.Context, name, value string) {
+	c := From(ctx)
+	if c == nil || name == "" || len(name) > 64 || len(value) > 512 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.finished {
+		if c.data.Diagnostics == nil {
+			c.data.Diagnostics = map[string]string{}
+		}
+		if len(c.data.Diagnostics) < 32 {
+			c.data.Diagnostics[name] = value
+		}
+	}
+}
 func (c *Collector) snapshot() Snapshot {
 	d := c.data
 	d.Events = cloneEvents(d.Events)
 	d.Spans = append([]Span{}, d.Spans...)
 	d.Attempts = append([]Attempt{}, d.Attempts...)
+	d.Diagnostics = cloneStrings(d.Diagnostics)
 	for i := range d.Attempts {
 		d.Attempts[i].Events = cloneEvents(d.Attempts[i].Events)
 	}
@@ -188,6 +209,14 @@ func (c *Collector) snapshot() Snapshot {
 }
 func cloneEvents(src map[string]float64) map[string]float64 {
 	out := make(map[string]float64, len(src))
+	for k, v := range src {
+		out[k] = v
+	}
+	return out
+}
+
+func cloneStrings(src map[string]string) map[string]string {
+	out := make(map[string]string, len(src))
 	for k, v := range src {
 		out[k] = v
 	}

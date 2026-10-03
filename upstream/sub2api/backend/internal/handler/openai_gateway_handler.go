@@ -883,6 +883,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 
 	// Generate session hash (header first; fallback to prompt_cache_key)
 	sessionHash := h.gatewayService.GenerateSessionHash(c, sessionHashBody)
+	service.RecordOpenAIRequestDiagnostics(c, sessionHashBody, sessionHash)
 	if h.rejectIfCyberSessionBlocked(c, apiKey, sessionHashBody, reqModel, cyberBlockFormatResponses) {
 		return
 	}
@@ -1007,6 +1008,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			zap.Float64("load_skew", scheduleDecision.LoadSkew),
 		)
 		account := selection.Account
+		requesttiming.SetDiagnostic(c.Request.Context(), "selected_account_id", strconv.FormatInt(account.ID, 10))
+		requesttiming.SetDiagnostic(c.Request.Context(), "schedule_layer", scheduleDecision.Layer)
+		requesttiming.SetDiagnostic(c.Request.Context(), "candidate_count", strconv.Itoa(scheduleDecision.CandidateCount))
 		if previousResponseID != "" && requestPlatform == service.PlatformOpenAI && !account.IsOpenAIApiKey() {
 			// The public Responses HTTP API supports previous_response_id on API-key
 			// accounts. OAuth/SetupToken upstreams do not, so keep searching instead
@@ -1231,6 +1235,8 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 						return
 					}
 					switchCount++
+					requesttiming.SetDiagnostic(c.Request.Context(), "account_switch_count", strconv.Itoa(switchCount))
+					requesttiming.SetDiagnostic(c.Request.Context(), "last_switch_reason", "upstream_failover")
 					if h.gatewayService.ShouldStopOpenAIOAuth429Failover(account, failoverErr.StatusCode, switchCount, &oauth429FailoverState) {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
@@ -1565,6 +1571,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	sessionHash := h.gatewayService.GenerateSessionHash(c, body)
 	promptCacheKey := h.gatewayService.ExtractSessionID(c, body)
 	sessionHash, promptCacheKey = resolveOpenAIMessagesMetadataSession(c, sessionHash, promptCacheKey, reqModel, body)
+	service.RecordOpenAIRequestDiagnostics(c, body, sessionHash)
 	if h.rejectIfCyberSessionBlocked(c, apiKey, body, reqModel, cyberBlockFormatAnthropic) {
 		return
 	}
@@ -1814,6 +1821,8 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 						return
 					}
 					switchCount++
+					requesttiming.SetDiagnostic(c.Request.Context(), "account_switch_count", strconv.Itoa(switchCount))
+					requesttiming.SetDiagnostic(c.Request.Context(), "last_switch_reason", "upstream_failover")
 					if h.gatewayService.ShouldStopOpenAIOAuth429Failover(account, failoverErr.StatusCode, switchCount, &oauth429FailoverState) {
 						h.handleAnthropicFailoverExhausted(c, failoverErr, streamStarted)
 						return
@@ -3001,6 +3010,8 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			return false
 		}
 		switchCount++
+		requesttiming.SetDiagnostic(c.Request.Context(), "account_switch_count", strconv.Itoa(switchCount))
+		requesttiming.SetDiagnostic(c.Request.Context(), "last_switch_reason", "upstream_failover")
 		if h.gatewayService.ShouldStopOpenAIOAuth429Failover(account, failoverErr.StatusCode, switchCount, &oauth429FailoverState) {
 			closeOpenAIWSFailoverExhausted(c, wsConn, failoverErr)
 			return false

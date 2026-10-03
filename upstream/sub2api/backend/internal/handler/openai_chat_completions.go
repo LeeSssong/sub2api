@@ -11,6 +11,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -148,6 +149,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 
 	sessionHash := h.gatewayService.GenerateSessionHash(c, body)
 	promptCacheKey := h.gatewayService.ExtractSessionID(c, body)
+	service.RecordOpenAIRequestDiagnostics(c, body, sessionHash)
 
 	maxAccountSwitches := h.maxAccountSwitches
 	switchCount := 0
@@ -226,6 +228,9 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			return
 		}
 		account := selection.Account
+		requesttiming.SetDiagnostic(c.Request.Context(), "selected_account_id", strconv.FormatInt(account.ID, 10))
+		requesttiming.SetDiagnostic(c.Request.Context(), "schedule_layer", scheduleDecision.Layer)
+		requesttiming.SetDiagnostic(c.Request.Context(), "candidate_count", strconv.Itoa(scheduleDecision.CandidateCount))
 		sessionHash = ensureOpenAIPoolModeSessionHash(sessionHash, account)
 		reqLog.Debug("openai_chat_completions.account_selected", zap.Int64("account_id", account.ID), zap.String("account_name", account.Name))
 		_ = scheduleDecision
@@ -398,6 +403,8 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 						return
 					}
 					switchCount++
+					requesttiming.SetDiagnostic(c.Request.Context(), "account_switch_count", strconv.Itoa(switchCount))
+					requesttiming.SetDiagnostic(c.Request.Context(), "last_switch_reason", "upstream_failover")
 					if h.gatewayService.ShouldStopOpenAIOAuth429Failover(account, failoverErr.StatusCode, switchCount, &oauth429FailoverState) {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
