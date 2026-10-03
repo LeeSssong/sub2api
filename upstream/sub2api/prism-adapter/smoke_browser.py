@@ -35,6 +35,7 @@ document.querySelector('textarea').addEventListener('keydown', async (e) => {
 
 class FixtureHandler(BaseHTTPRequestHandler):
     turns = []
+    anonymous = False
 
     def log_message(self, *_args):
         pass
@@ -48,6 +49,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
+        if self.path == '/api/auth/session':
+            self.send(json.dumps({'user': {'id': 'fixture-member', 'is_anonymous': self.anonymous}, 'userTier': 'logged_out' if self.anonymous else 'paid'}))
+            return
         self.send(PAGE, 'text/html')
 
     def do_POST(self):
@@ -87,10 +91,20 @@ def main():
                 assert projects[0] == projects[1] and projects[1] != projects[2]
                 receipts = [json.loads(p.read_text()) for p in state.receipts.iterdir()]
                 assert sorted(r['session_cache_hit'] for r in receipts) == [False, False, True]
+                FixtureHandler.anonymous = True
+                previous_starts = len(FixtureHandler.turns)
+                try:
+                    worker.run('301', 'synthetic-guest-token', 'must not submit', None)
+                    raise AssertionError('anonymous session was admitted')
+                except adapter.AdapterError as error:
+                    assert error.code == 'prism_login_required' and error.not_submitted
+                assert len(FixtureHandler.turns) == previous_starts
+                state.ensure_idle('301')
+                assert state.project('301') is None
                 print(json.dumps({
                     'browser_smoke': 'passed', 'start_count': len(FixtureHandler.turns),
                     'fresh_projects': len(set(projects)),
-                    'cache_hits': sum(r['session_cache_hit'] for r in receipts), 'real_upstream': False,
+                    'cache_hits': sum(r['session_cache_hit'] for r in receipts), 'real_upstream': False, 'anonymous_session_rejected': True,
                 }))
             finally:
                 worker.close()

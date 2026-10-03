@@ -255,6 +255,8 @@ class FakePage:
         self.url = adapter.BASE + "/?u=" + PROJECT
 
     def evaluate(self, _expression):
+        if "/api/auth/session" in _expression:
+            return {"status": 200, "user": {"id": True, "is_anonymous": False}}
         return True
 
     def get_by_role(self, *_args, **_kwargs):

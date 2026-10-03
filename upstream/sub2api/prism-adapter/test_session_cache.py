@@ -53,6 +53,45 @@ class SessionCacheTests(unittest.TestCase):
     def run_turn(self, account="300", token="fixture-token", session="a" * 64):
         return self.turn.run(account, token, "[user]\nfixture", session)
 
+    def test_guest_session_never_creates_project_or_pending_turn(self):
+        original = FakePage.evaluate
+        def evaluate(page, expression):
+            if '/api/auth/session' in expression:
+                return {'status': 200, 'user': {'id': True, 'is_anonymous': True}}
+            return original(page, expression)
+        with mock.patch.object(FakePage, 'evaluate', evaluate):
+            with self.assertRaises(adapter.AdapterError) as raised:
+                self.run_turn()
+        self.assertEqual(raised.exception.code, 'prism_login_required')
+        self.assertEqual(self.starts, [])
+        self.assertFalse(self.state.projects.exists())
+        self.state.ensure_idle('300')
+        self.assertFalse(self.turn.sessions)
+
+    def test_authenticated_editor_timeout_does_not_create_pending_or_submit(self):
+        original = adapter.BrowserRequest.run
+        def run(request, prompt, cache_hit):
+            page = request.session.page
+            page.locator = lambda _: types.SimpleNamespace(
+                wait_for=mock.Mock(side_effect=adapter.PlaywrightTimeoutError('fixture')))
+            return original(request, prompt, cache_hit)
+        with mock.patch.object(adapter.BrowserRequest, 'run', run):
+            with self.assertRaises(adapter.AdapterError) as raised:
+                self.run_turn()
+        self.assertEqual(raised.exception.code, 'prism_editor_unavailable')
+        self.assertEqual(self.starts, [])
+        self.state.ensure_idle('300')
+
+    def test_project_navigation_timeout_never_submits_model(self):
+        with mock.patch.object(FakePage, 'wait_for_function', side_effect=adapter.PlaywrightTimeoutError('fixture')):
+            with self.assertRaises(adapter.AdapterError) as raised:
+                self.run_turn()
+        self.assertEqual(raised.exception.code, 'prism_project_unavailable')
+        self.assertTrue(raised.exception.not_submitted)
+        self.assertEqual(self.starts, [])
+        self.assertFalse(self.state.projects.exists())
+        self.state.ensure_idle('300')
+
     def test_same_session_reuses_context_project_but_not_chat_or_answer(self):
         self.assertEqual(self.run_turn(), ("request-0", "request-0"))
         self.assertEqual(self.run_turn(), ("request-1", "request-1"))
