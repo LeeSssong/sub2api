@@ -20,8 +20,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
+from browser_session import require_session
 from model_selection import MODELS, EFFORTS, select_options
 from tool_bridge import ToolBridge, has_tools, strict_json
 from tool_state import ToolState, digest
@@ -333,7 +334,11 @@ class BrowserRequest:
     def run(self, prompt, cache_hit):
         page = self.session.page
         textarea = page.locator('textarea[placeholder="Ask anything"]')
-        textarea.wait_for(state="visible", timeout=90000)
+        require_session(page, AdapterError)
+        try:
+            textarea.wait_for(state="visible", timeout=30000)
+        except PlaywrightTimeoutError:
+            raise AdapterError(503, "prism_editor_unavailable", "Authenticated Prism chat editor is not ready; no model request was submitted", not_submitted=True) from None
         select_options(page, self.gate.model, self.gate.effort, AdapterError)
         textarea.fill(prompt)
         self.state.begin(self.account_id, self.session.project)
@@ -437,9 +442,13 @@ class BrowserTurn:
                 self.sessions[key] = session
                 page = session.page
                 page.goto(BASE, wait_until="domcontentloaded", timeout=60000)
+                require_session(page, AdapterError)
                 page.get_by_role("button", name="New", exact=True).click(timeout=60000)
                 page.get_by_role("menuitem", name="Blank project").click(timeout=60000)
-                page.wait_for_function("new URL(location.href).searchParams.has('u')", timeout=60000)
+                try:
+                    page.wait_for_function("new URL(location.href).searchParams.has('u')", timeout=30000)
+                except PlaywrightTimeoutError:
+                    raise AdapterError(503, "prism_project_unavailable", "Prism project navigation is not ready; no model request was submitted", not_submitted=True) from None
                 session.project = parse_qs(urlparse(page.url).query).get("u", [""])[0]
                 self.state.save_project(account_id, session.project)
                 page.goto(BASE + "/?u=" + session.project + "&pg=1", wait_until="domcontentloaded", timeout=60000)

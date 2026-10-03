@@ -211,11 +211,28 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
         project = await actor.create_project()
         self.assertIsNotNone(adapter.PROJECT_ID.fullmatch(project))
 
+    async def test_guest_poll_carrier_is_closed_before_project_creation(self):
+        actor = multiplex_browser.AccountBrowser(SimpleNamespace(api=adapter), '300', 'fixture')
+        page = mock.Mock()
+        page.url = adapter.BASE + '/'
+        page.evaluate = mock.AsyncMock(return_value={'status': 200, 'user': {'id': True, 'is_anonymous': True}})
+        page.add_init_script = mock.AsyncMock()
+        page.goto = mock.AsyncMock(return_value=SimpleNamespace(status=200))
+        context = mock.Mock(add_cookies=mock.AsyncMock(), new_page=mock.AsyncMock(return_value=page), close=mock.AsyncMock())
+        with mock.patch.object(multiplex_browser.BrowserGate, 'install', new=mock.AsyncMock()):
+            with self.assertRaises(adapter.AdapterError) as raised:
+                await actor.open(SimpleNamespace(new_context=mock.AsyncMock(return_value=context)), 'fixture')
+        self.assertEqual(raised.exception.code, 'prism_login_required')
+        self.assertTrue(raised.exception.not_submitted)
+        self.assertIsNone(actor.context)
+        self.assertFalse(actor.projects)
+
     async def test_poll_carrier_requires_the_official_fetch_wrapper_before_start(self):
         engine = SimpleNamespace(api=adapter)
         actor = multiplex_browser.AccountBrowser(engine, '300', 'fixture')
         page = mock.Mock()
         page.url = adapter.BASE + '/'
+        page.evaluate = mock.AsyncMock(return_value={'status': 200, 'user': {'id': True, 'is_anonymous': False}})
         page.add_init_script = mock.AsyncMock()
         page.wait_for_function = mock.AsyncMock(side_effect=TimeoutError('fixture'))
         page.goto = mock.AsyncMock(return_value=SimpleNamespace(status=200))

@@ -24,6 +24,16 @@ Prism 请求由适配器独立排队与限流，不参与原生账号的自动�
 
 每个请求先通过官方页面选择模型和思考强度，再核对 start 元数据中的实际值。缓存命中也重新检查，响应与终态回执保留本次模型和强度；并发请求不修改全局默认值，也不将新模型静默替换为 `gpt-5.6-sol`。账号页面没有对应选项时，发送前返回 `model_unavailable` 或 `reasoning_unavailable`（HTTP 422）；未知模型 ID 返回 `unsupported_model`。Beta 开关属于 Prism 账号设置，适配器不会自动修改它；开启 Beta 或在配置接口看到模型名都不能替代真实调用验收。
 
+## 登录准入及初始化错误
+
+适配器现在通过官方页面的 `/api/auth/session` 检查已登录身份，在创建项目之前和进入聊天之前均拒绝访客或登出状态。仅有 HTTP 200、session token 或可见 textarea 不构成登录成功；`user.is_anonymous` 必须明确为 false。该检查不提取或保存 Prism session token，不改变官方登录、套餐或权益。
+
+- `prism_login_required`（422）：当前凭据在 Prism 解析为访客或登出身份；请求未提交，不创建匿名项目。OpenAI OAuth token 未过期也不证明 Prism 已登录。
+- `prism_session_unavailable`（503）：会话检查网络失败或上游服务不可用，不混称为账号登录失败。
+- `prism_project_unavailable` / `prism_editor_unavailable`（503）：项目跳转或已登录页面的聊天编辑器未就绪；请求未提交，不通过任意 textarea 猜测聊天入口。
+
+2026-10-03 账号 #492 的实际页面返回 `is_anonymous=true`、`userTier=logged_out` 和 `hadOpenAiRecoveryCredential=false`；旧式 `prism_oai_access_token` cookie 未完成当前网站的登录交接。新检查修复错误识别及未登录时的项目/模型准入，**不提供新的 Prism 登录凭据获取机制，也不宣称该账号真实推理已恢复**。当前仍需确认并接入官方支持的登录交接才能验收该账号。不得注入伪造 session、关闭浏览器验证或删除 pending 绕过限制。
+
 ## 协议边界
 
 页面初始化时可能出现官方配置 SDK 已 Ready，但 React 仍停留在 loading、只展示默认 `5.6 Sol` 的状态。适配器等待 SDK 就绪后，用 `getContext().user` 原样调用官方 `updateUserAsync` 刷新该页配置，再操作模型菜单；不会改写用户属性、套餐、Beta 标记或模型配置。准备阶段等待有上限，目录未就绪时返回 `model_catalog_unavailable`（503），不会提交模型请求。

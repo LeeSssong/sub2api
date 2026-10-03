@@ -14,10 +14,11 @@ from collections import OrderedDict
 from pathlib import Path
 from urllib.parse import urlparse
 
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
 from multiplex_runtime import Admission, TurnJournal
 from browser_gate import BrowserGate
+from browser_session import require_session_async
 from model_selection import select_options_async
 
 
@@ -89,6 +90,7 @@ class AccountBrowser:
             response = await self.page.goto(self.api.BASE, wait_until='domcontentloaded', timeout=60000)
             if not response or response.status != 200 or not self.page.url.startswith(self.api.BASE + '/'):
                 raise self.api.AdapterError(503, 'poll_carrier_unavailable', 'Prism official polling page is unavailable')
+            await require_session_async(self.page, self.api.AdapterError)
             try:
                 await self.page.wait_for_function("""() => window.__prismOriginalFetch &&
                     window.fetch !== window.__prismOriginalFetch && window.SentinelSDK &&
@@ -240,7 +242,11 @@ class BrowserStart:
             await page.goto(self.api.BASE + '/?u=' + self.project + '&pg=1', wait_until='domcontentloaded', timeout=60000)
         self.phase = 'waiting_editor'
         textarea = page.locator('textarea[placeholder="Ask anything"]')
-        await textarea.wait_for(state='visible', timeout=60000)
+        await require_session_async(page, self.api.AdapterError)
+        try:
+            await textarea.wait_for(state='visible', timeout=30000)
+        except PlaywrightTimeoutError:
+            raise self.api.AdapterError(503, 'prism_editor_unavailable', 'Authenticated Prism chat editor is not ready; no model request was submitted', not_submitted=True) from None
         self.phase = 'selecting_model_and_effort'
         await select_options_async(page, self.model, self.effort, self.api.AdapterError)
         self.phase = 'submitting'

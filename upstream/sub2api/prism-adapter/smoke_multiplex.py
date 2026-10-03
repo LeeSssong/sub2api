@@ -60,6 +60,9 @@ class Fixture(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
+        if self.path == '/api/auth/session':
+            self.reply(200, json.dumps({'user': {'id': 'fixture-member', 'is_anonymous': False}, 'userTier': 'paid'}))
+            return
         if self.path == '/fixture-app.js':
             with self.server.lock:
                 self.server.asset_requests += 1
