@@ -41,6 +41,19 @@ func TestFinishAndBindingEitherOrder(t *testing.T) {
 		})
 	}
 }
+
+func TestDiagnosticsAreCopiedIntoSnapshot(t *testing.T) {
+	c := New(time.Now(), 0)
+	ctx := With(context.Background(), c)
+	SetDiagnostic(ctx, "session_source", "header")
+	SetDiagnostic(ctx, "prefix_hash", "abc123")
+	c.Finish(200, false)
+	var got Snapshot
+	c.WhenFinished(func(s Snapshot) { got = s })
+	if got.Diagnostics["session_source"] != "header" || got.Diagnostics["prefix_hash"] != "abc123" {
+		t.Fatalf("diagnostics were not persisted: %#v", got.Diagnostics)
+	}
+}
 func TestConcurrentCallbacksAndBounds(t *testing.T) {
 	c := New(time.Now(), -1)
 	ctx := With(context.Background(), c)

@@ -36,3 +36,20 @@ func TestRequestTimingPreReadAndHandlerRead(t *testing.T) {
 		t.Fatalf("bad trace %+v", got)
 	}
 }
+
+func TestRequestTimingCapturesChatCompletions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(RequestTiming())
+	var got requesttiming.Snapshot
+	r.POST("/v1/chat/completions", func(c *gin.Context) {
+		_, _ = io.ReadAll(c.Request.Body)
+		requesttiming.From(c.Request.Context()).WhenFinished(func(s requesttiming.Snapshot) { got = s })
+		c.String(http.StatusOK, "ok")
+	})
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader("{}")))
+	if got.Status != http.StatusOK || got.BodyBytes != 2 {
+		t.Fatalf("chat timing was not captured: %+v", got)
+	}
+}
