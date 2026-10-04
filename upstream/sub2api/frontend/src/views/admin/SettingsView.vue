@@ -7210,7 +7210,6 @@
                 </div>
               </div>
 
-              <button type="button" class="btn btn-secondary mb-3" @click="addIntelligenceMenuItem">添加智商监测页面</button>
               <!-- Add button -->
               <button
                 type="button"
@@ -11445,11 +11444,6 @@ async function setAndCopyOIDCRedirectUrl() {
 }
 
 // Custom menu item management
-function addIntelligenceMenuItem() {
-  if (form.custom_menu_items.some(item => item.url === '/intelligence-test')) return;
-  form.custom_menu_items.push({ id: 'intelligence-test', label: '智商监测', icon_svg: '', url: '/intelligence-test', visibility: 'user', sort_order: form.custom_menu_items.length, hide_open_button: true });
-}
-
 function addMenuItem() {
   form.custom_menu_items.push({
     id: "",

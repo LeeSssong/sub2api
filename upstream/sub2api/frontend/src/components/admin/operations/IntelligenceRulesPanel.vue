@@ -85,26 +85,26 @@
                 maxlength="100"
                 placeholder="gpt-6-astra"
                 data-testid="intelligence-model" /></label
-            ><label
-              >执行频率<select v-model="draft.cron_expression" class="input">
+            ><label for="intelligence-cron"
+              >监测频率（Cron 表达式）
+              <input
+                id="intelligence-cron"
+                v-model.trim="draft.cron_expression"
+                class="input font-mono"
+                required
+                maxlength="100"
+                placeholder="*/30 * * * *"
+                list="intelligence-cron-presets"
+                data-testid="intelligence-cron"
+              />
+              <datalist id="intelligence-cron-presets">
                 <option value="*/15 * * * *">每 15 分钟</option>
                 <option value="*/30 * * * *">每 30 分钟</option>
                 <option value="0 * * * *">每小时</option>
                 <option value="0 */2 * * *">每 2 小时</option>
-                <option
-                  :value="draft.cron_expression"
-                  v-if="
-                    ![
-                      '*/15 * * * *',
-                      '*/30 * * * *',
-                      '0 * * * *',
-                      '0 */2 * * *',
-                    ].includes(draft.cron_expression)
-                  "
-                >
-                  {{ draft.cron_expression }}
-                </option>
-              </select></label
+              </datalist>
+              <small class="rule-help">分 时 日 月 周，可直接输入自定义表达式。</small>
+            </label
             ><label
               >推理强度<select v-model="draft.reasoning_effort" class="input">
                 <option
