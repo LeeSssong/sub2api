@@ -56,7 +56,6 @@ function group(value: unknown, path: string): MonitorV4Group {
   if ((ttftP95 === null) !== (ttftSampleCount === 0) || (latencyP95 === null) !== (latencySampleCount === 0)) throw new MonitorV4ContractError(`${path} P95 values do not match sample counts`)
   if (cacheHitRate !== null && cacheHitRate > 1) throw new MonitorV4ContractError(`${path}.cache_hit_rate must be <= 1`)
   const sourceUpdatedAt = source.source_updated_at == null || source.source_updated_at === '' ? null : text(source.source_updated_at, `${path}.source_updated_at`)
-  if (typeof source.current_operational !== 'boolean') throw new MonitorV4ContractError(`${path} status flags are invalid`)
   return {
     id, name, platform,
     status: typeof source.status === "string" ? source.status : undefined,
@@ -74,7 +73,6 @@ function group(value: unknown, path: string): MonitorV4Group {
     cache_creation_tokens: source.cache_creation_tokens == null ? 0 : number(source.cache_creation_tokens, `${path}.cache_creation_tokens`, true),
     cache_hit_denominator: source.cache_hit_denominator == null ? 0 : number(source.cache_hit_denominator, `${path}.cache_hit_denominator`, true),
     source_updated_at: sourceUpdatedAt,
-    current_operational: source.current_operational,
   }
 }
 

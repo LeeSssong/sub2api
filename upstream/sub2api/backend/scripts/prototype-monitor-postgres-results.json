@@ -1,6 +1,6 @@
 {
   "database": "postgres:16-alpine",
-  "container": "codex-parity-pg-503699b316",
+  "container": "codex-parity-pg-1b5ca30963",
   "network": "none",
   "published_ports": false,
   "checks": [
@@ -30,6 +30,16 @@
       "details": null
     },
     {
+      "name": "migration 241 removes operational flag",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "migration 241 preserves existing snapshot",
+      "passed": true,
+      "details": null
+    },
+    {
       "name": "real P50 interpolates four native selected samples",
       "passed": true,
       "details": {
@@ -53,17 +63,17 @@
       "details": null
     },
     {
-      "name": "fresh successful first token is operational",
+      "name": "projection excludes the removed flag",
       "passed": true,
       "details": null
     },
     {
-      "name": "latest first token beyond 15s is not operational",
+      "name": "real request counts exclude probes",
       "passed": true,
       "details": null
     },
     {
-      "name": "latest observation older than five minutes is not operational",
+      "name": "hourly counts retain requests older than five minutes",
       "passed": true,
       "details": null
     },
@@ -89,6 +99,16 @@
     },
     {
       "name": "production snapshot INSERT and SELECT preserve P50 separately",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "snapshot preserves real request counts without operational flag",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "rollback column restoration preserves snapshot counts",
       "passed": true,
       "details": null
     }

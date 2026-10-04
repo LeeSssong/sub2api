@@ -191,18 +191,6 @@ func TestCancelledCheckNeverLabelsAnActiveLineDisabled(t *testing.T) {
 	}
 }
 
-func TestCurrentOperationalExpiresAndHonorsManagementState(t *testing.T) {
-	now := time.Now()
-	fresh := now.Add(-time.Minute)
-	withinJitterBudget := now.Add(-6 * time.Minute)
-	stale := now.Add(-8 * time.Minute)
-	require.True(t, monitorV4CurrentOperational(MonitorV4Group{Status: StatusActive, CurrentOperational: true, SourceUpdatedAt: &fresh}, now))
-	require.True(t, monitorV4CurrentOperational(MonitorV4Group{Status: StatusActive, CurrentOperational: true, SourceUpdatedAt: &withinJitterBudget}, now))
-	require.False(t, monitorV4CurrentOperational(MonitorV4Group{Status: StatusActive, CurrentOperational: true, SourceUpdatedAt: &stale}, now))
-	require.False(t, monitorV4CurrentOperational(MonitorV4Group{Status: "inactive", CurrentOperational: true, SourceUpdatedAt: &fresh}, now))
-	require.False(t, monitorV4CurrentOperational(MonitorV4Group{Status: StatusActive, CurrentOperational: true}, now))
-}
-
 type mappedMonitorGroupRepo struct{ monitorV4GroupRepoStub }
 
 func (s *mappedMonitorGroupRepo) ReadGroupToolMappings(_ context.Context, ids []int64) (map[int64]GroupToolMapping, error) {

@@ -72,6 +72,11 @@ migration_set_sha256=$(ruby -rdigest -e '
 ' "$migrations_dir") || fail 'could not compute migration hash'
 [[ "$migration_set_sha256" =~ ^[a-f0-9]{64}$ ]] || fail 'migration hash is invalid'
 
+allow_downtime=${TEST_STATION_ALLOW_DOWNTIME:-false}
+[[ "$allow_downtime" == true || "$allow_downtime" == false ]] || fail 'invalid downtime permission'
+route_health_migration=false
+[[ ! -f "$migrations_dir/241_remove_monitor_v4_operational_flag.sql" ]] || route_health_migration=true
+
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/sub2api-test-station-release.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 image="sub2api-test-station-runtime:$source_commit"
@@ -95,7 +100,7 @@ scp -q "${ssh_opts[@]}" "$tmp/image.tar" "$tmp/image.sha256" "$tmp/compose.yaml"
   "$tmp/backup-sub2api-test-station-host.sh" "$tmp/deploy-sub2api-test-station-host.sh" \
   "$target:$remote/" || fail 'bundle transfer failed'
 if ! ssh -T "${ssh_opts[@]}" "$target" \
-  "sudo -n bash '$remote/deploy-sub2api-test-station-host.sh' --staging-root '$remote' --image-archive '$remote/image.tar' --image-sha256 '$archive_sha256' --image-id '$image_id' --compose '$remote/compose.yaml' --caddy '$remote/Caddyfile' --backup-script '$remote/backup-sub2api-test-station-host.sh' --source-commit '$source_commit' --source-tree '$source_tree' --migration-set-sha256 '$migration_set_sha256' --deploy-root '$deploy_root'"; then
+  "sudo -n bash '$remote/deploy-sub2api-test-station-host.sh' --staging-root '$remote' --image-archive '$remote/image.tar' --image-sha256 '$archive_sha256' --image-id '$image_id' --compose '$remote/compose.yaml' --caddy '$remote/Caddyfile' --backup-script '$remote/backup-sub2api-test-station-host.sh' --source-commit '$source_commit' --source-tree '$source_tree' --migration-set-sha256 '$migration_set_sha256' --deploy-root '$deploy_root' --route-health-migration '$route_health_migration' --allow-downtime '$allow_downtime'"; then
   reconciled=false
   for ((attempt=1; attempt<=release_reconcile_attempts; attempt++)); do
     if remote_release_succeeded; then

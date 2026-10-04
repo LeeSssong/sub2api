@@ -45,9 +45,12 @@ canonical_file(){
 }
 
 staging_root='' image_archive='' image_sha256='' image_id='' compose_file='' caddy_file=''
+route_health_migration=false allow_downtime=false route_health_rollback=false
 backup_script='' source_commit='' source_tree='' migration_set_sha256='' deploy_root=''
 while (($#)); do
   case "$1" in
+    --route-health-migration) route_health_migration=${2:?}; shift 2 ;;
+    --allow-downtime) allow_downtime=${2:?}; shift 2 ;;
     --staging-root) (($# >= 2)) || fail '--staging-root requires a value'; staging_root=$2; shift 2 ;;
     --image-archive) (($# >= 2)) || fail '--image-archive requires a value'; image_archive=$2; shift 2 ;;
     --image-sha256) (($# >= 2)) || fail '--image-sha256 requires a value'; image_sha256=$2; shift 2 ;;
@@ -63,6 +66,8 @@ while (($#)); do
   esac
 done
 
+[[ "$route_health_migration" == true || "$route_health_migration" == false ]] || fail 'invalid route migration flag'
+[[ "$allow_downtime" == true || "$allow_downtime" == false ]] || fail 'invalid downtime permission'
 staging_root=$(canonical_directory "$staging_root" 'staging root')
 for value in "$image_archive" "$compose_file" "$caddy_file" "$backup_script"; do
   [[ "$value" == "$staging_root"/* ]] || fail 'bundle file is outside staging root'
@@ -128,6 +133,20 @@ previous_image_id=$($docker_bin image inspect --format '{{.Id}}' "$previous_imag
 [[ "$previous_image_id" =~ ^sha256:[a-f0-9]{64}$ ]] || fail 'previous image is missing'
 active_image_id=$($docker_bin inspect --format '{{.Image}}' "$active_api_container" 2>/dev/null | tr -d '[:space:]')
 [[ "$active_image_id" == "$previous_image_id" ]] || fail 'previous image does not match active API container'
+
+previous_compose=("$docker_bin" compose --project-name sub2api-test-station --env-file "$previous_env" -f "$active_compose")
+if [[ "$route_health_migration" == true ]]; then
+  column_present=$("${previous_compose[@]}" exec -T test-station-postgres sh -c 'exec psql -X -v ON_ERROR_STOP=1 -At -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='account_monitor_v4_snapshots' AND column_name='current_operational');
+SQL
+  ) || fail 'route health schema preflight failed'
+  [[ "$column_present" == t || "$column_present" == f ]] || fail 'invalid route health schema response'
+  printf 'test_station_preflight downtime_required=%s migration=241\n' "$([[ "$column_present" == t ]] && printf true || printf false)" >&2
+  if [[ "$column_present" == t ]]; then
+    [[ "$allow_downtime" == true ]] || fail 'downtime_required=true: migration 241 requires stopping old services'
+    route_health_rollback=true
+  fi
+fi
 
 backup_timestamp=${TEST_STATION_BACKUP_TIMESTAMP:-$(date -u +%Y%m%dT%H%M%SZ)}
 backup_output=$(EVENT_LOG="${EVENT_LOG:-}" FAKE_MODE="${FAKE_MODE:-}" DEPLOY_ROOT="$deploy_root" \
@@ -252,6 +271,15 @@ PY
 }
 
 restore_previous(){
+  if [[ "$route_health_rollback" == true ]]; then
+    "${candidate_compose[@]}" stop test-station-api test-station-worker test-station-detector >/dev/null || return 1
+    "${previous_compose[@]}" exec -T test-station-postgres sh -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null <<'SQL' || return 1
+BEGIN;
+ALTER TABLE account_monitor_v4_snapshots ADD COLUMN IF NOT EXISTS current_operational BOOLEAN NOT NULL DEFAULT FALSE;
+DELETE FROM schema_migrations WHERE filename='241_remove_monitor_v4_operational_flag.sql';
+COMMIT;
+SQL
+  fi
   "${previous_compose[@]}" up -d --remove-orphans >/dev/null || return 1
   wait_for_services previous || return 1
   wait_for_probes || return 1
@@ -288,6 +316,11 @@ candidate_failed(){
 }
 
 candidate_started=true
+if [[ "$route_health_rollback" == true ]]; then
+  if ! "${previous_compose[@]}" stop test-station-api test-station-worker test-station-detector >/dev/null; then
+    candidate_failed stop_previous
+  fi
+fi
 if ! "${candidate_compose[@]}" up -d --remove-orphans >/dev/null; then
   candidate_failed compose_start
 fi

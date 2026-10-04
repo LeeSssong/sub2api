@@ -111,13 +111,13 @@ func TestAccountMonitorRepositoryProjectMonitorV4UsesLogicalRequestProjection(t 
 	start := time.Date(2026, 8, 28, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
 	updatedAt := end.Add(-time.Minute)
-	mock.ExpectQuery(`(?s)WITH scopes AS.*groups AS.*buckets AS.*raw_usage_candidates AS.*unknown_usage_keys AS.*SELECT DISTINCT u\.group_id, NULLIF\(u\.request_id, ''\).*SELECT DISTINCT u\.group_id, NULLIF\(u\.logical_request_id, ''\).*error_candidates AS.*NOT EXISTS.*unknown_usage_keys.*real_events AS.*PARTITION BY rc\.group_id, rc\.request_key.*probe_rows AS.*probe_runs AS.*selected_events AS.*FROM probe_runs.*PERCENTILE_CONT\(0\.5\).*first_token_ms.*PERCENTILE_CONT\(0\.5\).*duration_ms.*SUM\(s\.input_tokens \+ s\.cache_creation_tokens \+ s\.cache_read_tokens\) FILTER \(WHERE s\.successful\).*AS cache_hit_denominator.*ls\.successful AND ls\.observed_at >= .*5 minutes.*ls\.first_token_ms IS NOT NULL AND ls\.first_token_ms <= 15000.*SELECT group_id, success_rate, request_count, success_count, real_request_count, real_success_count,.*ttft_p95_ms, ttft_sample_count,.*latency_p95_ms, latency_sample_count, input_tokens, cache_read_tokens, cache_creation_tokens,.*cache_hit_denominator, cache_hit_rate, source_updated_at, current_operational`).
+	mock.ExpectQuery(`(?s)WITH scopes AS.*groups AS.*buckets AS.*raw_usage_candidates AS.*unknown_usage_keys AS.*SELECT DISTINCT u\.group_id, NULLIF\(u\.request_id, ''\).*SELECT DISTINCT u\.group_id, NULLIF\(u\.logical_request_id, ''\).*error_candidates AS.*NOT EXISTS.*unknown_usage_keys.*real_events AS.*PARTITION BY rc\.group_id, rc\.request_key.*probe_rows AS.*probe_runs AS.*selected_events AS.*FROM probe_runs.*PERCENTILE_CONT\(0\.5\).*first_token_ms.*PERCENTILE_CONT\(0\.5\).*duration_ms.*SUM\(s\.input_tokens \+ s\.cache_creation_tokens \+ s\.cache_read_tokens\) FILTER \(WHERE s\.successful\).*AS cache_hit_denominator.*SELECT group_id, success_rate, request_count, success_count, real_request_count, real_success_count,.*ttft_p95_ms, ttft_sample_count,.*latency_p95_ms, latency_sample_count, input_tokens, cache_read_tokens, cache_creation_tokens,.*cache_hit_denominator, cache_hit_rate, source_updated_at`).
 		WithArgs(start, end, "5m0s", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"group_id", "success_rate", "request_count", "success_count", "real_request_count", "real_success_count",
 			"probe_fallback_bucket_count", "probe_fallback_request_count", "missing_probe_terminal_count", "ttft_p95_ms", "ttft_sample_count",
-			"latency_p95_ms", "latency_sample_count", "input_tokens", "cache_read_tokens", "cache_creation_tokens", "cache_hit_denominator", "cache_hit_rate", "source_updated_at", "current_operational", "ttft_p50_ms", "latency_p50_ms",
-		}).AddRow(7, 75.0, 4, 3, 2, 1, 2, 2, 0, 120.0, 2, 800.0, 3, 60, 30, 10, 100, 0.3, updatedAt, true, 90.0, 600.0))
+			"latency_p95_ms", "latency_sample_count", "input_tokens", "cache_read_tokens", "cache_creation_tokens", "cache_hit_denominator", "cache_hit_rate", "source_updated_at", "ttft_p50_ms", "latency_p50_ms",
+		}).AddRow(7, 75.0, 4, 3, 2, 1, 2, 2, 0, 120.0, 2, 800.0, 3, 60, 30, 10, 100, 0.3, updatedAt, 90.0, 600.0))
 
 	projection, err := projector.ProjectMonitorV4Groups(context.Background(), []service.MonitorV2GroupAccountScope{{GroupID: 7, AccountID: 11}}, start, end, 5*time.Minute)
 	if err != nil {
@@ -141,7 +141,7 @@ func TestAccountMonitorRepositoryProjectMonitorV4UsesLogicalRequestProjection(t 
 	if *row.CacheHitRate < 0 || *row.CacheHitRate > 1 {
 		t.Fatalf("cache hit rate must be a 0..1 ratio, got %v", *row.CacheHitRate)
 	}
-	if !row.CurrentOperational || row.SourceUpdatedAt == nil || !row.SourceUpdatedAt.Equal(updatedAt) {
+	if row.SourceUpdatedAt == nil || !row.SourceUpdatedAt.Equal(updatedAt) {
 		t.Fatalf("status projection = %#v", row)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -162,13 +162,13 @@ func TestAccountMonitorRepositoryProjectMonitorV4ReportsMissingProbeWithoutServi
 	}
 	start := time.Date(2026, 8, 27, 0, 0, 0, 0, time.UTC)
 	end := start.Add(10*time.Minute + 30*time.Second)
-	mock.ExpectQuery(`(?s)WITH scopes AS.*groups AS.*buckets AS.*probe_rows AS.*probe_runs AS.*selected_events AS.*FROM probe_runs.*latest_selected AS`).
+	mock.ExpectQuery(`(?s)WITH scopes AS.*groups AS.*buckets AS.*probe_rows AS.*probe_runs AS.*selected_events AS.*FROM probe_runs.*metric_arrays AS`).
 		WithArgs(start, end, "5m0s", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"group_id", "success_rate", "request_count", "success_count", "real_request_count", "real_success_count",
 			"probe_fallback_bucket_count", "probe_fallback_request_count", "missing_probe_terminal_count", "ttft_p95_ms", "ttft_sample_count",
-			"latency_p95_ms", "latency_sample_count", "input_tokens", "cache_read_tokens", "cache_creation_tokens", "cache_hit_denominator", "cache_hit_rate", "source_updated_at", "current_operational", "ttft_p50_ms", "latency_p50_ms",
-		}).AddRow(7, nil, 0, 0, 0, 0, 0, 0, 0, nil, 0, nil, 0, 0, 0, 0, 0, nil, nil, false, nil, nil))
+			"latency_p95_ms", "latency_sample_count", "input_tokens", "cache_read_tokens", "cache_creation_tokens", "cache_hit_denominator", "cache_hit_rate", "source_updated_at", "ttft_p50_ms", "latency_p50_ms",
+		}).AddRow(7, nil, 0, 0, 0, 0, 0, 0, 0, nil, 0, nil, 0, 0, 0, 0, 0, nil, nil, nil, nil))
 
 	projection, err := projector.ProjectMonitorV4GroupsForGroups(
 		context.Background(), []int64{7}, nil, start, end, 5*time.Minute,
@@ -186,7 +186,7 @@ func TestAccountMonitorRepositoryProjectMonitorV4ReportsMissingProbeWithoutServi
 	if row.MissingProbeTerminalCount != 0 {
 		t.Fatalf("missing-probe terminal count = %d, want 0", row.MissingProbeTerminalCount)
 	}
-	if row.TTFTP95MS != nil || row.LatencyP95MS != nil || row.CacheHitRate != nil || row.CurrentOperational {
+	if row.TTFTP95MS != nil || row.LatencyP95MS != nil || row.CacheHitRate != nil {
 		t.Fatalf("missing-probe timing/status = %#v", row)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -212,8 +212,8 @@ func TestAccountMonitorRepositoryProjectMonitorV4ConstructsGroupMatrixWithoutAcc
 		WillReturnRows(sqlmock.NewRows([]string{
 			"group_id", "success_rate", "request_count", "success_count", "real_request_count", "real_success_count",
 			"probe_fallback_bucket_count", "probe_fallback_request_count", "missing_probe_terminal_count", "ttft_p95_ms", "ttft_sample_count",
-			"latency_p95_ms", "latency_sample_count", "input_tokens", "cache_read_tokens", "cache_creation_tokens", "cache_hit_denominator", "cache_hit_rate", "source_updated_at", "current_operational", "ttft_p50_ms", "latency_p50_ms",
-		}).AddRow(99, nil, 0, 0, 0, 0, 0, 0, 0, nil, 0, nil, 0, 0, 0, 0, 0, nil, nil, false, nil, nil))
+			"latency_p95_ms", "latency_sample_count", "input_tokens", "cache_read_tokens", "cache_creation_tokens", "cache_hit_denominator", "cache_hit_rate", "source_updated_at", "ttft_p50_ms", "latency_p50_ms",
+		}).AddRow(99, nil, 0, 0, 0, 0, 0, 0, 0, nil, 0, nil, 0, 0, 0, 0, 0, nil, nil, nil, nil))
 
 	projection, err := projector.ProjectMonitorV4GroupsForGroups(
 		context.Background(), []int64{99}, nil, start, end, 5*time.Minute,

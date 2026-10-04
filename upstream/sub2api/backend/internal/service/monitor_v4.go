@@ -11,10 +11,9 @@ import (
 )
 
 const (
-	MonitorV4ContractVersion      = "2"
-	MonitorV4BucketSize           = 5 * time.Minute
-	monitorV4MaxGroups            = 100
-	monitorV4OperationalFreshness = 7 * time.Minute
+	MonitorV4ContractVersion = "2"
+	MonitorV4BucketSize      = 5 * time.Minute
+	monitorV4MaxGroups       = 100
 )
 
 type MonitorV4Window string
@@ -91,7 +90,6 @@ type MonitorV4Group struct {
 	CacheCreationTokens       int64
 	CacheHitDenominator       int64
 	SourceUpdatedAt           *time.Time
-	CurrentOperational        bool
 }
 
 type MonitorV4Snapshot struct {
@@ -198,9 +196,6 @@ func (s *MonitorV4Service) Snapshot(ctx context.Context, userID int64, window Mo
 	snapshot, err := s.snapshotWithGroups(ctx, window, stored.GeneratedAt, stored.WindowStart, visibleGroups, stored.Groups)
 	if err != nil {
 		return nil, err
-	}
-	for i := range snapshot.Groups {
-		snapshot.Groups[i].CurrentOperational = monitorV4CurrentOperational(snapshot.Groups[i], now)
 	}
 	return snapshot, nil
 }
@@ -312,7 +307,7 @@ func (s *MonitorV4Service) snapshotWithGroups(ctx context.Context, window Monito
 			TTFTP95MS: projection.TTFTP95MS, TTFTSampleCount: projection.TTFTSampleCount,
 			LatencyP95MS: projection.LatencyP95MS, LatencySampleCount: projection.LatencySampleCount,
 			CacheHitRate: projection.CacheHitRate, CacheReadTokens: projection.CacheReadTokens, CacheCreationTokens: projection.CacheCreationTokens, CacheHitDenominator: projection.CacheHitDenominator,
-			SourceUpdatedAt: projection.SourceUpdatedAt, CurrentOperational: projection.CurrentOperational,
+			SourceUpdatedAt: projection.SourceUpdatedAt,
 		})
 	}
 	refreshIntervalSeconds := MonitorPageRefreshIntervalSecondsDefault
@@ -336,8 +331,4 @@ func monitorV4WindowStart(window MonitorV4Window, now time.Time) (time.Time, err
 	default:
 		return time.Time{}, fmt.Errorf("unsupported monitor window %q", window)
 	}
-}
-
-func monitorV4CurrentOperational(group MonitorV4Group, now time.Time) bool {
-	return group.Status == StatusActive && group.CurrentOperational && group.SourceUpdatedAt != nil && !group.SourceUpdatedAt.After(now) && !group.SourceUpdatedAt.Before(now.Add(-monitorV4OperationalFreshness))
 }

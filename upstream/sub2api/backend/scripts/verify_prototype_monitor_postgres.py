@@ -88,6 +88,9 @@ CREATE TABLE ops_error_logs(id bigserial PRIMARY KEY,group_id bigint,account_id 
         sql((ROOT/'migrations'/migration).read_text())
         check('migration executes: '+migration, True)
     check('legacy operational flag invalidated and P50 starts unknown', sql('SELECT (NOT current_operational AND ttft_p50_ms IS NULL AND latency_p50_ms IS NULL) FROM account_monitor_v4_snapshots;') == 't')
+    sql((ROOT/'migrations'/'241_remove_monitor_v4_operational_flag.sql').read_text())
+    check('migration 241 removes operational flag', sql("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='account_monitor_v4_snapshots' AND column_name='current_operational';") == '0')
+    check('migration 241 preserves existing snapshot', sql('SELECT COUNT(*) FROM account_monitor_v4_snapshots;') == '1')
     sql('''INSERT INTO usage_logs(group_id,account_id,created_at,first_token_ms,duration_ms,input_tokens,cache_creation_tokens,cache_read_tokens,request_id,usage_completeness)
  VALUES(7,12,'2026-09-20T11:55:00Z',100,1000,10,0,0,'real-1','complete'),
  (7,12,'2026-09-20T11:56:00Z',200,3000,10,0,0,'real-2','complete'),
@@ -103,11 +106,10 @@ CREATE TABLE ops_error_logs(id bigserial PRIMARY KEY,group_id bigint,account_id 
         window_row = rows(bind(projection, window_args))[0]
         check('real P50 window '+window, window_row['ttft_p50_ms']==300 and window_row['latency_p50_ms']==4000)
     check('manual group probe does not contaminate another group sharing account', projected[7]['request_count'] == 4 and projected[8]['request_count'] == 0 and projected[8]['ttft_p50_ms'] is None)
-    check('fresh successful first token is operational', projected[7]['current_operational'] is True and projected[8]['current_operational'] is False)
-    sql('UPDATE account_monitor_results SET ttft_ms=16001 WHERE group_id=7;')
-    check('latest first token beyond 15s is not operational', rows(bind(projection,projection_args))[0]['current_operational'] is False)
+    check('projection excludes the removed flag', all('current_operational' not in row for row in projected.values()))
+    check('real request counts exclude probes', projected[7]['real_request_count'] == 3 and projected[7]['real_success_count'] == 3 and projected[8]['real_request_count'] == 0)
     sql("UPDATE account_monitor_results SET ttft_ms=400,checked_at='2026-09-20T11:50:00Z' WHERE group_id=7; UPDATE usage_logs SET created_at='2026-09-20T11:50:00Z';")
-    check('latest observation older than five minutes is not operational', rows(bind(projection,projection_args))[0]['current_operational'] is False)
+    check('hourly counts retain requests older than five minutes', rows(bind(projection,projection_args))[0]['real_request_count'] == 3)
     sql("UPDATE account_monitor_results SET checked_at='2026-09-20T11:59:00Z' WHERE group_id=7;")
     source = (ROOT/'internal/repository/account_monitor_repo.go').read_text()
     v2_start = source.index('WITH scopes AS (', source.index('func (r *accountMonitorRepository) ProjectMonitorV2Groups'))
@@ -124,10 +126,13 @@ CREATE TABLE ops_error_logs(id bigserial PRIMARY KEY,group_id bigint,account_id 
     check('unmapped group has no inferred tool mapping',sql('SELECT COUNT(*) FROM group_tool_mappings WHERE group_id=8;')=='0')
     insert_snapshot=query('internal/repository/monitor_v4_snapshot_repo.go','INSERT INTO account_monitor_v4_snapshots (')
     sql('DELETE FROM account_monitor_v4_snapshots;')
-    sql(bind(insert_snapshot,['1h',7,'7d4b56d2-8223-4f77-8d22-f6a93d818980','2026-09-20T12:00:00Z','2026-09-20T11:00:00Z','2026-09-20T12:00:00Z','2',100,4,4,3,3,1,1,0,425,4,4500,4,0,'2026-09-20T11:59:00Z',True,300,4000]))
+    sql(bind(insert_snapshot,['1h',7,'7d4b56d2-8223-4f77-8d22-f6a93d818980','2026-09-20T12:00:00Z','2026-09-20T11:00:00Z','2026-09-20T12:00:00Z','2',100,4,4,3,3,1,1,0,425,4,4500,4,0,'2026-09-20T11:59:00Z',300,4000]))
     load_snapshot=query('internal/repository/monitor_v4_snapshot_repo.go','SELECT "window", group_id, snapshot_id')
     restored=rows(bind(load_snapshot,['1h']))[0]
     check('production snapshot INSERT and SELECT preserve P50 separately',restored['ttft_p50_ms']==300 and restored['latency_p50_ms']==4000 and restored['ttft_p95_ms']==425)
+    check('snapshot preserves real request counts without operational flag', restored['real_request_count'] == 3 and restored['real_success_count'] == 3 and 'current_operational' not in restored)
+    sql('ALTER TABLE account_monitor_v4_snapshots ADD COLUMN current_operational BOOLEAN NOT NULL DEFAULT FALSE;')
+    check('rollback column restoration preserves snapshot counts', sql('SELECT real_request_count=3 AND real_success_count=3 AND NOT current_operational FROM account_monitor_v4_snapshots;') == 't')
     results['passed']=True
 except Exception as exc:
     results['passed']=False

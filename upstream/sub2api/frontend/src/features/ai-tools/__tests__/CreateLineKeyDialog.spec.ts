@@ -8,7 +8,7 @@ const { create } = vi.hoisted(() => ({ create: vi.fn() }))
 vi.mock('@/api/keys', () => ({ keysAPI: { create } }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 const groups = [{id: 1, name: 'GPT Plus', platform: 'openai', status: 'active', rate_multiplier: 1}, {id: 2, name: 'GPT Budget', platform: 'openai', status: 'active', rate_multiplier: .2}] as Group[]
-function render(initialGroupId?: number, attached = false) { return mount(CreateLineKeyDialog, {attachTo: attached ? document.body : undefined, props: { show: true, toolName: 'Codex', groups, metrics: new Map([[1, {success_rate: 97, ttft_p50_ms: 2160, current_operational: false} as MonitorV4Group]]), linkedCounts: new Map([[1, 2]]), rates: {}, initialGroupId }, global: {stubs: { BaseDialog: {template: '<div><slot/><slot name="footer"/></div>'}, Teleport: true }}}) }
+function render(initialGroupId?: number, attached = false) { return mount(CreateLineKeyDialog, {attachTo: attached ? document.body : undefined, props: { show: true, toolName: 'Codex', groups, metrics: new Map([[1, {real_request_count:100,real_success_count:97,success_rate: 97, ttft_p50_ms: 2160} as MonitorV4Group]]), linkedCounts: new Map([[1, 2]]), rates: {}, initialGroupId }, global: {stubs: { BaseDialog: {template: '<div><slot/><slot name="footer"/></div>'}, Teleport: true }}}) }
 beforeEach(() => create.mockReset())
 describe('create line key', () => {
   it('applies one type and color hierarchy to all seven field labels and their controls', () => {

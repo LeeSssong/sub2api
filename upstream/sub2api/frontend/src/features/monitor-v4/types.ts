@@ -27,7 +27,6 @@ export interface MonitorV4Group {
   cache_creation_tokens: number
   cache_hit_denominator: number
   source_updated_at: string | null
-  current_operational: boolean
 }
 
 export interface MonitorV4Snapshot {

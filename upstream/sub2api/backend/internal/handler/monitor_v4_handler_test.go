@@ -33,6 +33,13 @@ func (s *monitorV4SnapshotterStub) Snapshot(
 	return s.snapshot, nil
 }
 
+func TestMonitorV4ResponseOmitsLegacyOperationalFlag(t *testing.T) {
+	body, err := json.Marshal(monitorV4GroupResponse{RealRequestCount: 10, RealSuccessCount: 9})
+	require.NoError(t, err)
+	require.NotContains(t, string(body), "current_operational")
+	require.Contains(t, string(body), `"real_request_count":10`)
+}
+
 func TestMonitorV4HandlerReturnsCacheHitRateContract(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cacheHitRate := 0.4

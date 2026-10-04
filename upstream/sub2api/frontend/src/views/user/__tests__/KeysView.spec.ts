@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
@@ -276,6 +276,42 @@ const getButtonByText = (wrapper: VueWrapper, text: string) => {
 }
 
 describe('user KeysView column settings', () => {
+  afterEach(() => { vi.useRealTimers() })
+  it('expires inline selector health as time passes', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-05T00:00:00Z'))
+    getAvailableGroups.mockResolvedValue([{ id: 12, name: 'GPT', status: 'active', platform: 'openai', rate_multiplier: 1 }])
+    getHybridPerformanceSnapshot.mockResolvedValue({ generated_at: new Date().toISOString(), groups: [{ id: 12, real_request_count: 100, real_success_count: 95 }] })
+    const wrapper = await mountView()
+    await wrapper.get('.keys-line-trigger').trigger('click');await flushPromises()
+    expect(wrapper.get('.keys-line-popup').text()).toContain('正常运行')
+    vi.advanceTimersByTime(8 * 60 * 1000);await nextTick()
+    expect(wrapper.get('.keys-line-popup').text()).not.toContain('正常运行')
+    expect(wrapper.get('.keys-line-popup').text()).toContain('暂无数据')
+    wrapper.unmount()
+  })
+  it('explains inline statistics failure and retries in place', async () => {
+    getHybridPerformanceSnapshot.mockRejectedValueOnce(new Error('offline'))
+    const wrapper = await mountView()
+    await wrapper.get('.keys-line-trigger').trigger('click');await flushPromises()
+    const alert = wrapper.get('.keys-line-popup [role="alert"]')
+    expect(alert.text()).toContain('近 1 小时统计读取失败')
+    await alert.get('button').trigger('click');await flushPromises()
+    expect(wrapper.find('.keys-line-popup [role="alert"]').exists()).toBe(false)
+    expect(getHybridPerformanceSnapshot).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+  it('passes statistics failure and retry through the create dialog', async () => {
+    getHybridPerformanceSnapshot.mockRejectedValueOnce(new Error('offline'))
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'Create API Key').trigger('click');await flushPromises()
+    const selector = wrapper.getComponent(LineSelect)
+    expect(selector.props('metricsError')).toBe(true)
+    selector.vm.$emit('retry-metrics');await flushPromises()
+    expect(selector.props('metricsError')).toBe(false)
+    wrapper.unmount()
+  })
+
   beforeEach(() => {
     localStorage.clear()
 
@@ -344,15 +380,15 @@ describe('user KeysView column settings', () => {
       { id: 13, name: 'Other line', status: 'active', platform: 'openai', rate_multiplier: 1 }
     ])
     getUserGroupRates.mockResolvedValue({ 12: 0.8 })
-    getHybridPerformanceSnapshot.mockResolvedValue({ groups: [{ id: 12, current_operational: false, success_rate: 75, ttft_p50_ms: 2160, request_count: 10 }] })
+    getHybridPerformanceSnapshot.mockResolvedValue({ generated_at: new Date().toISOString(), groups: [{ id: 12, real_request_count: 100, real_success_count: 75, success_rate: 75, ttft_p50_ms: 2160, request_count: 10 }] })
     const wrapper = await mountView()
     await wrapper.get('button[title="keys.clickToChangeGroup"]').trigger('click')
     await flushPromises()
     const popup = wrapper.get('.keys-line-popup')
     expect(popup.text()).toContain('0.8x')
     expect(popup.text()).toContain('75%')
-    expect(popup.text()).toContain('不可用')
-    expect(popup.text()).toContain('状态未知')
+    expect(popup.text()).toContain('波动')
+    expect(popup.text()).toContain('暂无数据')
     expect(popup.findComponent({ name: 'GroupOptionItem' }).exists()).toBe(false)
     await popup.get('input').setValue('Other')
     await flushPromises()

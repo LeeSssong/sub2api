@@ -1,6 +1,6 @@
 import type { Group } from '@/types'
 import type { MonitorV4Group } from '@/features/monitor-v4/types'
-import { metricLabel, toolIdsForGroup } from '@/features/ai-tools/model'
+import { metricLabel, toolIdsForGroup, routeHealth, routeHealthTone, routeSuccessLabel } from '@/features/ai-tools/model'
 import { successRateTone } from '@/features/monitor-v4/successRate'
 import { formatMultiplierLabel } from '@/utils/formatters'
 
@@ -14,6 +14,7 @@ export interface LineOption {
   rate: number | null
   rateLabel: string
   linkedCount: number | null
+  healthKind: string
   statusLabel: string
   successLabel: string
   successTone: ReturnType<typeof successRateTone>
@@ -35,13 +36,16 @@ export function buildLineOptions(
   rates: Record<number, number>,
   metrics: Map<number, MonitorV4Group>,
   linkedCounts: Map<number, number> | null,
-  toolId?: string
+  toolId?: string,
+  metricsGeneratedAt?: string | null,
+  now = Date.now()
 ): LineOption[] {
   return groups
     .filter(group => !toolId || (group.status === 'active' && toolIdsForGroup(group, metrics.get(group.id)).includes(toolId)))
     .map(group => {
       const rate = resolveLineRate(group, rates)
       const metric = metrics.get(group.id)
+      const health = routeHealth(metric, now, metricsGeneratedAt)
       return {
         value: group.id,
         label: group.name,
@@ -51,9 +55,10 @@ export function buildLineOptions(
         rate,
         rateLabel: formatLineRate(rate),
         linkedCount: linkedCounts?.get(group.id) ?? (linkedCounts ? 0 : null),
-        statusLabel: group.status === 'active' ? '管理正常' : '已停用',
-        successLabel: metric?.success_rate == null ? '—' : `${Number(metric.success_rate.toFixed(1))}%`,
-        successTone: successRateTone(group.status === 'active' && metric?.request_count !== 0 ? metric?.success_rate : null),
+        healthKind: health.kind,
+        statusLabel: health.text,
+        successLabel: routeSuccessLabel(health),
+        successTone: routeHealthTone(health),
         ttftLabel: metricLabel(metric?.ttft_p50_ms)
       }
     })

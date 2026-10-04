@@ -509,6 +509,9 @@
       :groups="groups"
       :rates="userGroupRates"
       :metrics="lineMetrics"
+      :metrics-generated-at="lineMetricsGeneratedAt"
+      :metrics-error="lineMetricsError"
+      @retry-metrics="loadLineContext"
       :linked-counts="lineCounts"
       @close="showCreateModal = false"
       @created="handleKeyCreated"
@@ -544,6 +547,9 @@
             :groups="groups"
             :rates="userGroupRates"
             :metrics="lineMetrics"
+            :metrics-generated-at="lineMetricsGeneratedAt"
+            :metrics-error="lineMetricsError"
+            @retry-metrics="loadLineContext"
             :linked-counts="lineCounts"
             :placeholder="t('keys.selectGroup')"
             :search-placeholder="t('keys.searchGroup')"
@@ -1121,6 +1127,7 @@
             />
           </div>
         </div>
+        <p v-if="lineMetricsError" class="keys-line-metrics-error" role="alert">近 1 小时统计读取失败，请重试。 <button type="button" class="xq-button" @click.stop="loadLineMetrics">重试</button></p>
         <!-- Group list -->
         <div class="keys-line-popup-list max-h-80 overflow-y-auto p-1.5">
           <button
@@ -1142,11 +1149,11 @@
                 <strong>{{ option.label }}</strong>
                 <span class="keys-line-popup-rate">{{ option.rateLabel }}</span>
                 <span class="keys-line-popup-status">
-                  <i :data-status="option.availability" aria-hidden="true" />
-                  {{ option.availability === 'available' ? '可用' : option.availability === 'unavailable' ? '不可用' : '状态未知' }}<template v-if="selectedKeyForGroup?.group_id === option.value"> · 当前线路</template>
+                  <i :data-status="option.healthKind" aria-hidden="true" />
+                  {{ option.statusLabel }}<template v-if="selectedKeyForGroup?.group_id === option.value"> · 当前线路</template>
                 </span>
               </div>
-              <div class="keys-line-popup-metrics">近 1 小时稳定性 <span :data-tone="option.successTone">{{ option.successLabel }}</span> · 首字 {{ option.ttftLabel }}</div>
+              <div class="keys-line-popup-metrics">近 1 小时成功率 <span :data-tone="option.successTone">{{ option.successLabel }}</span> · 首字 {{ option.ttftLabel }}</div>
             </div>
           </button>
           <!-- Empty state when search has no results -->
@@ -1326,6 +1333,8 @@ const formatKeyUsage = (value: number | null | undefined) =>
   value == null || !Number.isFinite(value) ? t('keys.usageUnavailable') : `$${formatMoneyFixed(value)}`
 const userGroupRates = ref<Record<number, number>>({})
 const lineMetrics = ref(new Map<number, MonitorV4Group>())
+const lineMetricsGeneratedAt = ref<string | null>(null)
+const lineMetricsError = ref(false)
 const lineCounts = ref<Map<number, number> | null>(null)
 
 const pagination = ref({
@@ -1469,12 +1478,7 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
 
 // Convert groups to Select options format with rate multiplier and subscription type
 const groupOptions = computed(() =>
-  buildLineOptions(groups.value, userGroupRates.value, lineMetrics.value, lineCounts.value).map(option => ({
-    ...option,
-    availability: option.group.status !== 'active' ? 'unavailable'
-      : lineMetrics.value.get(option.value)?.current_operational === true ? 'available'
-      : lineMetrics.value.get(option.value)?.current_operational === false ? 'unavailable' : 'unknown'
-  }))
+  buildLineOptions(groups.value, userGroupRates.value, lineMetrics.value, lineCounts.value, undefined, lineMetricsGeneratedAt.value, now.value.getTime())
 )
 
 // Group dropdown search
@@ -1580,9 +1584,23 @@ const loadUserGroupRates = async () => {
   }
 }
 
+async function loadLineMetrics() {
+  try {
+    const snapshot = await getHybridPerformanceSnapshot('1h')
+    lineMetrics.value = new Map(snapshot.groups.map(group => [group.id, group]))
+    lineMetricsGeneratedAt.value = snapshot.generated_at
+    now.value = new Date()
+    lineMetricsError.value = false
+  } catch {
+    lineMetrics.value = new Map()
+    lineMetricsGeneratedAt.value = null
+    lineMetricsError.value = true
+  }
+}
+
 async function loadLineContext() {
-  const [snapshot, keys] = await Promise.allSettled([
-    getHybridPerformanceSnapshot('1h'),
+  const [, keys] = await Promise.allSettled([
+    loadLineMetrics(),
     (async () => {
       const first = await keysAPI.list(1, 100)
       const items = [...first.items]
@@ -1593,7 +1611,6 @@ async function loadLineContext() {
       return items
     })()
   ])
-  if (snapshot.status === 'fulfilled') lineMetrics.value = new Map(snapshot.value.groups.map(group => [group.id, group]))
   if (keys.status === 'fulfilled') lineCounts.value = linkedCounts(keys.value)
 }
 
@@ -1683,9 +1700,9 @@ const openGroupSelector = (key: ApiKey) => {
     groupSelectorKeyId.value = key.id
     groupSearchQuery.value = ''
     lineMetrics.value = new Map()
-    void getHybridPerformanceSnapshot('1h').then(snapshot => {
-      lineMetrics.value = new Map(snapshot.groups.map(group => [group.id, group]))
-    }).catch(() => { lineMetrics.value = new Map() })
+    lineMetricsGeneratedAt.value = null
+    lineMetricsError.value = false
+    void loadLineMetrics()
   }
 }
 
@@ -2080,6 +2097,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.keys-line-metrics-error{flex-shrink:0;padding:8px 12px;color:var(--xq-warning);font-size:12px;line-height:1.5}
 .keys-inventory :deep(input[type="checkbox"]) { accent-color: var(--xq-accent); }
 .keys-bulk-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--xq-line); color:var(--xq-secondary); font-size:13px; flex-shrink:0; }
 .keys-bulk-toolbar .btn { min-height:32px; padding:4px 12px; font-size:12px; }
@@ -2141,8 +2159,9 @@ onUnmounted(() => {
 .keys-line-popup-rate{padding:2px 7px;border-radius:7px;background:var(--xq-raised);color:var(--xq-accent);font-size:12px;font-weight:650;white-space:nowrap;}
 .keys-line-popup-status{display:flex;align-items:center;gap:6px;margin-left:auto;color:var(--xq-secondary);font-size:12px;}
 .keys-line-popup-status i{width:6px;height:6px;border-radius:50%;background:var(--xq-secondary);}
-.keys-line-popup-status i[data-status="available"]{background:var(--xq-success);}
-.keys-line-popup-status i[data-status="unavailable"]{background:var(--xq-danger);}
+.keys-line-popup-status i[data-status="success"]{background:var(--xq-success);}
+.keys-line-popup-status i[data-status="warning"]{background:var(--xq-warning);}
+.keys-line-popup-status i[data-status="danger"]{background:var(--xq-danger);}
 .keys-line-popup-metrics{margin-top:7px;color:var(--xq-secondary);font-size:12px;}
 .keys-line-popup-metrics span[data-tone="green"]{color:var(--xq-success);}
 .keys-line-popup-metrics span[data-tone="amber"]{color:var(--xq-warning);}

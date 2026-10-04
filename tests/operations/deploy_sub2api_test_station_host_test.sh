@@ -104,6 +104,14 @@ case "${1:-}" in
     [[ "$args" == *'--project-name sub2api-test-station'* ]] || exit 64
     if [[ "$args" == *"-f ${OLD_RELEASE:?}/compose.yaml"* ]]; then phase=previous; else phase=candidate; fi
     if [[ "$args" == *' config --quiet'* ]]; then exit 0; fi
+    if [[ "$args" == *' stop '* ]]; then exit 0; fi
+    if [[ "$args" == *' exec -T test-station-postgres '* ]]; then
+      sql=$(cat)
+      printf 'sql %s\n' "$sql" >>"${EVENT_LOG:?}"
+      if [[ "$sql" == *'SELECT EXISTS'* ]]; then printf 't\n'; fi
+      if [[ "$mode" == schema-restore-fail && "$sql" == *'ADD COLUMN'* ]]; then exit 74; fi
+      exit 0
+    fi
     if [[ "$args" == *' up -d --remove-orphans'* ]]; then
       if [[ "$phase" == candidate && "$mode" == candidate-up-fail ]]; then exit 72; fi
       if [[ "$phase" == previous && "$mode" == rollback-fail ]]; then exit 73; fi
@@ -160,7 +168,7 @@ elif [[ "$phase" == candidate && "${FAKE_MODE:-ok}" == readiness-malformed ]]; t
 elif [[ "$phase" == candidate && "${FAKE_MODE:-ok}" == readiness-flaky ]]; then
   count=$(cat "${PROBE_COUNT:?}"); count=$((count+1)); printf '%s\n' "$count" >"$PROBE_COUNT"
   if ((count % 3 == 0)); then printf '503\tapplication/json\t{"status":"not_ready"}\n'; else printf '200\tapplication/json\t{"status":"ready"}\n'; fi
-elif [[ "$phase" == candidate && ( "${FAKE_MODE:-ok}" == readiness-not-ready || "${FAKE_MODE:-ok}" == rollback-fail ) ]]; then
+elif [[ "$phase" == candidate && ( "${FAKE_MODE:-ok}" == readiness-not-ready || "${FAKE_MODE:-ok}" == rollback-fail || "${FAKE_MODE:-ok}" == schema-restore-fail ) ]]; then
   printf '503\tapplication/json\t{"status":"not_ready"}\n'
 else
   printf '200\tapplication/json; charset=utf-8\t{"status":"ready"}\n'
@@ -174,7 +182,7 @@ run_exec(){
     TEST_STATION_PROBE_BIN="$BIN/probe" TEST_STATION_PROBE_INTERVAL_SECONDS=0 TEST_STATION_SERVICE_INTERVAL_SECONDS=0 \
     ACTIVE_PHASE="$ACTIVE_PHASE" SERVICE_COUNT="$SERVICE_COUNT" PROBE_COUNT="$PROBE_COUNT" OLD_RELEASE="$OLD_RELEASE" OLD_COMMIT="$OLD_COMMIT" CASE="$CASE" STAGE="$STAGE" IMAGE_ID="$IMAGE_ID" REAL_MKTEMP="$REAL_MKTEMP" REAL_MV="$REAL_MV" STATE="$STATE" \
     DEPLOY_ROOT="$DEPLOY_ROOT" RELEASE_STATE="$STATE" FAKE_MODE="${FAKE_MODE:-ok}" \
-    bash "$EXECUTOR" --staging-root "$STAGE" --image-archive "$STAGE/image.tar" \
+    bash "$EXECUTOR" ${ROUTE_HEALTH_ARGS:-} --staging-root "$STAGE" --image-archive "$STAGE/image.tar" \
     --image-sha256 "$ARCHIVE_SHA" --image-id "$IMAGE_ID" --compose "$STAGE/compose.yaml" \
     --caddy "$STAGE/Caddyfile" --backup-script "$STAGE/backup.sh" \
     --source-commit "$NEW_COMMIT" --source-tree "$NEW_TREE" \
@@ -310,6 +318,37 @@ test_rejects_bad_checksum_and_unsafe_root(){
   setup unsafe
   if DEPLOY_ROOT=/opt/other run_exec >/dev/null 2>&1; then fail 'unsafe deploy root accepted'; fi
 }
+
+
+test_route_health_requires_downtime_permission(){
+  setup route-permission
+  if ROUTE_HEALTH_ARGS='--route-health-migration true' run_exec >"$CASE/output" 2>&1; then fail 'missing downtime permission accepted'; fi
+  grep -F 'downtime_required=true' "$CASE/output" >/dev/null || fail 'downtime requirement not reported'
+  ! grep -q ' up -d\| stop ' "$EVENT_LOG" || fail 'services changed without permission'
+}
+
+test_route_health_rollback_restores_schema_first(){
+  setup route-rollback
+  if ROUTE_HEALTH_ARGS='--route-health-migration true --allow-downtime true' FAKE_MODE=candidate-up-fail run_exec >/dev/null 2>&1; then fail 'failed candidate succeeded'; fi
+  assert_rollback_invoked
+  python3 - "$EVENT_LOG" <<'CHECK'
+import sys
+s=open(sys.argv[1]).read()
+assert s.index(' stop test-station-api test-station-worker test-station-detector') < s.index(' up -d --remove-orphans')
+assert s.index('ADD COLUMN IF NOT EXISTS current_operational') < s.rindex(' up -d --remove-orphans')
+assert 'DELETE FROM schema_migrations' in s
+CHECK
+}
+
+test_route_health_restore_failure_does_not_start_old_binary(){
+  setup route-schema-fail
+  if ROUTE_HEALTH_ARGS='--route-health-migration true --allow-downtime true' FAKE_MODE=schema-restore-fail TEST_STATION_PROBE_ATTEMPTS=1 run_exec >/dev/null 2>&1; then fail 'schema restore failure succeeded'; fi
+  ! grep -F -- "-f $OLD_RELEASE/compose.yaml up -d" "$EVENT_LOG" >/dev/null || fail 'old binary started on incompatible schema'
+}
+
+test_route_health_requires_downtime_permission
+test_route_health_rollback_restores_schema_first
+test_route_health_restore_failure_does_not_start_old_binary
 
 test_duplicate_historical_image_values_use_active_last_value
 test_success_records_previous_backup_and_identity

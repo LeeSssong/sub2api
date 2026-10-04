@@ -623,10 +623,6 @@ WITH scopes AS (
          'probe'::text AS source,
          FALSE AS probe_missing
   FROM probe_runs p
-), latest_selected AS (
-  SELECT DISTINCT ON (group_id) group_id, successful, observed_at, first_token_ms
-  FROM selected_events
-  ORDER BY group_id, bucket_start DESC, observed_at DESC
 ), metric_arrays AS (
   SELECT group_id,
          array_agg(first_token_ms ORDER BY first_token_ms) FILTER (WHERE successful AND first_token_ms IS NOT NULL) AS ttft_values,
@@ -672,11 +668,9 @@ WITH scopes AS (
 		 COALESCE(SUM(s.input_tokens + s.cache_creation_tokens + s.cache_read_tokens) FILTER (WHERE s.successful), 0)::bigint AS cache_hit_denominator,
          SUM(s.cache_read_tokens) FILTER (WHERE s.successful)
 		   / NULLIF(SUM(s.input_tokens + s.cache_creation_tokens + s.cache_read_tokens) FILTER (WHERE s.successful), 0) AS cache_hit_rate,
-         MAX(s.observed_at) AS source_updated_at,
-         COALESCE(BOOL_OR(ls.successful AND ls.observed_at >= $2::timestamptz - INTERVAL '5 minutes' AND ls.first_token_ms IS NOT NULL AND ls.first_token_ms <= 15000), FALSE) AS current_operational
+         MAX(s.observed_at) AS source_updated_at
   FROM groups g
   LEFT JOIN selected_events s ON s.group_id = g.group_id
-  LEFT JOIN latest_selected ls ON ls.group_id = g.group_id
   LEFT JOIN metric_stats ms ON ms.group_id = g.group_id
   GROUP BY g.group_id
 )
@@ -684,7 +678,7 @@ WITH scopes AS (
 	       probe_fallback_bucket_count, probe_fallback_request_count, missing_probe_terminal_count,
 	       ttft_p95_ms, ttft_sample_count,
 	       latency_p95_ms, latency_sample_count, input_tokens, cache_read_tokens, cache_creation_tokens,
-	       cache_hit_denominator, cache_hit_rate, source_updated_at, current_operational, ttft_p50_ms, latency_p50_ms
+	       cache_hit_denominator, cache_hit_rate, source_updated_at, ttft_p50_ms, latency_p50_ms
 FROM aggregate
 ORDER BY group_id
 `, start.UTC(), end.UTC(), bucketSize.String(), pq.Array(scopeGroupIDs), pq.Array(accountIDs), pq.Array(uniqueGroupIDs))
@@ -699,10 +693,9 @@ ORDER BY group_id
 			ttftSampleCount, latencySampleCount                                     int
 			successRate, ttftP95, latencyP95, cacheHitRate, ttftP50, latencyP50     sql.NullFloat64
 			inputTokens, cacheReadTokens, cacheCreationTokens, cacheHitDenominator  int64
-			currentOperational                                                      bool
 			sourceUpdatedAt                                                         sql.NullTime
 		)
-		if err := rows.Scan(&groupID, &successRate, &requestCount, &successCount, &realRequestCount, &realSuccessCount, &probeFallbackBuckets, &probeFallbackRequests, &missingProbeTerminals, &ttftP95, &ttftSampleCount, &latencyP95, &latencySampleCount, &inputTokens, &cacheReadTokens, &cacheCreationTokens, &cacheHitDenominator, &cacheHitRate, &sourceUpdatedAt, &currentOperational, &ttftP50, &latencyP50); err != nil {
+		if err := rows.Scan(&groupID, &successRate, &requestCount, &successCount, &realRequestCount, &realSuccessCount, &probeFallbackBuckets, &probeFallbackRequests, &missingProbeTerminals, &ttftP95, &ttftSampleCount, &latencyP95, &latencySampleCount, &inputTokens, &cacheReadTokens, &cacheCreationTokens, &cacheHitDenominator, &cacheHitRate, &sourceUpdatedAt, &ttftP50, &latencyP50); err != nil {
 			return nil, fmt.Errorf("scan hybrid monitor v4 groups: %w", err)
 		}
 		var successRatePtr, ttftP95Ptr, latencyP95Ptr, cacheHitRatePtr *float64
@@ -739,8 +732,7 @@ ORDER BY group_id
 			CacheHitRate:       cacheHitRatePtr,
 			InputTokens:        inputTokens,
 			CacheReadTokens:    cacheReadTokens, CacheCreationTokens: cacheCreationTokens, CacheHitDenominator: cacheHitDenominator,
-			SourceUpdatedAt:    accountMonitorNullableTime(sourceUpdatedAt),
-			CurrentOperational: currentOperational,
+			SourceUpdatedAt: accountMonitorNullableTime(sourceUpdatedAt),
 		}
 	}
 	if err := rows.Err(); err != nil {

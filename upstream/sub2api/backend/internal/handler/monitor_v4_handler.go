@@ -48,7 +48,6 @@ type monitorV4GroupResponse struct {
 	CacheCreationTokens        int64    `json:"cache_creation_tokens"`
 	CacheHitDenominator        int64    `json:"cache_hit_denominator"`
 	SourceUpdatedAt            *string  `json:"source_updated_at"`
-	CurrentOperational         bool     `json:"current_operational"`
 }
 
 type monitorV4SnapshotResponse struct {
@@ -112,7 +111,7 @@ func (h *MonitorV4Handler) Snapshot(c *gin.Context) {
 			CacheReadTokensP95: nil, CacheReadTokensSampleCount: 0,
 			CacheHitRate:    group.CacheHitRate,
 			CacheReadTokens: group.CacheReadTokens, CacheCreationTokens: group.CacheCreationTokens, CacheHitDenominator: group.CacheHitDenominator,
-			SourceUpdatedAt: updatedAt, CurrentOperational: group.CurrentOperational,
+			SourceUpdatedAt: updatedAt,
 		})
 	}
 	response.Success(c, monitorV4SnapshotResponse{ContractVersion: snapshot.ContractVersion, Window: snapshot.Window, RefreshIntervalSeconds: snapshot.RefreshIntervalSeconds, GeneratedAt: snapshot.GeneratedAt.UTC().Format(time.RFC3339), Groups: groups})

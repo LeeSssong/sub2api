@@ -404,7 +404,6 @@ type MonitorV4GroupProjection struct {
 	CacheCreationTokens       int64
 	CacheHitDenominator       int64
 	SourceUpdatedAt           *time.Time
-	CurrentOperational        bool
 }
 
 // AccountMonitorGroupProbeRepository is the native read path used by Monitor V2.
