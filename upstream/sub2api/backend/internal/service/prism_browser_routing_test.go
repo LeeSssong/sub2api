@@ -304,6 +304,7 @@ func TestPrismBrowserAdapterMisconfigurationIsNotTheClientsAuthFailure(t *testin
 	}{
 		{name: "bridge key mismatch", status: http.StatusUnauthorized, body: `{"error":{"type":"unauthorized"}}`, wantStatus: http.StatusBadGateway},
 		{name: "adapter path mismatch", status: http.StatusNotFound, body: `{"error":{"type":"not_found"}}`, wantStatus: http.StatusBadGateway},
+		{name: "upstream project access refusal", status: http.StatusForbidden, body: `{"error":{"type":"project_edit_access_required","message":"Prism project edit access is required"}}`, wantStatus: http.StatusForbidden},
 		{name: "request refused before dispatch", status: http.StatusUnprocessableEntity, body: `{"error":{"type":"unsupported_request","message":"Prism adapter does not yet support tools or server-side conversation state"}}`, wantStatus: http.StatusUnprocessableEntity},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -327,6 +328,14 @@ func TestPrismBrowserAdapterMisconfigurationIsNotTheClientsAuthFailure(t *testin
 			}
 			require.JSONEq(t, tc.body, w.Body.String())
 		})
+	}
+}
+
+func TestPrismBrowserNewFailureCodesRemainSanitized(t *testing.T) {
+	for _, code := range []string{"project_runtime_rate_limited", "sandbox_reconnecting", "conversation_too_large", "project_edit_access_required", "poll_failed", "resource_pressure", "prism_login_required"} {
+		err := prismBrowserForwardError(503, []byte(`{"error":{"type":"`+code+`","message":"Bearer private-credential"}}`))
+		require.Contains(t, err.Error(), "("+code+")")
+		require.NotContains(t, err.Error(), "private-credential")
 	}
 }
 

@@ -118,7 +118,7 @@ PRISM_ADAPTER_BOOTSTRAP_CONCURRENCY=1
 
 新执行器使用一个浏览器、一个账号上下文，默认只保留一个短期项目准备页面（`PRISM_ADAPTER_BOOTSTRAP_CONCURRENCY` 可设 1-2）。项目先通过官方页面的 fetch 封装调用 `/api/projects` 创建，客户端生成的 UUID 必须由上游原样确认；然后直接进入该项目页面，由官方编辑器创建聊天并发出唯一一次 start。避免依赖首页 New 菜单及额外整页跳转；取得可信 request ID 后，在发送前捕获该页面的首个 status 请求体，关闭准备页面，由常驻官方页面的 `window.fetch` 验证封装接管轮询。start/status 都保留官方验证流程，不复制 start 的验证头到 status；原生 fetch 的同源轻量页在真实上游会被 403 拒绝，不能替代官方页面。只有登记过的精确 status 请求体会被放行，不合成 start、复用验证头或重新提交未知结果。项目缓存只保留会话对应的项目 ID，不为每个并发请求保留浏览器页面。网络门控只用 Chromium Fetch 拦截模型 API，保留静态资源的正常 HTTP 缓存；不使用会关闭整页缓存的 Playwright route()。
 
-当前最多同时驻留一个账号上下文；另一个账号在它繁忙时会被拒绝，账号池多上下文调度不属于本轮范围。凭据更新必须等旧上下文在飞请求结束才能替换，期间返回 429，不强行关闭旧请求。空闲回收沿用 `PRISM_ADAPTER_SESSION_TTL_SECONDS`，存活满 900 秒且无活动请求也会回收；到期不会中断在飞任务。
+默认最多同时驻留一个账号上下文；`PRISM_ADAPTER_MAX_ACCOUNTS=2` 可在 multiplex 模式保留两个独立账号上下文，默认不会自动开启。上下文已满且全部忙碌时返回 429；空闲上下文按最近使用时间回收。所有账号共同受原有总并发、准备页面及内存保护约束，不为每个账号单独放大总容量。凭据更新必须等旧上下文在飞请求结束才能替换，期间返回 429，不强行关闭旧请求。空闲回收沿用 `PRISM_ADAPTER_SESSION_TTL_SECONDS`，存活满 900 秒且无活动请求也会回收；到期不会中断在飞任务。
 
 待决文件改为 `pending/<account_id>/<scope_hash>.json`。每个请求有自己的 request ID 和 turn_state；不确定结果只阻塞相同会话。匿名管理员测试每份结果使用独立作用域，不自动重试。原版本留下的 `pending/<account_id>` 文件仍会阻塞该账号，不能绕过。回滚到旧执行器时，旧程序看到该目录也会拒绝账号，必须先核实并发版本的未完成记录；不能直接删除目录解锁。
 
@@ -159,3 +159,36 @@ python3 prism-adapter/smoke_browser.py --chrome /absolute/path/to/chromium
 该脚本验证三次不同模型/强度的 start、同会话一次缓存命中、两个独立项目以及新聊天不重复提交历史。`smoke_multiplex.py` 按四模型与四档强度混合发送请求，同时核对实际 start、响应和回执参数。这些脚本验证浏览器机制，不能替代真实账号糖果测试或证明模型能力。
 
 项目会保留在账号的 Prism 工作区内，本版不自动批量删除项目。大规模使用前仍需项目回收、账号代理、动态模型目录、计费策略、真实 Codex 客户端和长时间工具会话的独立验收。默认保持总开关关闭；真实用户流量应等待这些边界完善。
+
+## Multiplex 内存与项目启动压力
+
+`PRISM_ADAPTER_ACCOUNT_MAX_INFLIGHT` 和 `PRISM_ADAPTER_MAX_INFLIGHT` 是准入上限，不保证部署内存或上游项目运行环境可以承载相同并发。准备页面关闭后会请求 Chromium 回收已分离的编辑器上下文；下一次准备若仍超过 750 MiB，则最多等待 30 秒恢复，仍不足时返回 `resource_pressure`，不会绕过保护提交。systemd 的硬内存上限仍由部署方保留。
+
+multiplex 日志记录 `prism_prepare_start/end`、`prism_poll_start/end`、完成和失败事件，包含本地请求标识、模型/强度、阶段、在途/排队/轮询数量和 cgroup 内存；不包含提示词、账号凭据、Cookie 或 turn-state。只有上游任务的执行区间确实重叠，才算实际并发。
+
+页面显示“项目运行环境的启动请求受到限流”或项目创建接口返回 429 时，会以 `project_runtime_rate_limited` 拒绝后续准备，并对该账号暂停新的启动至少 60 秒（当前进程内）。这是最短保护窗口，不代表上游冷却已经结束；页面给出的更晚时间应优先遵守。已有上游请求继续收尾，未知结局保留，不自动重放。仅调高并发配置不能解除上游限流。
+
+客户端应保留自己的稳定会话/线程标识。同一会话可以复用原项目并新建 chat tab，减少项目反复创建；不同 API Key、账号或会话仍独立。无会话标识的请求不能安全地共用项目，保持新建。工具回传继续遵守原有独立项目规则。
+
+本地 5 并发三轮 smoke（真实浏览器、模拟上游，不能代替生产验收）：
+
+```sh
+python prism-adapter/smoke_multiplex.py --chrome /path/to/chrome \
+  --concurrency 5 --model gpt-6.1-sol --effort xhigh --rounds 3
+```
+
+systemd 部署还需注意环境变量优先级：`EnvironmentFile` 中的值会覆盖 `Environment=`。若已有环境文件配置了并发，应更新对应文件，或在 drop-in 中追加最后读取的专用 `EnvironmentFile`；重启后必须核对进程实际环境，不能只看 drop-in 文本。Docker Compose 则在适配器服务的 `environment:` 下设置变量。
+
+### 项目环境重连与真实失败
+
+multiplex 识别官方 start 返回的明确 `completed / response.status=error / payload.reason=sandbox_reconnecting`。此时保持准备页面，让官方页面等待自己的 `ensureSandboxConnection` 后继续提交，而不是立刻关闭页面。仅允许同一输入、previousResponseId、conversationId、项目、模型和强度；sandbox 元数据由官方页面刷新。每轮最多 3 次 start 尝试，仍受请求总时限限制。未知结果、一般 HTTP/网络错误、其他终态失败都不能重新放行 start。
+
+日志记录重连次数；回执 `start_count` 如实包含这类明确环境重连尝试。`conversation_too_large`、`project_edit_access_required` 与 `sandbox_reconnecting` 分别报告，不再全部掩盖为 `prism_failed`；其他未知失败保持通用错误，且不输出上游任意报错文本。
+
+## 账号负载与流式等待
+
+账号选择继续复用 Sub2API 现有的负载、优先级和会话调度，不增加第二套账号池或凭据存储。适配器日志补充 `account_id`、账号 active/queued/peak、全局 peak 及请求准入后的 `elapsed_ms`。active 指已准入任务，可能仍在准备页面或等待内存；polling 才指需要继续查询上游的请求。账号 peak 是当前未清空的准入批次峰值，全局 peak 是进程生命周期峰值，均不能当作真实模型容量证明。
+
+仅对启用 Prism 且命中该账号已选 Prism 模型的流式请求，Go 网关在等待适配器终态时发送 SSE 注释心跳，沿用 `gateway.stream_keepalive_interval`（默认 10 秒，0 为关闭）。心跳首次发送会提交 HTTP 200，后续失败以 `response.failed` 单次结束；快速失败仍保留 JSON/状态码。注释不会增加 token、用量或推理内容，大多数客户端不会显示它。正文与客户端工具依然先通过完整终态校验再发送，不提前发出 `response.created`、reasoning 或工具事件。普通账号和未选模型的请求不进入这段逻辑。
+
+PR #292 来源：<https://github.com/ranxi2001/sub2api/pull/292>，head `36805e35a7983471bcb2fd4f2e5efead477269a9`。Gateway 来源：<https://github.com/FaFengFei1961/prism-ai-gateway>，`2df3e7314273b559f9aa732dfceef8331ccc777e`；本次借鉴账号上下文复用、负载统计和等待保活思路，复用本工程已有调度/心跳实现，未引入其明文 Cookie 池、模型清单和自动代码执行逻辑。

@@ -19,6 +19,7 @@ class TurnJournal:
     def __init__(self, state, api, account_id, session_id):
         self.state, self.api, self.account_id = state, api, account_id
         self.local_id = uuid.uuid4().hex
+        self.started_at = time.monotonic()
         scope = "session:" + session_id if session_id else "request:" + self.local_id
         self.scope = hashlib.sha256(scope.encode()).hexdigest()
         self.directory = state.pending / account_id
@@ -75,7 +76,17 @@ class Admission:
         self.global_slots = asyncio.Semaphore(active)
         self.accounts, self.scopes = {}, {}
         self.outstanding = self.running = 0
+        self.peak_running = 0
         self.closed = False
+
+    def snapshot(self, account_id=None):
+        # Called on the browser's asyncio thread, alongside all admission writes.
+        account = self.accounts.get(account_id)
+        return {'active': self.running, 'queued': self.outstanding - self.running,
+                'peak_active': self.peak_running,
+                'account_active': account[2] if account else 0,
+                'account_queued': account[1] - account[2] if account else 0,
+                'account_peak_active': account[3] if account else 0}
 
     @asynccontextmanager
     async def enter(self, account_id, session_id):
@@ -84,7 +95,7 @@ class Admission:
         if self.outstanding >= self.limit + self.queued:
             raise self.api.AdapterError(429, "prism_busy", "Prism queue is full; request was not submitted")
         self.outstanding += 1
-        account = self.accounts.setdefault(account_id, [asyncio.Semaphore(self.per_account), 0])
+        account = self.accounts.setdefault(account_id, [asyncio.Semaphore(self.per_account), 0, 0, 0])
         account[1] += 1
         key = (account_id, session_id) if session_id else None
         scope = self.scopes.setdefault(key, [asyncio.Lock(), 0]) if key else None
@@ -101,11 +112,15 @@ class Admission:
             except TimeoutError:
                 raise self.api.AdapterError(429, "prism_busy", "Prism queue wait expired; request was not submitted") from None
             self.running += 1
+            self.peak_running = max(self.peak_running, self.running)
+            account[2] += 1
+            account[3] = max(account[3], account[2])
             running = True
             yield
         finally:
             if running:
                 self.running -= 1
+                account[2] -= 1
             for lock in reversed(acquired):
                 lock.release()
             self.outstanding -= 1
