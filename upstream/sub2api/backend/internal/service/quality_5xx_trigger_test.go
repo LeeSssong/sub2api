@@ -221,6 +221,20 @@ func TestQuality5xxQueueHasIndependentShortTimeouts(t *testing.T) {
 	require.Equal(t, []string{"5"}, shared.ZRange(context.Background(), quality5xxPendingKey, 0, -1).Val())
 }
 
+func TestQuality5xxQueueFencesNewerEpisode(t *testing.T) {
+	r := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: r.Addr()})
+	defer client.Close()
+	trigger := &quality5xxTrigger{redis: client}
+	account := &Account{ID: 9, Type: AccountTypeOAuth}
+	trigger.Observe(context.Background(), account, 503)
+	first := client.ZScore(context.Background(), quality5xxPendingKey, "9").Val()
+	time.Sleep(time.Millisecond)
+	trigger.Observe(context.Background(), account, 504)
+	second := client.ZScore(context.Background(), quality5xxPendingKey, "9").Val()
+	require.Greater(t, second, first)
+}
+
 func TestQuality5xxKeepsSignalWhileAnExistingLeaseCouldBeInterrupted(t *testing.T) {
 	plan := pelicanPlan()
 	until := time.Now().Add(time.Minute)
