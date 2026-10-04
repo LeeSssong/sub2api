@@ -242,7 +242,10 @@ func prismBrowserForwardError(status int, body []byte) error {
 	case "tools_disabled", "unsupported_model", "unsupported_request", "unsupported_reasoning",
 		"unsupported_input", "unsupported_tool_model", "unsupported_tool", "invalid_tools",
 		"invalid_tool_choice", "invalid_tool_payload", "unsupported_reasoning_history",
-		"model_unavailable", "reasoning_unavailable", "pending_turn", "prism_busy":
+		"model_unavailable", "reasoning_unavailable", "pending_turn", "prism_busy",
+		"project_runtime_rate_limited", "sandbox_reconnecting", "conversation_too_large", "project_edit_access_required",
+		"poll_failed", "resource_pressure", "credential_rotation", "prism_failed", "prism_login_required",
+		"prism_session_unavailable", "prism_editor_unavailable", "prism_project_unavailable":
 		return fmt.Errorf("prism adapter returned HTTP %d (%s)", status, code)
 	default:
 		return fmt.Errorf("prism adapter returned HTTP %d", status)
@@ -296,13 +299,23 @@ func (s *OpenAIGatewayService) forwardPrismBrowser(ctx context.Context, c *gin.C
 		fail(http.StatusBadRequest, "invalid_request_error", err.Error())
 		return nil, err
 	}
+	// Waiting comments keep long Prism turns alive without releasing unvalidated
+	// content or declaring a model token. Only this selected Prism path uses it.
+	if stream && s.cfg != nil {
+		stop := startOpenAISSEKeepalive(c, time.Duration(s.cfg.Gateway.StreamKeepaliveInterval)*time.Second)
+		defer stop()
+	}
 	responseBody, upstreamHeaders, status, err := s.callPrismBrowserForCaller(ctx, account, body, sessionID, prismBrowserCallerID(c, account.ID))
 	if err != nil {
 		fail(http.StatusBadGateway, "prism_unavailable", "Prism adapter unavailable; request was not replayed")
 		return nil, err
 	}
 	if status != http.StatusOK {
-		if prismBrowserAdapterMisconfigured(status) {
+		// The adapter uses this fixed 403 code for an upstream project refusal.
+		// Other 403s still describe the private bridge, not the client's API key.
+		projectAccessRefused := status == http.StatusForbidden &&
+			gjson.GetBytes(responseBody, "error.type").String() == "project_edit_access_required"
+		if prismBrowserAdapterMisconfigured(status) && !projectAccessRefused {
 			fail(http.StatusBadGateway, "prism_unavailable", "Prism adapter rejected the gateway; check the adapter key and endpoint")
 			return nil, fmt.Errorf("prism adapter returned HTTP %d", status)
 		}
