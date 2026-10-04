@@ -25,6 +25,7 @@ type PelicanTestConfig struct {
 
 // ScheduledTestPlan represents a scheduled test plan domain model.
 type ScheduledTestPlan struct {
+	Quality5xxEpisode int64              `json:"-"`
 	TriggerSource     string             `json:"-"`
 	TriggerObservedAt *time.Time         `json:"-"`
 	AccountName       string             `json:"account_name,omitempty"`
