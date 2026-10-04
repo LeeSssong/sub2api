@@ -95,11 +95,13 @@ describe("unified intelligence administration", () => {
       .setValue("gpt-6-astra");
     await wrapper.get('[data-testid="intelligence-group-4"]').setValue(true);
     await wrapper.get('[data-testid="intelligence-group-5"]').setValue(true);
+    await wrapper.get('[data-testid="intelligence-cron"]').setValue('5 */3 * * *');
     await wrapper.get("#intelligence-rule-form").trigger("submit");
     await flushPromises();
     expect(rules.save).toHaveBeenCalledWith(
       expect.objectContaining({
         group_ids: [4, 5],
+        cron_expression: "5 */3 * * *",
         expected_answer: "21",
         drawing_prompt: expect.stringContaining("{动作}"),
       }),

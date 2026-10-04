@@ -1361,13 +1361,14 @@ describe("admin SettingsView payment visible method controls", () => {
     const menuItems = [
       { id: "docs", label: "Docs", url: "https://example.com/docs", icon_svg: "", visibility: "user", sort_order: 0 },
       { id: "help", label: "Help", url: "https://example.com/help", icon_svg: "", visibility: "user", sort_order: 1, hide_open_button: true },
+      { id: "custom-monitor", label: "智商监测", url: "/intelligence-test", icon_svg: "", visibility: "user", sort_order: 2, hide_open_button: true },
     ];
     getSettings.mockResolvedValue({ ...baseSettingsResponse, custom_menu_items: menuItems });
     const wrapper = mountView();
     await flushPromises();
 
     const toggles = wrapper.findAll<HTMLInputElement>('[data-testid="custom-menu-hide-open-button"]');
-    expect(toggles.map(toggle => toggle.element.checked)).toEqual([false, true]);
+    expect(toggles.map(toggle => toggle.element.checked)).toEqual([false, true, true]);
     await toggles[0].setValue(true);
     await toggles[1].setValue(false);
     await wrapper.find("form").trigger("submit.prevent");
@@ -1377,6 +1378,7 @@ describe("admin SettingsView payment visible method controls", () => {
       custom_menu_items: [
         { ...menuItems[0], hide_open_button: true },
         { ...menuItems[1], hide_open_button: false },
+        menuItems[2],
       ],
     }));
     wrapper.unmount();
