@@ -7,6 +7,8 @@ import (
 
 // PelicanTestConfig stores intelligence test inputs; a missing kind preserves legacy HTML plans.
 type PelicanTestConfig struct {
+	Intelligence       *IntelligenceRuleConfig     `json:"intelligence,omitempty"`
+	IntelligenceResult *IntelligenceResultMetadata `json:"intelligence_result,omitempty"`
 	// Filled only on saved result snapshots, never used to configure a rule.
 	QualityModelOutcomes map[string]string `json:"quality_model_outcomes,omitempty"`
 	QualityModelActions  map[string]string `json:"quality_model_actions,omitempty"`

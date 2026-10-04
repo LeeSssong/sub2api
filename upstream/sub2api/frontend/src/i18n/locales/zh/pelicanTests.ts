@@ -1,9 +1,9 @@
 export default {
-  title: '鹈鹕测智',
-  description: '按分组定时出题，由 sub2api 的调度器像真实请求一样挑选账号作答；成功生成的作品展示在用户的「鹈鹕测智」页面。',
+  title: '智商监测',
+  description: '创建检测规则，配置糖果题和画图题并选择生效分组；用户可查看每次检测结果与画作。',
   viewShowcase: '查看展示页',
   refresh: '刷新',
-  create: '新建分组测试',
+  create: '创建检测规则',
   loadError: '加载鹈鹕测智失败',
   cost: {
     today: '今日 {amount}',
@@ -18,7 +18,7 @@ export default {
     title: '用户展示',
     hint: '只展示建了分组测试的分组，不显示账号名称。',
     enabled: '开放给用户',
-    enabledHint: '开启后用户侧边栏出现「鹈鹕测智」页面；关闭时照常测试、收录作品，只是用户看不到。',
+    enabledHint: '开启后可通过设置中的自定义菜单挂载「智商监测」页面；关闭时继续检测但用户无法查看。',
     apiEnabled: '允许 API Key 读取作品',
     apiEnabledHint: '使用本站 API Key 同步已发布作品，读取不调用模型、不扣余额。关闭后只保留网页展示。',
     apiRequiresGallery: '需同时开启「开放给用户」后，API 才能读取已发布作品。',

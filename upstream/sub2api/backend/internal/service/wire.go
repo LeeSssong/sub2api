@@ -789,6 +789,9 @@ func ProvideScheduledTestRunnerService(
 	svc.qualityTrigger = newQuality5xxTrigger(rdb)
 	svc.judgeQuality = judge.Judge
 	svc.groupTests = groupTests
+	if groupTests != nil {
+		groupTests.judgeQuality = judge.Judge
+	}
 	svc.candyMonitor = monitor.candy
 	startBackgroundService(cfg, svc)
 	return svc

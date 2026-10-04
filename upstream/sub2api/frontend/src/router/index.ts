@@ -537,17 +537,11 @@ const routes: RouteRecordRaw[] = [
     path: '/monitor',
     redirect: '/custom/performance-monitor',
   },
+  { path: '/pelican-showcase', redirect: '/intelligence-test' },
   {
-    path: '/pelican-showcase',
-    name: 'PelicanShowcase',
-    component: () => import('@/views/user/PelicanShowcaseView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Pelican Showcase',
-      titleKey: 'pelicanShowcase.title',
-      descriptionKey: 'pelicanShowcase.description'
-    }
+    path: '/intelligence-test', name: 'IntelligenceTest',
+    component: () => import('@/views/user/IntelligenceTestView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: false, title: '智商监测' }
   },
   {
     path: '/admin/subscriptions',

@@ -66,18 +66,14 @@ describe('regular user storefront menu', () => {
     expect(sidebar.find('a[href="/custom/xingqiao-storefront"]').exists()).toBe(false)
   })
 
-  it('shows the Pelican gallery only when its public setting is enabled', async () => {
-    const { sidebar, app } = await setup([])
-    expect(sidebar.find('a[href="/pelican-showcase"]').exists()).toBe(false)
-    app.$patch({ cachedPublicSettings: { custom_menu_items: [], pelican_showcase_enabled: true } })
+  it('mounts intelligence tests only through configured user menus', async () => {
+    const {sidebar,app}=await setup([])
+    const item={...storefront,id:'intelligence-test',label:'智商检测',url:'/intelligence-test'}
+    app.$patch({cachedPublicSettings:{custom_menu_items:[item],pelican_showcase_enabled:true}})
     await nextTick()
-    expect(sidebar.get('a[href="/pelican-showcase"]').text()).toBe('nav.pelicanShowcase')
-    expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual([
-      '/dashboard', '/usage', '/keys', '/pelican-showcase',
-    ])
-    app.$patch({ cachedPublicSettings: { custom_menu_items: [], pelican_showcase_enabled: false } })
-    await nextTick()
+    expect(sidebar.get('a[href="/intelligence-test"]').text()).toBe('智商监测')
     expect(sidebar.find('a[href="/pelican-showcase"]').exists()).toBe(false)
+    app.$patch({cachedPublicSettings:{custom_menu_items:[{...item,visibility:'admin'}]}})
+    await nextTick();expect(sidebar.find('a[href="/intelligence-test"]').exists()).toBe(false)
   })
-
 })
