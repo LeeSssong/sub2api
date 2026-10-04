@@ -12,6 +12,7 @@
             <div class="tool-status" :class="`status-${tool.statusKind}`"><span class="dot" :class="tool.statusKind"></span><span class="availability-pill">{{ tool.statusText }}</span><button class="xq-button icon-btn" :aria-label="`${tool.label} 线路详情`" @click="openDetails(tool)"><img src="/xingqiao/info.svg" alt="" /></button></div>
             <div class="separator"></div><small>最佳线路</small><strong class="best" :class="{muted:!tool.best}">{{ tool.best?.name || '暂无可用线路' }}</strong>
             <div class="card-bottom"><span>已关联 {{ tool.linked }} 把密钥</span><button class="xq-button" :disabled="!tool.active.length" @click="openCreate(tool)">关联密钥</button></div>
+            <button type="button" class="pricing-entry" :aria-label="`${tool.label} 价格与扣费说明`" @click="openPricing(tool)">价格与扣费说明 <Icon name="externalLink" size="sm" /></button>
           </article>
         </div>
         <section class="lines-panel" aria-labelledby="routes-title">
@@ -43,6 +44,7 @@
         </tbody></table><div v-if="!detailRows.length" class="empty">暂无线路</div></div>
       </BaseDialog>
       <CreateLineKeyDialog :show="!!createTool" :tool-name="createTool?.label||''" :tool-id="createTool?.id" :groups="createTool?.active||[]" :metrics="metricsById" :linked-counts="counts" :rates="rates" :initial-group-id="createGroupId" @close="closeCreate" @created="keyCreated" />
+      <PricingDialog :tool="pricingTool" :lines="pricingTool?.groups || []" :rates="rates" @close="closePricing" />
     </section>
   </AppLayout>
 </template>
@@ -55,6 +57,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import CreateLineKeyDialog from '@/features/ai-tools/CreateLineKeyDialog.vue'
+import PricingDialog from '@/features/ai-tools/PricingDialog.vue'
 import userGroupsAPI from '@/api/groups'
 import keysAPI from '@/api/keys'
 import { getHybridPerformanceSnapshot } from '@/features/monitor-v4/api'
@@ -93,6 +96,10 @@ const toolCards=computed(()=>tools.map(tool=>{
   return {...tool,groups:matching,active,best:available[0],linked:matching.reduce((n,g)=>n+(counts.value.get(g.id)||0),0),statusKind:!active.length||unknown&&!available.length?'muted':available.length?'success':'danger',statusText:!active.length?'暂无可用线路':available.length?`可用 · ${available.length}/${active.length} 条`:unknown?'暂不可用':`不可用 · 0/${active.length} 条`}
 }))
 type ToolCard=typeof toolCards.value[number]
+const pricingTool=ref<ToolCard|null>(null)
+let pricingTrigger:HTMLElement|null=null
+function openPricing(tool:ToolCard){pricingTrigger=document.activeElement as HTMLElement;pricingTool.value=tool}
+function closePricing(){pricingTool.value=null;nextTick(()=>pricingTrigger?.focus())}
 const selectedTool=ref<ToolCard|null>(null), createTool=ref<ToolCard|null>(null),createGroupId=ref<number>()
 const routeRows=computed(()=>sort(configuredLines(groups.value,keys.value)))
 const detailRows=computed(()=>sort(selectedTool.value?.groups||[],detailMetrics.value))

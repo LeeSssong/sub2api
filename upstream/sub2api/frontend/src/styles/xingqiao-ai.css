@@ -77,6 +77,12 @@
 .xq-dialog .modal-body{padding:20px 28px 24px;overflow:auto}
 .xq-dialog .modal-footer{background:transparent;border-top:1px solid var(--xq-line);padding:16px 28px}
 .xq-dialog .xq-route-dialog{width:min(1280px,calc(100vw - 48px));max-width:none}
+.xq-dialog .xq-pricing-dialog{width:min(1080px,calc(100vw - 48px));max-width:none;height:min(900px,calc(100dvh - 40px));max-height:none;display:flex;flex-direction:column}
+.xq-dialog .xq-pricing-dialog .modal-body{min-height:0;overflow:hidden;display:flex;flex:1 1 auto}
+.xq-ai .pricing-entry{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding:0;background:none;border:0;color:var(--xq-accent);font-size:13px;text-align:left;cursor:pointer;min-height:28px}
+.xq-ai .pricing-entry:hover{text-decoration:underline;text-underline-offset:4px}
+.xq-ai .pricing-entry:focus-visible{outline:2px solid var(--xq-accent);outline-offset:4px;border-radius:4px}
+@media(max-width:640px){.xq-dialog .xq-pricing-dialog{width:calc(100vw - 24px);height:calc(100dvh - 24px)}.xq-ai .pricing-entry{min-height:44px}}
 .xq-dialog .detail-section-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:10px}
 .xq-dialog .detail-section-head p{font-size:11px;color:var(--xq-muted)}
 .xq-dialog .detail-period{display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:11px;color:var(--xq-muted)}

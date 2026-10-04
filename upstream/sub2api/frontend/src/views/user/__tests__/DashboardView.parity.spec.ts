@@ -2,18 +2,18 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Dashboard from '../DashboardView.vue'
 import { clearDashboardWorkspaceSnapshot } from '@/features/ai-tools/workspaceCache'
-const mocks=vi.hoisted(()=>({groups:vi.fn(),rates:vi.fn(),keys:vi.fn(),snapshot:vi.fn(),check:vi.fn(),push:vi.fn(),authUser:{id:7}}))
+const mocks=vi.hoisted(()=>({groups:vi.fn(),rates:vi.fn(),keys:vi.fn(),snapshot:vi.fn(),check:vi.fn(),models:vi.fn(),push:vi.fn(),authUser:{id:7}}))
 vi.mock('vue-router',()=>({useRouter:()=>({push:mocks.push})}))
 vi.mock('@/stores/auth',()=>({useAuthStore:()=>({user:mocks.authUser})}))
 vi.mock('@/api/groups',()=>({default:{getAvailable:mocks.groups,getUserGroupRates:mocks.rates}}))
 vi.mock('@/api/keys',()=>({default:{list:mocks.keys}}))
 vi.mock('@/features/monitor-v4/api',()=>({getHybridPerformanceSnapshot:mocks.snapshot}))
-vi.mock('@/features/ai-tools/api',()=>({checkLines:mocks.check}))
+vi.mock('@/features/ai-tools/api',()=>({checkLines:mocks.check,getGroupModels:mocks.models}))
 const groups=[{id:1,name:'GPT-Pro',platform:'openai',rate_multiplier:1,status:'active'},{id:2,name:'未关联线路',platform:'openai',rate_multiplier:.5,status:'active'}]
 const metric=(id:number)=>({id,tool_ids:['codex'],success_rate:98,request_count:100,success_count:98,ttft_p50_ms:2160,latency_p50_ms:6500,current_operational:true,source_updated_at:new Date().toISOString()})
 const deferred=<T,>()=>{let resolve!:(value:T)=>void;let reject!:(reason?:unknown)=>void;const promise=new Promise<T>((res,rej)=>{resolve=res;reject=rej});return {promise,resolve,reject}}
 const make=()=>mount(Dashboard,{global:{stubs:{AppLayout:{template:'<div><slot/></div>'},BaseDialog:{props:['show','title'],template:'<div v-if="show" role="dialog"><h3>{{title}}</h3><slot/><slot name="footer"/></div>'},CreateLineKeyDialog:{props:['show','initialGroupId'],template:'<div v-if="show" data-testid="create-key">{{initialGroupId}}</div>'}}}})
-beforeEach(()=>{vi.clearAllMocks();clearDashboardWorkspaceSnapshot();mocks.groups.mockResolvedValue(groups);mocks.rates.mockResolvedValue({});mocks.keys.mockResolvedValue({items:[{id:1,group_id:1,status:'inactive',group:groups[0]}],total:1});mocks.snapshot.mockResolvedValue({groups:groups.map(g=>metric(g.id))});mocks.check.mockResolvedValue([{group_id:1,status:'success',ttft_ms:1230}])})
+beforeEach(()=>{vi.clearAllMocks();clearDashboardWorkspaceSnapshot();mocks.models.mockResolvedValue([{group_id:1,supported_models:['gpt-5.4','gpt-5.2']},{group_id:2,supported_models:['gpt-5.4','custom-model']},{group_id:99,supported_models:['private-model']}]);mocks.groups.mockResolvedValue(groups);mocks.rates.mockResolvedValue({});mocks.keys.mockResolvedValue({items:[{id:1,group_id:1,status:'inactive',group:groups[0]}],total:1});mocks.snapshot.mockResolvedValue({groups:groups.map(g=>metric(g.id))});mocks.check.mockResolvedValue([{group_id:1,status:'success',ttft_ms:1230}])})
 describe('原型AI工具交互',()=>{
  it.each([[0,'red'],[49.9,'red'],[50,'amber'],[84.9,'amber'],[85,'green'],[100,'green'],[null,'muted']] as const)('uses the shared success-rate tone for %s in both tables',async(rate,tone)=>{
   mocks.snapshot.mockResolvedValue({groups:groups.map(g=>({...metric(g.id),success_rate:rate,request_count:rate===null?0:100}))})
@@ -60,5 +60,49 @@ describe('原型AI工具交互',()=>{
   w.unmount()
  })
  it('preserves the last successful detail metrics after a same-window refresh fails',async()=>{const w=make();await flushPromises();await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises();mocks.snapshot.mockRejectedValue(new Error('offline'));await w.findAll('button').find(b=>b.text()==='近 1 小时')!.trigger('click');await flushPromises();expect(w.get('[role="dialog"]').text()).toContain('2.16s');expect(w.get('[role="dialog"]').text()).toContain('98%');w.unmount()})
+
+ it('shows only current tool group models and switches official price tiers without changing fees',async()=>{
+  mocks.rates.mockResolvedValue({1:0.12})
+  const w=make();await flushPromises()
+  await w.get('button[aria-label="Codex 价格与扣费说明"]').trigger('click');await flushPromises()
+  const dialog=w.get('[role="dialog"]')
+  expect(dialog.text()).toContain('OpenAI 官方定价')
+  const rows=dialog.findAll('.model-pricing-table tbody tr')
+  expect(rows.map(r=>r.find('th').text())).toEqual(['custom-model','gpt-5.2','gpt-5.4'])
+  expect(dialog.text()).not.toContain('private-model')
+  const gpt=()=>dialog.findAll('.model-pricing-table tbody tr').find(r=>r.find('th').text()==='gpt-5.4')!
+  expect(gpt().findAll('td')[0].text()).toBe('$2.50')
+  await dialog.findAll('button').find(b=>b.text()==='Batch')!.trigger('click')
+  expect(gpt().findAll('td')[0].text()).toBe('$1.25')
+  expect(gpt().findAll('td')[1].text()).toBe('$0.13')
+  await dialog.findAll('button').find(b=>b.text()==='Ultrafast')!.trigger('click')
+  expect(gpt().findAll('td')[0].text()).toBe('待核对')
+  const fees=dialog.get('.fee-table')
+  expect(fees.findAll('thead th').map(th=>th.text())).toEqual(['分组','支持模型','倍率','扣费标准'])
+  expect(fees.text()).toContain('gpt-5.4、gpt-5.2')
+  expect(fees.text()).toContain('模型基础费用 × 0.12')
+  expect(dialog.text()).not.toContain('Input')
+  w.unmount()
+ })
+ it('recovers model loading failure through retry without hiding the workspace',async()=>{
+  mocks.models.mockRejectedValueOnce(new Error('offline'))
+  const w=make();await flushPromises()
+  await w.get('button[aria-label="Codex 价格与扣费说明"]').trigger('click');await flushPromises()
+  expect(w.get('.tool-grid').exists()).toBe(true)
+  expect(w.get('[role="dialog"]').text()).toContain('模型读取失败')
+  await w.get('[role="dialog"]').findAll('button').find(b=>b.text()==='重试')!.trigger('click');await flushPromises()
+  expect(w.get('[role="dialog"]').text()).toContain('gpt-5.4')
+  expect(w.get('[role="dialog"]').text()).not.toContain('模型读取失败')
+  w.unmount()
+ })
+ it('does not invent supported models for groups with no configuration',async()=>{
+  mocks.models.mockResolvedValue([{group_id:1,supported_models:[]}])
+  const w=make();await flushPromises()
+  await w.get('button[aria-label="Codex 价格与扣费说明"]').trigger('click');await flushPromises()
+  expect(w.get('[role="dialog"]').text()).toContain('尚未配置')
+  expect(w.get('.fee-table').text()).toContain('待配置')
+  expect(w.find('.model-pricing-table').exists()).toBe(false)
+  w.unmount()
+ })
 
 })
