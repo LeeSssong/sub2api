@@ -43,6 +43,28 @@ describe('quality operations', () => {
       quality: { expected_answer: '', action: 'remove_groups', remove_group_ids: [id], auto_restore: false } },
   }))
 
+  it('saves multiple quality models and displays them on the rule card', async () => {
+    const plan = rules()[0]
+    plan.pelican_config!.question_kind = 'candy'
+    plan.pelican_config!.prompt = 'question'
+    plan.pelican_config!.quality!.expected_answer = '21'
+    plan.pelican_config!.quality!.judge = { group_id: 21, model_id: 'test-judge', prompt: 'Grade' }
+    vi.mocked(listQualityPlans).mockResolvedValue([plan])
+    const wrapper = mountView(); await flushPromises()
+    await wrapper.get('.rule-actions button:nth-child(2)').trigger('click'); await flushPromises()
+    await wrapper.get('[data-testid="quality-add-model"]').trigger('click')
+    await wrapper.get('[data-testid="quality-extra-model"]').setValue('gpt-6-sol')
+    await wrapper.get('#quality-rule-form').trigger('submit'); await flushPromises()
+    expect(scheduledTests.update).toHaveBeenCalledWith(1, expect.objectContaining({
+      model_id: 'model-1', pelican_config: expect.objectContaining({ model_ids: ['model-1', 'gpt-6-sol'] }),
+    }))
+    wrapper.unmount()
+    plan.pelican_config = { ...plan.pelican_config!, model_ids: ['model-1', 'gpt-6-sol'] } as any
+    const saved = mountView(); await flushPromises()
+    expect(saved.get('[data-plan-id="1"] .rule-model').text()).toContain('gpt-6-sol')
+    saved.unmount()
+  })
+
   it.each(['state_probe', 'candy'] as const)('preserves the saved 5xx trigger when editing a %s rule', async questionKind => {
     const plan = rules()[0]
     plan.pelican_config!.question_kind = questionKind

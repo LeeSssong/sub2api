@@ -150,14 +150,36 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 		observationTrigger = "upstream_5xx"
 	}
 	runCtx = context.WithValue(runCtx, oauthProbeRuleKey{}, oauthProbeRule{id: plan.ID, roundID: until.Format(time.RFC3339Nano), triggerSource: observationTrigger})
-	results := make([]*ScheduledTestResult, plan.PelicanConfig.ParallelCount)
-	var wg sync.WaitGroup
+	models := []string{plan.ModelID}
+	if len(plan.PelicanConfig.ModelIDs) > 0 {
+		models = plan.PelicanConfig.ModelIDs
+	}
+	results := make([]*ScheduledTestResult, len(models)*plan.PelicanConfig.ParallelCount)
+	// Samples are interleaved by model so each model can start before repeats.
+	// Bound upstream concurrency while waiting for every result, even failures.
+	jobs := make(chan int, len(results))
 	for i := range results {
+		jobs <- i
+	}
+	close(jobs)
+	var wg sync.WaitGroup
+	workers := len(results)
+	if workers > 8 {
+		workers = 8
+	}
+	for i := 0; i < workers; i++ {
 		wg.Add(1)
-		go func(index int) {
+		go func() {
 			defer wg.Done()
-			results[index] = s.runPelicanSample(runCtx, plan)
-		}(i)
+			for index := range jobs {
+				samplePlan := *plan
+				cfg := *plan.PelicanConfig
+				samplePlan.ModelID = models[index%len(models)]
+				cfg.ModelID = samplePlan.ModelID
+				samplePlan.PelicanConfig = &cfg
+				results[index] = s.runPelicanSample(runCtx, &samplePlan)
+			}
+		}()
 	}
 	wg.Wait()
 	// Persist timeout failures with a fresh context even after the request deadline.
@@ -168,7 +190,7 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 		qualityAction = "inconclusive"
 		if applyTriggeredQuality {
 			var actionErr error
-			qualityAction, actionErr = s.planRepo.ApplyQualityOutcome(saveCtx, plan, until, qualityOutcome(results))
+			qualityAction, actionErr = s.planRepo.ApplyQualityOutcome(saveCtx, plan, until, qualityRoundOutcome(results, len(models) > 1))
 			if actionErr != nil {
 				qualityAction = "action_error"
 				logger.LegacyPrintf("service.scheduled_test_runner", "quality plan=%d action failed: %v", plan.ID, actionErr)
@@ -233,6 +255,7 @@ func (s *ScheduledTestRunnerService) runPelicanSample(ctx context.Context, plan 
 	if result == nil {
 		return failure("scheduled_test_empty_result: background sample returned no result")
 	}
+	result.PelicanConfig = plan.PelicanConfig
 	// 探针题型的结果自带 correct/incorrect/unknown 判定，不经过判题模型。
 	if plan.PelicanConfig.Quality != nil && result.Status == "success" && !isOpenAICodexStateProbePlan(plan.PelicanConfig) {
 		var judgment *QualityJudgment
