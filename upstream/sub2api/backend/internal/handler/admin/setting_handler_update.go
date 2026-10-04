@@ -1408,7 +1408,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return
 			}
 			urlTrimmed := strings.TrimSpace(item.URL)
-			if strings.HasPrefix(urlTrimmed, "md:") {
+			if urlTrimmed == "/intelligence-test" {
+				// Native authenticated page explicitly supported by custom navigation.
+			} else if strings.HasPrefix(urlTrimmed, "md:") {
 				// Markdown page mode: URL = "md:<slug>"
 				slug := strings.TrimPrefix(urlTrimmed, "md:")
 				if slug == "" {

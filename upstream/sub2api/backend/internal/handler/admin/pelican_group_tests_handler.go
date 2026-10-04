@@ -134,3 +134,49 @@ func pelicanGroupTestID(c *gin.Context, param string) (int64, bool) {
 	}
 	return id, true
 }
+
+// SaveIntelligenceRule materializes one rule across selected groups atomically.
+func (h *PelicanGroupTestHandler) SaveIntelligenceRule(c *gin.Context) {
+	var input service.IntelligenceRuleInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+	id, err := h.svc.SaveIntelligenceRule(c.Request.Context(), c.Param("id"), input)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"id": id})
+}
+func (h *PelicanGroupTestHandler) DeleteIntelligenceRule(c *gin.Context) {
+	if err := h.svc.DeleteIntelligenceRule(c.Request.Context(), c.Param("id")); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"deleted": true})
+}
+
+// Dashboard and Result are read-only, authenticated user endpoints. Their DTOs never expose account identities.
+func (h *PelicanGroupTestHandler) IntelligenceDashboard(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	view, err := h.svc.IntelligenceDashboard(c.Request.Context())
+	if err != nil {
+		response.InternalError(c, "Failed to load intelligence tests")
+		return
+	}
+	response.Success(c, view)
+}
+func (h *PelicanGroupTestHandler) IntelligenceResult(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	id, ok := pelicanGroupTestID(c, "id")
+	if !ok {
+		return
+	}
+	result, err := h.svc.IntelligenceResult(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}

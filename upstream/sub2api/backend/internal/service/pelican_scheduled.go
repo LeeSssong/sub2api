@@ -55,7 +55,7 @@ func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID
 	})
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	w := &pelicanRecorder{ResponseRecorder: httptest.NewRecorder(), cancel: cancel}
+	w := &pelicanRecorder{ResponseRecorder: httptest.NewRecorder(), cancel: cancel, started: started}
 	c, _ := gin.CreateTestContext(w)
 	c.Request = (&http.Request{Header: make(http.Header)}).WithContext(ctx)
 	err := s.TestPelicanAccountConnection(c, accountID, model, intelligenceTestPrompt(cfg), cfg.ReasoningEffort)
@@ -82,6 +82,14 @@ func (s *AccountTestService) RunPelicanBackground(ctx context.Context, accountID
 	finished := time.Now()
 	snapshot := *cfg
 	snapshot.ModelID = model
+	if cfg.IntelligenceResult != nil {
+		metadata := *cfg.IntelligenceResult
+		if !w.firstContent.IsZero() {
+			ms := w.firstContent.Sub(started).Milliseconds()
+			metadata.FirstTokenMs = &ms
+		}
+		snapshot.IntelligenceResult = &metadata
+	}
 	return &ScheduledTestResult{Status: status, ResponseText: output, ErrorMessage: message, LatencyMs: finished.Sub(started).Milliseconds(), StartedAt: started, FinishedAt: finished, PelicanConfig: &snapshot}, nil
 }
 
@@ -330,8 +338,10 @@ func (s *ScheduledTestRunnerService) runPelicanSample(ctx context.Context, plan 
 // The generated SSE is captured in memory, so cap it before buffering, not just at persistence.
 type pelicanRecorder struct {
 	*httptest.ResponseRecorder
-	cancel   context.CancelFunc
-	overflow bool
+	cancel       context.CancelFunc
+	overflow     bool
+	started      time.Time
+	firstContent time.Time
 }
 
 func (w *pelicanRecorder) Write(data []byte) (int, error) {
@@ -339,6 +349,17 @@ func (w *pelicanRecorder) Write(data []byte) (int, error) {
 		w.overflow = true
 		w.cancel()
 		return 0, io.ErrShortWrite
+	}
+	if w.firstContent.IsZero() && !w.started.IsZero() {
+		for _, line := range strings.Split(string(data), "\n") {
+			if raw, ok := strings.CutPrefix(line, "data:"); ok {
+				var event TestEvent
+				if json.Unmarshal([]byte(strings.TrimSpace(raw)), &event) == nil && event.Type == "content" && event.Text != "" {
+					w.firstContent = time.Now()
+					break
+				}
+			}
+		}
 	}
 	return w.ResponseRecorder.Write(data)
 }

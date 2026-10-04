@@ -144,13 +144,14 @@ type pelicanGroupTestGroups interface {
 }
 
 type PelicanGroupTestService struct {
-	repo       PelicanGroupTestRepository
-	groups     pelicanGroupTestGroups
-	router     pelicanGroupRouter
-	runAccount func(ctx context.Context, accountID int64, model string, cfg *PelicanTestConfig) (*ScheduledTestResult, error)
-	showcase   *PelicanShowcaseService
-	billing    *BillingService
-	now        func() time.Time
+	judgeQuality func(context.Context, int64, *PelicanTestConfig, string) *QualityJudgment
+	repo         PelicanGroupTestRepository
+	groups       pelicanGroupTestGroups
+	router       pelicanGroupRouter
+	runAccount   func(ctx context.Context, accountID int64, model string, cfg *PelicanTestConfig) (*ScheduledTestResult, error)
+	showcase     *PelicanShowcaseService
+	billing      *BillingService
+	now          func() time.Time
 	// runs tracks background runs so tests can wait for them.
 	runs sync.WaitGroup
 }
@@ -372,7 +373,7 @@ func (s *PelicanGroupTestService) execute(plan *PelicanGroupTestPlan, until time
 		}
 		s.showcase.PublishGroupResult(saveCtx, plan.GroupID, saved)
 	}
-	if err := s.repo.PruneResults(saveCtx, plan.ID, pelicanGroupTestKeepResults); err != nil {
+	if err := s.repo.PruneResults(saveCtx, plan.ID, intelligenceHistoryKeep(plan)); err != nil {
 		logger.LegacyPrintf("service.pelican_group_test", "plan=%d prune failed: %v", plan.ID, err)
 	}
 	if err := s.repo.Finish(saveCtx, plan.ID, until, s.now()); err != nil {
@@ -381,6 +382,17 @@ func (s *PelicanGroupTestService) execute(plan *PelicanGroupTestPlan, until time
 }
 
 func (s *PelicanGroupTestService) runSamples(ctx context.Context, plan *PelicanGroupTestPlan) []*PelicanGroupTestResult {
+	if plan.PelicanConfig != nil && plan.PelicanConfig.Intelligence != nil {
+		plans := s.intelligenceSamplePlans(plan)
+		results := make([]*PelicanGroupTestResult, len(plans))
+		var wg sync.WaitGroup
+		for i, p := range plans {
+			wg.Add(1)
+			go func(i int, p *PelicanGroupTestPlan) { defer wg.Done(); results[i] = s.runSamples(ctx, p)[0] }(i, p)
+		}
+		wg.Wait()
+		return results
+	}
 	group, err := s.groups.GetByID(ctx, plan.GroupID)
 	if err == nil && group != nil && group.Status != StatusActive {
 		err = fmt.Errorf("group is %s", group.Status)
@@ -468,11 +480,33 @@ func (s *PelicanGroupTestService) runSample(ctx context.Context, plan *PelicanGr
 				sample.ErrorMessage = "pelican_group_test_empty_result: account test returned no result"
 			}
 		}
+		s.gradeIntelligence(ctx, route.account.ID, plan.PelicanConfig, sample)
 		if sample.Status == "success" || !pelicanFailedBeforeOutput(sample) || len(attempts)+1 >= PelicanGroupTestMaxAttempts {
 			result = s.newResult(plan, started, s.now(), sample.ErrorMessage)
 			result.Status = sample.Status
 			result.ResponseText = sample.ResponseText
 			result.LatencyMs = sample.LatencyMs
+			if sample.PelicanConfig != nil && sample.PelicanConfig.IntelligenceResult != nil {
+				result.PelicanConfig.IntelligenceResult = sample.PelicanConfig.IntelligenceResult
+			}
+			if result.PelicanConfig != nil && result.PelicanConfig.IntelligenceResult != nil {
+				metadata := *result.PelicanConfig.IntelligenceResult
+				for _, u := range usage.requests {
+					if u.inputSeen {
+						if metadata.InputTokens == nil {
+							metadata.InputTokens = new(int)
+						}
+						*metadata.InputTokens += u.input
+					}
+					if u.outputSeen {
+						if metadata.OutputTokens == nil {
+							metadata.OutputTokens = new(int)
+						}
+						*metadata.OutputTokens += u.output + u.thoughts
+					}
+				}
+				result.PelicanConfig.IntelligenceResult = &metadata
+			}
 			result.AccountID, result.AccountName, result.Attempts = route.account.ID, route.account.Name, attempts
 			return result
 		}
@@ -643,4 +677,12 @@ func isOpenAIResponsesGatewayPlatform(platform string) bool {
 	default:
 		return false
 	}
+}
+
+// Dual-question plans retain enough samples for a three-day view, including 15-minute schedules.
+func intelligenceHistoryKeep(plan *PelicanGroupTestPlan) int {
+	if plan.PelicanConfig != nil && plan.PelicanConfig.Intelligence != nil {
+		return 1024
+	}
+	return pelicanGroupTestKeepResults
 }

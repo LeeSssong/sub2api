@@ -26,6 +26,10 @@ func RegisterUserRoutes(
 	authenticated.Use(gin.HandlerFunc(auditLog))
 	{
 		// 用户接口
+		if h.Admin != nil && h.Admin.PelicanGroupTest != nil {
+			authenticated.GET("/intelligence-tests", h.Admin.PelicanGroupTest.IntelligenceDashboard)
+			authenticated.GET("/intelligence-tests/results/:id", h.Admin.PelicanGroupTest.IntelligenceResult)
+		}
 		authenticated.GET("/pelican-showcase", h.PelicanShowcase.List)
 		authenticated.GET("/pelican-showcase/items/:id", h.PelicanShowcase.GetItem)
 		user := authenticated.Group("/user")

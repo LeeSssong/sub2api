@@ -12,7 +12,7 @@
       :class="[sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-64']"
     >
       <!-- Header -->
-      <AppHeader v-if="isAdmin" />
+      <AppHeader v-if="isAdmin || showDesktopHeader" />
 
       <div v-else class="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-[#14304f] bg-[#040b17]/95 px-4 backdrop-blur lg:hidden">
         <button
@@ -47,6 +47,8 @@ import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
+
+withDefaults(defineProps<{ showDesktopHeader?: boolean }>(), { showDesktopHeader: false })
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
