@@ -8,15 +8,18 @@
       <template v-if="loaded">
         <div class="tool-grid" :aria-busy="loading">
           <article v-for="tool in toolCards" :key="tool.id" class="tool-card">
-            <h3 class="tool-title"><img class="provider-logo" :src="providerIcon(tool.platform)" alt="" /><span>{{ tool.label }}</span></h3>
-            <span class="tool-type">{{ tool.type }}</span>
+            <header class="tool-card-header">
+              <div class="tool-card-identity"><h3 class="tool-title"><img class="provider-logo" :src="providerIcon(tool.platform)" alt="" /><span>{{ tool.label }}</span></h3><span class="tool-type">{{ tool.type }}</span></div>
+              <button type="button" class="pricing-entry" :aria-label="`${tool.label} 价格与扣费说明`" @click="openPricing(tool)">扣费说明 <Icon name="externalLink" size="sm" /></button>
+            </header>
             <div class="tool-status" :class="`status-${tool.statusKind}`">
               <span v-for="item in tool.healthItems" :key="item.kind" class="health-pill" :data-health-count="item.kind" :data-status="item.kind"><span class="dot" :class="item.kind"></span>{{ item.text }} {{ item.count }}</span>
               <button class="xq-button icon-btn" :aria-label="`${tool.label} 线路详情`" @click="openDetails(tool)"><img src="/xingqiao/info.svg" alt="" /></button>
             </div>
-            <div class="separator"></div><small>最佳线路</small><strong class="best" :class="{muted:!tool.best}">{{ tool.best?.name || '暂无请求数据' }}</strong>
-            <div class="card-bottom"><span>已关联 {{ tool.linked }} 把密钥</span><button class="xq-button" :disabled="!tool.active.length" @click="openCreate(tool)">关联密钥</button></div>
-            <button type="button" class="pricing-entry" :aria-label="`${tool.label} 价格与扣费说明`" @click="openPricing(tool)">价格与扣费说明 <Icon name="externalLink" size="sm" /></button>
+            <div class="card-bottom">
+              <div class="tool-best"><small>最佳线路</small><strong class="best" :class="{muted:!tool.best}">{{ tool.best?.name || '暂无请求数据' }}</strong></div>
+              <button class="xq-button" :disabled="!tool.active.length" @click="openCreate(tool)">关联密钥</button>
+            </div>
           </article>
         </div>
         <section class="lines-panel" aria-labelledby="routes-title">
@@ -130,7 +133,7 @@ const toolCards=computed(()=>tools.map(tool=>{
   const healthCounts={success:0,warning:0,danger:0,muted:0}
   for(const group of matching) healthCounts[stateOf(group).kind] += 1
   const healthItems=HEALTH_ORDER.map(kind=>({kind,text:HEALTH_LABELS[kind],count:healthCounts[kind]})).filter(item=>item.count>0)
-  return {...tool,groups:matching,active,best:active.find(g=>stateOf(g).rate!==null),linked:matching.reduce((n,g)=>n+(counts.value.get(g.id)||0),0),statusKind:health.kind,statusText:health.text,healthItems}
+  return {...tool,groups:matching,active,best:active.find(g=>stateOf(g).rate!==null),statusKind:health.kind,statusText:health.text,healthItems}
 }))
 type ToolCard=typeof toolCards.value[number]
 const pricingTool=ref<ToolCard|null>(null)
