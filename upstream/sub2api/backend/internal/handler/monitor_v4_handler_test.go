@@ -141,7 +141,7 @@ type monitorTimelineStub struct {
 	window service.MonitorV4Window
 }
 
-func (s *monitorTimelineStub) Timeline(_ context.Context, id int64, w service.MonitorV4Window, _ time.Time) (*service.MonitorV4Timeline, error) {
+func (s *monitorTimelineStub) TimelineWithGranularity(_ context.Context, id int64, w service.MonitorV4Window, _ string, _ time.Time) (*service.MonitorV4Timeline, error) {
 	s.user = id
 	s.window = w
 	return &service.MonitorV4Timeline{Window: w, Points: []service.MonitorV4TimelinePoint{}}, nil
@@ -152,7 +152,7 @@ func TestMonitorV4TimelineHandlerAuthAndWindow(t *testing.T) {
 		user   int64
 		window string
 		code   int
-	}{{0, "1h", 401}, {42, "invalid", 400}, {42, "24h", 200}} {
+	}{{0, "1h", 401}, {42, "invalid", 400}, {42, "24h&granularity=invalid", 400}, {42, "24h&granularity=day", 200}, {42, "24h", 200}} {
 		stub := &monitorTimelineStub{}
 		h := NewMonitorV4Handler(stub)
 		rr := httptest.NewRecorder()

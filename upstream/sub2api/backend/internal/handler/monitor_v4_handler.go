@@ -160,17 +160,21 @@ func (h *MonitorV4Handler) Timeline(c *gin.Context) {
 		response.BadRequest(c, "unsupported monitor window")
 		return
 	}
-	reader, ok := h.service.(interface {
-		Timeline(context.Context, int64, service.MonitorV4Window, time.Time) (*service.MonitorV4Timeline, error)
-	})
-	if !ok {
-		response.InternalError(c, "timeline unavailable")
+	granularity := c.DefaultQuery("granularity", "hour")
+	if granularity != "hour" && granularity != "day" {
+		response.BadRequest(c, "unsupported timeline granularity")
 		return
 	}
-	value, err := reader.Timeline(c.Request.Context(), subject.UserID, window, time.Now().UTC())
-	if err != nil {
-		response.ErrorFrom(c, err)
+	if reader, ok := h.service.(interface {
+		TimelineWithGranularity(context.Context, int64, service.MonitorV4Window, string, time.Time) (*service.MonitorV4Timeline, error)
+	}); ok {
+		value, err := reader.TimelineWithGranularity(c.Request.Context(), subject.UserID, window, granularity, time.Now().UTC())
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		response.Success(c, value)
 		return
 	}
-	response.Success(c, value)
+	response.InternalError(c, "timeline unavailable")
 }

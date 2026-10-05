@@ -4,19 +4,23 @@
  <p v-else-if="error" role="status">线路走势读取失败，请重新选择统计范围重试。</p>
  <p v-else-if="!points.length">暂无历史统计</p>
  <template v-else>
-  <div class="chart-legend"><span v-for="s in series" :key="s.key" :class="s.key"><i></i>{{ s.label }}</span></div>
+  <div class="chart-legend"><button v-for="s in series" :key="s.key" :class="s.key" :aria-pressed="enabled[s.key]" @click="enabled[s.key]=!enabled[s.key]"><i></i>{{ s.label }}</button></div>
   <div class="chart-layout">
    <div class="chart-axis"><span>100%</span><span>50%</span><span>0%</span></div>
-   <div class="chart-plot">
+   <div class="chart-plot" @mouseleave="tooltipOpen=false" @focusout="tooltipOpen=false" @keydown.esc="tooltipOpen=false">
     <svg viewBox="0 0 400 140" preserveAspectRatio="none" aria-hidden="true">
      <path class="grid" d="M0 4H400 M0 70H400 M0 136H400" />
-     <line class="cursor" :x1="x(selected)" :x2="x(selected)" y1="4" y2="136" />
-     <g v-for="s in series" :key="s.key" :class="s.key">
+     <line v-if="tooltipOpen" class="cursor" :x1="x(selected)" :x2="x(selected)" y1="4" y2="136" />
+     <g v-for="s in visibleSeries" :key="s.key" :class="s.key">
       <path :data-series="s.key" :d="path(s.key)" class="line" />
       <template v-for="(p,i) in points" :key="p.start"><circle v-if="value(p,s.key)!==null" :cx="x(i)" :cy="y(value(p,s.key)!,s.key)" :r="selected===i?3.5:2" /></template>
      </g>
     </svg>
-    <div class="chart-targets" role="group" aria-label="按时间查看线路指标"><button v-for="(p,i) in points" :key="p.start" :data-point="i" :aria-label="describe(p)" :aria-pressed="selected===i" :tabindex="selected===i?0:-1" @mouseenter="selected=i" @focus="selected=i" @click="selected=i" @keydown="navigate($event,i)"></button></div>
+    <div class="chart-targets" role="group" aria-label="按时间查看线路指标"><button v-for="(p,i) in points" :key="p.start" :data-point="i" :aria-label="describe(p)" :aria-pressed="selected===i" :tabindex="selected===i?0:-1" @mouseenter="select(i)" @focus="select(i)" @click="select(i)" @keydown="navigate($event,i)"></button></div>
+    <div v-if="tooltipOpen && points[selected]" class="chart-tooltip" role="status" :style="selected < points.length/2 ? {right:'0'} : {left:'0'}">
+     <strong>{{ tooltipTime(points[selected]!.start) }}</strong>
+     <span v-for="s in tooltipSeries" :key="s.key" :class="s.key">{{ s.label }} <b>{{ formatted(points[selected]!,s.key) }}<template v-if="s.key==='success'">（{{ points[selected]!.success_count }}／{{ points[selected]!.request_count }}）</template></b></span>
+    </div>
    </div>
    <div class="chart-axis seconds"><span>{{ secondsMax }}s</span><span>{{ secondsMax/2 }}s</span><span>0s</span></div>
   </div>
@@ -30,23 +34,29 @@ import type { RouteTimelinePoint } from './routeTimeline'
 const props = defineProps<{points:RouteTimelinePoint[];loading:boolean;error:boolean}>()
 type Metric = 'cache'|'success'|'ttft'
 const series: {key:Metric;label:string}[] = [{key:'cache',label:'缓存命中率'},{key:'success',label:'请求成功率'},{key:'ttft',label:'首字 P50'}]
+const tooltipSeries=[series[1]!,series[0]!,series[2]!]
+const enabled=ref<Record<Metric,boolean>>({cache:true,success:true,ttft:true})
+const visibleSeries=computed(()=>series.filter(s=>enabled.value[s.key]))
+const tooltipOpen=ref(false)
+function select(i:number){selected.value=i;tooltipOpen.value=true}
 const selected = ref(0)
-watch(()=>props.points,()=>{selected.value=Math.max(0,props.points.length-1)},{immediate:true})
+watch(()=>props.points,()=>{tooltipOpen.value=false;selected.value=Math.max(0,props.points.length-1)},{immediate:true})
 const secondsMax = computed(()=>Math.max(1,Math.ceil(Math.max(0,...props.points.map(p=>p.ttft_p50_ms??0))/1000)))
 const x = (i:number)=>(i+.5)*400/props.points.length
 function value(p:RouteTimelinePoint,m:Metric):number|null {
- if(m==='cache')return p.cache_hit_rate==null?null:p.cache_hit_rate*100
- if(m==='ttft')return p.ttft_p50_ms==null?null:p.ttft_p50_ms/1000
- return p.request_count?p.success_count/p.request_count*100:null
+ if(m==='cache')return (p.cache_hit_rate??0)*100
+ if(m==='ttft')return (p.ttft_p50_ms??0)/1000
+ return p.request_count?p.success_count/p.request_count*100:0
 }
 const y = (v:number,m:Metric)=>136-v/(m==='ttft'?secondsMax.value:100)*132
 function path(m:Metric){
  let connected=false
  return props.points.map((p,i)=>{const v=value(p,m);if(v===null){connected=false;return ''}const command=connected?'L':'M';connected=true;return `${command}${x(i)},${y(v,m)}`}).join(' ')
 }
+const tooltipTime=(v:string)=>{const d=new Date(v);const pad=(n:number)=>String(n).padStart(2,'0');return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}  ${pad(d.getHours())}:${pad(d.getMinutes())}`}
 const time=(v:string)=>new Date(v).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})
-const tick=(v:string)=>new Date(v).toLocaleString('zh-CN',props.points.length===42?{month:'2-digit',day:'2-digit'}:{hour:'2-digit',minute:'2-digit',hour12:false})
-function formatted(p:RouteTimelinePoint,m:Metric){const v=value(p,m);return v===null?'—':m==='ttft'?`${v.toFixed(2)}s`:`${Number(v.toFixed(1))}%`}
+const tick=(v:string)=>new Date(v).toLocaleString('zh-CN',props.points.length>1 && Date.parse(props.points[props.points.length-1]!.end)-Date.parse(props.points[0]!.start)>86400000?{month:'2-digit',day:'2-digit'}:{hour:'2-digit',minute:'2-digit',hour12:false})
+function formatted(p:RouteTimelinePoint,m:Metric){const v=value(p,m)??0;const missing=m==='cache'?p.cache_hit_rate==null:m==='ttft'?p.ttft_p50_ms==null:!p.request_count;return (m==='ttft'?`${v.toFixed(2)}s`:`${Number(v.toFixed(1))}%`)+(missing?'（无样本，按 0 展示）':'')}
 const describe=(p:RouteTimelinePoint)=>`${time(p.start)} – ${time(p.end)} · ${series.map(s=>`${s.label} ${formatted(p,s.key)}`).join(' · ')}${p.request_count?` · ${p.success_count} / ${p.request_count} 次请求成功`:' · 无请求'}`
 function navigate(event:KeyboardEvent,i:number){
  let next=i
@@ -55,7 +65,7 @@ function navigate(event:KeyboardEvent,i:number){
  else if(event.key==='Home')next=0
  else if(event.key==='End')next=props.points.length-1
  else return
- event.preventDefault();selected.value=next
+ event.preventDefault();select(next)
  const container=(event.currentTarget as HTMLElement).parentElement
  ;(container?.children[next] as HTMLElement)?.focus()
 }
@@ -65,7 +75,11 @@ function navigate(event:KeyboardEvent,i:number){
 :global(:root:not(.dark) .route-history){--chart-cache:#7651b5}
 .cache{color:var(--chart-cache)}.success{color:var(--xq-success)}.ttft,.seconds{color:var(--xq-warning)}
 .chart-legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:14px;font-size:11px}
-.chart-legend span{display:inline-flex;align-items:center;gap:6px}.chart-legend i{width:16px;border-top:2px solid currentColor}.chart-legend .cache i{border-top-style:dashed}
+.chart-legend button{font:inherit;min-height:32px;background:none;border:0;padding:2px 0;cursor:pointer;display:inline-flex;align-items:center;gap:6px}.chart-legend i{width:16px;border-top:2px solid currentColor}.chart-legend .cache i{border-top-style:dashed}
+ .chart-legend button[aria-pressed="false"]{opacity:.5;text-decoration:line-through}
+.chart-legend button:focus-visible{outline:2px solid var(--xq-accent);outline-offset:3px}
+.chart-tooltip{position:absolute;top:8px;z-index:5;max-width:100%;box-sizing:border-box;width:240px;padding:10px 12px;border:1px solid var(--xq-border);border-radius:8px;background:var(--xq-surface);color:var(--xq-text);pointer-events:none;font-size:11px;line-height:1.6;box-shadow:0 4px 12px #0003}
+.chart-tooltip strong{white-space:pre-wrap;display:block;font-size:10px;overflow-wrap:anywhere;margin-bottom:5px}.chart-tooltip span{display:flex;justify-content:space-between;gap:8px}.chart-tooltip small{display:block;color:var(--xq-secondary);margin-top:4px}
 .chart-layout{display:grid;grid-template-columns:34px minmax(0,1fr) 30px;gap:6px;height:140px}
 .chart-axis{display:flex;flex-direction:column;justify-content:space-between;text-align:right;font-size:10px;line-height:12px;font-variant-numeric:tabular-nums}.seconds{text-align:left}
 .chart-plot{position:relative;min-width:0}.chart-plot svg{display:block;width:100%;height:100%;overflow:visible}

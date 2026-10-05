@@ -175,7 +175,7 @@ func (r *accountMonitorRepository) ReadMonitorV4Timeline(ctx context.Context, id
 	if len(ids) == 0 {
 		return out, nil
 	}
-	if len(ids) > 100 || step < 5*time.Minute || !end.After(start) || end.Sub(start) > 7*24*time.Hour || end.Sub(start)/step > 48 {
+	if len(ids) > 100 || step < 5*time.Minute || !end.After(start) || end.Sub(start) > 7*24*time.Hour || end.Sub(start)/step > 168 {
 		return nil, fmt.Errorf("invalid timeline bounds")
 	}
 	for _, id := range ids {

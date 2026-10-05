@@ -136,6 +136,11 @@ CREATE TABLE ops_error_logs(id bigserial PRIMARY KEY,group_id bigint,account_id 
     weighted_bucket=next(p for p in weighted if p['request_count']==3)
     check('timeline cache rate uses weighted tokens including cache creation', abs(weighted_bucket['cache_hit_rate']-30/70)<1e-9)
     sql("UPDATE usage_logs SET cache_read_tokens=0,cache_creation_tokens=0 WHERE request_id='real-1';")
+    for interval, hours, count in [('1 hour',24,24),('1 hour',168,168),('24 hours',168,7),('24 hours',24,1)]:
+        end=__import__("datetime").datetime(2026,9,20,12,tzinfo=__import__("datetime").timezone.utc)
+        start=end-__import__("datetime").timedelta(hours=hours)
+        granulated=rows(bind(timeline_sql,[start.isoformat(),end.isoformat(),interval,[],[],[7]]))
+        check('timeline granularity '+str(hours)+'h/'+interval,len(granulated)==count and sum(p['request_count'] for p in granulated)==3)
     mapping = query('internal/repository/group_tool_mapping.go','WITH changed AS (')
     sql(bind(mapping,[7,json.dumps(['codex']),42]))
     sql(bind(mapping,[7,json.dumps(['claude','codex']),42]))

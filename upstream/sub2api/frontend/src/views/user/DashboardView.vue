@@ -37,7 +37,7 @@
         </section>
       </template>
       <BaseDialog brand-theme :show="!!selectedTool && !createTool" :title="`${selectedTool?.label||''} 线路详情`" width="full" panel-class="xq-route-dialog" :close-on-click-outside="true" @close="closeDetails" @opened="restoreDetailFocus">
-        <div class="detail-section-head"><p>状态按近 1 小时真实请求判断；成功率、请求次数与 P50 按所选时间范围展示</p><div class="detail-period"><span>统计范围</span><div class="detail-period-segment" role="group" aria-label="线路统计时间"><button v-for="period in periods" :key="period.value" :aria-pressed="detailWindow===period.value" :class="{active:detailWindow===period.value}" @click="loadDetails(period.value)">{{ period.label }}</button></div></div></div>
+        <div class="detail-section-head"><p>状态按近 1 小时真实请求判断；成功率、请求次数与 P50 按所选时间范围展示</p><div class="detail-period"><span>统计范围</span><div class="detail-period-segment" role="group" aria-label="线路统计时间"><button v-for="period in periods" :key="period.value" :aria-pressed="detailWindow===period.value" :class="{active:detailWindow===period.value}" @click="loadDetails(period.value)">{{ period.label }}</button></div><label class="detail-granularity">粒度 <select aria-label="线路图粒度" :value="detailWindow==='1h'?'5m':detailGranularity" :disabled="detailWindow==='1h'" @change="detailGranularity=($event.target as HTMLSelectElement).value as 'hour'|'day';loadDetails(detailWindow)"><option v-if="detailWindow==='1h'" value="5m">5 分钟</option><option value="hour">小时</option><option value="day">天</option></select></label></div></div>
         <div v-if="detailError" class="workspace-error" role="alert">{{ detailError }} <button class="xq-button" @click="loadDetails(detailWindow)">重试</button></div>
         <div v-if="detailLoading && !detailData.length" class="empty" role="status">正在读取统计…</div>
         <div v-else class="route-detail-grid" :aria-busy="detailLoading">
@@ -100,7 +100,7 @@ import '@/styles/xingqiao-ai.css'
 const timelinePoints=ref<RouteTimelinePoint[]>([]),timelineLoading=ref(false),timelineError=ref(false)
 async function loadTimeline(window:MonitorV4Window,signal:AbortSignal){
  timelinePoints.value=[];timelineLoading.value=true;timelineError.value=false
- try{const points=await getRouteTimeline(window,signal);if(!signal.aborted)timelinePoints.value=points}
+ try{const points=await getRouteTimeline(window,signal,detailGranularity.value);if(!signal.aborted)timelinePoints.value=points}
  catch{if(!signal.aborted)timelineError.value=true}
  finally{if(!signal.aborted)timelineLoading.value=false}
 }
@@ -113,7 +113,7 @@ let freshnessTimer: ReturnType<typeof setInterval> | undefined
 const groups=ref<Group[]>(cachedWorkspace?.groups||[]), keys=ref<ApiKey[]>(cachedWorkspace?.keys||[]), rates=ref<Record<number,number>>(cachedWorkspace?.rates||{}), metrics=ref<MonitorV4Group[]>(cachedWorkspace?.metrics||[])
 const metricsGeneratedAt=ref<string|null>(cachedWorkspace?.metricsGeneratedAt||null)
 const loading=ref(false), loaded=ref(!!cachedWorkspace), workspaceError=ref(''), statsFailed=ref(false), statsError=ref(''), checking=ref(false), checkError=ref('')
-const checks=ref<Record<number,LineCheck>>({}), detailWindow=ref<MonitorV4Window>('1h'), detailLoading=ref(false), detailError=ref(''), detailData=ref<MonitorV4Group[]>([])
+const checks=ref<Record<number,LineCheck>>({}), detailWindow=ref<MonitorV4Window>('24h'), detailGranularity=ref<'hour'|'day'>('hour'), detailLoading=ref(false), detailError=ref(''), detailData=ref<MonitorV4Group[]>([])
 let loadController:AbortController|undefined, detailController:AbortController|undefined, checkController:AbortController|undefined
 const detailCache=new Map<MonitorV4Window,MonitorV4Group[]>()
 let returnToDetailGroup:number|undefined
@@ -183,7 +183,7 @@ async function loadWorkspace(){
     else {statsFailed.value=true;statsError.value='近 1 小时统计读取失败，请刷新重试。'}
   }finally{if(!c.signal.aborted)loading.value=false}
 }
-async function openDetails(tool:ToolCard){detailsTrigger=document.activeElement as HTMLElement;selectedTool.value=tool;await loadDetails('1h')}
+async function openDetails(tool:ToolCard){detailsTrigger=document.activeElement as HTMLElement;selectedTool.value=tool;detailGranularity.value='hour';await loadDetails('24h')}
 function closeDetails(){detailController?.abort();selectedTool.value=null;nextTick(()=>detailsTrigger?.focus())}
 async function loadDetails(window:MonitorV4Window){detailController?.abort();const c=new AbortController();detailController=c;detailWindow.value=window;void loadTimeline(window,c.signal);detailLoading.value=true;detailError.value='';detailData.value=detailCache.get(window)||[];try{const result=await getHybridPerformanceSnapshot(window,c.signal);if(!c.signal.aborted){detailData.value=result.groups;detailCache.set(window,result.groups);if(window==='1h'){metrics.value=result.groups;metricsGeneratedAt.value=result.generated_at;clock.value=Date.now();statsFailed.value=false;statsError.value='';cacheWorkspace()}}}catch{if(!c.signal.aborted){detailError.value=detailCache.has(window)?'统计刷新失败，保留上次成功数据。':'统计读取失败，请重试。';if(window==='1h'){statsFailed.value=true;statsError.value='近 1 小时统计读取失败，请刷新重试。'}}}finally{if(!c.signal.aborted)detailLoading.value=false}}
 function openCreate(tool:ToolCard,id?:number){createTrigger=document.activeElement as HTMLElement;createTool.value=tool;createGroupId.value=id}

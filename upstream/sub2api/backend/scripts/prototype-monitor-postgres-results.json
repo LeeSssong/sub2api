@@ -1,6 +1,6 @@
 {
   "database": "postgres:16-alpine",
-  "container": "codex-parity-pg-5735e1ee46",
+  "container": "codex-parity-pg-39a4ac2c26",
   "network": "none",
   "published_ports": false,
   "checks": [
@@ -104,6 +104,26 @@
     },
     {
       "name": "timeline cache rate uses weighted tokens including cache creation",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "timeline granularity 24h/1 hour",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "timeline granularity 168h/1 hour",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "timeline granularity 168h/24 hours",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "timeline granularity 24h/24 hours",
       "passed": true,
       "details": null
     },

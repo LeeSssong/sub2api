@@ -37,8 +37,17 @@ func TestMonitorV4TimelineVisibilityAndWindows(t *testing.T) {
 			require.Equal(t, []int64{7}, native.ids)
 			require.Equal(t, end, result.GeneratedAt)
 			require.Equal(t, start, native.start)
-			counts := map[MonitorV4Window]int{MonitorV4Window1H: 12, MonitorV4Window24H: 48, MonitorV4Window7D: 42}
+			counts := map[MonitorV4Window]int{MonitorV4Window1H: 12, MonitorV4Window24H: 24, MonitorV4Window7D: 168}
 			require.Equal(t, counts[w], int(end.Sub(start)/native.step))
+			_, err = svc.TimelineWithGranularity(context.Background(), 42, w, "day", end)
+			require.NoError(t, err)
+			if w == MonitorV4Window1H {
+				require.Equal(t, 5*time.Minute, native.step)
+			} else {
+				require.Equal(t, 24*time.Hour, native.step)
+			}
+			_, err = svc.TimelineWithGranularity(context.Background(), 42, w, "invalid", end)
+			require.Error(t, err)
 		})
 	}
 }

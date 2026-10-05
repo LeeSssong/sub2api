@@ -1,9 +1,9 @@
-vi.mock('@/features/ai-tools/routeTimeline',()=>({getRouteTimeline:vi.fn().mockResolvedValue([])}))
+vi.mock('@/features/ai-tools/routeTimeline',()=>({getRouteTimeline:(...args:unknown[])=>mocks.timeline(...args)}))
 import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Dashboard from '../DashboardView.vue'
 import { clearDashboardWorkspaceSnapshot } from '@/features/ai-tools/workspaceCache'
-const mocks=vi.hoisted(()=>({groups:vi.fn(),rates:vi.fn(),keys:vi.fn(),snapshot:vi.fn(),check:vi.fn(),models:vi.fn(),push:vi.fn(),authUser:{id:7}}))
+const mocks=vi.hoisted(()=>({timeline:vi.fn().mockResolvedValue([]),groups:vi.fn(),rates:vi.fn(),keys:vi.fn(),snapshot:vi.fn(),check:vi.fn(),models:vi.fn(),push:vi.fn(),authUser:{id:7}}))
 vi.mock('vue-router',()=>({useRouter:()=>({push:mocks.push})}))
 vi.mock('@/stores/auth',()=>({useAuthStore:()=>({user:mocks.authUser})}))
 vi.mock('@/api/groups',()=>({default:{getAvailable:mocks.groups,getUserGroupRates:mocks.rates}}))
@@ -71,8 +71,9 @@ describe('原型AI工具交互',()=>{
  it('invalidates one-hour health after detail failure and clears only the statistics error on recovery',async()=>{
   const w=make();await flushPromises()
   expect(w.get('.tool-status').text()).toContain('正常运行 2')
-  mocks.snapshot.mockRejectedValueOnce(new Error('offline'))
   await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
+  mocks.snapshot.mockRejectedValueOnce(new Error('offline'))
+  await w.findAll('button').find(b=>b.text()==='近 1 小时')!.trigger('click');await flushPromises()
   expect(w.get('.tool-status').text()).toContain('暂无数据 2')
   expect(w.get('.route-health').text()).toBe('暂无数据')
   expect(w.get('.statistics-error').text()).toContain('统计读取失败')
@@ -122,6 +123,15 @@ describe('原型AI工具交互',()=>{
  it('keeps associate action even with keys and opens creation without navigation',async()=>{const w=make();await flushPromises();const b=w.findAll('button').find(b=>b.text()==='关联密钥')!;await b.trigger('click');expect(w.find('[data-testid="create-key"]').exists()).toBe(true);expect(mocks.push).not.toHaveBeenCalled();w.unmount()})
  it('only lists linked lines and starts checks without using historical latency',async()=>{const w=make();await flushPromises();const list=w.get('[aria-labelledby="routes-title"]');expect(list.text()).not.toContain('未关联线路');expect(list.text()).not.toContain('2.16s');await w.get('button[aria-label="检查线路"]').trigger('click');await flushPromises();expect(mocks.check.mock.calls[0][0]).toEqual([1]);expect(list.text()).toContain('1.23s');w.unmount()})
  it('keeps the chart and fetches selected period without standalone latency metrics',async()=>{const w=make();await flushPromises();await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises();expect(w.find('.route-history').exists()).toBe(true);expect(w.get('[role="dialog"]').text()).not.toContain('2.16s');await w.findAll('button').find(b=>b.text()==='近 7 天')!.trigger('click');await flushPromises();expect(mocks.snapshot.mock.calls.some(c=>c[0]==='7d')).toBe(true);w.unmount()})
+ it('defaults to 24 hours and forwards granularity while one hour uses five minutes',async()=>{
+  const w=make();await flushPromises();await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
+  expect(w.findAll('button').find(b=>b.text()==='近 24 小时')!.attributes('aria-pressed')).toBe('true')
+  expect(mocks.timeline).toHaveBeenLastCalledWith('24h',expect.anything(),'hour')
+  await w.get('select[aria-label="线路图粒度"]').setValue('day');await flushPromises()
+  expect(mocks.timeline).toHaveBeenLastCalledWith('24h',expect.anything(),'day')
+  await w.findAll('button').find(b=>b.text()==='近 1 小时')!.trigger('click');await flushPromises()
+  expect(w.get('select').attributes('disabled')).toBeDefined();expect((w.get('select').element as HTMLSelectElement).value).toBe('5m');w.unmount()
+ })
  it('initial load failure shows retry instead of invented empty data',async()=>{mocks.groups.mockRejectedValue(new Error('offline'));const w=make();await flushPromises();expect(w.find('[role="alert"]').text()).toContain('重试');expect(w.find('.tool-grid').exists()).toBe(false);w.unmount()})
  it('shows the workspace before monitoring statistics finish loading',async()=>{const pending=deferred<{groups:ReturnType<typeof metric>[]}>();mocks.snapshot.mockReturnValue(pending.promise);const w=make();await flushPromises();expect(w.find('.tool-grid').exists()).toBe(true);expect(w.text()).not.toContain('正在读取 AI 工具');pending.resolve({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))});await flushPromises();w.unmount()})
  it('keeps the workspace visible when monitoring statistics fail',async()=>{mocks.snapshot.mockRejectedValue(new Error('offline'));const w=make();await flushPromises();expect(w.find('.tool-grid').exists()).toBe(true);expect(w.find('[role="alert"]').exists()).toBe(true);expect(w.text()).toContain('暂无数据');w.unmount()})
@@ -139,7 +149,7 @@ describe('原型AI工具交互',()=>{
   expect(cards[1].find('button').attributes('disabled')).toBeUndefined()
   w.unmount()
  })
- it('preserves the last successful detail metrics after a same-window refresh fails',async()=>{const w=make();await flushPromises();await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises();mocks.snapshot.mockRejectedValue(new Error('offline'));await w.findAll('button').find(b=>b.text()==='近 1 小时')!.trigger('click');await flushPromises();expect(w.get('[role="dialog"]').text()).toContain('98 / 100 次请求成功');expect(w.get('[role="dialog"]').text()).toContain('98%');w.unmount()})
+ it('preserves the last successful detail metrics after a same-window refresh fails',async()=>{const w=make();await flushPromises();await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises();mocks.snapshot.mockRejectedValue(new Error('offline'));await w.findAll('button').find(b=>b.text()==='近 24 小时')!.trigger('click');await flushPromises();expect(w.get('[role="dialog"]').text()).toContain('98 / 100 次请求成功');expect(w.get('[role="dialog"]').text()).toContain('98%');w.unmount()})
 
  it('shows only current tool group models and switches official price tiers without changing fees',async()=>{
   mocks.rates.mockResolvedValue({1:0.12})
