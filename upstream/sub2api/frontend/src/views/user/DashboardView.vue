@@ -59,9 +59,6 @@
             </div>
             <RouteHistoryStrip :points="timelinePoints.filter(point=>point.group_id===group.id)" :loading="timelineLoading" :error="timelineError" />
             <footer class="detail-card-footer">
-              <div class="detail-card-context">
-                <span class="detail-key-count">{{ counts.get(group.id) ? '已关联' : '未关联' }} · {{ counts.get(group.id) || 0 }} 把密钥</span>
-              </div>
               <button v-if="group.status==='active'" class="xq-button" :data-detail-group-id="group.id" @click="openCreate(selectedTool!,group.id)">关联密钥</button>
               <span v-else class="muted">不可配置</span>
             </footer>

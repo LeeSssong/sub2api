@@ -103,8 +103,7 @@
 .xq-dialog .success-rate{font-size:28px;line-height:1.2;font-weight:600}
 .xq-dialog .success-rate[data-tone="muted"]{font-size:24px;color:var(--xq-secondary)}
 .xq-dialog .detail-request-sample{font-size:12px;color:var(--xq-secondary);overflow-wrap:anywhere}
-.xq-dialog .detail-card-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:auto}
-.xq-dialog .detail-card-context{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:12px;color:var(--xq-secondary)}
+.xq-dialog .detail-card-footer{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;margin-top:auto}
 .xq-dialog .detail-card-footer .xq-button{border-radius:8px;flex-shrink:0;color:var(--xq-accent)}
 .xq-dialog .xq-route-dialog .modal-body{scrollbar-color:var(--xq-border) transparent;scrollbar-width:thin}
 @media(max-width:700px){.xq-dialog .route-detail-grid{grid-template-columns:minmax(0,1fr);gap:12px}.xq-dialog .route-detail-card{padding:16px;gap:16px}.xq-dialog .detail-card-footer .xq-button,.xq-dialog .detail-period-segment button{min-height:44px}.xq-dialog .detail-card-identity{flex-basis:160px}.xq-dialog .detail-period{flex-wrap:wrap;white-space:normal}}
