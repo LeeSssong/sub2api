@@ -84,28 +84,36 @@
 .xq-ai .pricing-entry:hover{text-decoration:underline;text-underline-offset:4px}
 .xq-ai .pricing-entry:focus-visible{outline:2px solid var(--xq-accent);outline-offset:4px;border-radius:4px}
 @media(max-width:640px){.xq-dialog .xq-pricing-dialog{width:calc(100vw - 24px);height:calc(100dvh - 24px)}.xq-ai .pricing-entry{min-height:44px}}
-.xq-dialog .detail-section-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:10px}
-.xq-dialog .detail-section-head p{font-size:11px;color:var(--xq-muted)}
+.xq-dialog .detail-section-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:20px}
+.xq-dialog .detail-section-head p{font-size:12px;color:var(--xq-secondary);max-width:65ch}
 .xq-dialog .detail-period{display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:11px;color:var(--xq-muted)}
 .xq-dialog .detail-period-segment{display:flex;border:1px solid var(--xq-border);border-radius:9px;overflow:hidden;background:var(--xq-depth)}
 .xq-dialog .detail-period-segment button{min-height:30px;padding:0 10px;border:0;background:transparent;font-size:11px;color:var(--xq-muted)}
 .xq-dialog .detail-period-segment .active{background:rgba(97,201,217,.1);color:var(--xq-text);font-weight:600}
-.xq-dialog .route-metrics-table{width:100%;min-width:1080px;border-collapse:collapse;font-size:12px;text-align:left}
-.xq-dialog .route-metrics-table th{background:#123246;padding:14px 10px;color:var(--xq-muted);font-size:11px;font-weight:500;white-space:nowrap}
-.xq-dialog .route-metrics-table td{padding:16px 10px;border-bottom:1px solid var(--xq-line);height:80px;color:var(--xq-secondary)}
-.xq-dialog .route-metrics-table th:first-child{width:230px;border-radius:9px 0 0 0}
-.xq-dialog .route-metrics-table th:last-child{border-radius:0 9px 0 0}
-.xq-dialog .route-metrics-table th:nth-child(2){width:190px}
-.xq-dialog .route-metrics-table th:nth-child(3){width:126px}
-.xq-dialog .route-metrics-table th:nth-child(4){width:88px}
-.xq-dialog .route-metrics-table th:nth-child(5),.xq-dialog .route-metrics-table th:nth-child(6){width:94px}
-.xq-dialog .route-metrics-table th:nth-child(7){width:112px}
-.xq-dialog .success-rate{font-size:20px;font-weight:650}
-.xq-dialog .request-count{font-size:12px;color:var(--xq-secondary)}
-.xq-dialog .latency-metric{font-size:14px;font-weight:600;color:var(--xq-text)}
-.xq-dialog .linked-key-cell{display:flex;align-items:center;gap:10px;white-space:nowrap}
-.xq-dialog .detail-route{display:flex;flex-direction:column;gap:6px}
-.xq-dialog .detail-route-title{display:flex;align-items:center;gap:8px;min-width:0}
+.xq-dialog .route-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.xq-dialog .route-detail-grid>.empty{grid-column:1/-1}
+.xq-dialog .route-detail-card{min-width:0;padding:20px;border:1px solid var(--xq-border);border-radius:12px;background:var(--xq-depth);display:flex;flex-direction:column;gap:20px}
+.xq-dialog .detail-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.xq-dialog .detail-card-identity{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;flex:1 1 200px}
+.xq-dialog .detail-card-identity h3{margin:0;font-size:14px;line-height:1.5;font-weight:600;color:var(--xq-text);overflow-wrap:anywhere;min-width:0;flex:0 1 auto;max-width:100%}
+.xq-dialog .detail-card-header .route-health{flex-shrink:0;font-size:12px;line-height:24px}
+.xq-dialog .detail-card-header .route-health.muted{color:var(--xq-secondary)}
+.xq-dialog .detail-quality-label{display:flex;align-items:center;gap:8px;min-height:24px;font-size:12px;color:var(--xq-secondary)}
+.xq-dialog .detail-quality-value{display:flex;align-items:baseline;gap:8px 16px;flex-wrap:wrap;margin-top:4px}
+.xq-dialog .success-rate{font-size:28px;line-height:1.2;font-weight:600}
+.xq-dialog .success-rate[data-tone="muted"]{font-size:24px;color:var(--xq-secondary)}
+.xq-dialog .detail-request-sample{font-size:12px;color:var(--xq-secondary);overflow-wrap:anywhere}
+.xq-dialog .detail-card-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:0;padding:16px 0;border-top:1px solid var(--xq-line);border-bottom:1px solid var(--xq-line)}
+.xq-dialog .detail-card-metrics>div{min-width:0}
+.xq-dialog .detail-card-metrics>div+div{padding-left:20px;border-left:1px solid var(--xq-line)}
+.xq-dialog .detail-card-metrics dt{font-size:12px;color:var(--xq-secondary)}
+.xq-dialog .detail-card-metrics dd{margin:4px 0 0;font-size:18px;line-height:1.4;font-weight:600;color:var(--xq-text);overflow-wrap:anywhere}
+.xq-dialog .detail-card-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:auto}
+.xq-dialog .detail-card-context{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:12px;color:var(--xq-secondary)}
+.xq-dialog .detail-check{display:flex;align-items:center;gap:8px}
+.xq-dialog .detail-card-footer .xq-button{border-radius:8px;flex-shrink:0;color:var(--xq-accent)}
+.xq-dialog .xq-route-dialog .modal-body{scrollbar-color:var(--xq-border) transparent;scrollbar-width:thin}
+@media(max-width:700px){.xq-dialog .route-detail-grid{grid-template-columns:minmax(0,1fr);gap:12px}.xq-dialog .route-detail-card{padding:16px;gap:16px}.xq-dialog .detail-card-footer .xq-button,.xq-dialog .detail-period-segment button{min-height:44px}.xq-dialog .detail-card-identity{flex-basis:160px}.xq-dialog .detail-period{flex-wrap:wrap;white-space:normal}}
 .xq-dialog .best-route-badge{display:inline-flex;align-items:center;min-height:20px;padding:1px 7px;border:1px solid rgba(140,223,196,.32);border-radius:9px;background:rgba(140,223,196,.09);color:var(--xq-success);font-size:11px;white-space:nowrap}
 .xq-dialog .route-health{display:flex;align-items:center;gap:6px}
 @media(max-width:1350px){.xq-ai .route-header,.xq-ai .route-row{grid-template-columns:minmax(190px,1.4fr) .9fr .9fr .6fr 112px}}
@@ -132,7 +140,7 @@
 :root:not(.dark) .xq-button:hover:not(:disabled) { background: var(--xq-raised); }
 :root:not(.dark) :is(.xq-ai, .xq-dialog) ::selection { background: var(--xq-raised); color: var(--xq-text); }
 
-:root:not(.dark) .xq-dialog .route-metrics-table th { background: var(--xq-depth); }
+
 
 :root:not(.dark) :is(.user-app-shell, .xq-dialog) .provider-logo,
 :root:not(.dark) .xq-ai :is(.icon-btn, .route-check-button) img { filter: brightness(.4); }

@@ -40,12 +40,39 @@
         <div class="detail-section-head"><p>状态按近 1 小时真实请求判断；成功率、请求次数与 P50 按所选时间范围展示</p><div class="detail-period"><span>统计范围</span><div class="detail-period-segment" role="group" aria-label="线路统计时间"><button v-for="period in periods" :key="period.value" :aria-pressed="detailWindow===period.value" :class="{active:detailWindow===period.value}" @click="loadDetails(period.value)">{{ period.label }}</button></div></div></div>
         <div v-if="detailError" class="workspace-error" role="alert">{{ detailError }} <button class="xq-button" @click="loadDetails(detailWindow)">重试</button></div>
         <div v-if="detailLoading && !detailData.length" class="empty" role="status">正在读取统计…</div>
-        <div v-else class="table-scroll"><table class="route-metrics-table"><thead><tr><th>线路</th><th>关联密钥</th><th>成功率</th><th>请求次数</th><th>首字 P50</th><th>耗时 P50</th><th title="本次检查首字耗时">本次检查</th></tr></thead><tbody>
-          <tr v-for="group in detailRows" :key="group.id"><td><div class="detail-route"><div class="detail-route-title"><div class="route-identity"><img class="provider-logo route-provider-logo" :src="providerIcon(group.platform)" alt="" /><strong>{{group.name}}</strong><span class="rate-badge">{{rateLabel(group)}}</span></div><span v-if="group.id===detailBest?.id" class="best-route-badge">最佳线路</span></div><small class="route-health" :class="stateOf(group).kind"><span class="dot" :class="stateOf(group).kind"></span>{{stateOf(group).text}}</small></div></td>
-            <td><div class="linked-key-cell"><span>{{counts.get(group.id)?'已关联':'未关联'}} · {{counts.get(group.id)||0}} 把</span><button v-if="group.status==='active'" class="xq-button small" :data-detail-group-id="group.id" @click="openCreate(selectedTool!,group.id)">关联密钥</button><span v-else class="muted">不可配置</span></div></td>
-            <td><strong class="success-rate success-rate-tone" :data-tone="successTone(group,detailMetrics,false)">{{successLabel(group,detailMetrics,false)}}</strong></td><td><span class="request-count">{{detailMetrics.get(group.id)?.real_request_count??'—'}}</span></td><td><strong class="latency-metric">{{metricLabel(detailMetrics.get(group.id)?.ttft_p50_ms)}}</strong></td><td><strong class="latency-metric">{{metricLabel(detailMetrics.get(group.id)?.latency_p50_ms)}}</strong></td><td><span :class="checkOf(group).kind"><Icon v-if="checkOf(group).kind==='success'" name="check" size="sm" />{{checkOf(group).text}}</span></td>
-          </tr>
-        </tbody></table><div v-if="!detailRows.length" class="empty">暂无线路</div></div>
+        <div v-else class="route-detail-grid" :aria-busy="detailLoading">
+          <article v-for="group in detailRows" :key="group.id" class="route-detail-card" :aria-labelledby="`detail-route-${group.id}`">
+            <header class="detail-card-header">
+              <div class="detail-card-identity">
+                <img class="provider-logo" :src="providerIcon(group.platform)" alt="" />
+                <h3 :id="`detail-route-${group.id}`">{{ group.name }}</h3>
+                <span class="rate-badge">{{ rateLabel(group) }}</span>
+              </div>
+              <span class="route-health" :class="stateOf(group).kind" title="近 1 小时真实请求状态"><span class="dot" :class="stateOf(group).kind" aria-hidden="true"></span>{{ stateOf(group).text }}</span>
+            </header>
+            <div class="detail-card-quality">
+              <div class="detail-quality-label"><span>请求成功率</span><span v-if="group.id===detailBest?.id" class="best-route-badge">最佳线路</span></div>
+              <div class="detail-quality-value">
+                <strong class="success-rate success-rate-tone" :data-tone="successTone(group,detailMetrics,false)">{{ successLabel(group,detailMetrics,false) }}</strong>
+                <span class="detail-request-sample">{{ detailMetrics.get(group.id)?.real_success_count ?? '—' }} / {{ detailMetrics.get(group.id)?.real_request_count ?? '—' }} 次请求成功</span>
+              </div>
+            </div>
+            <RouteHistoryStrip :points="timelinePoints.filter(point=>point.group_id===group.id)" :loading="timelineLoading" :error="timelineError" />
+            <dl class="detail-card-metrics">
+              <div><dt>首字 P50</dt><dd>{{ metricLabel(detailMetrics.get(group.id)?.ttft_p50_ms) }}</dd></div>
+              <div><dt>耗时 P50</dt><dd>{{ metricLabel(detailMetrics.get(group.id)?.latency_p50_ms) }}</dd></div>
+            </dl>
+            <footer class="detail-card-footer">
+              <div class="detail-card-context">
+                <span class="detail-key-count">{{ counts.get(group.id) ? '已关联' : '未关联' }} · {{ counts.get(group.id) || 0 }} 把密钥</span>
+                <span class="detail-check" title="本次检查首字耗时">本次检查 <span :class="checkOf(group).kind"><Icon v-if="checkOf(group).kind==='success'" name="check" size="sm" />{{ checkOf(group).text }}</span></span>
+              </div>
+              <button v-if="group.status==='active'" class="xq-button" :data-detail-group-id="group.id" @click="openCreate(selectedTool!,group.id)">关联密钥</button>
+              <span v-else class="muted">不可配置</span>
+            </footer>
+          </article>
+          <div v-if="!detailRows.length" class="empty">暂无线路</div>
+        </div>
       </BaseDialog>
       <CreateLineKeyDialog :show="!!createTool" :tool-name="createTool?.label||''" :tool-id="createTool?.id" :groups="createTool?.active||[]" :metrics="metricsById" :metrics-generated-at="metricsGeneratedAt" :metrics-error="statsFailed" @retry-metrics="loadWorkspace" :linked-counts="counts" :rates="rates" :initial-group-id="createGroupId" @close="closeCreate" @created="keyCreated" />
       <PricingDialog :tool="pricingTool" :lines="pricingTool?.groups || []" :rates="rates" @close="closePricing" />
@@ -61,6 +88,8 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import CreateLineKeyDialog from '@/features/ai-tools/CreateLineKeyDialog.vue'
+import RouteHistoryStrip from '@/features/ai-tools/RouteHistoryStrip.vue'
+import { getRouteTimeline, type RouteTimelinePoint } from '@/features/ai-tools/routeTimeline'
 import PricingDialog from '@/features/ai-tools/PricingDialog.vue'
 import userGroupsAPI from '@/api/groups'
 import keysAPI from '@/api/keys'
@@ -73,6 +102,13 @@ import type { ApiKey, Group } from '@/types'
 import type { MonitorV4Group, MonitorV4Window } from '@/features/monitor-v4/types'
 import '@/styles/xingqiao-ai.css'
 
+const timelinePoints=ref<RouteTimelinePoint[]>([]),timelineLoading=ref(false),timelineError=ref(false)
+async function loadTimeline(window:MonitorV4Window,signal:AbortSignal){
+ timelinePoints.value=[];timelineLoading.value=true;timelineError.value=false
+ try{const points=await getRouteTimeline(window,signal);if(!signal.aborted)timelinePoints.value=points}
+ catch{if(!signal.aborted)timelineError.value=true}
+ finally{if(!signal.aborted)timelineLoading.value=false}
+}
 const router=useRouter()
 const authStore=useAuthStore()
 const cacheUserId=String(authStore.user?.id||'')
@@ -154,7 +190,7 @@ async function loadWorkspace(){
 }
 async function openDetails(tool:ToolCard){detailsTrigger=document.activeElement as HTMLElement;selectedTool.value=tool;await loadDetails('1h')}
 function closeDetails(){detailController?.abort();selectedTool.value=null;nextTick(()=>detailsTrigger?.focus())}
-async function loadDetails(window:MonitorV4Window){detailController?.abort();const c=new AbortController();detailController=c;detailWindow.value=window;detailLoading.value=true;detailError.value='';detailData.value=detailCache.get(window)||[];try{const result=await getHybridPerformanceSnapshot(window,c.signal);if(!c.signal.aborted){detailData.value=result.groups;detailCache.set(window,result.groups);if(window==='1h'){metrics.value=result.groups;metricsGeneratedAt.value=result.generated_at;clock.value=Date.now();statsFailed.value=false;statsError.value='';cacheWorkspace()}}}catch{if(!c.signal.aborted){detailError.value=detailCache.has(window)?'统计刷新失败，保留上次成功数据。':'统计读取失败，请重试。';if(window==='1h'){statsFailed.value=true;statsError.value='近 1 小时统计读取失败，请刷新重试。'}}}finally{if(!c.signal.aborted)detailLoading.value=false}}
+async function loadDetails(window:MonitorV4Window){detailController?.abort();const c=new AbortController();detailController=c;detailWindow.value=window;void loadTimeline(window,c.signal);detailLoading.value=true;detailError.value='';detailData.value=detailCache.get(window)||[];try{const result=await getHybridPerformanceSnapshot(window,c.signal);if(!c.signal.aborted){detailData.value=result.groups;detailCache.set(window,result.groups);if(window==='1h'){metrics.value=result.groups;metricsGeneratedAt.value=result.generated_at;clock.value=Date.now();statsFailed.value=false;statsError.value='';cacheWorkspace()}}}catch{if(!c.signal.aborted){detailError.value=detailCache.has(window)?'统计刷新失败，保留上次成功数据。':'统计读取失败，请重试。';if(window==='1h'){statsFailed.value=true;statsError.value='近 1 小时统计读取失败，请刷新重试。'}}}finally{if(!c.signal.aborted)detailLoading.value=false}}
 function openCreate(tool:ToolCard,id?:number){createTrigger=document.activeElement as HTMLElement;createTool.value=tool;createGroupId.value=id}
 function restoreDetailFocus(){
   if(returnToDetailGroup){document.querySelector<HTMLElement>(`[data-detail-group-id="${returnToDetailGroup}"]`)?.focus();returnToDetailGroup=undefined}

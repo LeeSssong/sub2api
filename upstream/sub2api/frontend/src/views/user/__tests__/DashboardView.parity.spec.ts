@@ -1,3 +1,4 @@
+vi.mock('@/features/ai-tools/routeTimeline',()=>({getRouteTimeline:vi.fn().mockResolvedValue([])}))
 import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Dashboard from '../DashboardView.vue'
@@ -15,6 +16,36 @@ const deferred=<T,>()=>{let resolve!:(value:T)=>void;let reject!:(reason?:unknow
 const make=()=>mount(Dashboard,{global:{stubs:{AppLayout:{template:'<div><slot/></div>'},BaseDialog:{props:['show','title'],template:'<div v-if="show" role="dialog"><h3>{{title}}</h3><slot/><slot name="footer"/></div>'},CreateLineKeyDialog:{props:['show','initialGroupId'],template:'<div v-if="show" data-testid="create-key">{{initialGroupId}}</div>'}}}})
 beforeEach(()=>{vi.clearAllMocks();clearDashboardWorkspaceSnapshot();mocks.models.mockResolvedValue([{group_id:1,supported_models:['gpt-5.4','gpt-5.2']},{group_id:2,supported_models:['gpt-5.4','custom-model']},{group_id:99,supported_models:['private-model']}]);mocks.groups.mockResolvedValue(groups);mocks.rates.mockResolvedValue({});mocks.keys.mockResolvedValue({items:[{id:1,group_id:1,status:'inactive',group:groups[0]}],total:1});mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))});mocks.check.mockResolvedValue([{group_id:1,status:'success',ttft_ms:1230}])})
 describe('原型AI工具交互',()=>{
+ it('renders route cards with request samples and associates the selected route',async()=>{
+  const w=make();await flushPromises()
+  await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
+  const cards=w.findAll('article.route-detail-card')
+  expect(cards).toHaveLength(2)
+  expect(cards[0].get('.detail-request-sample').text()).toBe('98 / 100 次请求成功')
+  expect(cards[0].text()).toContain('首字 P50')
+  expect(cards[0].text()).toContain('耗时 P50')
+  expect(cards[0].text()).toContain('本次检查')
+  expect(cards[0].get('.success-rate').text()).toBe('98%')
+  const second=cards.find(c=>c.text().includes('未关联线路'))!
+  await second.get('button[data-detail-group-id="2"]').trigger('click');await flushPromises()
+  expect(w.get('[data-testid="create-key"]').text()).toBe('2')
+  expect(mocks.push).not.toHaveBeenCalled()
+  w.unmount()
+ })
+ it('distinguishes zero real requests from missing statistics in cards',async()=>{
+  mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:[{...metric(1),real_request_count:0,real_success_count:0}]})
+  const w=make();await flushPromises()
+  await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
+  const cards=w.findAll('.route-detail-card')
+  const zero=cards.find(c=>c.text().includes('GPT-Pro'))!
+  const missing=cards.find(c=>c.text().includes('未关联线路'))!
+  expect(zero.get('.detail-request-sample').text()).toBe('0 / 0 次请求成功')
+  expect(missing.get('.detail-request-sample').text()).toBe('— / — 次请求成功')
+  expect(zero.get('.success-rate').text()).toBe('暂无数据')
+  expect(missing.get('.success-rate').text()).toBe('暂无数据')
+  w.unmount()
+ })
+
  it('summarizes each route health state with a count on the tool card',async()=>{
   const threeRoutes=[
    {id:1,name:'正常线路',platform:'openai',rate_multiplier:1,status:'active'},
@@ -51,7 +82,7 @@ describe('原型AI工具交互',()=>{
   w.unmount()
  })
 
- it.each([[0,'red'],[69.9,'red'],[70,'amber'],[89.9,'amber'],[90,'green'],[100,'green'],[null,'muted']] as const)('uses the shared success-rate tone for %s in both tables',async(rate,tone)=>{
+ it.each([[0,'red'],[69.9,'red'],[70,'amber'],[89.9,'amber'],[90,'green'],[100,'green'],[null,'muted']] as const)('uses the shared success-rate tone for %s in the route list and detail cards',async(rate,tone)=>{
   mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>({...metric(g.id),success_rate:rate,request_count:rate===null?0:100,real_request_count:rate===null?0:1000,real_success_count:rate===null?0:rate*10}))})
   const w=make();await flushPromises()
   expect(w.get('.route-row .rate').attributes('data-tone')).toBe(tone)
@@ -74,8 +105,8 @@ describe('原型AI工具交互',()=>{
   expect(w.get('.route-row .route-name').text()).toContain('异常')
   await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
   await w.findAll('button').find(b=>b.text()==='近 7 天')!.trigger('click');await flushPromises()
-  expect(w.findAll('.route-metrics-table tbody tr').find(r=>r.text().includes('GPT-Pro'))!.get('.route-health').text()).toBe('异常')
-  expect(w.findAll('.route-metrics-table tbody tr').find(r=>r.text().includes('未关联线路'))!.get('.route-health').text()).toBe('正常运行')
+  expect(w.findAll('.route-detail-card').find(r=>r.text().includes('GPT-Pro'))!.get('.route-health').text()).toBe('异常')
+  expect(w.findAll('.route-detail-card').find(r=>r.text().includes('未关联线路'))!.get('.route-health').text()).toBe('正常运行')
   expect(w.text()).not.toMatch(/可用 ·|不可用 ·|0\/2 条/)
   w.unmount()
  })

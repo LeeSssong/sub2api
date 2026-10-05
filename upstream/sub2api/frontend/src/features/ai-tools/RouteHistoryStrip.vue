@@ -1,0 +1,84 @@
+<template>
+<section class="route-history" aria-label="线路指标历史">
+ <p v-if="loading" role="status">正在读取线路走势…</p>
+ <p v-else-if="error" role="status">线路走势读取失败，请重新选择统计范围重试。</p>
+ <p v-else-if="!points.length">暂无历史统计</p>
+ <template v-else>
+  <div class="chart-legend"><span v-for="s in series" :key="s.key" :class="s.key"><i></i>{{ s.label }}</span></div>
+  <div class="chart-layout">
+   <div class="chart-axis"><span>100%</span><span>50%</span><span>0%</span></div>
+   <div class="chart-plot">
+    <svg viewBox="0 0 400 140" preserveAspectRatio="none" aria-hidden="true">
+     <path class="grid" d="M0 4H400 M0 70H400 M0 136H400" />
+     <line class="cursor" :x1="x(selected)" :x2="x(selected)" y1="4" y2="136" />
+     <g v-for="s in series" :key="s.key" :class="s.key">
+      <path :data-series="s.key" :d="path(s.key)" class="line" />
+      <template v-for="(p,i) in points" :key="p.start"><circle v-if="value(p,s.key)!==null" :cx="x(i)" :cy="y(value(p,s.key)!,s.key)" :r="selected===i?3.5:2" /></template>
+     </g>
+    </svg>
+    <div class="chart-targets" role="group" aria-label="按时间查看线路指标"><button v-for="(p,i) in points" :key="p.start" :data-point="i" :aria-label="describe(p)" :aria-pressed="selected===i" :tabindex="selected===i?0:-1" @mouseenter="selected=i" @focus="selected=i" @click="selected=i" @keydown="navigate($event,i)"></button></div>
+   </div>
+   <div class="chart-axis seconds"><span>{{ secondsMax }}s</span><span>{{ secondsMax/2 }}s</span><span>0s</span></div>
+  </div>
+  <div class="chart-times"><span>{{ tick(points[0]!.start) }}</span><span>{{ tick(points[Math.floor(points.length/2)]!.start) }}</span><span>{{ tick(points[points.length-1]!.end) }}</span></div>
+  <div class="chart-detail" role="status" v-if="points[selected]">
+   <p>{{ time(points[selected]!.start) }} – {{ time(points[selected]!.end) }}<span v-if="!points[selected]!.request_count"> · 无请求</span></p>
+   <div class="chart-readings"><span v-for="s in series" :key="s.key" :class="s.key">{{ s.label }} <strong>{{ formatted(points[selected]!,s.key) }}</strong></span></div>
+  </div>
+ </template>
+</section>
+</template>
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import type { RouteTimelinePoint } from './routeTimeline'
+const props = defineProps<{points:RouteTimelinePoint[];loading:boolean;error:boolean}>()
+type Metric = 'cache'|'success'|'ttft'
+const series: {key:Metric;label:string}[] = [{key:'cache',label:'缓存命中率'},{key:'success',label:'请求成功率'},{key:'ttft',label:'首字 P50'}]
+const selected = ref(0)
+watch(()=>props.points,()=>{selected.value=Math.max(0,props.points.length-1)},{immediate:true})
+const secondsMax = computed(()=>Math.max(1,Math.ceil(Math.max(0,...props.points.map(p=>p.ttft_p50_ms??0))/1000)))
+const x = (i:number)=>(i+.5)*400/props.points.length
+function value(p:RouteTimelinePoint,m:Metric):number|null {
+ if(m==='cache')return p.cache_hit_rate==null?null:p.cache_hit_rate*100
+ if(m==='ttft')return p.ttft_p50_ms==null?null:p.ttft_p50_ms/1000
+ return p.request_count?p.success_count/p.request_count*100:null
+}
+const y = (v:number,m:Metric)=>136-v/(m==='ttft'?secondsMax.value:100)*132
+function path(m:Metric){
+ let connected=false
+ return props.points.map((p,i)=>{const v=value(p,m);if(v===null){connected=false;return ''}const command=connected?'L':'M';connected=true;return `${command}${x(i)},${y(v,m)}`}).join(' ')
+}
+const time=(v:string)=>new Date(v).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})
+const tick=(v:string)=>new Date(v).toLocaleString('zh-CN',props.points.length===42?{month:'2-digit',day:'2-digit'}:{hour:'2-digit',minute:'2-digit',hour12:false})
+function formatted(p:RouteTimelinePoint,m:Metric){const v=value(p,m);return v===null?'—':m==='ttft'?`${v.toFixed(2)}s`:`${Number(v.toFixed(1))}%`}
+const describe=(p:RouteTimelinePoint)=>`${time(p.start)} – ${time(p.end)} · ${series.map(s=>`${s.label} ${formatted(p,s.key)}`).join(' · ')}${p.request_count?` · ${p.success_count} / ${p.request_count} 次请求成功`:' · 无请求'}`
+function navigate(event:KeyboardEvent,i:number){
+ let next=i
+ if(event.key==='ArrowRight')next=Math.min(props.points.length-1,i+1)
+ else if(event.key==='ArrowLeft')next=Math.max(0,i-1)
+ else if(event.key==='Home')next=0
+ else if(event.key==='End')next=props.points.length-1
+ else return
+ event.preventDefault();selected.value=next
+ const container=(event.currentTarget as HTMLElement).parentElement
+ ;(container?.children[next] as HTMLElement)?.focus()
+}
+</script>
+<style scoped>
+.route-history{min-width:0;--chart-cache:#b49aee;color:var(--xq-secondary);font-size:12px}
+:global(:root:not(.dark) .route-history){--chart-cache:#7651b5}
+.cache{color:var(--chart-cache)}.success{color:var(--xq-success)}.ttft,.seconds{color:var(--xq-warning)}
+.chart-legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:14px;font-size:11px}
+.chart-legend span{display:inline-flex;align-items:center;gap:6px}.chart-legend i{width:16px;border-top:2px solid currentColor}.chart-legend .cache i{border-top-style:dashed}
+.chart-layout{display:grid;grid-template-columns:34px minmax(0,1fr) 30px;gap:6px;height:140px}
+.chart-axis{display:flex;flex-direction:column;justify-content:space-between;text-align:right;font-size:10px;line-height:12px;font-variant-numeric:tabular-nums}.seconds{text-align:left}
+.chart-plot{position:relative;min-width:0}.chart-plot svg{display:block;width:100%;height:100%;overflow:visible}
+.grid{fill:none;stroke:var(--xq-border);stroke-width:1;vector-effect:non-scaling-stroke}
+.cursor{stroke:var(--xq-secondary);stroke-dasharray:3 4;opacity:.5;vector-effect:non-scaling-stroke}
+.line{fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round;vector-effect:non-scaling-stroke}.cache .line{stroke-dasharray:5 4}
+circle{fill:var(--xq-surface);stroke:currentColor;stroke-width:1.5;vector-effect:non-scaling-stroke}
+.chart-targets{position:absolute;inset:0;display:flex}.chart-targets button{flex:1;min-width:0;padding:0;border:0;background:transparent;cursor:crosshair}.chart-targets button:focus-visible{outline:2px solid var(--xq-accent);outline-offset:2px}
+.chart-times{display:flex;justify-content:space-between;gap:4px;margin:10px 36px 0 40px;font-size:10px;font-variant-numeric:tabular-nums}
+.chart-detail{margin-top:14px;font-size:11px;line-height:1.7;min-height:55px;font-variant-numeric:tabular-nums}.chart-detail p{margin:0 0 5px}.chart-readings{display:flex;flex-wrap:wrap;gap:4px 16px}.chart-readings strong{font-weight:600}
+@media(max-width:700px){.chart-legend{gap:6px 10px}.chart-layout{height:128px}.chart-readings{gap:3px 12px}}
+</style>

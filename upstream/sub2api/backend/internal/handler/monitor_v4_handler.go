@@ -147,3 +147,30 @@ func (h *MonitorV4Handler) Check(c *gin.Context) {
 	}
 	response.Success(c, gin.H{"results": results})
 }
+
+func (h *MonitorV4Handler) Timeline(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	window, ok := parseMonitorV4Window(c.Query("window"))
+	if !ok {
+		response.BadRequest(c, "unsupported monitor window")
+		return
+	}
+	reader, ok := h.service.(interface {
+		Timeline(context.Context, int64, service.MonitorV4Window, time.Time) (*service.MonitorV4Timeline, error)
+	})
+	if !ok {
+		response.InternalError(c, "timeline unavailable")
+		return
+	}
+	value, err := reader.Timeline(c.Request.Context(), subject.UserID, window, time.Now().UTC())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, value)
+}

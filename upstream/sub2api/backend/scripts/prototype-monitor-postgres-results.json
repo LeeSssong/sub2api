@@ -1,6 +1,6 @@
 {
   "database": "postgres:16-alpine",
-  "container": "codex-parity-pg-1b5ca30963",
+  "container": "codex-parity-pg-5735e1ee46",
   "network": "none",
   "published_ports": false,
   "checks": [
@@ -79,6 +79,31 @@
     },
     {
       "name": "V2 latest status also respects manual group scope",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "timeline returns every group and empty time bucket",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "timeline counts equal aggregate real counts",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "timeline P50 is median of successful real requests",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "timeline zero cache hits is zero, empty bucket is null",
+      "passed": true,
+      "details": null
+    },
+    {
+      "name": "timeline cache rate uses weighted tokens including cache creation",
       "passed": true,
       "details": null
     },

@@ -26,6 +26,9 @@ def sql(text):
 
 def query(path, marker):
     source = (ROOT / path).read_text()
+    if path.endswith('account_monitor_repo.go'):
+        shared = (ROOT / 'internal/repository/monitor_v4_timeline.go').read_text().split('const monitorV4RealEventsSQL = `', 1)[1].split('`', 1)[0]
+        source = source.replace('`+monitorV4RealEventsSQL+`', shared).replace('` + monitorV4RealEventsSQL + `', shared)
     pos = source.index(marker)
     return source[pos:source.index('`', pos)]
 
@@ -61,7 +64,7 @@ try:
     command(['docker', 'run', '--detach', '--name', NAME, '--network', 'none', '--env', 'POSTGRES_HOST_AUTH_METHOD=trust', results['database']])
     created = True
     for attempt in range(80):
-        ready = subprocess.run(['docker', 'exec', NAME, 'pg_isready', '-U', 'postgres'], capture_output=True)
+        ready = subprocess.run(['docker', 'exec', NAME, 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres'], capture_output=True)
         if ready.returncode == 0:
             break
         time.sleep(0.25)
@@ -117,6 +120,22 @@ CREATE TABLE ops_error_logs(id bigserial PRIMARY KEY,group_id bigint,account_id 
     v2_rows = rows(bind(v2,['2026-09-20T11:00:00Z','2026-09-20T12:00:00Z','2026-09-20T11:55:00Z',[7,8],[12,12],'5 minutes']))
     v2_by_group = {row['group_id']:row for row in v2_rows}
     check('V2 latest status also respects manual group scope', v2_by_group[7]['current_status']=='operational' and v2_by_group[8]['current_status']=='unavailable')
+    shared_source=(ROOT/'internal/repository/monitor_v4_timeline.go').read_text()
+    cte=shared_source.split('const monitorV4RealEventsSQL = `',1)[1].split('`',1)[0]
+    tail=shared_source.split('monitorV4RealEventsSQL+`',1)[-1] if 'monitorV4RealEventsSQL+`' in shared_source else shared_source.split('monitorV4RealEventsSQL + `',1)[1]
+    timeline_sql=cte+tail.split('`',1)[0]
+    timeline=rows(bind(timeline_sql,['2026-09-20T11:00:00Z','2026-09-20T12:00:00Z','5 minutes',[],[],[7,8]]))
+    check('timeline returns every group and empty time bucket',len(timeline)==24)
+    aggregate=rows(bind(projection,['2026-09-20T11:00:00Z','2026-09-20T12:00:00Z','5 minutes',[7,7,8],[1,2,3],[7,8]]))
+    check('timeline counts equal aggregate real counts',all(sum(p['request_count'] for p in timeline if p['group_id']==g['group_id'])==g['real_request_count'] and sum(p['success_count'] for p in timeline if p['group_id']==g['group_id'])==g['real_success_count'] for g in aggregate))
+    populated = next(p for p in timeline if p['group_id']==7 and p['request_count']==3)
+    check('timeline P50 is median of successful real requests', populated['ttft_p50_ms']==200)
+    check('timeline zero cache hits is zero, empty bucket is null', populated['cache_hit_rate']==0 and all(p['cache_hit_rate'] is None and p['ttft_p50_ms'] is None for p in timeline if p['request_count']==0))
+    sql("UPDATE usage_logs SET cache_read_tokens=30,cache_creation_tokens=10 WHERE request_id='real-1';")
+    weighted=rows(bind(timeline_sql,['2026-09-20T11:00:00Z','2026-09-20T12:00:00Z','5 minutes',[],[],[7]]))
+    weighted_bucket=next(p for p in weighted if p['request_count']==3)
+    check('timeline cache rate uses weighted tokens including cache creation', abs(weighted_bucket['cache_hit_rate']-30/70)<1e-9)
+    sql("UPDATE usage_logs SET cache_read_tokens=0,cache_creation_tokens=0 WHERE request_id='real-1';")
     mapping = query('internal/repository/group_tool_mapping.go','WITH changed AS (')
     sql(bind(mapping,[7,json.dumps(['codex']),42]))
     sql(bind(mapping,[7,json.dumps(['claude','codex']),42]))

@@ -134,3 +134,40 @@ func TestMonitorV4ManualCheckRejectsOversizedInput(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	require.Nil(t, stub.ids)
 }
+
+type monitorTimelineStub struct {
+	monitorV4SnapshotterStub
+	user   int64
+	window service.MonitorV4Window
+}
+
+func (s *monitorTimelineStub) Timeline(_ context.Context, id int64, w service.MonitorV4Window, _ time.Time) (*service.MonitorV4Timeline, error) {
+	s.user = id
+	s.window = w
+	return &service.MonitorV4Timeline{Window: w, Points: []service.MonitorV4TimelinePoint{}}, nil
+}
+func TestMonitorV4TimelineHandlerAuthAndWindow(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		user   int64
+		window string
+		code   int
+	}{{0, "1h", 401}, {42, "invalid", 400}, {42, "24h", 200}} {
+		stub := &monitorTimelineStub{}
+		h := NewMonitorV4Handler(stub)
+		rr := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rr)
+		c.Request = httptest.NewRequest("GET", "/monitor-v4/timeline?window="+tc.window, nil)
+		if tc.user > 0 {
+			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: tc.user})
+		}
+		h.Timeline(c)
+		require.Equal(t, tc.code, rr.Code)
+		if tc.code == 200 {
+			require.Equal(t, tc.user, stub.user)
+			require.Equal(t, service.MonitorV4Window24H, stub.window)
+		} else {
+			require.Zero(t, stub.user)
+		}
+	}
+}
