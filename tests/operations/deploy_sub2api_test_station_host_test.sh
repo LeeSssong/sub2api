@@ -99,7 +99,7 @@ case "${1:-}" in
       exit 0
     fi
     if [[ "$format" == '{{.State.Status}}' ]]; then
-      if [[ "$mode" == && "$container" == candidate-test-station-caddy-container ]]; then printf 'exited\n'; else printf 'running\n'; fi
+      if [[ "$mode" == caddy-exited && "$container" == candidate-test-station-caddy-container ]]; then printf 'exited\n'; else printf 'running\n'; fi
       exit 0
     fi
     exit 63
