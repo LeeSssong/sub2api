@@ -13,7 +13,8 @@
           <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
             <button @click="loadOrders" :disabled="ordersLoading" class="btn btn-secondary" :title="t('common.refresh')">
               <Icon name="refresh" size="md" :class="ordersLoading ? 'animate-spin' : ''" />
-            </button>
+            <span>{{ t('common.refresh') }}</span>
+          </button>
           </div>
         </div>
       </div>

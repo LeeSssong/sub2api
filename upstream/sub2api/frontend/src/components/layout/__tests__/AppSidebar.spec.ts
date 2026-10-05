@@ -63,29 +63,56 @@ describe('AppSidebar header styles', () => {
   })
 })
 
-describe('AppSidebar subscription feature flag', () => {
-  it('gates the My Subscriptions entry behind the subscription public-settings flag', () => {
-    expect(componentSource).toContain('const flagSubscription = makeSidebarFlag(FeatureFlags.subscription)')
-    expect(componentSource).toMatch(/path: '\/subscriptions'[^\n]*featureFlag: flagSubscription/)
+describe('AppSidebar user navigation structure', () => {
+  it('sends the recharge entry to redeem when payments are explicitly disabled', () => {
+    expect(componentSource).toContain(':to="rechargeEntryPath"')
+    expect(componentSource).toContain("appStore.cachedPublicSettings?.payment_enabled === false ? '/redeem' : '/purchase'")
+    expect(componentSource).toContain('@click="handleMenuItemClick(rechargeEntryPath)"')
   })
 
-  it('also hides the admin Subscription Management entry on recharge-only sites', () => {
-    expect(componentSource).toMatch(/path: '\/admin\/subscriptions'[^\n]*featureFlag: flagSubscription/)
-  })
+  it('keeps only the confirmed primary entries for regular users', () => {
+    const userItemsSource = componentSource.slice(
+      componentSource.indexOf('function buildUserNavItems'),
+      componentSource.indexOf('// Personal navigation items'),
+    )
 
-  it('derives the purchase entry label from the site billing mode', () => {
-    expect(componentSource).toContain("import { resolveSiteBillingMode } from '@/utils/siteBillingMode'")
-    expect(componentSource).toMatch(/case 'recharge_only':\s*return t\('nav\.recharge'\)/)
-    expect(componentSource).toMatch(/case 'subscription_only':\s*return t\('nav\.subscribe'\)/)
-    expect(componentSource).toMatch(/path: '\/purchase'[^\n]*label: purchaseNavLabel\.value/)
+    expect(userItemsSource).toContain("{ path: '/dashboard', label: userNavLabel('aiTools', 'AI 工具'), icon: DashboardIcon }")
+    expect(userItemsSource).toContain("{ path: '/usage', label: t('nav.usage'), icon: ChartIcon }")
+    expect(userItemsSource).toContain("{ path: '/keys', label: userNavLabel('myKeys', '我的密钥'), icon: KeyIcon }")
+    expect(userItemsSource).not.toContain("path: '/purchase'")
+    expect(userItemsSource).not.toContain("path: '/orders'")
+    expect(userItemsSource).not.toContain("path: '/redeem'")
+    expect(userItemsSource).not.toContain("path: '/profile'")
+    expect(componentSource).toContain('data-testid="user-sidebar-recharge"')
+    expect(componentSource).toContain('data-testid="user-sidebar-account"')
+    expect(componentSource).toContain('data-testid="user-sidebar-support"')
+    expect(componentSource).toContain(':src="siteLogo || DEFAULT_SITE_LOGO"')
+    expect(componentSource).toContain("星桥 AI Link")
   })
 })
 
-describe('AppSidebar user locale switcher', () => {
-  it('mounts the native locale switcher in the regular user sidebar', () => {
-    expect(componentSource).toContain("import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'")
-    expect(componentSource).toContain('data-testid="user-sidebar-locale"')
-    expect(componentSource).toContain('<LocaleSwitcher :compact="sidebarCollapsed" />')
-    expect(componentSource).toContain('v-if="!isAdmin"')
+
+describe('AppSidebar administrator custom-menu destinations', () => {
+  it.each(['filtered', 'visible'])('keeps the native intelligence destination in the %s navigation path', (list) => {
+    const entry = componentSource.split(`${list}.push({ path: cm.url`)[1]?.split('})')[0]
+    expect(entry).toBeDefined()
+    expect(entry).toContain("=== '/intelligence-test' ? '/intelligence-test' : `/custom/${cm.id}`")
+    expect(entry).toContain("cm.label === '智商检测' ? '智商监测' : cm.label")
+  })
+})
+
+
+describe('approved operational navigation', () => {
+  it('groups all native operational entries immediately after account monitoring with capture feature gating', () => {
+    const monitor = componentSource.indexOf("{ path: '/admin/accounts/monitor'")
+    const group = componentSource.indexOf("{ path: '/admin/smart-ops'")
+    const announcements = componentSource.indexOf("{ path: '/admin/announcements'")
+    expect(group).toBeGreaterThan(monitor)
+    expect(group).toBeLessThan(announcements)
+    const block = componentSource.slice(group, announcements)
+    for (const path of ['auto-config', 'priority-scheduling', 'account-quality', 'account-ops', 'token-guard', 'token-guard-v2', 'pelican-tests', 'request-captures', 'harvest-flow']) expect(block).toContain(`/admin/${path}`)
+    expect(block).toContain('expandOnly: true')
+    expect(block).toContain('featureFlag: () => adminSettingsStore.requestCaptureEnabled')
+    expect(componentSource).toContain(".filter(item => item.id === 'xingqiao-storefront' || item.url === '/intelligence-test')")
   })
 })

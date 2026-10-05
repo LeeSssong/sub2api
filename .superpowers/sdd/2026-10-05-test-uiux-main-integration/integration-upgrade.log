@@ -1,0 +1,1 @@
+{"passed": true, "checks": [{"name": "all test branch migrations from empty schema", "count": 321, "passed": true}, {"name": "all candidate missing migrations upgrade test branch schema", "count": 44, "passed": true}], "legacy_logs_absent": "t", "operational_absent": "t"}

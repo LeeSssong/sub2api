@@ -138,6 +138,7 @@ INSERT INTO account_monitor_bucket_terminals (
 		COALESCE(MAX(r.checked_at), $2)
 	FROM account_monitor_results r
 	WHERE r.account_id = ANY($4::bigint[])
+      AND (r.group_id IS NULL OR r.group_id = $1)
 	  AND r.checked_at >= $2
 	  AND r.checked_at < $2 + $5::interval
 	HAVING COUNT(r.account_id) > 0
@@ -210,25 +211,28 @@ func (r *accountMonitorRepository) ProjectMonitorV2Groups(
 			r.latency_ms,
 			date_bin($6::interval, r.checked_at, $1::timestamptz) AS bucket_start
 		FROM scopes s
-		JOIN account_monitor_results r ON r.account_id = s.account_id
+		JOIN account_monitor_results r ON r.account_id = s.account_id AND (r.group_id IS NULL OR r.group_id = s.group_id)
 		WHERE r.checked_at >= $1
 		  AND r.checked_at < $2
 	), latest AS (
-		SELECT DISTINCT ON (r.account_id)
+		SELECT DISTINCT ON (scope.group_id, r.account_id)
+            scope.group_id,
 			r.account_id,
 			r.status,
 			r.checked_at
-		FROM account_monitor_results r
+        FROM scopes scope
+        JOIN account_monitor_results r ON r.account_id = scope.account_id
+          AND (r.group_id IS NULL OR r.group_id = scope.group_id)
 		WHERE r.account_id = ANY($5)
 		  AND r.checked_at <= $2
-		ORDER BY r.account_id, r.checked_at DESC, r.id DESC
+		ORDER BY scope.group_id, r.account_id, r.checked_at DESC, r.id DESC
 	), current_by_group AS (
 		SELECT
 			s.group_id,
 			BOOL_OR(l.status = 'success' AND l.checked_at >= $3) AS has_fresh_success,
 			MAX(l.checked_at) AS source_updated_at
 		FROM scopes s
-		LEFT JOIN latest l ON l.account_id = s.account_id
+		LEFT JOIN latest l ON l.account_id = s.account_id AND l.group_id = s.group_id
 		GROUP BY s.group_id
 	), metrics AS (
 		SELECT
@@ -406,177 +410,7 @@ func (r *accountMonitorRepository) ProjectMonitorV4GroupsForGroups(
 	}
 
 	rows, err := r.db.QueryContext(ctx, `
-WITH scopes AS (
-  SELECT group_id, account_id
-  FROM unnest($4::bigint[], $5::bigint[]) AS scope(group_id, account_id)
-), groups AS (
-  SELECT unnest($6::bigint[]) AS group_id
-), bucket_bounds AS (
-  SELECT date_bin($3::interval, $1::timestamptz, TIMESTAMPTZ '2001-01-01 00:00:00+00') AS start_bucket,
-         date_bin($3::interval, $2::timestamptz, TIMESTAMPTZ '2001-01-01 00:00:00+00') AS end_bucket
-), buckets AS (
-  SELECT series.bucket_start
-  FROM bucket_bounds bb
-  CROSS JOIN LATERAL generate_series(
-         CASE WHEN bb.start_bucket < $1::timestamptz THEN bb.start_bucket + $3::interval ELSE bb.start_bucket END,
-         bb.end_bucket - $3::interval,
-         $3::interval
-       ) AS series(bucket_start)
-  WHERE series.bucket_start + $3::interval <= $2::timestamptz
-  UNION ALL
-  SELECT date_bin($3::interval, $2::timestamptz, TIMESTAMPTZ '2001-01-01 00:00:00+00')
-  WHERE $2::timestamptz >= date_bin($3::interval, $2::timestamptz, TIMESTAMPTZ '2001-01-01 00:00:00+00') + $3::interval - interval '1 minute'
-    AND $2::timestamptz < date_bin($3::interval, $2::timestamptz, TIMESTAMPTZ '2001-01-01 00:00:00+00') + $3::interval
-), raw_usage_candidates AS (
-  SELECT u.group_id, u.account_id, u.id::bigint AS source_id, u.created_at AS observed_at,
-	         date_bin($3::interval, u.created_at, TIMESTAMPTZ '2001-01-01 00:00:00+00') AS bucket_start,
-         (COALESCE(NULLIF(u.usage_completeness, ''), 'complete') = 'complete') AS successful,
-         u.first_token_ms::double precision AS first_token_ms,
-         u.duration_ms::double precision AS duration_ms,
-	         COALESCE(u.input_tokens, 0)::double precision AS input_tokens,
-	         COALESCE(u.cache_creation_tokens, 0)::double precision AS cache_creation_tokens,
-         COALESCE(u.cache_read_tokens, 0)::double precision AS cache_read_tokens,
-         COALESCE(NULLIF(u.logical_request_id, ''), NULLIF(u.request_id, ''), 'usage:' || u.id::text) AS request_key,
-         NULLIF(u.logical_request_id, '') AS logical_request_id,
-         NULLIF(u.request_id, '') AS request_id,
-         1 AS source_priority
-  FROM usage_logs u
-  JOIN groups g ON g.group_id = u.group_id
-  WHERE u.created_at >= $1::timestamptz AND u.created_at < $2::timestamptz
-    AND NOT (u.created_at >= TIMESTAMPTZ '2026-08-31 00:00:00+08' AND u.created_at < TIMESTAMPTZ '2026-09-02 00:00:00+08')
-    AND u.usage_completeness IS DISTINCT FROM 'unknown'
-), cache_usage AS (
-  SELECT group_id,
-         COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
-         COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
-         COALESCE(SUM(cache_creation_tokens), 0)::bigint AS cache_creation_tokens,
-         COALESCE(SUM(input_tokens + cache_creation_tokens + cache_read_tokens), 0)::bigint AS cache_hit_denominator,
-         SUM(cache_read_tokens)
-           / NULLIF(SUM(input_tokens + cache_creation_tokens + cache_read_tokens), 0) AS cache_hit_rate
-  FROM raw_usage_candidates
-  WHERE successful
-  GROUP BY group_id
-), unknown_usage_keys AS (
-  SELECT DISTINCT u.group_id, NULLIF(u.request_id, '') AS request_key
-  FROM usage_logs u
-  JOIN groups g ON g.group_id = u.group_id
-  WHERE u.created_at >= $1::timestamptz AND u.created_at < $2::timestamptz
-    AND u.usage_completeness = 'unknown'
-    AND NULLIF(u.request_id, '') IS NOT NULL
-  UNION
-  SELECT DISTINCT u.group_id, NULLIF(u.logical_request_id, '') AS request_key
-  FROM usage_logs u
-  JOIN groups g ON g.group_id = u.group_id
-  WHERE u.created_at >= $1::timestamptz AND u.created_at < $2::timestamptz
-    AND u.usage_completeness = 'unknown'
-    AND NULLIF(u.logical_request_id, '') IS NOT NULL
-), excluded_usage_keys AS (
-  SELECT o.group_id, o.account_id, NULLIF(o.request_id, '') AS request_key
-  FROM ops_error_logs o
-  JOIN groups g ON g.group_id = o.group_id
-  WHERE o.created_at >= $1::timestamptz AND o.created_at < $2::timestamptz
-    AND NOT (o.created_at >= TIMESTAMPTZ '2026-08-31 00:00:00+08' AND o.created_at < TIMESTAMPTZ '2026-09-02 00:00:00+08')
-    AND COALESCE(o.status_code, 0) >= 400
-    AND COALESCE(o.is_count_tokens, FALSE) = FALSE
-    AND NULLIF(o.request_id, '') IS NOT NULL
-    AND (
-      COALESCE(o.error_owner, '') = 'client'
-      OR (COALESCE(o.error_phase, '') = 'request' AND COALESCE(o.error_source, '') = 'client_request')
-      OR lower(CONCAT_WS(' ', o.error_type, o.error_message, o.error_body, o.upstream_error_message, o.upstream_error_detail)) LIKE ANY (ARRAY[
-        '%model not supported%', '%unsupported model%', '%not supported by any configured account%',
-        '%does not support the requested model%', '%model_not_supported%', '%model_unsupported%',
-        '%model_not_found%', '%本站暂不支持%'
-      ])
-    )
-  UNION
-  SELECT o.group_id, o.account_id, NULLIF(o.client_request_id, '') AS request_key
-  FROM ops_error_logs o
-  JOIN groups g ON g.group_id = o.group_id
-  WHERE o.created_at >= $1::timestamptz AND o.created_at < $2::timestamptz
-    AND NOT (o.created_at >= TIMESTAMPTZ '2026-08-31 00:00:00+08' AND o.created_at < TIMESTAMPTZ '2026-09-02 00:00:00+08')
-    AND COALESCE(o.status_code, 0) >= 400
-    AND COALESCE(o.is_count_tokens, FALSE) = FALSE
-    AND NULLIF(o.client_request_id, '') IS NOT NULL
-    AND (
-      COALESCE(o.error_owner, '') = 'client'
-      OR (COALESCE(o.error_phase, '') = 'request' AND COALESCE(o.error_source, '') = 'client_request')
-      OR lower(CONCAT_WS(' ', o.error_type, o.error_message, o.error_body, o.upstream_error_message, o.upstream_error_detail)) LIKE ANY (ARRAY[
-        '%model not supported%', '%unsupported model%', '%not supported by any configured account%',
-        '%does not support the requested model%', '%model_not_supported%', '%model_unsupported%',
-        '%model_not_found%', '%本站暂不支持%'
-      ])
-    )
-), usage_candidates AS (
-  SELECT u.*
-  FROM raw_usage_candidates u
-  LEFT JOIN excluded_usage_keys request_exclusion
-    ON request_exclusion.group_id = u.group_id
-   AND request_exclusion.account_id IS NOT DISTINCT FROM u.account_id
-   AND request_exclusion.request_key = u.request_id
-  LEFT JOIN excluded_usage_keys logical_exclusion
-    ON logical_exclusion.group_id = u.group_id
-   AND logical_exclusion.account_id IS NOT DISTINCT FROM u.account_id
-   AND logical_exclusion.request_key = u.logical_request_id
-  WHERE request_exclusion.request_key IS NULL
-    AND logical_exclusion.request_key IS NULL
-), usage_request_keys AS (
-  -- request_id is the only exact bridge available on ops_error_logs. Keep
-  -- the mapping group-scoped so failover across accounts remains one request.
-  SELECT DISTINCT group_id, request_id AS request_key, request_key AS canonical_request_key
-  FROM usage_candidates
-  WHERE request_id IS NOT NULL
-), error_candidates AS (
-  SELECT o.group_id, o.account_id, o.id::bigint AS source_id, o.created_at AS observed_at,
-         date_bin($3::interval, o.created_at, TIMESTAMPTZ '2001-01-01 00:00:00+00') AS bucket_start,
-         FALSE AS successful,
-         NULL::double precision AS first_token_ms,
-         NULL::double precision AS duration_ms,
-	         NULL::double precision AS input_tokens,
-	         NULL::double precision AS cache_creation_tokens,
-         NULL::double precision AS cache_read_tokens,
-         COALESCE(request_match.canonical_request_key, NULLIF(o.request_id, ''), 'error:' || o.id::text) AS request_key,
-         0 AS source_priority
-  FROM ops_error_logs o
-  JOIN groups g ON g.group_id = o.group_id
-  LEFT JOIN usage_request_keys request_match
-    ON request_match.group_id = o.group_id
-   AND request_match.request_key = NULLIF(o.request_id, '')
-  WHERE o.created_at >= $1::timestamptz AND o.created_at < $2::timestamptz
-    AND NOT (o.created_at >= TIMESTAMPTZ '2026-08-31 00:00:00+08' AND o.created_at < TIMESTAMPTZ '2026-09-02 00:00:00+08')
-    AND COALESCE(o.is_count_tokens, FALSE) = FALSE
-    AND COALESCE(o.status_code, 0) >= 400
-    AND NOT (
-      COALESCE(o.error_owner, '') = 'client'
-      OR (COALESCE(o.error_phase, '') = 'request' AND COALESCE(o.error_source, '') = 'client_request')
-      OR lower(CONCAT_WS(' ', o.error_type, o.error_message, o.error_body, o.upstream_error_message, o.upstream_error_detail)) LIKE ANY (ARRAY[
-        '%model not supported%', '%unsupported model%', '%not supported by any configured account%',
-        '%does not support the requested model%', '%model_not_supported%', '%model_unsupported%',
-        '%model_not_found%', '%本站暂不支持%'
-      ])
-    )
-    AND NOT EXISTS (
-      SELECT 1
-      FROM unknown_usage_keys unknown_usage
-      WHERE unknown_usage.group_id = o.group_id
-        AND unknown_usage.request_key IN (NULLIF(o.request_id, ''), NULLIF(o.client_request_id, ''))
-    )
-), real_candidates AS (
-  SELECT group_id, account_id, source_id, observed_at, bucket_start, successful, first_token_ms, duration_ms, input_tokens, cache_creation_tokens, cache_read_tokens, request_key, source_priority
-  FROM usage_candidates
-  UNION ALL
-  SELECT group_id, account_id, source_id, observed_at, bucket_start, successful, first_token_ms, duration_ms, input_tokens, cache_creation_tokens, cache_read_tokens, request_key, source_priority
-  FROM error_candidates
-), real_events AS (
-  SELECT group_id, account_id, observed_at, bucket_start, successful, first_token_ms, duration_ms, input_tokens, cache_creation_tokens, cache_read_tokens, request_key, 'real'::text AS source
-  FROM (
-    SELECT rc.*, ROW_NUMBER() OVER (
-      PARTITION BY rc.group_id, rc.request_key
-      ORDER BY rc.observed_at DESC, rc.successful DESC, rc.source_id DESC
-    ) AS position
-    FROM real_candidates rc
-  ) ranked
-  WHERE position = 1
-), probe_rows AS (
+`+monitorV4RealEventsSQL+`, probe_rows AS (
   SELECT s.group_id, r.run_id, r.checked_at AS observed_at,
          date_bin($3::interval, r.checked_at, TIMESTAMPTZ '2001-01-01 00:00:00+00') AS bucket_start,
          (r.status = 'success') AS successful,
@@ -586,7 +420,7 @@ WITH scopes AS (
          CASE WHEN r.status = 'success' AND r.usage_completeness = 'complete' THEN r.cache_creation_tokens ELSE 0 END::double precision AS cache_creation_tokens,
          CASE WHEN r.status = 'success' AND r.usage_completeness = 'complete' THEN r.cache_read_tokens ELSE 0 END::double precision AS cache_read_tokens
   FROM scopes s
-  JOIN account_monitor_results r ON r.account_id = s.account_id
+  JOIN account_monitor_results r ON r.account_id = s.account_id AND (r.group_id IS NULL OR r.group_id = s.group_id)
   WHERE r.checked_at >= $1::timestamptz AND r.checked_at < $2::timestamptz
     AND NOT EXISTS (
       SELECT 1
@@ -630,10 +464,6 @@ WITH scopes AS (
          'probe'::text AS source,
          FALSE AS probe_missing
   FROM probe_runs p
-), latest_selected AS (
-  SELECT DISTINCT ON (group_id) group_id, successful
-  FROM selected_events
-  ORDER BY group_id, bucket_start DESC, observed_at DESC
 ), metric_arrays AS (
   SELECT group_id,
          array_agg(first_token_ms ORDER BY first_token_ms) FILTER (WHERE successful AND first_token_ms IS NOT NULL) AS ttft_values,
@@ -667,15 +497,21 @@ WITH scopes AS (
 			COUNT(*) FILTER (WHERE s.source = 'probe')::int AS probe_fallback_bucket_count,
 			COUNT(*) FILTER (WHERE s.source = 'probe')::int AS probe_fallback_request_count,
 			0::int AS missing_probe_terminal_count,
+         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.first_token_ms) FILTER (WHERE s.successful AND s.first_token_ms IS NOT NULL) AS ttft_p50_ms,
+         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.duration_ms) FILTER (WHERE s.successful AND s.duration_ms IS NOT NULL) AS latency_p50_ms,
          MAX(ms.ttft_trimmed_mean) AS ttft_p95_ms,
          COUNT(*) FILTER (WHERE s.successful AND s.first_token_ms IS NOT NULL)::int AS ttft_sample_count,
          MAX(ms.latency_trimmed_mean) AS latency_p95_ms,
          COUNT(*) FILTER (WHERE s.successful AND s.duration_ms IS NOT NULL)::int AS latency_sample_count,
-         MAX(s.observed_at) AS source_updated_at,
-         COALESCE(BOOL_OR(ls.successful), FALSE) AS current_operational
+		 COALESCE(SUM(s.input_tokens) FILTER (WHERE s.successful), 0)::bigint AS input_tokens,
+         COALESCE(SUM(s.cache_read_tokens) FILTER (WHERE s.successful), 0)::bigint AS cache_read_tokens,
+         COALESCE(SUM(s.cache_creation_tokens) FILTER (WHERE s.successful), 0)::bigint AS cache_creation_tokens,
+		 COALESCE(SUM(s.input_tokens + s.cache_creation_tokens + s.cache_read_tokens) FILTER (WHERE s.successful), 0)::bigint AS cache_hit_denominator,
+         SUM(s.cache_read_tokens) FILTER (WHERE s.successful)
+		   / NULLIF(SUM(s.input_tokens + s.cache_creation_tokens + s.cache_read_tokens) FILTER (WHERE s.successful), 0) AS cache_hit_rate,
+         MAX(s.observed_at) AS source_updated_at
   FROM groups g
   LEFT JOIN selected_events s ON s.group_id = g.group_id
-  LEFT JOIN latest_selected ls ON ls.group_id = g.group_id
   LEFT JOIN metric_stats ms ON ms.group_id = g.group_id
   GROUP BY g.group_id
 )
@@ -684,7 +520,7 @@ WITH scopes AS (
 	       a.ttft_p95_ms, a.ttft_sample_count,
 	       a.latency_p95_ms, a.latency_sample_count,
 	       COALESCE(cu.input_tokens, 0), COALESCE(cu.cache_read_tokens, 0), COALESCE(cu.cache_creation_tokens, 0),
-	       COALESCE(cu.cache_hit_denominator, 0), cu.cache_hit_rate, a.source_updated_at, a.current_operational
+	       COALESCE(cu.cache_hit_denominator, 0), cu.cache_hit_rate, a.source_updated_at, a.ttft_p50_ms, a.latency_p50_ms
 FROM aggregate a
 LEFT JOIN cache_usage cu ON cu.group_id = a.group_id
 ORDER BY a.group_id
@@ -698,12 +534,11 @@ ORDER BY a.group_id
 			groupID, requestCount, successCount, realRequestCount, realSuccessCount int
 			probeFallbackBuckets, probeFallbackRequests, missingProbeTerminals      int
 			ttftSampleCount, latencySampleCount                                     int
-			successRate, ttftP95, latencyP95, cacheHitRate                          sql.NullFloat64
+			successRate, ttftP95, latencyP95, cacheHitRate, ttftP50, latencyP50     sql.NullFloat64
 			inputTokens, cacheReadTokens, cacheCreationTokens, cacheHitDenominator  int64
-			currentOperational                                                      bool
 			sourceUpdatedAt                                                         sql.NullTime
 		)
-		if err := rows.Scan(&groupID, &successRate, &requestCount, &successCount, &realRequestCount, &realSuccessCount, &probeFallbackBuckets, &probeFallbackRequests, &missingProbeTerminals, &ttftP95, &ttftSampleCount, &latencyP95, &latencySampleCount, &inputTokens, &cacheReadTokens, &cacheCreationTokens, &cacheHitDenominator, &cacheHitRate, &sourceUpdatedAt, &currentOperational); err != nil {
+		if err := rows.Scan(&groupID, &successRate, &requestCount, &successCount, &realRequestCount, &realSuccessCount, &probeFallbackBuckets, &probeFallbackRequests, &missingProbeTerminals, &ttftP95, &ttftSampleCount, &latencyP95, &latencySampleCount, &inputTokens, &cacheReadTokens, &cacheCreationTokens, &cacheHitDenominator, &cacheHitRate, &sourceUpdatedAt, &ttftP50, &latencyP50); err != nil {
 			return nil, fmt.Errorf("scan hybrid monitor v4 groups: %w", err)
 		}
 		var successRatePtr, ttftP95Ptr, latencyP95Ptr, cacheHitRatePtr *float64
@@ -732,15 +567,15 @@ ORDER BY a.group_id
 			ProbeFallbackBucketCount:  probeFallbackBuckets,
 			ProbeFallbackRequestCount: probeFallbackRequests,
 			MissingProbeTerminalCount: missingProbeTerminals,
-			TTFTP95MS:                 ttftP95Ptr,
-			TTFTSampleCount:           ttftSampleCount,
-			LatencyP95MS:              latencyP95Ptr,
-			LatencySampleCount:        latencySampleCount,
-			CacheHitRate:              cacheHitRatePtr,
-			InputTokens:               inputTokens,
-			CacheReadTokens:           cacheReadTokens, CacheCreationTokens: cacheCreationTokens, CacheHitDenominator: cacheHitDenominator,
-			SourceUpdatedAt:    accountMonitorNullableTime(sourceUpdatedAt),
-			CurrentOperational: currentOperational,
+			TTFTP50MS:                 nullableMonitorMetric(ttftP50), LatencyP50MS: nullableMonitorMetric(latencyP50),
+			TTFTP95MS:          ttftP95Ptr,
+			TTFTSampleCount:    ttftSampleCount,
+			LatencyP95MS:       latencyP95Ptr,
+			LatencySampleCount: latencySampleCount,
+			CacheHitRate:       cacheHitRatePtr,
+			InputTokens:        inputTokens,
+			CacheReadTokens:    cacheReadTokens, CacheCreationTokens: cacheCreationTokens, CacheHitDenominator: cacheHitDenominator,
+			SourceUpdatedAt: accountMonitorNullableTime(sourceUpdatedAt),
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -1150,7 +985,7 @@ func (r *accountMonitorRepository) ListGroupRealRequestAggregates(ctx context.Co
 			SELECT ag.group_id, r.account_id, r.checked_at, r.ttft_ms::double precision AS first_token_ms, r.latency_ms::double precision AS duration_ms,
 				(r.status = 'success') AS successful, date_bin('5 minutes'::interval, r.checked_at, $3::timestamptz) AS bucket_start,
 				ROW_NUMBER() OVER (PARTITION BY ag.group_id, r.account_id, r.run_id ORDER BY r.checked_at DESC, r.id DESC) AS rn
-			FROM account_monitor_results r JOIN account_groups ag ON ag.account_id = r.account_id AND ag.group_id = ANY($1)
+			FROM account_monitor_results r JOIN account_groups ag ON ag.account_id = r.account_id AND ag.group_id = ANY($1) AND (r.group_id IS NULL OR r.group_id = ag.group_id)
 			WHERE r.account_id = ANY($2) AND r.checked_at >= $3 AND r.checked_at < $4 AND r.status IN ('success', 'failed')
 		), latest_probe (group_id, account_id, created_at, first_token_ms, duration_ms, successful, bucket_start) AS ( SELECT group_id, account_id, checked_at, first_token_ms, duration_ms, successful, bucket_start FROM probe_ranked WHERE rn = 1 ), selected_requests (group_id, account_id, created_at, first_token_ms, duration_ms, revenue, account_cost, cost_complete, successful, is_probe) AS (
 			SELECT group_id, account_id, created_at, first_token_ms, duration_ms, revenue, account_cost, cost_complete, successful, FALSE FROM real_candidates WHERE rn = 1
@@ -1972,3 +1807,24 @@ func validateFourScoreWeights(weights service.AccountMonitorScoreWeights) error 
 }
 
 var _ service.AccountMonitorRepository = (*accountMonitorRepository)(nil)
+
+func nullableMonitorMetric(v sql.NullFloat64) *float64 {
+	if !v.Valid {
+		return nil
+	}
+	return &v.Float64
+}
+
+func (r *accountMonitorRepository) InsertGroupProbeResult(ctx context.Context, groupID int64, result service.AccountMonitorProbeResult, runID string) error {
+	if groupID <= 0 || result.AccountID <= 0 || result.ModelID == "" || result.CheckedAt.IsZero() {
+		return errors.New("invalid group monitor result")
+	}
+	if result.UsageCompleteness == "" {
+		result.UsageCompleteness = service.ProbeUsageUnknown
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT INTO account_monitor_results (
+ run_id, account_id, model_id, status, error_code, http_status, ttft_ms, latency_ms,
+ input_tokens, cache_creation_tokens, cache_read_tokens, usage_completeness, checked_at, group_id
+ ) VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, runID, result.AccountID, result.ModelID, result.Status, result.ErrorCode, result.HTTPStatus, result.TTFTMS, result.LatencyMS, result.InputTokens, result.CacheCreationTokens, result.CacheReadTokens, result.UsageCompleteness, result.CheckedAt.UTC(), groupID)
+	return err
+}

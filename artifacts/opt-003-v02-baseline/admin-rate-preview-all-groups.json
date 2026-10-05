@@ -1,0 +1,168 @@
+{
+  "observedAt": "2026-09-27T07:25:00.446Z",
+  "method": "open each group separately; preview input only; no apply or save",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "path": "/admin/groups",
+      "groupTriggerCount": 10,
+      "inspectedCount": 10,
+      "entryCount": 0,
+      "previewValueHasSuffix": null,
+      "loadingUnresolved": false,
+      "groups": [
+        {
+          "index": 0,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 1,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 2,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 3,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 4,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 5,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 6,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 7,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 8,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 9,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "path": "/admin/groups",
+      "groupTriggerCount": 10,
+      "inspectedCount": 10,
+      "entryCount": 0,
+      "previewValueHasSuffix": null,
+      "loadingUnresolved": false,
+      "groups": [
+        {
+          "index": 0,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 1,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 2,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 3,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 4,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 5,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 6,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 7,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 8,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        },
+        {
+          "index": 9,
+          "entryCount": 0,
+          "previewValueHasSuffix": null,
+          "loadingUnresolved": false,
+          "guideBlocked": false
+        }
+      ]
+    }
+  ]
+}

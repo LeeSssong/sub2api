@@ -15,8 +15,8 @@ describe('HeroSection', () => {
 
     render(<HeroSection session={session} />)
 
-    expect(screen.getByText(/一个网关，接入所支持的模型 API。/)).toBeInTheDocument()
-    expect(screen.getByText(/提供 OpenAI 兼容端点。/)).toBeInTheDocument()
+    expect(screen.getByText('GPT、Claude、Gemini 一站接入。')).toBeInTheDocument()
+    expect(screen.getByText('国内网络直接连接，注册即可使用。')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '立即开始' })).toHaveAttribute('href', '/dashboard')
     expect(screen.getByRole('link', { name: '立即开始' }).querySelectorAll('svg')).toHaveLength(1)
     expect(screen.queryByRole('link', { name: '登录' })).not.toBeInTheDocument()
@@ -25,8 +25,8 @@ describe('HeroSection', () => {
     expect(heroGrid).toHaveAttribute('data-composition', 'raised-diagonal')
     expect(screen.queryByText(/基础 URL/)).not.toBeInTheDocument()
     expect(screen.queryByText('https://api.example.com')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '复制 API 地址' })).toBeInTheDocument()
-    expect(screen.getByText('/v1/chat/completions')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '复制 API 地址' })).not.toBeInTheDocument()
+    expect(screen.queryByText('/v1/chat/completions')).not.toBeInTheDocument()
     expect(screen.queryByText('/v1/messages')).not.toBeInTheDocument()
     expect(screen.getByText('向下探索')).toBeInTheDocument()
   })
@@ -73,7 +73,7 @@ describe('HeroSection', () => {
 
     expect(screen.getByLabelText('星桥首页首屏')).toHaveAttribute('data-entry-state', 'final')
     expect(screen.getByLabelText('星桥实时信号背景')).toHaveAttribute('data-canvas-active', 'false')
-    expect(screen.getByLabelText('星桥实时信号背景')).toHaveAttribute('data-travel-direction', 'down')
+    expect(screen.getByLabelText('星桥实时信号背景')).toHaveAttribute('data-travel-direction', 'left')
   })
 })
 

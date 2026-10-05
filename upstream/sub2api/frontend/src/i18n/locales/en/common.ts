@@ -1,5 +1,6 @@
 export default {
   common: {
+    docsNotConfigured: 'Documentation is not configured',
     loading: 'Loading...',
     submitting: 'Submitting...',
     justNow: 'just now',
@@ -177,6 +178,7 @@ export default {
 
   // Navigation
   nav: {
+    aiTools: 'AI Tools',
     dashboard: 'Dashboard',
     myRoutes: 'My Routes',
     myKeys: 'My Keys',

@@ -10,13 +10,6 @@
           </span>
           {{ t('admin.channelMonitor.title') }}
         </h1>
-        <p class="page-description mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          {{
-            isActiveProbeMode
-              ? t('channelMonitorV2.admin.descriptionV1')
-              : t('channelMonitorV2.admin.descriptionV2')
-          }}
-        </p>
         <div class="mt-4 border-t border-gray-100 pt-4 dark:border-dark-700">
           <div
             class="tabs inline-flex w-full max-w-xl flex-wrap sm:w-auto"

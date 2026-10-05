@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed, ref, watch } from 'vue'
 import { useMediaQuery } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
@@ -179,7 +180,7 @@ const terminalKindLabel = (kind: string) => {
             type="button"
             class="btn btn-secondary btn-sm"
             @click="fetchData"
-          >
+          ><Icon name="refresh" size="sm" aria-hidden="true" />
             {{ t('common.refresh') }}
           </button>
         </div>

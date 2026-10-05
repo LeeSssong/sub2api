@@ -1,0 +1,1170 @@
+{
+  "observedAt": "2026-09-27T06:13:35.578Z",
+  "method": "admin session; structural metadata only, no page text or screenshots",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "requested": "/dashboard",
+      "landed": "/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/usage",
+      "landed": "/usage",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/keys",
+      "landed": "/keys",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/redeem",
+      "landed": "/redeem",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        },
+        {
+          "tag": "H2",
+          "parentTag": "DIV",
+          "nextTag": "P",
+          "nextParagraphVisible": true,
+          "adjacentParagraphs": 1
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/orders",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/profile",
+      "landed": "/profile",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        },
+        {
+          "tag": "H2",
+          "parentTag": "DIV",
+          "nextTag": "SPAN",
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/purchase",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/batch-image",
+      "landed": "/batch-image",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/affiliate",
+      "landed": "/affiliate",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/available-channels",
+      "landed": "/available-channels",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/subscriptions",
+      "landed": "/subscriptions",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/key-usage",
+      "landed": "/key-usage",
+      "appHeaderPresent": false,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/model-plaza",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/dashboard",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/ops",
+      "landed": "/admin/ops",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/operations/account-profitability",
+      "landed": "/admin/operations/account-profitability",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/operations/business-overview",
+      "landed": "/admin/operations/business-overview",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/audit-logs",
+      "landed": "/admin/audit-logs",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/users",
+      "landed": "/admin/users",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/groups",
+      "landed": "/admin/groups",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/channels",
+      "landed": "/admin/channels/pricing",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/channels/pricing",
+      "landed": "/admin/channels/pricing",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/channels/monitor",
+      "landed": "/admin/channels/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": "DIV",
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/monitor",
+      "landed": "/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H2",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/subscriptions",
+      "landed": "/admin/subscriptions",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/accounts",
+      "landed": "/admin/accounts",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/accounts/monitor",
+      "landed": "/admin/accounts/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/announcements",
+      "landed": "/admin/announcements",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/proxies",
+      "landed": "/admin/proxies",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/redeem",
+      "landed": "/admin/redeem",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/promo-codes",
+      "landed": "/admin/promo-codes",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/scheduler-logs",
+      "landed": "/admin/scheduler-logs",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/settings",
+      "landed": "/admin/settings",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/risk-control",
+      "landed": "/admin/risk-control",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/prompt-audit",
+      "landed": "/admin/prompt-audit",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 1
+        }
+      ]
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/usage",
+      "landed": "/admin/usage",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/affiliates/invites",
+      "landed": "/admin/affiliates/invites",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/affiliates/rebates",
+      "landed": "/admin/affiliates/rebates",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/affiliates/transfers",
+      "landed": "/admin/affiliates/transfers",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/orders/dashboard",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/orders",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/admin/orders/plans",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/home",
+      "landed": "/home",
+      "appHeaderPresent": false,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/login",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/register",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/forgot-password",
+      "landed": "/forgot-password",
+      "appHeaderPresent": false,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": false,
+      "topHeadings": []
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/reset-password",
+      "landed": "/reset-password",
+      "appHeaderPresent": false,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": false,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/dashboard",
+      "landed": "/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/usage",
+      "landed": "/usage",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/keys",
+      "landed": "/keys",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/redeem",
+      "landed": "/redeem",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        },
+        {
+          "tag": "H2",
+          "parentTag": "DIV",
+          "nextTag": "P",
+          "nextParagraphVisible": true,
+          "adjacentParagraphs": 1
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/orders",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/profile",
+      "landed": "/profile",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/purchase",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/batch-image",
+      "landed": "/batch-image",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/affiliate",
+      "landed": "/affiliate",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/available-channels",
+      "landed": "/available-channels",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/subscriptions",
+      "landed": "/subscriptions",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/key-usage",
+      "landed": "/key-usage",
+      "renderPending": true
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/model-plaza",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/dashboard",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/ops",
+      "landed": "/admin/ops",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/operations/account-profitability",
+      "landed": "/admin/operations/account-profitability",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/operations/business-overview",
+      "landed": "/admin/operations/business-overview",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/audit-logs",
+      "landed": "/admin/audit-logs",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/users",
+      "landed": "/admin/users",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/groups",
+      "landed": "/admin/groups",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/channels",
+      "landed": "/admin/channels/pricing",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/channels/pricing",
+      "landed": "/admin/channels/pricing",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/channels/monitor",
+      "landed": "/admin/channels/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "HEADER",
+          "nextTag": "DIV",
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/monitor",
+      "landed": "/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H2",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/subscriptions",
+      "landed": "/admin/subscriptions",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/accounts",
+      "landed": "/admin/accounts",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/accounts/monitor",
+      "landed": "/admin/accounts/monitor",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/announcements",
+      "landed": "/admin/announcements",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/proxies",
+      "landed": "/admin/proxies",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/redeem",
+      "landed": "/admin/redeem",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/promo-codes",
+      "landed": "/admin/promo-codes",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/scheduler-logs",
+      "landed": "/admin/scheduler-logs",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 0
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/settings",
+      "landed": "/admin/settings",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/risk-control",
+      "landed": "/admin/risk-control",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/prompt-audit",
+      "landed": "/admin/prompt-audit",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": [
+        {
+          "tag": "H1",
+          "parentTag": "DIV",
+          "nextTag": null,
+          "nextParagraphVisible": false,
+          "adjacentParagraphs": 1
+        },
+        {
+          "tag": "H2",
+          "parentTag": "DIV",
+          "nextTag": "P",
+          "nextParagraphVisible": true,
+          "adjacentParagraphs": 1
+        }
+      ]
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/usage",
+      "landed": "/admin/usage",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/affiliates/invites",
+      "landed": "/admin/affiliates/invites",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/affiliates/rebates",
+      "landed": "/admin/affiliates/rebates",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/affiliates/transfers",
+      "landed": "/admin/affiliates/transfers",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/orders/dashboard",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/orders",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/admin/orders/plans",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/home",
+      "landed": "/home",
+      "appHeaderPresent": false,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/login",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/register",
+      "landed": "/admin/dashboard",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/forgot-password",
+      "landed": "/forgot-password",
+      "appHeaderPresent": false,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": false,
+      "topHeadings": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/reset-password",
+      "landed": "/reset-password",
+      "appHeaderPresent": false,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": false,
+      "topHeadings": []
+    }
+  ]
+}

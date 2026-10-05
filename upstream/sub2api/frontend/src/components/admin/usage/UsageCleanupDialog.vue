@@ -19,7 +19,7 @@
           <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-200">
             {{ t('admin.usage.cleanup.recentTasks') }}
           </h4>
-          <button type="button" class="btn btn-ghost btn-sm" @click="loadTasks">
+          <button type="button" class="btn btn-secondary btn-sm" @click="loadTasks"><Icon name="refresh" size="sm" aria-hidden="true" />
             {{ t('common.refresh') }}
           </button>
         </div>
@@ -116,6 +116,7 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { ref, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'

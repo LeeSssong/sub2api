@@ -1,22 +1,21 @@
 <template>
-  <div class="space-y-4">
+  <div :class="variant === 'recharge' ? 'space-y-[18px]' : 'space-y-4'">
     <!-- Quick Amount Buttons -->
     <div>
-      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+      <label v-if="variant !== 'recharge'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
         {{ t('payment.quickAmounts') }}
       </label>
-      <div class="grid grid-cols-3 gap-x-4 gap-y-4 pt-2">
+      <div :class="variant === 'recharge' ? 'grid grid-cols-3 gap-[10px]' : 'grid grid-cols-2 gap-2 sm:grid-cols-5'">
         <button
           v-for="amt in filteredAmounts"
           :key="amt"
           type="button"
           :class="[
-            'relative rounded-lg border-2 px-3 py-3 text-center font-medium transition-colors',
+            'relative min-h-12 border px-3 text-center text-sm font-medium transition-colors',
+            variant === 'recharge' ? 'rounded-[9px]' : 'rounded-lg py-3',
             modelValue === amt
-              ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/40 dark:text-primary-300'
-              : quoteFor(amt).percent > 0
-                ? 'border-red-200 bg-white text-gray-700 hover:border-red-300 dark:border-red-500/40 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-red-400/60'
-                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-dark-500',
+              ? 'border-[var(--xq-accent)] bg-[var(--xq-raised)] dark:bg-[linear-gradient(167deg,rgba(31,87,110,0.82),rgba(15,48,69,0.9))] text-[var(--xq-core)] dark:shadow-[0_12px_30px_rgba(27,112,139,0.12)]'
+              : 'border-[var(--xq-border)] bg-[var(--xq-depth)] text-[var(--xq-secondary)] hover:border-[var(--xq-accent)] hover:text-[var(--xq-text)]',
           ]"
           :data-testid="`quick-amount-${amt}`"
           @click="selectAmount(amt)"
@@ -50,11 +49,11 @@
 
     <!-- Custom Amount Input -->
     <div>
-      <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-        {{ t('payment.customAmount') }}
+      <label :class="variant === 'recharge' ? 'mb-2 block text-xs text-[var(--xq-secondary)]' : 'mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300'">
+        {{ variant === 'recharge' ? '自定义额度' : t('payment.customAmount') }}
       </label>
       <div class="relative">
-        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
+        <span v-if="variant !== 'recharge'" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
           $
         </span>
         <input
@@ -62,7 +61,7 @@
           inputmode="decimal"
           :value="customText"
           :placeholder="placeholderText"
-          class="input w-full py-3 pl-8 pr-4"
+          :class="variant === 'recharge' ? 'input h-10 w-full px-[14px] py-2 text-sm' : 'input w-full py-3 pl-8 pr-4'"
           @input="handleInput"
         />
       </div>
@@ -90,6 +89,7 @@ const props = withDefaults(defineProps<{
   multiplier?: number
   /** 支付币种（折扣模式第二行实付金额的币种与精度） */
   currency?: string
+  variant?: 'default' | 'recharge'
 }>(), {
   amounts: () => [20, 50, 100],
   min: 0,
@@ -98,6 +98,7 @@ const props = withDefaults(defineProps<{
   bonusMode: 'bonus',
   multiplier: 1,
   currency: undefined,
+  variant: 'default',
 })
 
 const emit = defineEmits<{
@@ -147,6 +148,7 @@ function secondLine(amt: number): string {
 }
 
 const placeholderText = computed(() => {
+  if (props.variant === 'recharge') return '输入充值额度（USD）'
   if (props.min > 0 && props.max > 0) return `${props.min} - ${props.max}`
   if (props.min > 0) return `≥ ${props.min}`
   if (props.max > 0) return `≤ ${props.max}`

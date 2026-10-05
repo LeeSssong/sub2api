@@ -37,7 +37,7 @@ describe('AccountMonitorCostDialog', () => {
     const wrapper = mountDialog(openAIAccount({ procurement_cost_cny: 4 }))
 
     await wrapper.get<HTMLInputElement>('[data-test="estimated-quota-input"]').setValue('120')
-    expect(wrapper.get('[data-test="derived-multiplier"]').text()).toContain('0.0333')
+    expect(wrapper.get('[data-test="derived-multiplier"]').text()).toContain('0.0333x倍率')
     await wrapper.get('[data-test="save-procurement"]').trigger('click')
 
     expect(wrapper.emitted('saveProcurement')).toEqual([[4, 120]])
@@ -74,7 +74,7 @@ describe('AccountMonitorCostDialog', () => {
     }))
 
     expect(wrapper.get<HTMLInputElement>('[data-test="upstream-actual-cost-input"]').element.value).toBe('1')
-    expect(wrapper.get('[data-test="effective-cost-preview"]').text()).toContain('0.1500')
+    expect(wrapper.get('[data-test="effective-cost-preview"]').text()).toContain('0.15x倍率')
     await wrapper.get('[data-test="save-multiplier"]').trigger('click')
     expect(wrapper.emitted('saveMultiplier')).toEqual([[1.5, 'ratio_based_upstream', 1, 10]])
   })

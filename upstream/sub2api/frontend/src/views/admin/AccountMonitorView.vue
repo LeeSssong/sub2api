@@ -8,9 +8,6 @@
           <h1 class="text-[27px] font-semibold leading-[1.25] text-gray-900 max-[430px]:text-[23px] dark:text-white">
             {{ t('admin.accountMonitor.title') }}
           </h1>
-          <p class="mt-[7px] text-sm text-gray-500 max-[760px]:max-w-[272px] dark:text-gray-400">
-            {{ t('admin.accountMonitor.description') }}
-          </p>
         </div>
         <button
           type="button"
@@ -103,7 +100,7 @@
         role="alert"
       >
         <span>{{ rangeError }}</span>
-        <button type="button" class="btn btn-secondary shrink-0 px-3 py-1.5 text-xs" @click="load(activeRange)">
+        <button type="button" class="btn btn-secondary shrink-0 px-3 py-1.5 text-xs" @click="load(activeRange)"><Icon name="refresh" size="sm" aria-hidden="true" />
           {{ t('common.refresh') }}
         </button>
       </div>
@@ -139,7 +136,7 @@
         role="alert"
       >
         <span>{{ rangeError }}</span>
-        <button type="button" class="btn btn-secondary px-3 py-1.5 text-xs" @click="load(activeRange)">
+        <button type="button" class="btn btn-secondary px-3 py-1.5 text-xs" @click="load(activeRange)"><Icon name="refresh" size="sm" aria-hidden="true" />
           {{ t('common.refresh') }}
         </button>
       </div>
@@ -289,6 +286,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { getFloatingPanelPosition } from '@/utils/floatingPanel'
+import { formatMultiplierLabel } from '@/utils/formatters'
 import type { Account, AdminGroup, Proxy as AccountProxy, ClaudeModel } from '@/types'
 
 type CardConcurrency = AccountMonitorConcurrencyItem & { delayed?: boolean }
@@ -452,7 +450,7 @@ function formatGroupStatus(value?: string): string {
   return value || '--'
 }
 function formatMultiplier(value?: number): string {
-  return value == null || !Number.isFinite(value) ? '--' : `${value.toFixed(2)}×`
+  return value == null || !Number.isFinite(value) ? '--' : formatMultiplierLabel(value)
 }
 function formatNativeNumber(value?: number): string {
   return value == null || !Number.isFinite(value) ? '--' : String(value)

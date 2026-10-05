@@ -8,7 +8,7 @@ const componentSource = readFileSync('src/features/monitor-v4/HybridPerformanceG
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, args?: Record<string, unknown>) => key === 'channelMonitorV2.hybrid.multiplier' ? `倍率：${args?.value}x` : key === 'channelMonitorV2.hybrid.successRate' ? '成功率' : key === 'channelMonitorV2.hybrid.sampleCount' ? `基于 ${args?.count} 次调用` : key }) }))
 
-const group = { id: 1, name: 'Primary', platform: 'openai', rate_multiplier: 0.3, success_rate: 85, request_count: 20, success_count: 17, real_request_count: 15, real_success_count: 14, probe_fallback_bucket_count: 5, probe_fallback_request_count: 5, ttft_p95_ms: 120, ttft_sample_count: 12, latency_p95_ms: 900, latency_sample_count: 12, cache_hit_rate: 0.9684, source_updated_at: '2026-08-25T00:00:00Z', current_operational: true }
+const group = { id: 1, name: 'Primary', platform: 'openai', rate_multiplier: 0.3, success_rate: 85, request_count: 20, success_count: 17, real_request_count: 15, real_success_count: 14, probe_fallback_bucket_count: 5, probe_fallback_request_count: 5, ttft_p95_ms: 120, ttft_sample_count: 12, latency_p95_ms: 900, latency_sample_count: 12, cache_hit_rate: 0.4, source_updated_at: '2026-08-25T00:00:00Z' }
 
 describe('HybridPerformanceGroupCard', () => {
   it('uses threshold tones and the approved labels', () => {

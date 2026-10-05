@@ -1,33 +1,49 @@
 <template>
-  <div class="space-y-4">
-    <div class="flex items-center justify-between gap-3">
-      <div class="inline-flex min-h-12 w-full max-w-xl rounded-lg border border-sky-900 bg-[#071426] p-1" role="tablist" aria-label="充值方式">
-        <router-link to="/purchase" role="tab" :aria-selected="active === 'recharge'" class="flex flex-1 items-center justify-center rounded-md px-4 text-sm font-semibold transition-colors" :class="active === 'recharge' ? activeClass : inactiveClass">
+  <div>
+    <section class="flex min-h-[92px] flex-col justify-between gap-5 rounded-[14px] border border-[var(--xq-border)] bg-[var(--xq-surface)] dark:bg-[linear-gradient(156deg,rgba(16,49,71,0.82),rgba(13,40,59,0.72)_50%,rgba(8,28,43,0.62))] px-[22px] py-[18px] sm:flex-row sm:items-center">
+      <div>
+        <h2 class="text-[15px] font-semibold leading-6 text-[var(--xq-text)]">账户权益</h2>
+        <p class="text-[11px] leading-[22px] text-[var(--xq-muted)]">当前账户状态</p>
+      </div>
+      <div data-test="account-metrics" class="grid w-full min-w-0 grid-cols-2 sm:w-auto">
+        <div data-test="account-metric" class="min-w-0 px-3 sm:min-w-[170px] sm:px-7">
+          <p class="text-[11px] leading-[18px] text-[var(--xq-muted)]">可用额度</p>
+          <p class="mt-0.5 text-[22px] font-semibold leading-[28px] tabular-nums text-[var(--xq-text)]">${{ balance.toFixed(2) }}</p>
+        </div>
+        <div data-test="account-metric" class="min-w-0 border-l border-[var(--xq-border)] px-3 sm:min-w-[170px] sm:px-7">
+          <p class="text-[11px] leading-[18px] text-[var(--xq-muted)]">并发上限</p>
+          <p class="mt-0.5 text-[22px] font-semibold leading-[28px] tabular-nums text-[var(--xq-text)]">{{ concurrency }}</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="mt-[14px] flex min-w-0 items-center justify-between gap-2 border-b border-[var(--xq-border)] sm:gap-4">
+      <div class="flex" role="tablist" aria-label="充值方式">
+        <router-link v-if="paymentEnabled" data-test="recharge-tab" to="/purchase" role="tab" :aria-selected="active === 'recharge'" class="relative flex h-12 items-center px-3 text-sm font-semibold transition-colors sm:px-6" :class="active === 'recharge' ? activeClass : inactiveClass">
           充值
         </router-link>
-        <router-link to="/redeem" role="tab" :aria-selected="active === 'redeem'" class="flex flex-1 items-center justify-center rounded-md px-4 text-sm font-semibold transition-colors" :class="active === 'redeem' ? activeClass : inactiveClass">
-          兑换
+        <span v-else data-test="recharge-tab" role="tab" aria-disabled="true" aria-selected="false" class="flex h-12 items-center px-3 text-sm text-[var(--xq-muted)] sm:px-6">充值</span>
+        <router-link to="/redeem" role="tab" :aria-selected="active === 'redeem'" class="relative flex h-12 items-center px-3 text-sm font-semibold transition-colors sm:px-6" :class="active === 'redeem' ? activeClass : inactiveClass">
+          兑换码
         </router-link>
       </div>
-      <router-link to="/orders" class="btn btn-secondary shrink-0">我的订单</router-link>
+      <router-link v-if="paymentEnabled" data-test="orders-link" to="/orders" class="flex h-[34px] shrink-0 items-center whitespace-nowrap px-1 text-xs text-[var(--xq-secondary)] transition-colors hover:text-[var(--xq-accent)]">我的订单 →</router-link>
     </div>
-
-    <div class="flex min-h-24 items-center justify-between rounded-lg border border-[#173a5e] bg-[#0a162c] px-5 py-4">
-      <div>
-        <p class="text-xs font-medium text-[#94bbd9]">可用余额</p>
-        <p class="mt-1 text-2xl font-bold tabular-nums text-[#ffca48]">${{ balance.toFixed(2) }}</p>
-      </div>
-      <span class="h-8 w-8 rotate-45 border border-sky-700 bg-[#071426]" aria-hidden="true"></span>
-    </div>
+    <p v-if="!paymentEnabled" data-test="recharge-unavailable" class="mt-3 text-xs text-[var(--xq-secondary)]">充值暂不可用，仍可使用兑换码。</p>
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
+withDefaults(defineProps<{
   active: 'recharge' | 'redeem'
   balance: number
-}>()
+  concurrency?: number
+  paymentEnabled?: boolean
+}>(), {
+  concurrency: 0,
+  paymentEnabled: true,
+})
 
-const activeClass = 'bg-[#0a2440] text-sky-300 shadow-[inset_0_-2px_#ffca48]'
-const inactiveClass = 'text-[#7f9bb2] hover:text-white'
+const activeClass = 'text-[var(--xq-core)] after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-[var(--xq-accent)]'
+const inactiveClass = 'text-[var(--xq-secondary)] hover:text-[var(--xq-text)]'
 </script>

@@ -5,7 +5,6 @@
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-primary-600 dark:text-primary-400">{{ t('nav.securityAudit') }}</p>
           <h1 class="mt-1 text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">{{ t('admin.promptAudit.title') }}</h1>
-          <p class="mt-2 max-w-3xl text-sm text-gray-500 dark:text-dark-300">{{ t('admin.promptAudit.description') }}</p>
         </div>
         <div v-if="draft" class="text-right text-xs text-gray-500 dark:text-dark-400">
           <p>{{ t('admin.promptAudit.configVersion', { version: draft.config_version }) }}</p>

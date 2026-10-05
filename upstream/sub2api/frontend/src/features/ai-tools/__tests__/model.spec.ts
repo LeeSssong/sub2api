@@ -1,0 +1,54 @@
+import * as model from '../model'
+import { describe, expect, it } from 'vitest'
+import { linkedCounts, configuredLines, routeHealth, compareQuality, metricLabel, toolIdsForGroup } from '../model'
+import type { ApiKey, Group } from '@/types'
+import type { MonitorV4Group } from '@/features/monitor-v4/types'
+const group = (id: number, status = 'active') => ({ id, name: `线路${id}`, status, platform: 'openai', rate_multiplier: 1 }) as Group
+const key = (id: number, group_id: number, status = 'active', g?: Group) => ({ id, group_id, status, group: g }) as ApiKey
+const availability = (_group: Group, ...args: Parameters<typeof routeHealth>) => routeHealth(...args)
+const now = Date.now()
+const metric = (overrides = {}) => ({ source_updated_at: new Date(now).toISOString(), success_rate: 98, request_count: 10, ttft_p50_ms: 1200, latency_p50_ms: 3000, ...overrides }) as MonitorV4Group
+
+describe('AI线路真实口径', () => {
+  it('counts disabled keys and keeps a line once', () => {
+    const keys = [key(1,1),key(2,1,'inactive')]
+    expect(linkedCounts(keys).get(1)).toBe(2)
+    expect(configuredLines([group(1),group(2)],keys).map(g=>g.id)).toEqual([1])
+  })
+  it('retains an inactive linked group from native key relation', () => {
+    expect(configuredLines([], [key(1,3,'inactive',group(3,'inactive'))])[0].status).toBe('inactive')
+  })
+  it('falls back to the group platform only when no explicit tool mapping exists', () => {
+    const openaiGroup = group(1)
+    const anthropicGroup = { ...group(2), platform: 'anthropic' } as Group
+    expect(toolIdsForGroup(openaiGroup, metric({ tool_ids: [] }))).toEqual(['codex'])
+    expect(toolIdsForGroup(anthropicGroup, metric({ tool_ids: [] }))).toEqual(['claude'])
+    expect(toolIdsForGroup(openaiGroup, metric({ tool_ids: ['grok'] }))).toEqual(['grok'])
+  })
+  it.each([[900,1000,'正常运行'],[8999,10000,'波动'],[700,1000,'波动'],[6999,10000,'异常'],[0,10,'异常']])('classifies real counts %s/%s without rounding', (success,requests,text) => {
+    expect(availability(group(1),metric({real_request_count:requests,real_success_count:success}),now,new Date(now).toISOString()).text).toBe(text)
+  })
+  it('shows no data for zero real requests even when all probes succeeded', () => {
+    expect(availability(group(1),metric({real_request_count:0,real_success_count:0}),now,new Date(now).toISOString()).text).toBe('暂无数据')
+  })
+  it('uses snapshot freshness, not the age of the last request or management status', () => {
+    const m=metric({real_request_count:10,real_success_count:9,source_updated_at:new Date(now-1800000).toISOString()})
+    expect(availability(group(1),m,now,new Date(now-30000).toISOString()).text).toBe('正常运行')
+    expect(availability(group(1,'inactive'),m,now,new Date(now).toISOString()).text).toBe('正常运行')
+    expect(availability(group(1),m,now,new Date(now-421000).toISOString()).text).toBe('暂无数据')
+    expect(availability(group(1),undefined,now,new Date(now).toISOString()).text).toBe('暂无数据')
+    expect(availability(group(1),m,now,new Date(now+1000).toISOString()).text).toBe('暂无数据')
+  })
+  it('aggregates counts instead of averaging line rates or counting probes', () => {
+    expect(model.aggregateRouteHealth([metric({real_request_count:1,real_success_count:0}),metric({real_request_count:99,real_success_count:99})],now,new Date(now).toISOString()).text).toBe('正常运行')
+    expect(model.aggregateRouteHealth([metric({real_request_count:0,real_success_count:0})],now,new Date(now).toISOString()).text).toBe('暂无数据')
+  })
+  it('sorts sampled routes by real success, sample size and P50, ignoring probe flags', () => {
+    const ms = new Map([[1,metric({real_request_count:2,real_success_count:2})],[2,metric({real_request_count:20,real_success_count:20})]])
+    expect([group(1),group(2)].sort((a,b)=>compareQuality(a,b,ms,{},now,new Date(now).toISOString()))[0].id).toBe(2)
+  })
+  it('does not substitute P95 or a check value for missing P50', () => {
+    expect(metricLabel(undefined)).toBe('—')
+    expect(metricLabel(2160)).toBe('2.16s')
+  })
+})
