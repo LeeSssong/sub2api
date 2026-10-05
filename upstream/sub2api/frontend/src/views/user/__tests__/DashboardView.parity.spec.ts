@@ -24,7 +24,7 @@ describe('原型AI工具交互',()=>{
   expect(cards[0].get('.detail-request-sample').text()).toBe('98 / 100 次请求成功')
   expect(cards[0].find('.detail-card-metrics').exists()).toBe(false)
   expect(cards[0].text()).not.toContain('耗时 P50')
-  expect(cards[0].text()).toContain('本次检查')
+  expect(cards[0].text()).not.toContain('本次检查')
   expect(cards[0].get('.success-rate').text()).toBe('98%')
   const second=cards.find(c=>c.text().includes('未关联线路'))!
   await second.get('button[data-detail-group-id="2"]').trigger('click');await flushPromises()

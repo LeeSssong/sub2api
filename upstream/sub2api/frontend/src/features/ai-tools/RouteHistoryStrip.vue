@@ -21,10 +21,6 @@
    <div class="chart-axis seconds"><span>{{ secondsMax }}s</span><span>{{ secondsMax/2 }}s</span><span>0s</span></div>
   </div>
   <div class="chart-times"><span>{{ tick(points[0]!.start) }}</span><span>{{ tick(points[Math.floor(points.length/2)]!.start) }}</span><span>{{ tick(points[points.length-1]!.end) }}</span></div>
-  <div class="chart-detail" role="status" v-if="points[selected]">
-   <p>{{ time(points[selected]!.start) }} – {{ time(points[selected]!.end) }}<span v-if="!points[selected]!.request_count"> · 无请求</span></p>
-   <div class="chart-readings"><span v-for="s in series" :key="s.key" :class="s.key">{{ s.label }} <strong>{{ formatted(points[selected]!,s.key) }}</strong></span></div>
-  </div>
  </template>
 </section>
 </template>
@@ -79,6 +75,5 @@ function navigate(event:KeyboardEvent,i:number){
 circle{fill:var(--xq-surface);stroke:currentColor;stroke-width:1.5;vector-effect:non-scaling-stroke}
 .chart-targets{position:absolute;inset:0;display:flex}.chart-targets button{flex:1;min-width:0;padding:0;border:0;background:transparent;cursor:crosshair}.chart-targets button:focus-visible{outline:2px solid var(--xq-accent);outline-offset:2px}
 .chart-times{display:flex;justify-content:space-between;gap:4px;margin:10px 36px 0 40px;font-size:10px;font-variant-numeric:tabular-nums}
-.chart-detail{margin-top:14px;font-size:11px;line-height:1.7;min-height:55px;font-variant-numeric:tabular-nums}.chart-detail p{margin:0 0 5px}.chart-readings{display:flex;flex-wrap:wrap;gap:4px 16px}.chart-readings strong{font-weight:600}
-@media(max-width:700px){.chart-legend{gap:6px 10px}.chart-layout{height:128px}.chart-readings{gap:3px 12px}}
+@media(max-width:700px){.chart-legend{gap:6px 10px}.chart-layout{height:128px}}
 </style>

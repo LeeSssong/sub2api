@@ -61,7 +61,6 @@
             <footer class="detail-card-footer">
               <div class="detail-card-context">
                 <span class="detail-key-count">{{ counts.get(group.id) ? '已关联' : '未关联' }} · {{ counts.get(group.id) || 0 }} 把密钥</span>
-                <span class="detail-check" title="本次检查首字耗时">本次检查 <span :class="checkOf(group).kind"><Icon v-if="checkOf(group).kind==='success'" name="check" size="sm" />{{ checkOf(group).text }}</span></span>
               </div>
               <button v-if="group.status==='active'" class="xq-button" :data-detail-group-id="group.id" @click="openCreate(selectedTool!,group.id)">关联密钥</button>
               <span v-else class="muted">不可配置</span>
