@@ -58,10 +58,6 @@
               </div>
             </div>
             <RouteHistoryStrip :points="timelinePoints.filter(point=>point.group_id===group.id)" :loading="timelineLoading" :error="timelineError" />
-            <dl class="detail-card-metrics">
-              <div><dt>首字 P50</dt><dd>{{ metricLabel(detailMetrics.get(group.id)?.ttft_p50_ms) }}</dd></div>
-              <div><dt>耗时 P50</dt><dd>{{ metricLabel(detailMetrics.get(group.id)?.latency_p50_ms) }}</dd></div>
-            </dl>
             <footer class="detail-card-footer">
               <div class="detail-card-context">
                 <span class="detail-key-count">{{ counts.get(group.id) ? '已关联' : '未关联' }} · {{ counts.get(group.id) || 0 }} 把密钥</span>

@@ -103,11 +103,6 @@
 .xq-dialog .success-rate{font-size:28px;line-height:1.2;font-weight:600}
 .xq-dialog .success-rate[data-tone="muted"]{font-size:24px;color:var(--xq-secondary)}
 .xq-dialog .detail-request-sample{font-size:12px;color:var(--xq-secondary);overflow-wrap:anywhere}
-.xq-dialog .detail-card-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:0;padding:16px 0;border-top:1px solid var(--xq-line);border-bottom:1px solid var(--xq-line)}
-.xq-dialog .detail-card-metrics>div{min-width:0}
-.xq-dialog .detail-card-metrics>div+div{padding-left:20px;border-left:1px solid var(--xq-line)}
-.xq-dialog .detail-card-metrics dt{font-size:12px;color:var(--xq-secondary)}
-.xq-dialog .detail-card-metrics dd{margin:4px 0 0;font-size:18px;line-height:1.4;font-weight:600;color:var(--xq-text);overflow-wrap:anywhere}
 .xq-dialog .detail-card-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:auto}
 .xq-dialog .detail-card-context{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:12px;color:var(--xq-secondary)}
 .xq-dialog .detail-check{display:flex;align-items:center;gap:8px}
