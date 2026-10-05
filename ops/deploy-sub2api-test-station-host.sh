@@ -45,10 +45,11 @@ canonical_file(){
 }
 
 staging_root='' image_archive='' image_sha256='' image_id='' compose_file='' caddy_file=''
-route_health_migration=false allow_downtime=false route_health_rollback=false
+route_health_migration=false allow_downtime=false route_health_rollback=false maintenance_mode=false
 backup_script='' source_commit='' source_tree='' migration_set_sha256='' deploy_root=''
 while (($#)); do
   case "$1" in
+    --maintenance-mode) maintenance_mode=${2:?}; shift 2 ;;
     --route-health-migration) route_health_migration=${2:?}; shift 2 ;;
     --allow-downtime) allow_downtime=${2:?}; shift 2 ;;
     --staging-root) (($# >= 2)) || fail '--staging-root requires a value'; staging_root=$2; shift 2 ;;
@@ -66,6 +67,8 @@ while (($#)); do
   esac
 done
 
+[[ "$maintenance_mode" == true || "$maintenance_mode" == false ]] || fail 'invalid maintenance mode'
+[[ "$maintenance_mode" != true || "$allow_downtime" == true ]] || fail 'maintenance mode requires downtime authorization'
 [[ "$route_health_migration" == true || "$route_health_migration" == false ]] || fail 'invalid route migration flag'
 [[ "$allow_downtime" == true || "$allow_downtime" == false ]] || fail 'invalid downtime permission'
 staging_root=$(canonical_directory "$staging_root" 'staging root')
@@ -148,13 +151,28 @@ SQL
   fi
 fi
 
+"$docker_bin" load --input "$image_archive" >/dev/null || fail 'image load failed'
+image_tag="sub2api-test-station-runtime:$source_commit"
+actual_image_id=$($docker_bin image inspect --format '{{.Id}}' "$image_tag" 2>/dev/null | tr -d '[:space:]')
+[[ "$actual_image_id" == "$image_id" ]] || fail 'loaded image identity mismatch'
+
+
 backup_timestamp=${TEST_STATION_BACKUP_TIMESTAMP:-$(date -u +%Y%m%dT%H%M%SZ)}
 maintenance_stopped=false
-if [[ "$route_health_migration" == true && "$allow_downtime" == true ]]; then
+if [[ "$maintenance_mode" == true || ( "$route_health_migration" == true && "$allow_downtime" == true ) ]]; then
+  maintenance_stopped=true
+  trap '"${previous_compose[@]}" up -d --no-deps test-station-detector test-station-worker test-station-api >/dev/null || true' EXIT
   "${previous_compose[@]}" stop test-station-api test-station-worker test-station-detector >/dev/null \
     || fail 'maintenance service stop failed'
   maintenance_stopped=true
+  route_health_rollback=true
 fi
+resume_maintenance_preflight(){
+  if [[ "$maintenance_stopped" == true ]]; then
+    "${previous_compose[@]}" up -d --no-deps test-station-detector test-station-worker test-station-api >/dev/null || true
+  fi
+}
+trap resume_maintenance_preflight EXIT
 backup_output=$(EVENT_LOG="${EVENT_LOG:-}" FAKE_MODE="${FAKE_MODE:-}" DEPLOY_ROOT="$deploy_root" \
   bash "$backup_script" --compose "$active_compose" --env-file "$previous_env" \
   --deploy-root "$deploy_root" --timestamp "$backup_timestamp") || fail 'pre-release backup failed'
@@ -172,10 +190,6 @@ awk '!/^CLONE_SOURCE_COMMIT=|^CLONE_APP_IMAGE=/' "$previous_env" >"$release_dir/
 printf 'CLONE_SOURCE_COMMIT=%s\nCLONE_APP_IMAGE=sub2api-test-station-runtime:%s\n' "$source_commit" "$source_commit" >>"$release_dir/.env"
 chmod 0600 "$release_dir/.env"
 
-"$docker_bin" load --input "$image_archive" >/dev/null || fail 'image load failed'
-image_tag="sub2api-test-station-runtime:$source_commit"
-actual_image_id=$($docker_bin image inspect --format '{{.Id}}' "$image_tag" 2>/dev/null | tr -d '[:space:]')
-[[ "$actual_image_id" == "$image_id" ]] || fail 'loaded image identity mismatch'
 
 candidate_compose=("$docker_bin" compose --project-name sub2api-test-station --env-file "$release_dir/.env" -f "$release_dir/compose.yaml")
 previous_compose=("$docker_bin" compose --project-name sub2api-test-station --env-file "$previous_env" -f "$active_compose")
@@ -243,11 +257,7 @@ check_services(){
     health_value=$($docker_bin inspect --format '{{.State.Health.Status}}' "$container_id" 2>/dev/null || true)
     [[ "$health_value" == healthy ]] || return 1
   done
-  if [[ "$target" == candidate ]]; then
-    container_id=$("${candidate_compose[@]}" ps -q test-station-caddy 2>/dev/null || true)
-  else
-    container_id=$("${previous_compose[@]}" ps -q test-station-caddy 2>/dev/null || true)
-  fi
+  container_id=$("${previous_compose[@]}" ps -q test-station-caddy 2>/dev/null || true)
   [[ -n "$container_id" && "$container_id" != *$'\n'* ]] || return 1
   status_value=$($docker_bin inspect --format '{{.State.Status}}' "$container_id" 2>/dev/null || true)
   [[ "$status_value" == running ]]
@@ -282,14 +292,26 @@ restore_previous(){
     [[ -d "$backup_dir" && -f "$backup_dir/postgres.dump" && -f "$backup_dir/redis-dump.rdb" && -f "$backup_dir/app-data.tar.gz" ]] || return 1
     # Restore the complete stopped-writes backup. Never edit schema_migrations or
     # pretend that an old image can undo an already-applied migration.
-    "${previous_compose[@]}" up -d test-station-postgres test-station-redis >/dev/null || return 1
+    "${previous_compose[@]}" ps -q test-station-postgres >/dev/null || return 1
     "${previous_compose[@]}" cp "$backup_dir/postgres.dump" test-station-postgres:/tmp/sub2api-test-station-postgres.restore.dump >/dev/null || return 1
-    "${previous_compose[@]}" exec -T test-station-postgres sh -c 'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB" /tmp/sub2api-test-station-postgres.restore.dump' >/dev/null || return 1
-    "${previous_compose[@]}" cp "$backup_dir/redis-dump.rdb" test-station-redis:/data/dump.rdb >/dev/null || return 1
-    "${previous_compose[@]}" exec -T test-station-redis redis-cli SHUTDOWN NOSAVE >/dev/null 2>&1 || true
-    tar -xzf "$backup_dir/app-data.tar.gz" -C "$deploy_root" || return 1
+    "${previous_compose[@]}" exec -T test-station-postgres sh -c 'exec psql -X -v ON_ERROR_STOP=1 -v database="$POSTGRES_DB" -U "$POSTGRES_USER" -d postgres' >/dev/null <<'SQL' || return 1
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=:'database' AND pid<>pg_backend_pid();
+SELECT format('DROP DATABASE %I', :'database') \gexec
+SELECT format('CREATE DATABASE %I', :'database') \gexec
+SQL
+    "${previous_compose[@]}" exec -T test-station-postgres sh -c 'pg_restore --exit-on-error --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB" /tmp/sub2api-test-station-postgres.restore.dump' >/dev/null || return 1
+    redis_container=$("${previous_compose[@]}" ps -aq test-station-redis 2>/dev/null || true)
+    [[ -n "$redis_container" ]] || return 1
+    "${previous_compose[@]}" stop test-station-redis >/dev/null || return 1
+    "$docker_bin" cp "$backup_dir/redis-dump.rdb" "$redis_container:/data/dump.rdb" >/dev/null || return 1
+    "${previous_compose[@]}" start test-station-redis >/dev/null || return 1
+    api_container=$("${previous_compose[@]}" ps -aq test-station-api 2>/dev/null || true)
+    [[ -n "$api_container" ]] || return 1
+    app_volume=$($docker_bin inspect --format '{{range .Mounts}}{{if eq .Destination "/app/data"}}{{.Name}}{{end}}{{end}}' "$api_container") || return 1
+    [[ "$app_volume" == sub2api-test-station-app-data ]] || return 1
+    "$docker_bin" run --rm --network none --entrypoint /bin/sh -v "$app_volume:/restore" -v "$backup_dir:/backup:ro" "$previous_image" -c 'find /restore -mindepth 1 -maxdepth 1 -exec rm -rf {} + && tar -xzf /backup/app-data.tar.gz -C /restore' >/dev/null || return 1
   fi
-  "${previous_compose[@]}" up -d --remove-orphans >/dev/null || return 1
+  "${previous_compose[@]}" up -d --no-deps test-station-detector test-station-worker test-station-api >/dev/null || return 1
   wait_for_services previous || return 1
   wait_for_probes || return 1
 }
@@ -330,7 +352,7 @@ if [[ "$route_health_rollback" == true ]]; then
     candidate_failed stop_previous
   fi
 fi
-if ! "${candidate_compose[@]}" up -d --remove-orphans >/dev/null; then
+if ! "${candidate_compose[@]}" up -d --no-deps test-station-detector test-station-worker test-station-api >/dev/null; then
   candidate_failed compose_start
 fi
 if ! wait_for_services candidate; then
