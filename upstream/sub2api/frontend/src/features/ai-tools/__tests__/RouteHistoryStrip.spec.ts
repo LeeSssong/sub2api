@@ -38,7 +38,7 @@ describe('RouteHistoryStrip metric chart', () => {
     await w.get('[data-point="0"]').trigger('mouseenter')
     expect(w.get('.chart-tooltip').text()).toContain('75%');expect(w.get('.chart-tooltip').text()).toContain('1.25s')
     await w.get('.chart-plot').trigger('mouseleave');expect(w.find('.chart-tooltip').exists()).toBe(false)
-    await w.get('[data-point="1"]').trigger('click');expect(w.get('.chart-tooltip').text()).toContain('缓存命中率 0%（无样本，按 0 展示）')
+    await w.get('[data-point="1"]').trigger('click');expect(w.get('.tooltip-row.cache b').text()).toBe('0%');expect(w.get('.tooltip-note').text()).toContain('无样本')
     await w.get('.chart-plot').trigger('keydown',{key:'Escape'});expect(w.find('.chart-tooltip').exists()).toBe(false)
     await w.get('.chart-legend button.cache').trigger('click');expect(w.findAll('[data-series]')).toHaveLength(3)
   })
