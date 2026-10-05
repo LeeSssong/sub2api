@@ -733,12 +733,28 @@ describe('UsageView subscription feature flag', () => {
     )
   }
 
-  it('keeps additional billing controls hidden pending visual approval', async () => {
+  it('keeps advanced controls collapsed and applies request type, compaction and billing filters', async () => {
     const wrapper = mountUsageView()
     await flushPromises()
 
     expect(billingTypeSelect(wrapper)).toBeUndefined()
     expect(wrapper.text()).not.toContain('Billing type')
+    const toggle = wrapper.get('[data-testid="usage-more-filters"]')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    await toggle.trigger('click')
+    const advanced = wrapper.get('[data-testid="usage-advanced-filters"]')
+    const controls = advanced.findAllComponents(Select)
+    expect(controls).toHaveLength(3)
+    expect(controls.every(control => control.props('brand'))).toBe(true)
+    for (const [index, value] of [[0, 'stream'], [1, true], [2, 1]] as const) {
+      controls[index].vm.$emit('update:modelValue', value)
+      controls[index].vm.$emit('change', value)
+      await flushPromises()
+    }
+    expect(query).toHaveBeenLastCalledWith(expect.objectContaining({ request_type: 'stream', native_compaction_v2: true, billing_type: 1 }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    await toggle.trigger('click')
+    expect(wrapper.find('[data-testid="usage-advanced-filters"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="usage-primary-filters"]').findAllComponents(Select)).toHaveLength(4)
     wrapper.unmount()
   })
 

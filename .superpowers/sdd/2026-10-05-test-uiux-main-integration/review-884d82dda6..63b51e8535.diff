@@ -1,0 +1,244 @@
+# Review package: 884d82dda6..63b51e8535
+
+## Commits
+63b51e8535 Add verified test-station code restoration tool
+
+## Files changed
+ .../task-2-report.md                               | 20 +++++
+ .../test-station-uiux-code-restoration.md          | 25 ++++++
+ ops/restore-test-station-uiux-main.sh              | 88 ++++++++++++++++++++++
+ .../restore_test_station_uiux_main_test.sh         | 74 ++++++++++++++++++
+ 4 files changed, 207 insertions(+)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-10-05-test-uiux-main-integration/task-2-report.md b/.superpowers/sdd/2026-10-05-test-uiux-main-integration/task-2-report.md
+new file mode 100644
+index 0000000000..86fd5a3383
+--- /dev/null
++++ b/.superpowers/sdd/2026-10-05-test-uiux-main-integration/task-2-report.md
+@@ -0,0 +1,20 @@
++# Task 2：代码回退工具
++
++状态：工具实现及直接相关本地验证完成；未执行真实代码回退、推送或部署。
++
++新增：
++- `ops/restore-test-station-uiux-main.sh`：默认 dry-run；显式 `--apply-code` 使用临时 bare 仓库，校验精确目标 URL、备份 SHA/tree，新建以远端当前 main 为 parent、备份 tree 为内容的提交并普通 fast-forward push。
++- `tests/operations/restore_test_station_uiux_main_test.sh`：所有最终测试使用临时本地 bare 仓库。
++- `docs/operations/test-station-uiux-code-restoration.md`：一条命令、并发失败处理、代码/部署/数据库恢复边界。
++
++测试证据：
++- 测试先于工具，首次执行预期失败 `FAIL: rollback tool is missing`。
++- `bash -n ops/restore-test-station-uiux-main.sh tests/operations/restore_test_station_uiux_main_test.sh`：通过。
++- `bash tests/operations/restore_test_station_uiux_main_test.sh`：退出 0；PASS 覆盖默认 dry-run 不写远端、备份 commit/tree 不符拒绝、fixture 仅接受本地 bare 路径、默认 fetch/push 身份拒绝、恢复精确 tree/父提交、dirty checkout/未跟踪文件/HEAD 不变、推送广告前远端回退拒绝、广告后并发更新由接收端 CAS 拒绝。
++- `git diff --check`：通过。
++
++并发保护使用临时 pre-push hook 校验服务器广告 SHA，与 fetch 时的 main 完全一致；正常 push 的 receive-pack 继续以广告旧 SHA 原子更新。没有 force 或 force-with-lease。测试的接收 hook 只为模拟另一个写入者，并清除隔离区环境后修改已存在的 fixture commit。
++
++限制：真实远端推送权限、远端 hooks、服务端策略、部署、数据库恢复、迁移兼容及真实业务行为未验证。测试开发中曾误从实际 checkout 调用默认 dry-run，允许一次只读 fetch 尝试，约 10 秒后中止；未使用 apply、未推送、未操作 SSH/服务/数据库。该用例已修正为仅在临时 fixture checkout 运行，最终验证全部隔离。本工具不会更新真实 checkout；远端恢复 tree 不含工具不影响已启动脚本。推送后的其他写入者可能再次更新 main，工具会在即时核验失败时报告已推送 commit；不能据此推断推送未发生。
++
++Task1 应用代码及控制器 progress.md 未修改或暂存。本次只提交工具、测试、runbook 和本报告。
+diff --git a/docs/operations/test-station-uiux-code-restoration.md b/docs/operations/test-station-uiux-code-restoration.md
+new file mode 100644
+index 0000000000..bee54b77f0
+--- /dev/null
++++ b/docs/operations/test-station-uiux-code-restoration.md
+@@ -0,0 +1,25 @@
++# 测试站 UI/UX 整合代码回退
++
++本工具只恢复 `git@github.com:LeeSssong/sub2api-test-station.git` 的远端 `main` 代码。执行目录必须是配置了该精确 `test-station` fetch/push URL 的仓库。不会部署、SSH、修改本地工作树、索引或分支；本地 `main` 有未提交改动也不受影响。
++
++默认只读校验和预览：
++
++```bash
++bash ops/restore-test-station-uiux-main.sh
++```
++
++获准执行代码回退后，一条命令创建并普通推送恢复提交：
++
++```bash
++bash ops/restore-test-station-uiux-main.sh --apply-code
++```
++
++恢复源固定为 `backup/pre-main-integration-20261005-96c0818277`，commit `96c08182779b12c5a39ffc0ffdda9ba89ad38bde`，tree `9924ce15d50a43525b0c726b1b7f22663cd10afd`。任一不符即退出。临时 bare 仓库内的新提交以获取的远端 main 为唯一 parent，内容精确等于备份 tree，保留后续历史。普通 fast-forward push 前的 pre-push 校验拒绝远端前进、分叉或回退；push 广告后的并发写入由服务器 Git 更新锁/旧 SHA 校验拒绝。失败后重新预览、确认并发变更再重试，不使用 force。
++
++恢复 tree 中可能没有本工具，这是正常现象；执行中的脚本和临时 Git 数据不会依赖恢复后的代码文件。本地脚本仍保留在执行 checkout，直到操作者另行更新本地代码。成功输出恢复 commit/tree；若推送成功后并发更新使即时核对失败，工具明确报告已生成的恢复 commit，须先核查远端，不能把错误退出理解为从未推送。
++
++数据库恢复独立进行。旧代码和旧镜像不能恢复数据，也不能撤销已经应用的迁移。整合涉及 `240_remove_custom_scheduler_artifacts.sql` 时，须先确认历史日志删除范围及数据库备份/恢复演练；不得修改已应用迁移来规避校验。代码恢复不代表数据库兼容或站点可运行。实际部署须另行授权并遵守发布来源、数据库策略与恢复要求。
++
++`--fixture-repo`、`--fixture-backup-commit`、`--fixture-backup-tree` 仅用于本地自动测试，必须同时指定绝对路径的现存 bare 仓库及完整 SHA；不能把网络 URL 或 fixture SHA 注入默认目标。生产用法不传这些参数。工具隔离 Git 环境变量、全局/系统配置，操作临时仓库并使用固定 URL，避免调用者索引、replace refs 或 URL rewrite 改变目标。
++
++验证命令：`bash tests/operations/restore_test_station_uiux_main_test.sh`。真实远端写入、SSH、部署和数据库恢复没有在此验证中执行。
+diff --git a/ops/restore-test-station-uiux-main.sh b/ops/restore-test-station-uiux-main.sh
+new file mode 100644
+index 0000000000..0765f5e777
+--- /dev/null
++++ b/ops/restore-test-station-uiux-main.sh
+@@ -0,0 +1,88 @@
++#!/usr/bin/env bash
++# Code restoration only. All Git writes happen in a disposable bare repository.
++set -euo pipefail
++fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
++apply=false
++fixture=''
++fixture_commit=''
++fixture_tree=''
++while (($#)); do
++  case "$1" in
++    --apply-code) apply=true; shift ;;
++    --fixture-repo|--fixture-backup-commit|--fixture-backup-tree)
++      (($# >= 2)) || fail "Missing value for $1"
++      case "$1" in
++        --fixture-repo) fixture=$2 ;;
++        --fixture-backup-commit) fixture_commit=$2 ;;
++        --fixture-backup-tree) fixture_tree=$2 ;;
++      esac
++      shift 2 ;;
++    --help)
++      printf '%s\n' 'Usage: bash ops/restore-test-station-uiux-main.sh [--apply-code]' 'Default: verify and preview only. --apply-code restores remote main code; no deployment/database operations.' 'Local tests only: --fixture-repo /absolute/bare.git --fixture-backup-commit SHA --fixture-backup-tree SHA'
++      exit 0 ;;
++    *) fail "Unknown argument: $1" ;;
++  esac
++done
++# Prevent caller Git routing, worktree/index, replace refs, and config overrides.
++for var in ${!GIT_@}; do unset "$var"; done
++export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_NO_REPLACE_OBJECTS=1
++backup_ref=refs/heads/backup/pre-main-integration-20261005-96c0818277
++backup_commit=96c08182779b12c5a39ffc0ffdda9ba89ad38bde
++backup_tree=9924ce15d50a43525b0c726b1b7f22663cd10afd
++target=git@github.com:LeeSssong/sub2api-test-station.git
++if [[ -n "$fixture" ]]; then
++  [[ "$fixture" == /* && -d "$fixture" && -n "$fixture_commit" && -n "$fixture_tree" ]] || fail 'Fixtures require an absolute existing bare repo and both expected hashes'
++  [[ $(git --git-dir="$fixture" rev-parse --is-bare-repository) == true ]] || fail 'Fixture must be a local bare repository'
++  target=$fixture
++  backup_commit=$fixture_commit
++  backup_tree=$fixture_tree
++elif [[ -n "$fixture_commit$fixture_tree" ]]; then
++  fail 'Fixture hashes cannot override the production target'
++else
++  # Validate the caller repository has exactly the intended fetch AND push target.
++  [[ $(git config --get-all remote.test-station.url) == "$target" ]] || fail 'Wrong or missing test-station repository URL'
++  push_url=$(git config --get-all remote.test-station.pushurl || true)
++  [[ -z "$push_url" || "$push_url" == "$target" ]] || fail 'Wrong test-station push URL'
++  [[ $(git remote get-url --all test-station) == "$target" ]] || fail 'Unexpected test-station fetch routing'
++  [[ $(git remote get-url --push --all test-station) == "$target" ]] || fail 'Unexpected test-station push routing'
++fi
++[[ "$backup_commit" =~ ^[0-9a-f]{40}$ && "$backup_tree" =~ ^[0-9a-f]{40}$ ]] || fail 'Expected hashes must be full SHA-1 values'
++tmp=$(mktemp -d)
++trap 'rm -rf "$tmp"' EXIT
++git init -q --bare "$tmp/repo.git"
++git --git-dir="$tmp/repo.git" -c protocol.file.allow=always fetch -q --no-tags "$target" \
++  refs/heads/main:refs/heads/main "$backup_ref:refs/heads/verified-backup"
++actual_backup=$(git --git-dir="$tmp/repo.git" rev-parse refs/heads/verified-backup)
++[[ "$actual_backup" == "$backup_commit" ]] || fail 'Backup commit does not match the verified source'
++[[ $(git --git-dir="$tmp/repo.git" rev-parse 'refs/heads/verified-backup^{tree}') == "$backup_tree" ]] || fail 'Backup tree does not match the verified source'
++parent=$(git --git-dir="$tmp/repo.git" rev-parse 'refs/heads/main^{commit}')
++printf 'Target: %s\nCurrent main: %s\nBackup commit: %s\nRestoration tree: %s\n' "$target" "$parent" "$backup_commit" "$backup_tree"
++if [[ "$apply" == false ]]; then
++  printf 'DRY RUN: verified; no remote writes. Use --apply-code to create and push a restoration commit.\n'
++  exit 0
++fi
++# pre-push sees the server advertisement. Checking it closes the window between
++# fetch and push (including rewinds); receive-pack then CAS-checks the same SHA.
++mkdir "$tmp/hooks"
++cat > "$tmp/hooks/pre-push" <<HOOK
++#!/usr/bin/env bash
++set -euo pipefail
++count=0
++while read -r local_ref local_sha remote_ref remote_sha; do
++  [[ "\$remote_ref" == refs/heads/main && "\$remote_sha" == "$parent" ]] || {
++    printf 'ERROR: remote main changed; fetch and review again.\n' >&2
++    exit 1
++  }
++  count=\$((count + 1))
++done
++[[ \$count == 1 ]]
++HOOK
++chmod +x "$tmp/hooks/pre-push"
++export GIT_AUTHOR_NAME='Sub2API code restoration' GIT_AUTHOR_EMAIL='code-restoration@sub2api.invalid'
++export GIT_COMMITTER_NAME="$GIT_AUTHOR_NAME" GIT_COMMITTER_EMAIL="$GIT_AUTHOR_EMAIL"
++commit=$(printf 'Restore test-station code to verified pre-integration backup\n\nBackup: %s\nTree: %s\nPrevious main: %s\nCode only; database and deployment require separate recovery.\n' "$backup_commit" "$backup_tree" "$parent" | git --git-dir="$tmp/repo.git" commit-tree "$backup_tree" -p "$parent")
++git --git-dir="$tmp/repo.git" -c core.hooksPath="$tmp/hooks" -c protocol.file.allow=always push "$target" "$commit:refs/heads/main"
++# Verify immediately; another later writer can still advance main legitimately.
++remote=$(git --git-dir="$tmp/repo.git" -c protocol.file.allow=always ls-remote "$target" refs/heads/main)
++[[ "$remote" == "$commit"$'\trefs/heads/main' ]] || fail "Push completed but main changed during verification; restoration commit: $commit"
++printf 'Code restoration pushed and verified: %s\nTree: %s\nDeployment and database restoration were not performed.\n' "$commit" "$backup_tree"
+diff --git a/tests/operations/restore_test_station_uiux_main_test.sh b/tests/operations/restore_test_station_uiux_main_test.sh
+new file mode 100644
+index 0000000000..09d8144bc1
+--- /dev/null
++++ b/tests/operations/restore_test_station_uiux_main_test.sh
+@@ -0,0 +1,74 @@
++#!/usr/bin/env bash
++set -euo pipefail
++root=$(cd "$(dirname "$0")/../.." && pwd)
++tool="$root/ops/restore-test-station-uiux-main.sh"
++tmp=$(mktemp -d)
++trap 'rm -rf "$tmp"' EXIT
++export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
++export GIT_AUTHOR_NAME=Test GIT_AUTHOR_EMAIL=test@example.invalid GIT_COMMITTER_NAME=Test GIT_COMMITTER_EMAIL=test@example.invalid
++git init -q --bare "$tmp/remote.git"
++git init -q "$tmp/source"
++printf 'backup\n' > "$tmp/source/data"
++git -C "$tmp/source" add data
++git -C "$tmp/source" commit -qm backup
++backup=$(git -C "$tmp/source" rev-parse HEAD)
++tree=$(git -C "$tmp/source" rev-parse 'HEAD^{tree}')
++git -C "$tmp/source" branch backup/pre-main-integration-20261005-96c0818277
++printf 'current\n' > "$tmp/source/data"
++git -C "$tmp/source" commit -qam current
++current=$(git -C "$tmp/source" rev-parse HEAD)
++git -C "$tmp/source" push -q "$tmp/remote.git" HEAD:main refs/heads/backup/pre-main-integration-20261005-96c0818277
++run() { bash "$tool" --fixture-repo "$tmp/remote.git" --fixture-backup-commit "$backup" --fixture-backup-tree "$tree" "$@"; }
++fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
++reject() { if "$@" > "$tmp/rejected.log" 2>&1; then fail 'unsafe action succeeded'; fi; }
++[[ -f "$tool" ]] || fail 'rollback tool is missing'
++# Default mode rejects wrong fetch identity and mismatched/multiple push URLs before network.
++(cd "$tmp/source" && reject bash "$tool")
++git -C "$tmp/source" remote add test-station git@github.com:LeeSssong/sub2api-test-station.git
++git -C "$tmp/source" config remote.test-station.pushurl git@github.com:LeeSssong/sub2api.git
++(cd "$tmp/source" && reject bash "$tool" --apply-code)
++git -C "$tmp/source" config --add remote.test-station.pushurl git@github.com:LeeSssong/sub2api-test-station.git
++(cd "$tmp/source" && reject bash "$tool" --apply-code)
++reject bash "$tool" --fixture-backup-commit "$backup" --fixture-backup-tree "$tree"
++run > "$tmp/dry.log"
++[[ $(git --git-dir="$tmp/remote.git" rev-parse main) == "$current" ]] || fail 'dry run changed main'
++reject bash "$tool" --fixture-repo "$tmp/remote.git" --fixture-backup-commit "$current" --fixture-backup-tree "$tree" --apply-code
++reject bash "$tool" --fixture-repo "$tmp/remote.git" --fixture-backup-commit "$backup" --fixture-backup-tree "$current" --apply-code
++reject bash "$tool" --fixture-repo https://github.com/LeeSssong/sub2api-test-station.git --fixture-backup-commit "$backup" --fixture-backup-tree "$tree"
++# A dirty checkout must be untouched, including index and refs.
++printf 'dirty\n' > "$tmp/source/data"
++printf 'untracked\n' > "$tmp/source/local-only"
++before=$(git -C "$tmp/source" status --porcelain)
++(cd "$tmp/source" && run --apply-code) > "$tmp/apply.log"
++restored=$(git --git-dir="$tmp/remote.git" rev-parse main)
++[[ $(git --git-dir="$tmp/remote.git" rev-parse 'main^{tree}') == "$tree" ]] || fail 'restored tree differs'
++[[ $(git --git-dir="$tmp/remote.git" rev-parse 'main^') == "$current" ]] || fail 'history parent differs'
++[[ $(git -C "$tmp/source" status --porcelain) == "$before" ]] || fail 'checkout changed'
++[[ $(git -C "$tmp/source" rev-parse HEAD) == "$current" ]] || fail 'checkout ref changed'
++# Remote changes between fetch and push advertisement, even a rewind, must fail.
++mkdir "$tmp/bin"
++real_git=$(command -v git)
++cat > "$tmp/bin/git" <<WRAPPER
++#!/usr/bin/env bash
++for arg in "\$@"; do
++  if [[ \$arg == push ]]; then
++    "$real_git" --git-dir="$tmp/remote.git" update-ref refs/heads/main "$backup"
++    break
++  fi
++done
++exec "$real_git" "\$@"
++WRAPPER
++chmod +x "$tmp/bin/git"
++reject env PATH="$tmp/bin:$PATH" bash "$tool" --fixture-repo "$tmp/remote.git" --fixture-backup-commit "$backup" --fixture-backup-tree "$tree" --apply-code
++[[ $(git --git-dir="$tmp/remote.git" rev-parse main) == "$backup" ]] || fail 'rewind race overwritten'
++# Remote changes after push advertisement must fail the server CAS.
++git --git-dir="$tmp/remote.git" update-ref refs/heads/main "$current"
++cat > "$tmp/remote.git/hooks/pre-receive" <<HOOK
++#!/usr/bin/env bash
++unset GIT_QUARANTINE_PATH
++"$real_git" --git-dir="$tmp/remote.git" update-ref refs/heads/main "$restored"
++HOOK
++chmod +x "$tmp/remote.git/hooks/pre-receive"
++reject run --apply-code
++[[ $(git --git-dir="$tmp/remote.git" rev-parse main) == "$restored" ]] || fail 'receive race overwritten'
++printf 'PASS: dry run, backup SHA/tree, local-only fixtures, repository identity, exact tree/parent, dirty checkout, advertisement rewind race, receive race\n'

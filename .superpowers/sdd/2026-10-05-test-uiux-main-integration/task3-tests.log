@@ -1,0 +1,76 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides". See https://pnpm.io/settings for the new home of each setting.
+
+ RUN  v2.1.9 /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend
+
+(node:26260) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:26258) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:26259) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/layout/__tests__/AppSidebar.spec.ts (12 tests) 2ms
+Browserslist: browsers data (caniuse-lite) is 10 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+stderr | src/views/user/__tests__/UsageView.spec.ts > user UsageView > keeps successful rows and chart data when refresh requests fail independently
+Failed to load model stats: Error: models unavailable
+    at /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend/src/views/user/__tests__/UsageView.spec.ts:310:46
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:533:5
+    at runTest (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1056:11)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+    at withEnv (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:90:5)
+    at run (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:112:3)
+
+stderr | src/views/user/__tests__/UsageView.spec.ts > user UsageView > reports an initial stats failure without inventing successful usage totals
+Failed to load usage stats: Error: stats unavailable
+    at /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend/src/views/user/__tests__/UsageView.spec.ts:322:36
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/views/user/__tests__/UsageView.spec.ts > user UsageView > retries only failed chart sources and keeps successful statistics and details
+Failed to load model stats: Error: models unavailable
+    at /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend/src/views/user/__tests__/UsageView.spec.ts:347:46
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/views/user/__tests__/UsageView.spec.ts > user UsageView > does not show an empty error-record table after its first failed load
+[UsageView] loadErrors failed: Error: offline
+    at /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend/src/views/user/__tests__/UsageView.spec.ts:365:47
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/views/user/__tests__/UsageView.spec.ts > user UsageView > keeps the initial filters, sort, and filename while exporting multiple pages
+[Vue warn]: Component emitted event "sort" but it is neither declared in the emits option nor as an "onSort" prop.
+
+ ✓ src/views/user/__tests__/UsageView.spec.ts (20 tests) 139ms
+ ✓ src/views/user/__tests__/PaymentView.spec.ts (27 tests | 6 skipped) 194ms
+
+ Test Files  3 passed (3)
+      Tests  53 passed | 6 skipped (59)
+   Start at  19:31:41
+   Duration  1.66s (transform 1.23s, setup 140ms, collect 1.78s, tests 335ms, environment 787ms, prepare 151ms)

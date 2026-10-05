@@ -495,7 +495,8 @@ describe('PaymentView recharge-only experience', () => {
   it('matches the confirmed recharge copy and quick amounts', async () => {
     const wrapper = await mountSubscriptionPlanList(3, false)
 
-    expect(wrapper.text()).not.toContain('payment.tabSubscribe')
+    expect(wrapper.text()).toContain('payment.tabSubscribe')
+    expect(wrapper.find('[data-test="recharge-workspace"]').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('payment.noPlans')
     expect(wrapper.text()).toContain('单笔最低充值 $1，最高充值 $50，如需大额充值联系客服 QQ:2826033474')
     const amountInput = wrapper.findComponent({ name: 'AmountInput' })

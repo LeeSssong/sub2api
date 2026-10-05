@@ -100,3 +100,19 @@ describe('AppSidebar administrator custom-menu destinations', () => {
     expect(entry).toContain("cm.label === '智商检测' ? '智商监测' : cm.label")
   })
 })
+
+
+describe('approved operational navigation', () => {
+  it('groups all native operational entries immediately after account monitoring with capture feature gating', () => {
+    const monitor = componentSource.indexOf("{ path: '/admin/accounts/monitor'")
+    const group = componentSource.indexOf("{ path: '/admin/smart-ops'")
+    const announcements = componentSource.indexOf("{ path: '/admin/announcements'")
+    expect(group).toBeGreaterThan(monitor)
+    expect(group).toBeLessThan(announcements)
+    const block = componentSource.slice(group, announcements)
+    for (const path of ['auto-config', 'priority-scheduling', 'account-quality', 'account-ops', 'token-guard', 'token-guard-v2', 'pelican-tests', 'request-captures', 'harvest-flow']) expect(block).toContain(`/admin/${path}`)
+    expect(block).toContain('expandOnly: true')
+    expect(block).toContain('featureFlag: () => adminSettingsStore.requestCaptureEnabled')
+    expect(componentSource).toContain(".filter(item => item.id === 'xingqiao-storefront' || item.url === '/intelligence-test')")
+  })
+})

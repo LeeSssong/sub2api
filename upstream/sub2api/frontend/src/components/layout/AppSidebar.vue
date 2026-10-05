@@ -945,6 +945,17 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/accounts/monitor', label: t('nav.accountMonitor'), icon: ChartIcon },
+    { path: '/admin/smart-ops', label: t('accountOps.smartTitle'), icon: GlobeIcon, expandOnly: true, children: [
+      { path: '/admin/auto-config', label: t('autoConfig.title'), icon: GlobeIcon },
+      { path: '/admin/priority-scheduling', label: t('priorityScheduling.title'), icon: GlobeIcon },
+      { path: '/admin/account-quality', label: t('qualityOps.title'), icon: ChartIcon },
+      { path: '/admin/account-ops', label: t('accountOps.title'), icon: GlobeIcon },
+      { path: '/admin/token-guard', label: t('tokenGuard.title'), icon: ShieldIcon },
+      { path: '/admin/token-guard-v2', label: t('tokenGuardV2.title'), icon: ShieldIcon },
+      { path: '/admin/pelican-tests', label: t('pelicanTests.title'), icon: ChartIcon },
+      { path: '/admin/request-captures', label: t('admin.requestCapture.title'), icon: ChartIcon, featureFlag: () => adminSettingsStore.requestCaptureEnabled },
+      { path: '/admin/harvest-flow', label: t('nav.harvestFlow'), icon: ChartIcon },
+    ] },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     {

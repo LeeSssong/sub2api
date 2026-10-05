@@ -415,6 +415,7 @@ export default {
 
   // Usage
   usage: {
+    moreFilters: 'More filters',
     title: 'Usage Records',
     description: 'View and analyze your API usage history',
     costDetails: 'Cost Breakdown',

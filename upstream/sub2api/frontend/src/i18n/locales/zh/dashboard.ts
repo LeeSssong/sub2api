@@ -420,6 +420,7 @@ export default {
 
   // Usage
   usage: {
+    moreFilters: '更多筛选',
     title: '使用记录',
     description: '查看和分析您的 API 使用历史',
     costDetails: '费用明细',

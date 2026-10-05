@@ -127,21 +127,26 @@
               <label class="input-label">{{ t('usage.lineFilter') }}</label>
               <Select v-model="filters.group_id" :options="groupOptions" :placeholder="t('usage.allLines')" searchable brand @change="applyFilters" />
             </div>
-            <div v-if="advancedFiltersVisible" class="w-full sm:w-auto sm:min-w-[180px]">
-              <label class="input-label">{{ t('usage.type') }}</label>
-              <Select v-model="filters.request_type" :options="requestTypeOptions" brand @change="applyFilters" />
-            </div>
-            <div v-if="advancedFiltersVisible" class="w-full sm:w-auto sm:min-w-[180px]">
-              <label class="input-label">{{ t('usage.compactionFilter') }}</label>
-              <Select v-model="filters.native_compaction_v2" :options="compactionOptions" brand @change="applyFilters" />
-            </div>
-            <div v-if="advancedFiltersVisible && subscriptionFeatureEnabled" class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('admin.usage.billingType') }}</label>
-              <Select v-model="filters.billing_type" :options="billingTypeOptions" brand @change="applyFilters" />
-            </div>
             <div class="w-full sm:w-auto sm:min-w-[200px]">
               <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
               <Select v-model="filters.billing_mode" :options="billingModeOptions" :placeholder="t('admin.usage.allBillingModes')" brand @change="applyFilters" />
+            </div>
+          </div>
+          <div v-if="activeTab !== 'errors'" class="mt-3">
+            <button type="button" class="btn btn-secondary" data-testid="usage-more-filters" :aria-expanded="advancedFiltersVisible" aria-controls="usage-advanced-filters" @click="advancedFiltersVisible = !advancedFiltersVisible">{{ t('usage.moreFilters') }}</button>
+            <div v-if="advancedFiltersVisible" id="usage-advanced-filters" class="usage-filter-grid mt-3" data-testid="usage-advanced-filters">
+            <div  class="w-full sm:w-auto sm:min-w-[180px]">
+              <label class="input-label">{{ t('usage.type') }}</label>
+              <Select v-model="filters.request_type" :options="requestTypeOptions" brand @change="applyFilters" />
+            </div>
+            <div  class="w-full sm:w-auto sm:min-w-[180px]">
+              <label class="input-label">{{ t('usage.compactionFilter') }}</label>
+              <Select v-model="filters.native_compaction_v2" :options="compactionOptions" brand @change="applyFilters" />
+            </div>
+            <div v-if="subscriptionFeatureEnabled" class="w-full sm:w-auto sm:min-w-[200px]">
+              <label class="input-label">{{ t('admin.usage.billingType') }}</label>
+              <Select v-model="filters.billing_type" :options="billingTypeOptions" brand @change="applyFilters" />
+            </div>
             </div>
           </div>
           <div class="usage-filter-actions" data-testid="usage-filter-actions">
@@ -416,7 +421,7 @@ const granularityOptions = computed<SelectOption[]>(() => [
   { value: 'day', label: t('admin.dashboard.day') },
   { value: 'hour', label: t('admin.dashboard.hour') },
 ])
-// Await visual approval before exposing additional main-only controls.
+// Additional filters stay collapsed to preserve the default four-filter workspace.
 const advancedFiltersVisible = ref(false)
 const requestTypeOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allTypes') },

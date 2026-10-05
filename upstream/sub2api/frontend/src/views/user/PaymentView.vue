@@ -575,8 +575,8 @@ const renderedBonusNotice = computed(() => {
 // 订阅功能开关（public settings 的 subscription_enabled，opt-out）。关闭后购买页只保留充值：
 // 不再渲染「订阅」tab，只剩单个 tab 时顶部切换器也随之隐藏。
 const subscriptionFeatureEnabled = computed(() => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.subscription))
-// Keep the confirmed recharge surface; existing renewal links can open checkout.
-const subscriptionEnabled = computed(() => subscriptionFeatureEnabled.value && (route.query.tab === 'subscription' || checkout.value.balance_disabled))
+// Approved purchasing switcher; recharge remains the default workspace.
+const subscriptionEnabled = subscriptionFeatureEnabled
 
 const tabs = computed(() => {
   const result: { key: 'recharge' | 'subscription'; label: string }[] = []

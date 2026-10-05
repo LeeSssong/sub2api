@@ -23,3 +23,7 @@ Task 1: candidate 884d82dda6; implementer /root/integrate_candidate released wri
 Task 2: active, BASE 884d82dda6.
 
 Task1 review findings resolved: configured admin intelligence direct route restored in both modes; bonus badge owner buttons position relative. Red→green targeted tests (33 passing), typecheck passing, no new UI entries. Task2 preserved.
+
+2026-10-05 用户已明确确认导航方案和补充控件：账号监控后智能运维折叠组，配置式用户智商监测/商城，默认四筛选+折叠更多筛选，以及启用订阅时购买切换。授权本地实现，无推送/部署授权。
+
+Task3 approved additions implemented: SmartOps group9 routes/capture gate, config-based user menus, collapsed advanced usage controls, subscription purchase switch.53 tests/typecheck/build PASS; actual bundle local preview4198 prepared, controller visual QA pending.
