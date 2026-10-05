@@ -1,0 +1,172 @@
+{
+  "observedAt": "2026-09-26T20:15:56.177Z",
+  "method": "open create dialog without submitting",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "prototype": {
+        "dialogVisible": true,
+        "fields": [
+          {
+            "name": "名称",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "线路",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "自定义密钥",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "IP 限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "额度限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "速率限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "密钥有效期",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          }
+        ]
+      },
+      "testStation": {
+        "dialogVisible": true,
+        "fields": [
+          {
+            "name": "名称",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "线路",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "自定义密钥",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "IP 限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "额度限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "速率限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "密钥有效期",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          }
+        ]
+      }
+    },
+    {
+      "viewport": "390x844",
+      "prototype": {
+        "dialogVisible": true,
+        "fields": [
+          {
+            "name": "名称",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "线路",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "自定义密钥",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "IP 限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "额度限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "速率限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "密钥有效期",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          }
+        ]
+      },
+      "testStation": {
+        "dialogVisible": true,
+        "fields": [
+          {
+            "name": "名称",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "线路",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "自定义密钥",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "IP 限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "额度限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "速率限制",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          },
+          {
+            "name": "密钥有效期",
+            "fontSize": "12px",
+            "fontWeight": "500"
+          }
+        ]
+      }
+    }
+  ]
+}

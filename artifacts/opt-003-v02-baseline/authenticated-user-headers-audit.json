@@ -1,0 +1,138 @@
+{
+  "observedAt": "2026-09-27T08:43:17.391Z",
+  "method": "admin session, structural metadata only; no account text, screenshots, or form submission after login",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "requested": "/batch-image",
+      "landed": "/batch-image",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "mainHeadings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/affiliate",
+      "landed": "/affiliate",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "mainHeadings": [
+        {
+          "tag": "H3",
+          "nextParagraph": true,
+          "parentClass": "card p-6"
+        },
+        {
+          "tag": "H3",
+          "nextParagraph": true,
+          "parentClass": ""
+        },
+        {
+          "tag": "H3",
+          "nextParagraph": false,
+          "parentClass": "card p-6"
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/available-channels",
+      "landed": "/available-channels",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "mainHeadings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "1280x900",
+      "requested": "/subscriptions",
+      "landed": "/subscriptions",
+      "appHeaderPresent": true,
+      "appTitleVisible": true,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "mainHeadings": [
+        {
+          "tag": "H3",
+          "nextParagraph": true,
+          "parentClass": "card p-12 text-center"
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/batch-image",
+      "landed": "/batch-image",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "mainHeadings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/affiliate",
+      "landed": "/affiliate",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "mainHeadings": [
+        {
+          "tag": "H3",
+          "nextParagraph": true,
+          "parentClass": "card p-6"
+        },
+        {
+          "tag": "H3",
+          "nextParagraph": true,
+          "parentClass": ""
+        },
+        {
+          "tag": "H3",
+          "nextParagraph": false,
+          "parentClass": "card p-6"
+        }
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/available-channels",
+      "landed": "/available-channels",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "mainHeadings": [],
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/subscriptions",
+      "landed": "/subscriptions",
+      "appHeaderPresent": true,
+      "appTitleVisible": false,
+      "appHeaderParagraphs": 0,
+      "mainPresent": true,
+      "mainHeadings": [
+        {
+          "tag": "H3",
+          "nextParagraph": true,
+          "parentClass": "card p-12 text-center"
+        }
+      ],
+      "horizontalOverflow": false
+    }
+  ]
+}

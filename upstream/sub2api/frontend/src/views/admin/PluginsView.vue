@@ -8,9 +8,6 @@
           <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
             {{ t("admin.plugins.title") }}
           </h2>
-          <p class="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
-            {{ t("admin.plugins.description") }}
-          </p>
           <div
             class="mt-3 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300"
           >
@@ -48,7 +45,7 @@
             @click="loadPlugins"
           >
             <Icon name="refresh" size="sm" />
-            <span class="sr-only">{{ t("common.refresh") }}</span>
+            <span class="refresh-button-label">{{ t("common.refresh") }}</span>
           </button>
         </div>
       </section>

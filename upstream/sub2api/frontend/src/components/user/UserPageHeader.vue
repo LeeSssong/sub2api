@@ -1,0 +1,13 @@
+<template>
+  <header class="user-page-header">
+    <h1>{{ title }}</h1>
+  </header>
+</template>
+
+<script setup lang="ts">
+defineProps<{ title: string }>()
+</script>
+
+<style scoped>
+.user-page-header h1 { font-size: 20px; font-weight: 600; }
+</style>

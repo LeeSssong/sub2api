@@ -1,17 +1,15 @@
 import { ArrowDown, ArrowRight } from 'lucide-react'
 import { motion, useScroll, useTransform } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
-import { HeroEndpoint } from '../components/HeroEndpoint'
 import { HeroSignalCanvas } from '../components/HeroSignalCanvas'
 import type { SessionState } from '../domain/session'
 import { useHeroEntry } from '../hooks/useHeroEntry'
 
 interface HeroSectionProps {
-  apiOrigin?: string
   session: SessionState
 }
 
-export function HeroSection({ session, apiOrigin = window.location.origin }: HeroSectionProps) {
+export function HeroSection({ session }: HeroSectionProps) {
   const root = useRef<HTMLElement>(null)
   const entry = useHeroEntry()
   const [scrolled, setScrolled] = useState(false)
@@ -58,7 +56,7 @@ export function HeroSection({ session, apiOrigin = window.location.origin }: Her
       onFocusCapture={entry.start}
     >
       <motion.div className="hero-signal-layer" style={entry.reduced ? undefined : { y: signalY }}>
-        <HeroSignalCanvas direction="down" active={entry.started} label="星桥实时信号背景" />
+        <HeroSignalCanvas active={entry.started} label="星桥实时信号背景" />
       </motion.div>
       <div className="hero-ambient" aria-hidden="true" />
       <div className="hero-grid-layer" aria-hidden="true" />
@@ -67,21 +65,17 @@ export function HeroSection({ session, apiOrigin = window.location.origin }: Her
       <motion.div className="hero-inner" style={entry.reduced ? undefined : { y: contentY }}>
         <div className="endpoint-kicker">
           <span className="status-dot" aria-hidden="true" />
-          <span>海外高速服务器 · 稳定运行</span>
+          <span>首尔节点 · 稳定运行</span>
         </div>
         <div className="hero-grid" data-layout="diagonal" data-composition="raised-diagonal">
-          <div className="hero-title-group">
-            <h1 id="hero-title" className="hero-title">
-              <span className="hero-brand">星桥</span>
-              <span className="hero-tagline">链接世界顶尖模型</span>
-            </h1>
-            <HeroEndpoint origin={apiOrigin} />
-          </div>
+          <h1 id="hero-title" className="hero-title">
+            <span className="hero-brand">星桥</span>
+            <span className="hero-tagline">链接世界顶尖模型</span>
+          </h1>
           <div className="hero-pitch">
-            <p className="hero-pitch-copy">
-              {/* Reserve the original copy dimensions so existing content does not move. */}
-              <span className="hero-copy-size" aria-hidden="true">GPT、Claude、Gemini 一站接入。<br />国内网络直接连接，注册即可使用。</span>
-              <span className="hero-copy-text">一个网关，接入所支持的模型 API。<br />透明定价，按容量稳健路由。<br />提供 OpenAI 兼容端点。</span>
+            <p>
+              <span>GPT、Claude、Gemini 一站接入。</span>
+              <span>国内网络直接连接，注册即可使用。</span>
             </p>
             <div className="hero-actions">
               <a className="primary-cta" href={session.ctaHref}>

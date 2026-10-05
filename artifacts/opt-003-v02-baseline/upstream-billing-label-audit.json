@@ -1,0 +1,24 @@
+{
+  "observedAt": "2026-09-27T08:59:41.866Z",
+  "method": "admin session; upstream billing cell DOM suffix only; no account identity or value",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "landed": "/admin/accounts",
+      "cellCount": 20,
+      "formattedCount": 8,
+      "invalidNumericCount": 0,
+      "statusCount": 12,
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": "390x844",
+      "landed": "/admin/accounts",
+      "cellCount": 20,
+      "formattedCount": 8,
+      "invalidNumericCount": 0,
+      "statusCount": 12,
+      "horizontalOverflow": false
+    }
+  ]
+}

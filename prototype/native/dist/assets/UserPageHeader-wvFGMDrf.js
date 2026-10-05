@@ -1,0 +1,1 @@
+import{d as a,z as s,A as t,C as r,J as o}from"./vendor-vue-D4qNUZzr.js";import{G as c}from"./index-A_6X1-wY.js";const n={class:"user-page-header"},p=a({__name:"UserPageHeader",props:{title:{}},setup(e){return(_,d)=>(o(),s("header",n,[t("h1",null,r(e.title),1)]))}}),m=c(p,[["__scopeId","data-v-6552a278"]]);export{m as U};

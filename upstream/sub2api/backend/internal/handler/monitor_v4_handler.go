@@ -21,6 +21,8 @@ func NewMonitorV4Handler(svc monitorV4Snapshotter) *MonitorV4Handler {
 }
 
 type monitorV4GroupResponse struct {
+	ToolIDs                   []string `json:"tool_ids"`
+	Status                    string   `json:"status"`
 	ID                        int64    `json:"id"`
 	Name                      string   `json:"name"`
 	Platform                  string   `json:"platform"`
@@ -32,6 +34,8 @@ type monitorV4GroupResponse struct {
 	RealSuccessCount          int      `json:"real_success_count"`
 	ProbeFallbackBucketCount  int      `json:"probe_fallback_bucket_count"`
 	ProbeFallbackRequestCount int      `json:"probe_fallback_request_count"`
+	TTFTP50MS                 *float64 `json:"ttft_p50_ms"`
+	LatencyP50MS              *float64 `json:"latency_p50_ms"`
 	TTFTP95MS                 *float64 `json:"ttft_p95_ms"`
 	TTFTSampleCount           int      `json:"ttft_sample_count"`
 	LatencyP95MS              *float64 `json:"latency_p95_ms"`
@@ -44,7 +48,6 @@ type monitorV4GroupResponse struct {
 	CacheCreationTokens        int64    `json:"cache_creation_tokens"`
 	CacheHitDenominator        int64    `json:"cache_hit_denominator"`
 	SourceUpdatedAt            *string  `json:"source_updated_at"`
-	CurrentOperational         bool     `json:"current_operational"`
 }
 
 type monitorV4SnapshotResponse struct {
@@ -97,17 +100,81 @@ func (h *MonitorV4Handler) Snapshot(c *gin.Context) {
 			updatedAt = &value
 		}
 		groups = append(groups, monitorV4GroupResponse{
+			ToolIDs: group.ToolIDs, Status: group.Status,
 			ID: group.ID, Name: group.Name, Platform: group.Platform, RateMultiplier: group.RateMultiplier,
 			SuccessRate: group.SuccessRate, RequestCount: group.RequestCount, SuccessCount: group.SuccessCount,
 			RealRequestCount: group.RealRequestCount, RealSuccessCount: group.RealSuccessCount,
 			ProbeFallbackBucketCount: group.ProbeFallbackBucketCount, ProbeFallbackRequestCount: group.ProbeFallbackRequestCount,
+			TTFTP50MS: group.TTFTP50MS, LatencyP50MS: group.LatencyP50MS,
 			TTFTP95MS: group.TTFTP95MS, TTFTSampleCount: group.TTFTSampleCount,
 			LatencyP95MS: group.LatencyP95MS, LatencySampleCount: group.LatencySampleCount,
 			CacheReadTokensP95: nil, CacheReadTokensSampleCount: 0,
 			CacheHitRate:    group.CacheHitRate,
 			CacheReadTokens: group.CacheReadTokens, CacheCreationTokens: group.CacheCreationTokens, CacheHitDenominator: group.CacheHitDenominator,
-			SourceUpdatedAt: updatedAt, CurrentOperational: group.CurrentOperational,
+			SourceUpdatedAt: updatedAt,
 		})
 	}
 	response.Success(c, monitorV4SnapshotResponse{ContractVersion: snapshot.ContractVersion, Window: snapshot.Window, RefreshIntervalSeconds: snapshot.RefreshIntervalSeconds, GeneratedAt: snapshot.GeneratedAt.UTC().Format(time.RFC3339), Groups: groups})
+}
+
+// Check runs an authenticated, bounded manual check. Results are session-local
+// in the client; the native observations remain available to monitor statistics.
+func (h *MonitorV4Handler) Check(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	checker, ok := h.service.(interface {
+		Check(context.Context, int64, []int64) ([]service.MonitorV4CheckResult, error)
+	})
+	if !ok {
+		response.InternalError(c, "line checker unavailable")
+		return
+	}
+	var req struct {
+		GroupIDs []int64 `json:"group_ids" binding:"required,min=1,max=100"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid group_ids")
+		return
+	}
+	results, err := checker.Check(c.Request.Context(), subject.UserID, req.GroupIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"results": results})
+}
+
+func (h *MonitorV4Handler) Timeline(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	window, ok := parseMonitorV4Window(c.Query("window"))
+	if !ok {
+		response.BadRequest(c, "unsupported monitor window")
+		return
+	}
+	granularity := c.DefaultQuery("granularity", "hour")
+	if granularity != "hour" && granularity != "day" {
+		response.BadRequest(c, "unsupported timeline granularity")
+		return
+	}
+	if reader, ok := h.service.(interface {
+		TimelineWithGranularity(context.Context, int64, service.MonitorV4Window, string, time.Time) (*service.MonitorV4Timeline, error)
+	}); ok {
+		value, err := reader.TimelineWithGranularity(c.Request.Context(), subject.UserID, window, granularity, time.Now().UTC())
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		response.Success(c, value)
+		return
+	}
+	response.InternalError(c, "timeline unavailable")
 }

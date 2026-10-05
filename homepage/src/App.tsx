@@ -22,7 +22,7 @@ export function App({ config, session, theme, onToggleTheme }: AppProps) {
       <a className="skip-link" href="#main-content">跳到主内容</a>
       <Header session={session} theme={theme} onToggleTheme={onToggleTheme} />
       <main id="main-content">
-        <HeroSection session={session} apiOrigin={config.apiOrigin} />
+        <HeroSection session={session} />
         <ValueSections config={config} />
         <StatementSection />
         <RequestJourney />

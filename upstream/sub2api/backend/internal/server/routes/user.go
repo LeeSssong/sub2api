@@ -94,6 +94,7 @@ func RegisterUserRoutes(
 		groups := authenticated.Group("/groups")
 		{
 			groups.GET("/available", h.APIKey.GetAvailableGroups)
+			groups.GET("/available-models", h.Gateway.UserGroupModels)
 			groups.GET("/rates", h.APIKey.GetUserGroupRates)
 		}
 
@@ -155,6 +156,8 @@ func RegisterUserRoutes(
 		// 星桥 Monitor V2（用户只读重查询）
 		authenticated.GET("/monitor-v2", panelRateLimiter.Heavy(), h.MonitorV2.Snapshot)
 		authenticated.GET("/monitor-v4", panelRateLimiter.Heavy(), h.MonitorV4.Snapshot)
+		authenticated.GET("/monitor-v4/timeline", panelRateLimiter.Heavy(), h.MonitorV4.Timeline)
+		authenticated.POST("/monitor-v4/check", panelRateLimiter.Heavy(), h.MonitorV4.Check)
 		authenticated.GET("/monitor-v2/codexradar-insights", panelRateLimiter.Heavy(), h.CodexRadar.Get)
 		authenticated.GET("/monitor-v2/codexradar-community", panelRateLimiter.Heavy(), h.CodexRadarCommunity.Get)
 

@@ -1,0 +1,100 @@
+{
+  "observedAt": "2026-09-27T07:48:45.992Z",
+  "method": "admin session, DOM structure only; no page text or screenshots",
+  "results": [
+    {
+      "viewport": "1280x900",
+      "requested": "/monitor",
+      "landed": "/monitor",
+      "mainPresent": true,
+      "mainChildren": [
+        {
+          "tag": "SECTION",
+          "classes": "mx-auto w-full max-w-[1500px] space-y-6 rounded-2xl text-slate-900 dark:bg-[#07101f] dark:",
+          "test": "hybrid-performance-view"
+        }
+      ],
+      "hybridChildren": [
+        {
+          "tag": "HYBRIDPERFORMANCEPANEL",
+          "test": null
+        },
+        {
+          "tag": "SECTION",
+          "test": "codexradar-panel"
+        }
+      ],
+      "hybridPanelPresent": false,
+      "mainHeadings": [
+        {
+          "tag": "H2",
+          "id": "codexradar-title",
+          "classes": "text-xl font-black tracking-tight text-gray-950 dark:text-white sm:text-2xl"
+        }
+      ],
+      "alertCount": 0,
+      "injectedMonitorMode": "hybrid_performance",
+      "monitorV2": false,
+      "monitorAdjacentTimestamp": false,
+      "monitorOverallStatus": false,
+      "hybridMonitor": false,
+      "hybridAdjacentTimestamp": false,
+      "monitorV1Hero": false,
+      "monitorRouteLoading": false,
+      "channelTitle": false,
+      "channelStatus": false,
+      "channelStatusContainsSpinner": false,
+      "promptTitle": false,
+      "promptPrecedingEyebrow": false,
+      "keyUsageTitle": false,
+      "pageErrorNames": []
+    },
+    {
+      "viewport": "390x844",
+      "requested": "/monitor",
+      "landed": "/monitor",
+      "mainPresent": true,
+      "mainChildren": [
+        {
+          "tag": "SECTION",
+          "classes": "mx-auto w-full max-w-[1500px] space-y-6 rounded-2xl text-slate-900 dark:bg-[#07101f] dark:",
+          "test": "hybrid-performance-view"
+        }
+      ],
+      "hybridChildren": [
+        {
+          "tag": "HYBRIDPERFORMANCEPANEL",
+          "test": null
+        },
+        {
+          "tag": "SECTION",
+          "test": "codexradar-panel"
+        }
+      ],
+      "hybridPanelPresent": false,
+      "mainHeadings": [
+        {
+          "tag": "H2",
+          "id": "codexradar-title",
+          "classes": "text-xl font-black tracking-tight text-gray-950 dark:text-white sm:text-2xl"
+        }
+      ],
+      "alertCount": 0,
+      "injectedMonitorMode": "hybrid_performance",
+      "monitorV2": false,
+      "monitorAdjacentTimestamp": false,
+      "monitorOverallStatus": false,
+      "hybridMonitor": false,
+      "hybridAdjacentTimestamp": false,
+      "monitorV1Hero": false,
+      "monitorRouteLoading": false,
+      "channelTitle": false,
+      "channelStatus": false,
+      "channelStatusContainsSpinner": false,
+      "promptTitle": false,
+      "promptPrecedingEyebrow": false,
+      "keyUsageTitle": false,
+      "pageErrorNames": []
+    }
+  ]
+}

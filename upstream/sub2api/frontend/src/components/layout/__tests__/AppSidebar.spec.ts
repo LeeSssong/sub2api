@@ -63,29 +63,30 @@ describe('AppSidebar header styles', () => {
   })
 })
 
-describe('AppSidebar subscription feature flag', () => {
-  it('gates the My Subscriptions entry behind the subscription public-settings flag', () => {
-    expect(componentSource).toContain('const flagSubscription = makeSidebarFlag(FeatureFlags.subscription)')
-    expect(componentSource).toMatch(/path: '\/subscriptions'[^\n]*featureFlag: flagSubscription/)
+describe('AppSidebar user navigation structure', () => {
+  it('sends the recharge entry to redeem when payments are explicitly disabled', () => {
+    expect(componentSource).toContain(':to="rechargeEntryPath"')
+    expect(componentSource).toContain("appStore.cachedPublicSettings?.payment_enabled === false ? '/redeem' : '/purchase'")
+    expect(componentSource).toContain('@click="handleMenuItemClick(rechargeEntryPath)"')
   })
 
-  it('also hides the admin Subscription Management entry on recharge-only sites', () => {
-    expect(componentSource).toMatch(/path: '\/admin\/subscriptions'[^\n]*featureFlag: flagSubscription/)
-  })
+  it('keeps only the confirmed primary entries for regular users', () => {
+    const userItemsSource = componentSource.slice(
+      componentSource.indexOf('function buildUserNavItems'),
+      componentSource.indexOf('// Personal navigation items'),
+    )
 
-  it('derives the purchase entry label from the site billing mode', () => {
-    expect(componentSource).toContain("import { resolveSiteBillingMode } from '@/utils/siteBillingMode'")
-    expect(componentSource).toMatch(/case 'recharge_only':\s*return t\('nav\.recharge'\)/)
-    expect(componentSource).toMatch(/case 'subscription_only':\s*return t\('nav\.subscribe'\)/)
-    expect(componentSource).toMatch(/path: '\/purchase'[^\n]*label: purchaseNavLabel\.value/)
-  })
-})
-
-describe('AppSidebar user locale switcher', () => {
-  it('mounts the native locale switcher in the regular user sidebar', () => {
-    expect(componentSource).toContain("import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'")
-    expect(componentSource).toContain('data-testid="user-sidebar-locale"')
-    expect(componentSource).toContain('<LocaleSwitcher :compact="sidebarCollapsed" />')
-    expect(componentSource).toContain('v-if="!isAdmin"')
+    expect(userItemsSource).toContain("{ path: '/dashboard', label: userNavLabel('aiTools', 'AI 工具'), icon: DashboardIcon }")
+    expect(userItemsSource).toContain("{ path: '/usage', label: t('nav.usage'), icon: ChartIcon }")
+    expect(userItemsSource).toContain("{ path: '/keys', label: userNavLabel('myKeys', '我的密钥'), icon: KeyIcon }")
+    expect(userItemsSource).not.toContain("path: '/purchase'")
+    expect(userItemsSource).not.toContain("path: '/orders'")
+    expect(userItemsSource).not.toContain("path: '/redeem'")
+    expect(userItemsSource).not.toContain("path: '/profile'")
+    expect(componentSource).toContain('data-testid="user-sidebar-recharge"')
+    expect(componentSource).toContain('data-testid="user-sidebar-account"')
+    expect(componentSource).toContain('data-testid="user-sidebar-support"')
+    expect(componentSource).toContain(':src="siteLogo || DEFAULT_SITE_LOGO"')
+    expect(componentSource).toContain("星桥 AI Link")
   })
 })

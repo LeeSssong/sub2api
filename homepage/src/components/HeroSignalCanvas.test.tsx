@@ -30,28 +30,6 @@ describe('HeroSignalCanvas', () => {
     vi.unstubAllGlobals()
   })
 
-  it('draws upright single characters in downward columns without horizontal drift', () => {
-    const context = createCanvasContext()
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D)
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 800, height: 600, left: 0, top: 0 } as DOMRect)
-    let tick: FrameRequestCallback = () => {}
-    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => { tick = callback; return 7 }))
-    render(<HeroSignalCanvas active direction="down" label="竖向信号" />)
-    const before = context.fillText.mock.calls.map(call => [...call])
-    expect(before.every(call => String(call[0]).length === 1)).toBe(true)
-    const columnPositions = [...new Set(before.map(call => Number(call[1])))]
-    const firstColumnPositions = before
-      .filter(call => Number(call[1]) === columnPositions[0])
-      .map(call => Number(call[2]))
-    expect(columnPositions[1]! - columnPositions[0]!).toBeCloseTo(600 / 36)
-    expect(firstColumnPositions[1]! - firstColumnPositions[0]!).toBe(7)
-    context.fillText.mockClear()
-    tick(16)
-    const after = context.fillText.mock.calls
-    expect(after[0]![1]).toBe(before[0]![1])
-    expect(Number(after[0]![2])).toBeGreaterThan(Number(before[0]![2]))
-  })
-
   it('renders three layers and redraws when the homepage theme changes', () => {
     const context = createCanvasContext()
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D)

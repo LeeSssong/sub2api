@@ -1,0 +1,529 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides". See https://pnpm.io/settings for the new home of each setting.
+
+ RUN  v2.1.9 /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend
+
+(node:20885) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20886) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20888) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20887) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Browserslist: browsers data (caniuse-lite) is 10 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > keeps a successful balance redemption when profile refresh fails
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > keeps a successful concurrency redemption when profile refresh fails
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > keeps a successful subscription redemption when profile refresh fails
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > pages on the server, changes size, and resets page and total after redeeming
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > restores the loaded size and keeps rows and navigation usable after a size request fails
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > ignores a stale history success after a newer size request succeeds
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > ignores a stale history failure after a newer size request succeeds
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > disables both paging buttons for empty history
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > finishes normally without a warning when profile refresh succeeds
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > preserves the existing subscription refresh warning after successful redemption
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > keeps the code and reports failure when the redemption request itself fails
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+ ❯ src/views/user/__tests__/RedeemView.spec.ts (11 tests | 2 failed) 127ms
+   × RedeemView refresh after redemption > ignores a stale history success after a newer size request succeeds 9ms
+     → expected last "spy" call to have been called with [ 2, 50 ]
+   × RedeemView refresh after redemption > ignores a stale history failure after a newer size request succeeds 4ms
+     → expected last "spy" call to have been called with [ 2, 50 ]
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > syncs quota reset from 'quota_exhausted' to 'active' with form status 'active'
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=1 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=1 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=1 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > syncs quota reset from 'inactive' to 'inactive' with form status 'inactive'
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=1 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=1 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=1 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > syncs quota reset from 'active' to 'active' with form status 'inactive'
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=1 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=1 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=1 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/UsageView.spec.ts > user UsageView > keeps successful rows and chart data when refresh requests fail independently
+Failed to load model stats: Error: models unavailable
+    at /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend/src/views/user/__tests__/UsageView.spec.ts:310:46
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:533:5
+    at runTest (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1056:11)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+    at withEnv (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:90:5)
+    at run (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:112:3)
+
+stderr | src/views/user/__tests__/UsageView.spec.ts > user UsageView > reports an initial stats failure without inventing successful usage totals
+Failed to load usage stats: Error: stats unavailable
+    at /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend/src/views/user/__tests__/UsageView.spec.ts:322:36
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > keeps existing keys but marks usage unavailable after a usage refresh failure
+Failed to load usage stats: Error: offline
+    at /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend/src/views/user/__tests__/KeysView.spec.ts:592:52
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:533:5
+    at runTest (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1056:11)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+    at withEnv (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:90:5)
+    at run (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:112:3)
+
+stderr | src/views/user/__tests__/UsageView.spec.ts > user UsageView > retries only failed chart sources and keeps successful statistics and details
+Failed to load model stats: Error: models unavailable
+    at /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend/src/views/user/__tests__/UsageView.spec.ts:347:46
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/views/user/__tests__/UsageView.spec.ts > user UsageView > does not show an empty error-record table after its first failed load
+[UsageView] loadErrors failed: Error: offline
+    at /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend/src/views/user/__tests__/UsageView.spec.ts:365:47
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:146:14
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:533:11
+    at runWithTimeout (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:39:7)
+    at runTest (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1056:17)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runSuite (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1205:15)
+    at runFiles (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1262:5)
+    at startTests (file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:1271:3)
+    at file:///Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api%E6%90%AD%E5%BB%BA/upstream/sub2api/frontend/node_modules/.pnpm/vitest@2.1.9_@types+node@20.19.27_jsdom@24.1.3_supports-color@7.2.0__supports-color@7.2.0/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11
+
+stderr | src/views/user/__tests__/UsageView.spec.ts > user UsageView > keeps the initial filters, sort, and filename while exporting multiple pages
+[Vue warn]: Component emitted event "sort" but it is neither declared in the emits option nor as an "onSort" prop.
+
+ ✓ src/views/user/__tests__/UsageView.spec.ts (20 tests) 173ms
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > keeps the badge and switches its denominator after saving a changed limit
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > keeps the badge and switches its denominator after saving a changed limit
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > loads the saved limit and updates concurrency input 12
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > loads the saved limit and updates concurrency input 0
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+ ✓ src/views/user/__tests__/PaymentView.spec.ts (27 tests | 6 skipped) 202ms
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > loads the saved limit and updates concurrency input
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > rejects invalid concurrency in edit mode: -1
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > rejects invalid concurrency in edit mode: 1.5
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > keeps the edit form and entered limit when the server rejects an update
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > shows actual shared policy as read-only metadata and never submits it
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > distinguishes unknown statistics and policy from zero and still permits saving
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=42 onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > shows global-off policy and actual residual waiting without a zero denominator
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=null onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=null onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=null onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > polls after completion without reloading the list, usage, row order or modal input
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=null onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=null onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=null onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/KeysView.spec.ts > user KeysView column settings > marks old counts and policy stale on failure and removes the full marker until recovery
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=null onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=null onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+[Vue warn]: Extraneous non-props attributes (data-tour) were passed to component but could not be automatically inherited because component renders fragment or text or teleport root nodes.
+  at <LineSelect modelValue=null onUpdate:modelValue=fn groups= []  ... >
+  at <Anonymous show=true title="keys.editKey" brand-theme=""  ... >
+  at <Anonymous>
+  at <KeysView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+ ✓ src/views/user/__tests__/KeysView.spec.ts (62 tests) 748ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > ignores a stale history success after a newer size request succeeds
+ FAIL  src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > ignores a stale history failure after a newer size request succeeds
+AssertionError: expected last "spy" call to have been called with [ 2, 50 ]
+
+- Expected
++ Received
+
+  Array [
+    2,
+-   50,
++   20,
+  ]
+
+ ❯ src/views/user/__tests__/RedeemView.spec.ts:178:24
+    176|     await button('pagination.next').trigger('click')
+    177|     await flushPromises()
+    178|     expect(getHistory).toHaveBeenLastCalledWith(2, 50)
+       |                        ^
+    179|     if (outcome === 'success') {
+    180|       resolveOld({ items: [], total: 0 })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  2 failed | 112 passed | 6 skipped (120)
+   Start at  18:52:01
+   Duration  2.68s (transform 2.07s, setup 230ms, collect 3.97s, tests 1.25s, environment 1.25s, prepare 389ms)

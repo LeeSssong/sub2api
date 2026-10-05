@@ -3,7 +3,8 @@
     <slot name="before"></slot>
     <button @click="$emit('refresh')" :disabled="loading" class="btn btn-secondary">
       <Icon name="refresh" size="md" :class="[loading ? 'animate-spin' : '']" />
-    </button>
+    <span>{{ t('common.refresh') }}</span>
+          </button>
     <slot name="after"></slot>
     <slot name="beforeCreate"></slot>
     <button @click="$emit('create')" class="btn btn-primary">{{ t('admin.accounts.createAccount') }}</button>

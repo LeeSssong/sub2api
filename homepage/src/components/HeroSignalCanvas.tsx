@@ -31,7 +31,6 @@ interface SignalRow extends SignalRowDescriptor {
 
 interface HeroSignalCanvasProps {
   active: boolean
-  direction?: 'left' | 'down'
   /** Omit to render the field as decorative (aria-hidden) rather than a labelled image. */
   label?: string
   /** Faintest row opacity. */
@@ -42,7 +41,6 @@ interface HeroSignalCanvasProps {
 
 export function HeroSignalCanvas({
   active,
-  direction = 'left',
   label,
   alphaBase = .09,
   alphaRange = .3,
@@ -61,7 +59,6 @@ export function HeroSignalCanvas({
     if (!context) return
 
     let rows: SignalRow[] = []
-    let columns: Array<SignalRow & { offset: number; step: number }> = []
     let visible = true
     let running = false
     let width = 1
@@ -99,23 +96,6 @@ export function HeroSignalCanvas({
           x: -(Math.random() * tile.segmentWidth),
         }
       })
-      if (direction === 'down') {
-        const rowGap = height / Math.max(1, rows.length - 1)
-        // Preserve the original vertical spacing and measured monospace character density.
-        const descriptors = buildSignalRows({ width, height })
-        columns = []
-        let x = 0
-        while (x < width) {
-          const index = columns.length
-          const descriptor = descriptors[index % descriptors.length]!
-          context.font = `500 ${descriptor.fontSize}px ${SIGNAL_FONT_FAMILY}`
-          const characterStep = Math.max(1, context.measureText('M').width)
-          const text = `${rowSeeds[index % rowSeeds.length]}  ${String(index * 73 + 19).padStart(4, '0')}   `
-          columns.push({ ...descriptor, seedIndex: index, text, segmentWidth: 0, x,
-            offset: -Math.random() * text.length * characterStep, step: characterStep })
-          x += rowGap
-        }
-      }
     }
 
     const draw = (time = 0, advance = false) => {
@@ -126,8 +106,8 @@ export function HeroSignalCanvas({
       const pointerLift = 1 + (1 - pointerDistance) * .12
       if (advance) velocity += (targetVelocity - velocity) * .055
 
-      for (const row of direction === 'down' ? columns : rows) {
-        if (advance && direction === 'left') {
+      for (const row of rows) {
+        if (advance) {
           row.x += row.speed * velocity
           if (row.x < -row.segmentWidth) row.x += row.segmentWidth
         }
@@ -140,17 +120,7 @@ export function HeroSignalCanvas({
         )
         context.shadowColor = row.active ? palette.active : 'transparent'
         context.shadowBlur = row.active ? 7 + pulse * 7 : 0
-        if (direction === 'down') {
-          const column = row as typeof columns[number]
-          const span = column.text.length * column.step
-          if (advance) column.offset -= column.speed * velocity
-          if (column.offset >= 0) column.offset -= span
-          for (let y = column.offset, index = 0; y < height + column.step; y += column.step, index++) {
-            if (y >= -column.step) context.fillText(column.text[index % column.text.length]!, column.x, y)
-          }
-        } else {
-          context.fillText(row.text, row.x, row.y)
-        }
+        context.fillText(row.text, row.x, row.y)
       }
       context.globalAlpha = 1
       context.shadowBlur = 0
@@ -222,7 +192,7 @@ export function HeroSignalCanvas({
       window.removeEventListener(HOMEPAGE_THEME_EVENT, onThemeChange)
       if (frame.current !== null) window.cancelAnimationFrame(frame.current)
     }
-  }, [active, reduced, alphaBase, alphaRange, direction])
+  }, [active, reduced, alphaBase, alphaRange])
 
   return (
     <div
@@ -232,7 +202,7 @@ export function HeroSignalCanvas({
       aria-label={label}
       aria-hidden={label ? undefined : true}
       data-canvas-active={canvasActive ? 'true' : 'false'}
-      data-travel-direction={direction}
+      data-travel-direction="left"
       data-signal-density="dense"
       data-signal-speed="fast"
       data-signal-layers="3"

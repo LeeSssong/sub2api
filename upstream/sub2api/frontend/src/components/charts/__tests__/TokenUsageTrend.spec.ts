@@ -4,6 +4,13 @@ import { mount } from '@vue/test-utils'
 import TokenUsageTrend from '../TokenUsageTrend.vue'
 
 const messages: Record<string, string> = {
+  'usage.in': 'Input',
+  'usage.out': 'Output',
+  'usage.cacheCreationTokensLabel': 'Cache Creation',
+  'usage.cacheReadTokensLabel': 'Cache Read',
+  'usage.cacheHitRate': 'Cache Hit Rate',
+  'usage.detail.actualCost': 'Actual',
+  'usage.detail.standardCost': 'Standard',
   'admin.dashboard.tokenUsageTrend': 'Token Usage Trend',
   'admin.dashboard.noDataAvailable': 'No data available',
 }
@@ -26,6 +33,16 @@ vi.mock('vue-chartjs', () => ({
 }))
 
 describe('TokenUsageTrend', () => {
+  it('formats cost footer to two decimals while retaining raw token and percentage data', () => {
+    const wrapper = mount(TokenUsageTrend, {
+      props: { trendData: [{ date: '2026-05-08', requests: 1, input_tokens: 500, output_tokens: 100, cache_creation_tokens: 0, cache_read_tokens: 1500, cost: 1234.5, actual_cost: 0.001 }] },
+      global: { stubs: { LoadingSpinner: true } },
+    })
+    const options = (wrapper.vm as any).$?.setupState.lineOptions
+    expect(options.plugins.tooltip.callbacks.footer([{ dataIndex: 0 }])).toBe('Actual: $0.00 | Standard: $1234.50')
+    expect(options.plugins.tooltip.callbacks.label({ dataset: { label: 'Rate', yAxisID: 'yPercent' }, raw: 75 })).toBe('Rate: 75.0%')
+    expect(JSON.parse(wrapper.find('.chart-data').text()).datasets[0].data).toEqual([500])
+  })
   it('calculates cache hit rate against all prompt tokens', () => {
     const wrapper = mount(TokenUsageTrend, {
       props: {

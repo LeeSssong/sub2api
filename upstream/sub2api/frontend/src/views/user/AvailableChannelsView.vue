@@ -27,7 +27,8 @@
               :title="t('common.refresh', 'Refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            </button>
+            <span>{{ t('common.refresh') }}</span>
+          </button>
           </div>
         </div>
       </template>
