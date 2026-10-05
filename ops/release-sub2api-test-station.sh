@@ -16,7 +16,18 @@ source_tree=$(git -C "$worktree" rev-parse 'HEAD^{tree}')
 [[ "$source_commit" =~ ^[a-f0-9]{40}$ && "$source_tree" =~ ^[a-f0-9]{40}$ ]] || fail 'source identity is invalid'
 
 target=${TEST_STATION_SSH_TARGET:-sub2api-test-station}
-[[ "$target" == sub2api-test-station ]] || fail 'unsafe SSH target'
+ssh_known_hosts=''
+ssh_port=''
+if [[ "$target" == sub2api-test-station ]]; then
+  :
+elif [[ "$target" == root@43.133.75.82 ]]; then
+  ssh_known_hosts=${TEST_STATION_APPROVED_KNOWN_HOSTS:-/tmp/sub2api-uiux-verified-known-hosts}
+  [[ "$ssh_known_hosts" == /tmp/sub2api-uiux-verified-known-hosts && -f "$ssh_known_hosts" && ! -L "$ssh_known_hosts" ]] || fail 'approved 43.133.75.82 known-hosts file is required'
+  [[ "$(stat -f '%Lp' "$ssh_known_hosts" 2>/dev/null || stat -c '%a' "$ssh_known_hosts")" == 600 ]] || fail 'approved known-hosts file must be 0600'
+  ssh_port=22
+else
+  fail 'unsafe SSH target'
+fi
 deploy_root=/opt/sub2api-test-station
 build_context="$worktree/upstream/sub2api"
 migrations_dir="$build_context/backend/migrations"
@@ -45,6 +56,12 @@ ssh_opts=(
   -o TCPKeepAlive=yes
   -o StrictHostKeyChecking=yes
 )
+if [[ -n "$ssh_known_hosts" ]]; then
+  ssh_opts+=( -p "$ssh_port" -o "UserKnownHostsFile=$ssh_known_hosts" -o IdentitiesOnly=yes )
+  ssh_config=$(ssh -G "${ssh_opts[@]}" "$target" 2>/dev/null) || fail 'approved SSH target resolution failed'
+  grep -Eq '^hostname 43\.133\.75\.82$' <<<"$ssh_config" || fail 'SSH target hostname mismatch'
+  grep -Eq '^port 22$' <<<"$ssh_config" || fail 'SSH target port mismatch'
+fi
 release_reconcile_attempts=${TEST_STATION_RELEASE_RECONCILE_ATTEMPTS:-6}
 release_reconcile_interval=${TEST_STATION_RELEASE_RECONCILE_INTERVAL_SECONDS:-10}
 [[ "$release_reconcile_attempts" =~ ^[1-9][0-9]*$ ]] || fail 'release reconciliation attempts are invalid'

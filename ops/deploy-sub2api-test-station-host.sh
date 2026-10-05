@@ -149,6 +149,12 @@ SQL
 fi
 
 backup_timestamp=${TEST_STATION_BACKUP_TIMESTAMP:-$(date -u +%Y%m%dT%H%M%SZ)}
+maintenance_stopped=false
+if [[ "$route_health_migration" == true && "$allow_downtime" == true ]]; then
+  "${previous_compose[@]}" stop test-station-api test-station-worker test-station-detector >/dev/null \
+    || fail 'maintenance service stop failed'
+  maintenance_stopped=true
+fi
 backup_output=$(EVENT_LOG="${EVENT_LOG:-}" FAKE_MODE="${FAKE_MODE:-}" DEPLOY_ROOT="$deploy_root" \
   bash "$backup_script" --compose "$active_compose" --env-file "$previous_env" \
   --deploy-root "$deploy_root" --timestamp "$backup_timestamp") || fail 'pre-release backup failed'
@@ -273,12 +279,15 @@ PY
 restore_previous(){
   if [[ "$route_health_rollback" == true ]]; then
     "${candidate_compose[@]}" stop test-station-api test-station-worker test-station-detector >/dev/null || return 1
-    "${previous_compose[@]}" exec -T test-station-postgres sh -c 'exec psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null <<'SQL' || return 1
-BEGIN;
-ALTER TABLE account_monitor_v4_snapshots ADD COLUMN IF NOT EXISTS current_operational BOOLEAN NOT NULL DEFAULT FALSE;
-DELETE FROM schema_migrations WHERE filename='241_remove_monitor_v4_operational_flag.sql';
-COMMIT;
-SQL
+    [[ -d "$backup_dir" && -f "$backup_dir/postgres.dump" && -f "$backup_dir/redis-dump.rdb" && -f "$backup_dir/app-data.tar.gz" ]] || return 1
+    # Restore the complete stopped-writes backup. Never edit schema_migrations or
+    # pretend that an old image can undo an already-applied migration.
+    "${previous_compose[@]}" up -d test-station-postgres test-station-redis >/dev/null || return 1
+    "${previous_compose[@]}" cp "$backup_dir/postgres.dump" test-station-postgres:/tmp/sub2api-test-station-postgres.restore.dump >/dev/null || return 1
+    "${previous_compose[@]}" exec -T test-station-postgres sh -c 'pg_restore --clean --if-exists --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB" /tmp/sub2api-test-station-postgres.restore.dump' >/dev/null || return 1
+    "${previous_compose[@]}" cp "$backup_dir/redis-dump.rdb" test-station-redis:/data/dump.rdb >/dev/null || return 1
+    "${previous_compose[@]}" exec -T test-station-redis redis-cli SHUTDOWN NOSAVE >/dev/null 2>&1 || true
+    tar -xzf "$backup_dir/app-data.tar.gz" -C "$deploy_root" || return 1
   fi
   "${previous_compose[@]}" up -d --remove-orphans >/dev/null || return 1
   wait_for_services previous || return 1
