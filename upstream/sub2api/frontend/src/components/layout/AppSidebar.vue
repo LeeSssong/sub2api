@@ -998,14 +998,14 @@ const adminNavItems = computed((): NavItem[] => {
     filtered.push({ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon })
     filtered.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
     for (const cm of customMenuItemsForAdmin.value) {
-      filtered.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+      filtered.push({ path: cm.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${cm.id}`, label: cm.url === '/intelligence-test' && cm.label === '智商检测' ? '智商监测' : cm.label, icon: null, iconSvg: cm.icon_svg })
     }
     return filtered
   }
 
   visible.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
   for (const cm of customMenuItemsForAdmin.value) {
-    visible.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+    visible.push({ path: cm.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${cm.id}`, label: cm.url === '/intelligence-test' && cm.label === '智商检测' ? '智商监测' : cm.label, icon: null, iconSvg: cm.icon_svg })
   }
   return visible
 })

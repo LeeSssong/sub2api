@@ -11,7 +11,7 @@
           :key="amt"
           type="button"
           :class="[
-            'min-h-12 border px-3 text-center text-sm font-medium transition-colors',
+            'relative min-h-12 border px-3 text-center text-sm font-medium transition-colors',
             variant === 'recharge' ? 'rounded-[9px]' : 'rounded-lg py-3',
             modelValue === amt
               ? 'border-[var(--xq-accent)] bg-[var(--xq-raised)] dark:bg-[linear-gradient(167deg,rgba(31,87,110,0.82),rgba(15,48,69,0.9))] text-[var(--xq-core)] dark:shadow-[0_12px_30px_rgba(27,112,139,0.12)]'

@@ -18,3 +18,8 @@ Task 1: active; merge has 37 text conflicts, 109 overlapping paths.
 2026-10-05 用户追加明确指令：去掉调度日志页。删除旧调度日志页面、路由、导航和 API 依赖，保留主站原生调度。此指令覆盖旧页面保留要求；不实施历史归档 UI。主站既有 240_remove_custom_scheduler_artifacts.sql 保持不可变，未来部署执行前须确认历史日志删除范围与数据备份恢复边界。本次不部署。
 
 Task 1: candidate merge conflict resolution and directly related build/tests complete; candidate visual comparison/new-entry approvals pending. Scheduler page removed per explicit user change; no release. Detailed evidence task-1-report.md.
+
+Task 1: candidate 884d82dda6; implementer /root/integrate_candidate released writer; review pending, visual additions pending user reply.
+Task 2: active, BASE 884d82dda6.
+
+Task1 review findings resolved: configured admin intelligence direct route restored in both modes; bonus badge owner buttons position relative. Red→green targeted tests (33 passing), typecheck passing, no new UI entries. Task2 preserved.

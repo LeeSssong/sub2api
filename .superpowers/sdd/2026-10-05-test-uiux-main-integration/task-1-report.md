@@ -98,3 +98,12 @@ Commands below executed locally. Logs copied into task directory; no production 
 - `upstream/sub2api/frontend/src/views/user/UsageView.vue`
 - `upstream/sub2api/frontend/src/views/user/__tests__/CustomPageView.spec.ts`
 - `upstream/sub2api/frontend/src/views/user/__tests__/KeysView.spec.ts`
+
+## Review fixes — 2026-10-05
+
+Two direct review findings fixed after Task2 commit 63b51e8535; all rollback-tool changes preserved.
+
+1. Administrator configured intelligence menus: both simple and normal admin custom-menu loops again map configured `/intelligence-test` URL to the native route instead of `/custom/id`; normalize legacy 智商检测 label to 智商监测. This restores the existing main configured route behavior without adding new entries or changing test sidebar styles. Targeted assertions cover both branches; existing CustomPageView safety tests retained.
+2. Quick amount promotion badges: every quick amount button now supplies `relative`, so its existing absolute badge is positioned against its own button. Tests cover three simultaneously qualifying amounts in default/recharge variants, individual tier labels, direct badge parent association and clicked-amount emissions.
+
+Verification: new tests before implementation failed in 4 cases / 2 suites (both route branches + both badge variants), proving the defects. After fix `pnpm exec vitest run src/components/layout/__tests__/AppSidebar.spec.ts src/components/payment/__tests__/AmountInput.spec.ts src/views/user/__tests__/CustomPageView.spec.ts` passed 3 suites / 33 tests; `pnpm typecheck` passed. `git diff --check` clean. No browser visual check performed for this small positional correction; actual CSS layout/visual acceptance remains pending controller review. No push/deploy/subagent or new visible navigation.

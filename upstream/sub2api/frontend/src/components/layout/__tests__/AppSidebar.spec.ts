@@ -90,3 +90,13 @@ describe('AppSidebar user navigation structure', () => {
     expect(componentSource).toContain("星桥 AI Link")
   })
 })
+
+
+describe('AppSidebar administrator custom-menu destinations', () => {
+  it.each(['filtered', 'visible'])('keeps the native intelligence destination in the %s navigation path', (list) => {
+    const entry = componentSource.split(`${list}.push({ path: cm.url`)[1]?.split('})')[0]
+    expect(entry).toBeDefined()
+    expect(entry).toContain("=== '/intelligence-test' ? '/intelligence-test' : `/custom/${cm.id}`")
+    expect(entry).toContain("cm.label === '智商检测' ? '智商监测' : cm.label")
+  })
+})
