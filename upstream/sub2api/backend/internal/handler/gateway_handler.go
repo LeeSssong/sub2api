@@ -60,6 +60,7 @@ type GatewayHandler struct {
 	maxAccountSwitchesGemini  int
 	cfg                       *config.Config
 	settingService            *service.SettingService
+	modelPlazaService         *service.ModelPlazaService
 }
 
 // UsageRecord is the minimal API-Key-visible billing record used by external

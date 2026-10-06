@@ -39,6 +39,12 @@ class ReleaseScopeTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn('unsupported runtime changes', result.stderr)
 
+    def test_native_plaza_price_reuse_allows_api_only_release(self):
+        paths = ['internal/handler/wire.go', 'internal/handler/handler_wiring_test.go',
+                 'internal/service/model_plaza_service.go', 'internal/service/model_plaza_service_test.go']
+        result = self.check_scope(['upstream/sub2api/backend/' + path for path in paths])
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_monitor_changes_still_require_worker_update(self):
         paths = ['upstream/sub2api/backend/internal/service/monitor_v4.go']
         self.assertNotEqual(self.check_scope(paths).returncode, 0)

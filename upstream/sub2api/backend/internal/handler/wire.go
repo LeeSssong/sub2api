@@ -292,6 +292,10 @@ func ProvideHandlers(
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
 ) *Handlers {
+	// Reuse the plaza's already-constructed billing-backed reference service.
+	if gatewayHandler != nil && modelPlazaHandler != nil {
+		gatewayHandler.modelPlazaService = modelPlazaHandler.plazaService
+	}
 	return &Handlers{
 		Auth:                authHandler,
 		User:                userHandler,

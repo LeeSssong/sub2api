@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,63 @@ func TestUserGroupModelsRequiresAuthentication(t *testing.T) {
 	h := &GatewayHandler{}
 	h.userGroupModels(c, nil)
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+}
+
+func TestUserGroupModelsIncludesSameSourcePricingAfterAuthorization(t *testing.T) {
+	h := newGatewayModelsHandlerForTest(&gatewayModelsAccountRepoStub{byGroup: map[int64][]service.Account{
+		1: {{ID: 1, Platform: service.PlatformOpenAI, Credentials: map[string]any{"model_mapping": map[string]any{
+			"gpt-5.4-2026-03-05": "gpt-5.4", "denied-model": "denied", "unknown-model": "unknown",
+		}}}},
+	}})
+	billing := service.NewBillingService(&config.Config{}, nil)
+	h.modelPlazaService = service.NewModelPlazaService(nil, nil, nil, billing, service.NewModelPricingResolver(nil, billing))
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/groups/available-models?group_ids=1,999&include_pricing=true", nil)
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 42})
+	h.userGroupModels(c, &userGroupModelAuthorizerStub{
+		channelMonitorV2GroupAuthorizerStub: channelMonitorV2GroupAuthorizerStub{groups: []service.Group{{ID: 1, Platform: service.PlatformOpenAI, Status: service.StatusActive}}},
+		denied:                              map[int64][]string{1: {"denied-model"}},
+	})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var body struct {
+		Data []struct {
+			GroupID int64                                 `json:"group_id"`
+			Prices  map[string]*modelPlazaOfficialPricing `json:"official_pricing"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body.Data, 1)
+	require.Equal(t, int64(1), body.Data[0].GroupID)
+	require.NotContains(t, body.Data[0].Prices, "denied-model")
+	require.Contains(t, body.Data[0].Prices, "unknown-model")
+	require.Nil(t, body.Data[0].Prices["unknown-model"])
+	price := body.Data[0].Prices["gpt-5.4-2026-03-05"]
+	require.NotNil(t, price)
+	require.InDelta(t, 2.5e-6, *price.InputPrice, 1e-15)
+	expected, err := h.modelPlazaService.OfficialPricesForModels(context.Background(), []string{"gpt-5.4-2026-03-05"})
+	require.NoError(t, err)
+	require.Equal(t, toModelPlazaOfficialPricing(expected["gpt-5.4-2026-03-05"]), price)
+}
+
+func TestUserGroupModelsPricingFailsClosedWithoutService(t *testing.T) {
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/groups/available-models?include_pricing=true", nil)
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 42})
+	(&GatewayHandler{}).userGroupModels(c, nil)
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+}
+
+func TestUserGroupModelsRejectsInvalidPricingFlag(t *testing.T) {
+	for _, query := range []string{"include_pricing=yes", "include_pricing=", "include_pricing=true&include_pricing=false"} {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodGet, "/groups/available-models?"+query, nil)
+		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 42})
+		(&GatewayHandler{}).userGroupModels(c, nil)
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+	}
 }
 
 func TestUserGroupModelsScopesAccountsAndFiltersAllowlist(t *testing.T) {

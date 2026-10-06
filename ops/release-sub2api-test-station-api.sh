@@ -34,6 +34,10 @@ while IFS= read -r path; do
     upstream/sub2api/backend/internal/handler/gateway_model_catalog.go|\
     upstream/sub2api/backend/internal/handler/gateway_user_models_test.go|\
     upstream/sub2api/backend/internal/handler/api_key_available_groups_tools_test.go|\
+    upstream/sub2api/backend/internal/handler/wire.go|\
+    upstream/sub2api/backend/internal/handler/handler_wiring_test.go|\
+    upstream/sub2api/backend/internal/service/model_plaza_service.go|\
+    upstream/sub2api/backend/internal/service/model_plaza_service_test.go|\
     upstream/sub2api/backend/internal/service/group_tool_mapping.go|\
     upstream/sub2api/backend/internal/service/api_key_group_tool_mapping_test.go) ;;
     upstream/sub2api/backend/internal/service/monitor_v4*.go)

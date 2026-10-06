@@ -25,6 +25,35 @@ beforeEach(() => {
 enableAutoUnmount(afterEach)
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 describe('原生扣费标准同步', () => {
+  it('uses model plaza same-source prices rather than static model constants', async () => {
+    mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-5.4', 'gpt-5.4-2026-03-05'], official_pricing: {
+      'gpt-5.4': { input_price: 7.34e-6, cache_read_price: 0, cache_write_price: null, output_price: 41e-6 },
+      'gpt-5.4-2026-03-05': { input_price: 7.34e-6, cache_read_price: 0, cache_write_price: null, output_price: 41e-6 },
+    } }])
+    const w = make(); await flushPromises()
+    const table = w.get('.model-pricing-table')
+    expect(table.text()).toContain('$7.34')
+    expect(table.text()).toContain('$41.00')
+    expect(table.text()).toContain('$0.00')
+    expect(table.text()).not.toContain('待核对')
+    expect(table.text()).not.toContain('$2.50')
+    expect(w.find('[role="tablist"]').exists()).toBe(false)
+    expect(mocks.models.mock.calls[0][2]).toBe(true)
+  })
+  it('shows every native context interval including a third tier', async () => {
+    mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['native-model'], official_pricing: {
+      'native-model': { input_price: 1e-6, output_price: 2e-6, cache_read_price: null, cache_write_price: null, intervals: [
+        { min_tokens: 0, max_tokens: 100000, tier_label: '≤100K', input_price: 1e-6, output_price: 2e-6, cache_read_price: .1e-6, cache_write_price: null },
+        { min_tokens: 100000, max_tokens: 200000, tier_label: '100K–200K', input_price: 3e-6, output_price: 4e-6, cache_read_price: .3e-6, cache_write_price: null },
+        { min_tokens: 200000, max_tokens: null, tier_label: '>200K', input_price: 5e-6, output_price: 6e-6, cache_read_price: .5e-6, cache_write_price: 7e-6, cache_write_1h_price: 8e-6 },
+      ] },
+    } }])
+    const w = make(); await flushPromises()
+    expect(w.findAll('.model-pricing-table tbody tr')).toHaveLength(3)
+    expect(w.get('.model-pricing-table').text()).toContain('100K–200K')
+    expect(w.get('.model-pricing-table').text()).toContain('$5.00')
+    expect(w.get('.model-pricing-table').text()).toContain('$8.00')
+  })
   it('uses fresh native groups and rates instead of dashboard props', async () => {
     const w = make(); await flushPromises()
     expect(mocks.groups).toHaveBeenCalledOnce()

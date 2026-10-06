@@ -21,8 +21,9 @@ type userGroupModelAuthorizer interface {
 }
 
 type userGroupModels struct {
-	GroupID         int64    `json:"group_id"`
-	SupportedModels []string `json:"supported_models"`
+	GroupID         int64                                 `json:"group_id"`
+	SupportedModels []string                              `json:"supported_models"`
+	OfficialPricing map[string]*modelPlazaOfficialPricing `json:"official_pricing,omitempty"`
 }
 
 // UserGroupModels exposes only model names for groups the signed-in user can bind.
@@ -36,6 +37,18 @@ func (h *GatewayHandler) userGroupModels(c *gin.Context, authorizer userGroupMod
 	subject, ok := middleware.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	includePricing := false
+	if values, present := c.Request.URL.Query()["include_pricing"]; present {
+		if len(values) != 1 || (values[0] != "true" && values[0] != "false") {
+			response.BadRequest(c, "价格参数无效")
+			return
+		}
+		includePricing = values[0] == "true"
+	}
+	if includePricing && h.modelPlazaService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "模型价格暂不可用")
 		return
 	}
 	var requested map[int64]bool
@@ -112,6 +125,24 @@ func (h *GatewayHandler) userGroupModels(c *gin.Context, authorizer userGroupMod
 		}
 		sort.Strings(models)
 		out = append(out, userGroupModels{GroupID: g.ID, SupportedModels: models})
+	}
+	if includePricing {
+		// Only authorized, active and non-denied native IDs reach the price service.
+		var models []string
+		for _, group := range out {
+			models = append(models, group.SupportedModels...)
+		}
+		prices, err := h.modelPlazaService.OfficialPricesForModels(c.Request.Context(), models)
+		if err != nil {
+			response.Error(c, http.StatusServiceUnavailable, "模型价格读取失败，请重试")
+			return
+		}
+		for i := range out {
+			out[i].OfficialPricing = make(map[string]*modelPlazaOfficialPricing, len(out[i].SupportedModels))
+			for _, model := range out[i].SupportedModels {
+				out[i].OfficialPricing[model] = toModelPlazaOfficialPricing(prices[model])
+			}
+		}
 	}
 	response.Success(c, out)
 }

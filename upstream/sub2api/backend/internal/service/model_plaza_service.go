@@ -337,6 +337,23 @@ func plazaImageDisplayPricing(p *ChannelModelPricing, g *Group) *ChannelModelPri
 	return &clone
 }
 
+// OfficialPricesForModels resolves an already-authorized native catalogue using
+// the same reference price lookup as the plaza, without enumerating channels or
+// depending on the public plaza's visibility switch.
+func (s *ModelPlazaService) OfficialPricesForModels(ctx context.Context, models []string) (map[string]*PlazaOfficialPricing, error) {
+	if s == nil || s.billingService == nil || s.resolver == nil {
+		return nil, fmt.Errorf("model reference pricing is unavailable")
+	}
+	prices := make(map[string]*PlazaOfficialPricing, len(models))
+	for _, model := range models {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		s.lookupOfficialPricing(ctx, model, prices)
+	}
+	return prices, nil
+}
+
 // lookupOfficialPricing 查询模型的官方参考价（与计费同源：LiteLLM → 内置兜底 → 模型策略），
 // 带 memo 避免同名模型重复解析。官方阶梯按无分组、无渠道的口径查阶梯表。
 // billingService 为 nil（测试场景）或查不到时返回 nil。
