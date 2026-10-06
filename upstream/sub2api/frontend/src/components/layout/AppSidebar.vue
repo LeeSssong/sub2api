@@ -155,10 +155,13 @@
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
             :aria-label="item.label"
             :aria-current="isActive(item.path) ? 'page' : undefined"
+            :title="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
-            <img :src="userNavIcon(item.path)" class="user-nav-icon" alt="" aria-hidden="true" />
+            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" aria-hidden="true" v-html="sanitizeSvg(item.iconSvg)"></span>
+            <img v-else-if="userNavIcon(item.path)" :src="userNavIcon(item.path)" class="user-nav-icon" alt="" aria-hidden="true" />
+            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" aria-hidden="true" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
           </router-link>
         </div>
@@ -862,8 +865,9 @@ function userNavLabel(key: string, fallback: string): string {
   return translated === `nav.${key}` ? fallback : translated
 }
 
-function userNavIcon(path: string): string {
-  return `/xingqiao/${({ '/dashboard': 'tools', '/usage': 'history', '/keys': 'key' } as Record<string, string>)[path]}.svg`
+function userNavIcon(path: string): string | undefined {
+  const name = ({ '/dashboard': 'tools', '/usage': 'history', '/keys': 'key' } as Record<string, string>)[path]
+  return name ? `/xingqiao/${name}.svg` : undefined
 }
 
 function buildUserNavItems(): NavItem[] {
@@ -877,7 +881,7 @@ function buildUserNavItems(): NavItem[] {
       .map((item): NavItem => ({
         path: item.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${item.id}`,
         label: item.url === '/intelligence-test' && item.label === '智商检测' ? '智商监测' : item.label,
-        icon: CreditCardIcon,
+        icon: item.url === '/intelligence-test' ? PerformanceMonitorIcon : CreditCardIcon,
         iconSvg: item.icon_svg,
       })),
   ]

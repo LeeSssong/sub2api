@@ -1,5 +1,5 @@
 <template>
-  <AppLayout class="iq-layout" show-desktop-header>
+  <AppLayout class="iq-layout">
     <div class="iq-page">
       <header class="iq-page-toolbar">
         <div class="iq-controls">
@@ -18,12 +18,13 @@
               3d
             </button>
           </div>
-          <button :disabled="loading" aria-label="刷新检测" @click="load">
+          <button class="btn btn-secondary iq-refresh" :disabled="loading" @click="load">
             <Icon
               name="refresh"
               size="sm"
               :class="{ 'animate-spin': loading }"
             />
+            {{ t('common.refresh') }}
           </button>
         </div>
       </header>
@@ -34,7 +35,6 @@
         </div>
         <section class="iq-overview" aria-label="检测总览">
           <div class="iq-overview-copy">
-            <span class="iq-overview-icon"><Icon name="grid" size="lg" /></span>
             <div>
               <h2>模型真的是满血在跑吗？</h2>
               <p>
@@ -112,6 +112,7 @@
 </template>
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import Icon from "@/components/icons/Icon.vue";
 import {
@@ -129,6 +130,7 @@ import {
 import IntelligenceGroupCard from "@/components/user/intelligence/IntelligenceGroupCard.vue";
 import IntelligenceResultDialog from "@/components/user/intelligence/IntelligenceResultDialog.vue";
 import "@/components/user/intelligence/intelligence.css";
+const { t } = useI18n();
 const view = ref<IntelligenceDashboard | null>(null),
   loading = ref(false),
   error = ref(""),
