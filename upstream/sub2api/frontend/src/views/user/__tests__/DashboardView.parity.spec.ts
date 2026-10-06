@@ -250,7 +250,7 @@ describe('原型AI工具交互',()=>{
   const fees=dialog.get('.fee-table')
   expect(fees.findAll('thead th').map(th=>th.text())).toEqual(['分组','支持模型','倍率','扣费标准'])
   expect(fees.text()).toContain('gpt-5.4、gpt-5.2')
-  expect(fees.text()).toContain('模型基础费用 × 0.12')
+  expect(fees.text()).toContain('官方计费金额 × 0.12')
   expect(dialog.text()).not.toContain('Input')
   w.unmount()
  })

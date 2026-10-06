@@ -51,7 +51,7 @@
         <p v-else-if="error" class="pricing-note">分组扣费标准暂不可用，请在上方重试。</p>
         <div v-else-if="feeRows.length" class="table-scroll fee-table" tabindex="0" aria-label="分组扣费标准">
           <table><thead><tr><th scope="col">分组</th><th scope="col">支持模型</th><th scope="col">倍率</th><th scope="col">扣费标准</th></tr></thead>
-            <tbody><tr v-for="row in feeRows" :key="row.group.id"><th scope="row">{{ row.group.name }}</th><td class="supported-models">{{ groupModels(row.group.id) }}</td><td>{{ formatLineRate(row.rate) }}</td><td>{{ row.rate == null ? '倍率暂不可用' : `模型基础费用 × ${row.rate}` }}</td></tr></tbody>
+            <tbody><tr v-for="row in feeRows" :key="row.group.id"><th scope="row">{{ row.group.name }}</th><td class="supported-models">{{ groupModels(row.group.id) }}</td><td>{{ formatLineRate(row.rate) }}</td><td>{{ row.rate == null ? '倍率暂不可用' : `官方计费金额 × ${row.rate}` }}</td></tr></tbody>
           </table>
         </div>
         <p v-else class="pricing-note">当前工具暂无分组。</p>
