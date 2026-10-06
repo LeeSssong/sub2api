@@ -59,8 +59,10 @@ describe('RouteHistoryStrip metric chart', () => {
   it('toggles curves and shows a transient tooltip for hover, touch and keyboard',async()=>{
     const w=mount(RouteHistoryStrip,{props:{points,loading:false,error:false}})
     expect(w.find('.chart-tooltip').exists()).toBe(false)
-    await w.get('.chart-legend button.cache').trigger('click')
+    expect(w.findAll('.legend-check')).toHaveLength(4)
+    await w.get('.chart-legend button.cache .legend-check').trigger('click')
     expect(w.find('[data-series="cache"]').exists()).toBe(false)
+    expect(w.get('.chart-legend button.cache').attributes('aria-pressed')).toBe('false')
     await w.get('[data-point="0"]').trigger('mouseenter')
     expect(w.get('.chart-tooltip').text()).toContain('75%');expect(w.get('.chart-tooltip').text()).toContain('1.25s')
     await w.get('.chart-plot').trigger('mouseleave');expect(w.find('.chart-tooltip').exists()).toBe(false)

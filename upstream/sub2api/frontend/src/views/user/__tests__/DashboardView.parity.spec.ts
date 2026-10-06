@@ -16,12 +16,23 @@ const deferred=<T,>()=>{let resolve!:(value:T)=>void;let reject!:(reason?:unknow
 const make=()=>mount(Dashboard,{global:{stubs:{AppLayout:{template:'<div><slot/></div>'},BaseDialog:{props:['show','title'],template:'<div v-if="show" role="dialog"><h3>{{title}}</h3><slot/><slot name="footer"/></div>'},CreateLineKeyDialog:{props:['show','initialGroupId'],template:'<div v-if="show" data-testid="create-key">{{initialGroupId}}</div>'}}}})
 beforeEach(()=>{vi.clearAllMocks();clearDashboardWorkspaceSnapshot();mocks.models.mockResolvedValue([{group_id:1,supported_models:['gpt-5.4','gpt-5.2']},{group_id:2,supported_models:['gpt-5.4','custom-model']},{group_id:99,supported_models:['private-model']}]);mocks.groups.mockResolvedValue(groups);mocks.rates.mockResolvedValue({});mocks.keys.mockResolvedValue({items:[{id:1,group_id:1,status:'inactive',group:groups[0]}],total:1});mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))});mocks.check.mockResolvedValue([{group_id:1,status:'success',ttft_ms:1230}])})
 describe('原型AI工具交互',()=>{
- it('renders route cards with request samples and associates the selected route',async()=>{
+ it('reveals request counts only on success-rate hover or focus and associates the selected route',async()=>{
   const w=make();await flushPromises()
   await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
   const cards=w.findAll('article.route-detail-card')
   expect(cards).toHaveLength(2)
   expect(cards[0].get('.detail-request-sample').text()).toBe('98 / 100 次请求成功')
+  const sample=cards[0].get('.detail-request-sample')
+  const success=cards[0].get('.detail-success-hover')
+  // Detached jsdom fixtures cache computed styles; verify the v-show state directly.
+  const hidden=()=> (sample.element as HTMLElement).style.display==='none'
+  expect(hidden()).toBe(true)
+  expect(success.attributes('aria-describedby')).toBe(sample.attributes('id'))
+  await success.trigger('mouseenter');expect(hidden()).toBe(false)
+  await success.trigger('mouseleave');expect(hidden()).toBe(true)
+  await success.trigger('focusin');expect(hidden()).toBe(false)
+  await success.trigger('keydown',{key:'Escape'});expect(hidden()).toBe(true)
+  await success.trigger('focusin');await success.trigger('focusout');expect(hidden()).toBe(true)
   expect(cards[0].find('.detail-card-metrics').exists()).toBe(false)
   expect(cards[0].text()).not.toContain('耗时 P50')
   expect(cards[0].text()).not.toContain('本次检查')
@@ -54,6 +65,8 @@ describe('原型AI工具交互',()=>{
   await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
   const bestCard=()=>w.findAll('.route-detail-card').find(card=>card.find('.best-route-badge').exists())!
   expect(bestCard().get('h3').text()).toBe('未关联最佳线路')
+  expect(bestCard().element.firstElementChild?.classList.contains('best-route-badge')).toBe(true)
+  expect(bestCard().find('.detail-card-quality .best-route-badge').exists()).toBe(false)
   await w.findAll('button').find(button=>button.text()==='近 7 天')!.trigger('click');await flushPromises()
   expect(bestCard().get('h3').text()).toBe('未关联最佳线路')
   mocks.snapshot.mockImplementation((window:string)=>Promise.resolve({

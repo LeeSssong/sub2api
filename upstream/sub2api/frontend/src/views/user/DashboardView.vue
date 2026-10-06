@@ -49,26 +49,27 @@
         <div v-if="detailLoading && !detailData.length" class="empty" role="status">正在读取统计…</div>
         <div v-else class="route-detail-grid" :aria-busy="detailLoading">
           <article v-for="group in detailRows" :key="group.id" class="route-detail-card" :aria-labelledby="`detail-route-${group.id}`">
+            <span v-if="group.id===detailBest?.id" class="best-route-badge"><span class="best-route-ribbon">最佳线路</span></span>
             <header class="detail-card-header">
               <div class="detail-card-identity">
-                <img class="provider-logo" :src="providerIcon(group.platform)" alt="" />
-                <h3 :id="`detail-route-${group.id}`">{{ group.name }}</h3>
-                <span class="rate-badge">{{ rateLabel(group) }}</span>
+                <div class="detail-card-name">
+                  <img class="provider-logo" :src="providerIcon(group.platform)" alt="" />
+                  <h3 :id="`detail-route-${group.id}`">{{ group.name }}</h3>
+                  <span class="rate-badge">{{ rateLabel(group) }}</span>
+                  <span class="route-health" :class="stateOf(group).kind" title="近 1 小时真实请求状态"><span class="dot" :class="stateOf(group).kind" aria-hidden="true"></span>{{ stateOf(group).text }}</span>
+                </div>
               </div>
-              <span class="route-health" :class="stateOf(group).kind" title="近 1 小时真实请求状态"><span class="dot" :class="stateOf(group).kind" aria-hidden="true"></span>{{ stateOf(group).text }}</span>
+              <button v-if="group.status==='active'" class="xq-button detail-associate-button" :data-detail-group-id="group.id" @click="openCreate(selectedTool!,group.id)">关联密钥</button>
+              <span v-else class="muted detail-unavailable">不可配置</span>
             </header>
             <div class="detail-card-quality">
-              <div class="detail-quality-label"><span>请求成功率</span><span v-if="group.id===detailBest?.id" class="best-route-badge">最佳线路</span></div>
-              <div class="detail-quality-value">
+              <div class="detail-quality-value detail-success-hover" tabindex="0" role="group" :aria-describedby="`detail-request-sample-${group.id}`" @mouseenter="detailSampleGroup=group.id" @mouseleave="detailSampleGroup=null" @focusin="detailSampleGroup=group.id" @focusout="detailSampleGroup=null" @click="detailSampleGroup=group.id" @keydown.esc.stop="detailSampleGroup=null">
+                <span class="detail-quality-label">请求成功率</span>
                 <strong class="success-rate success-rate-tone" :data-tone="successTone(group,detailMetrics,false)">{{ successLabel(group,detailMetrics,false) }}</strong>
-                <span class="detail-request-sample">{{ detailMetrics.get(group.id)?.real_success_count ?? '—' }} / {{ detailMetrics.get(group.id)?.real_request_count ?? '—' }} 次请求成功</span>
+                <span v-show="detailSampleGroup===group.id" :id="`detail-request-sample-${group.id}`" class="detail-request-sample" role="tooltip">{{ detailMetrics.get(group.id)?.real_success_count ?? '—' }} / {{ detailMetrics.get(group.id)?.real_request_count ?? '—' }} 次请求成功</span>
               </div>
             </div>
             <RouteHistoryStrip :points="timelinePoints.filter(point=>point.group_id===group.id)" :loading="timelineLoading" :error="timelineError" />
-            <footer class="detail-card-footer">
-              <button v-if="group.status==='active'" class="xq-button" :data-detail-group-id="group.id" @click="openCreate(selectedTool!,group.id)">关联密钥</button>
-              <span v-else class="muted">不可配置</span>
-            </footer>
           </article>
           <div v-if="!detailRows.length" class="empty">暂无线路</div>
         </div>
@@ -119,6 +120,7 @@ const metricsGeneratedAt=ref<string|null>(cachedWorkspace?.metricsGeneratedAt||n
 const rankingMetricsGeneratedAt=ref<string|null>(cachedWorkspace?.rankingMetricsGeneratedAt||null)
 const loading=ref(false), loaded=ref(!!cachedWorkspace), workspaceError=ref(''), statsFailed=ref(false), statsError=ref(''), rankingFailed=ref(false), checking=ref(false), checkError=ref('')
 const checks=ref<Record<number,LineCheck>>({}), detailWindow=ref<MonitorV4Window>('24h'), detailGranularity=ref<'hour'|'day'>('hour'), detailLoading=ref(false), detailError=ref(''), detailData=ref<MonitorV4Group[]>([])
+const detailSampleGroup=ref<number|null>(null)
 let loadController:AbortController|undefined, detailController:AbortController|undefined, checkController:AbortController|undefined
 const detailCache=new Map<MonitorV4Window,MonitorV4Group[]>()
 let returnToDetailGroup:number|undefined
@@ -195,8 +197,8 @@ async function loadWorkspace(){
     cacheWorkspace()
   }finally{if(!c.signal.aborted)loading.value=false}
 }
-async function openDetails(tool:ToolCard){detailsTrigger=document.activeElement as HTMLElement;selectedTool.value=tool;detailGranularity.value='hour';await loadDetails('24h')}
-function closeDetails(){detailController?.abort();selectedTool.value=null;nextTick(()=>detailsTrigger?.focus())}
+async function openDetails(tool:ToolCard){detailsTrigger=document.activeElement as HTMLElement;selectedTool.value=tool;detailSampleGroup.value=null;detailGranularity.value='hour';await loadDetails('24h')}
+function closeDetails(){detailController?.abort();selectedTool.value=null;detailSampleGroup.value=null;nextTick(()=>detailsTrigger?.focus())}
 async function loadDetails(window:MonitorV4Window){
   detailController?.abort();const c=new AbortController();detailController=c
   detailWindow.value=window;void loadTimeline(window,c.signal)

@@ -4,7 +4,7 @@
  <p v-else-if="error" role="status">线路走势读取失败，请重新选择统计范围重试。</p>
  <p v-else-if="!points.length">暂无历史统计</p>
  <template v-else>
-  <div class="chart-legend"><button v-for="s in series" :key="s.key" type="button" :class="s.key" :aria-pressed="enabled[s.key]" :title="`${enabled[s.key] ? '隐藏' : '显示'}${s.label}${s.key==='degradation' ? '：评分未达标轮次／有效评分轮次；报错、超时、判题失败及未完成轮次不计入' : ''}`" @click="enabled[s.key]=!enabled[s.key]"><span class="legend-check" aria-hidden="true"><svg v-if="enabled[s.key]" viewBox="0 0 16 16"><path d="m3.5 8 3 3 6-6" /></svg></span><i aria-hidden="true"></i>{{ s.label }}</button></div>
+  <div class="chart-legend" role="group" aria-label="切换指标曲线"><button v-for="s in series" :key="s.key" type="button" :class="s.key" :aria-pressed="enabled[s.key]" :title="`${enabled[s.key] ? '隐藏' : '显示'}${s.label}${s.key==='degradation' ? '：评分未达标轮次／有效评分轮次；报错、超时、判题失败及未完成轮次不计入' : ''}`" @click="enabled[s.key]=!enabled[s.key]"><span class="legend-check" aria-hidden="true"><svg v-if="enabled[s.key]" viewBox="0 0 16 16" fill="none"><path d="m3.5 8 3 3 6-6" /></svg></span><i aria-hidden="true"></i><span class="legend-label">{{ s.label }}</span></button></div>
   <div class="chart-layout">
    <div class="chart-axis"><span>100%</span><span>50%</span><span>0%</span></div>
    <div class="chart-plot" @mouseleave="tooltipOpen=false" @focusout="tooltipOpen=false" @keydown.esc="tooltipOpen=false">
@@ -81,20 +81,24 @@ function navigate(event:KeyboardEvent,i:number){
 :global(:root:not(.dark) .route-history){--chart-cache:#7651b5}
 .cache{color:var(--chart-cache)}.success{color:var(--xq-success)}.ttft,.seconds{color:var(--xq-warning)}
 .degradation{color:var(--xq-danger)}
-.chart-legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:14px;font-size:11px}
-.chart-legend button{font:inherit;min-height:36px;background:transparent;border:0;padding:6px 0;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.chart-legend button:hover .legend-check{outline:1px solid currentColor;outline-offset:2px}
-.chart-legend i{width:12px;border-top:2px solid currentColor}.chart-legend .cache i{border-top-style:dashed}
-.legend-check{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex-shrink:0;border:1px solid currentColor;border-radius:3px;background:currentColor}
-.legend-check svg{width:14px;height:14px;fill:none;stroke:var(--xq-surface);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.chart-legend button[aria-pressed="false"]{color:var(--xq-secondary)}
-.chart-legend button[aria-pressed="false"] .legend-check{background:transparent}
-.chart-legend button[aria-pressed="false"] i{opacity:.4}
+.chart-legend{display:flex;flex-wrap:wrap;gap:4px 16px;margin-bottom:20px;font-size:11px}
+.chart-legend button{font:inherit;color:var(--xq-secondary);min-height:36px;background:transparent;border:0;border-radius:4px;padding:6px 0;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.chart-legend button:hover{color:var(--xq-text);background:var(--xq-raised)}
+.legend-check{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex-shrink:0;border:1px solid var(--xq-secondary);border-radius:3px;background:var(--xq-raised);color:var(--xq-text)}
+.legend-check svg{width:12px;height:12px;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.chart-legend button[aria-pressed="false"] .legend-check{background:transparent;border-color:var(--xq-secondary)}
+.chart-legend i{width:14px;flex-shrink:0;border-top:2px solid currentColor}
+.chart-legend .cache i{color:var(--chart-cache);border-top-style:dashed}
+.chart-legend .success i{color:var(--xq-success)}
+.chart-legend .ttft i{color:var(--xq-warning)}
+.chart-legend .degradation i{color:var(--xq-danger)}
+.chart-legend button[aria-pressed="false"] .legend-label{text-decoration:line-through;text-decoration-thickness:1px}
+.chart-legend button[aria-pressed="false"] i{color:var(--xq-secondary);opacity:.4}
 .chart-legend button:focus-visible{outline:2px solid var(--xq-accent);outline-offset:3px}
 .chart-tooltip{position:absolute;top:8px;z-index:5;max-width:100%;box-sizing:border-box;width:240px;padding:10px 12px;border:1px solid var(--xq-border);border-radius:8px;background:var(--xq-surface);color:var(--xq-text);pointer-events:none;font-size:11px;line-height:1.6;box-shadow:0 4px 12px #0003}
 .chart-tooltip strong{white-space:pre-wrap;display:block;font-size:10px;overflow-wrap:anywhere;margin-bottom:5px}.tooltip-readings{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;column-gap:8px;font-variant-numeric:tabular-nums}.tooltip-row{display:contents}.tooltip-row b{text-align:right;white-space:nowrap}.tooltip-row small{font-size:inherit;white-space:nowrap}.tooltip-note{margin-top:5px;color:var(--xq-secondary);font-size:10px}
 .chart-layout{display:grid;grid-template-columns:34px minmax(0,1fr) 30px;gap:6px;height:140px}
-.chart-axis{display:flex;flex-direction:column;justify-content:space-between;text-align:right;font-size:10px;line-height:12px;font-variant-numeric:tabular-nums}.seconds{text-align:left}
+.chart-axis{display:flex;flex-direction:column;justify-content:space-between;text-align:right;font-size:10px;line-height:12px;font-variant-numeric:tabular-nums}.seconds{text-align:left;color:var(--xq-secondary)}
 .chart-plot{position:relative;min-width:0}.chart-plot svg{display:block;width:100%;height:100%;overflow:visible}
 .grid{fill:none;stroke:var(--xq-border);stroke-width:1;vector-effect:non-scaling-stroke}
 .cursor{stroke:var(--xq-secondary);stroke-dasharray:3 4;opacity:.5;vector-effect:non-scaling-stroke}
@@ -102,5 +106,5 @@ function navigate(event:KeyboardEvent,i:number){
 circle{fill:var(--xq-surface);stroke:currentColor;stroke-width:1.5;vector-effect:non-scaling-stroke}
 .chart-targets{position:absolute;inset:0;display:flex}.chart-targets button{flex:1;min-width:0;padding:0;border:0;background:transparent;cursor:crosshair}.chart-targets button:focus-visible{outline:2px solid var(--xq-accent);outline-offset:2px}
 .chart-times{display:flex;justify-content:space-between;gap:4px;margin:10px 36px 0 40px;font-size:10px;font-variant-numeric:tabular-nums}
-@media(max-width:700px){.chart-legend{gap:6px 10px}.chart-layout{height:128px}}
+@media(max-width:700px){.chart-legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px;margin-bottom:16px}.chart-legend button{min-height:44px}.chart-layout{height:128px}}
 </style>
