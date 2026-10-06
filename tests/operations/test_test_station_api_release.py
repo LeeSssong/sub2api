@@ -42,6 +42,13 @@ class APIReleaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             release.candidate_config({'services': {'api': {'environment': {'SERVER_PROCESS_ROLE': 'worker'}}}}, 'api', 'new', 'a'*40)
 
+    def test_capture_storage_isolated_from_the_live_api(self):
+        old = {'services': {'test-station-api': {'environment': {
+            'SERVER_PROCESS_ROLE': 'api', 'SUB2API_CONTAINER_SLOT': 'standalone'}}}}
+        new, service = release.candidate_config(old, 'test-station-api', 'new', 'a'*40)
+        self.assertEqual(new['services'][service]['environment']['SUB2API_CONTAINER_SLOT'], service)
+        self.assertEqual(old['services']['test-station-api']['environment']['SUB2API_CONTAINER_SLOT'], 'standalone')
+
     def test_changes_only_exact_caddy_upstream(self):
         source = ':80 {\n reverse_proxy /api/* test-station-api:8080\n # test-station-api:8080 unchanged comment\n reverse_proxy test-station-api:8080\n}\n'
         new = release.change_upstream(source, 'test-station-api', 'test-station-api-green')

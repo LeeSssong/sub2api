@@ -24,6 +24,7 @@ def candidate_config(config, previous_service, image, commit):
     service = 'test-station-api-blue' if previous_service == 'test-station-api-green' else 'test-station-api-green'
     api['image'] = image
     api['environment']['SUB2API_DEPLOYMENT_COMMIT'] = commit
+    api['environment']['SUB2API_CONTAINER_SLOT'] = service
     for field in ('depends_on', 'container_name'):
         api.pop(field, None)
     networks = api.get('networks', {})
@@ -172,6 +173,8 @@ def deploy(bundle):
     run(['docker', 'build', '--pull=false', '-t', image, str(bundle)])
     image_id = run(['docker', 'image', 'inspect', '--format', '{{.Id}}', image]).strip()
     meta = {'source_commit': commit, 'source_tree': tree, 'base_image_id': manifest['base_image_id'], 'image_id': image_id,
+        'binary_source_commit': manifest.get('binary_source_commit', commit),
+        'binary_source_tree': manifest.get('binary_source_tree', tree),
         'previous_api_container': api_id, 'previous_api_service': old_service, 'candidate_service': service,
         'caddy_container': caddy_id, 'caddy_host_path': caddy_path, 'result': 'prepared', 'rolled_back': False, 'stage_seconds': {}}
     save(release / 'deployment.json', meta)
@@ -194,6 +197,8 @@ def deploy(bundle):
         state = dict(previous, source_commit=commit, source_tree=tree, image_id=image_id, image_tag=image,
             release_dir=str(release), previous_release_dir=previous['release_dir'], active_api_container=candidate_id,
             active_api_service=service, api_only_release=True, binary_sha256=manifest['binary_sha256'], result='succeeded', rolled_back=False)
+        state['binary_source_commit'] = manifest.get('binary_source_commit', commit)
+        state['binary_source_tree'] = manifest.get('binary_source_tree', tree)
         state.pop('image_archive_sha256', None)
         state['updated_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         save(ROOT / 'release-state.json', state)

@@ -27,19 +27,43 @@ while IFS= read -r path; do
     *) fail "API-only release excludes non-UI runtime changes: $path" ;;
   esac
 done < <(git diff --name-only "$previous" HEAD)
-printf 'test_station_api_release stage=frontend_build\n'
-(cd "$root/upstream/sub2api/frontend"; pnpm run build)
-printf 'test_station_api_release stage=embedded_server_build\n'
-version=$(cat "$root/upstream/sub2api/backend/cmd/server/VERSION")
-build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-(cd "$root/upstream/sub2api/backend"; CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags embed -trimpath \
-  -ldflags="-s -w -X main.Version=$version -X main.Commit=$commit -X main.Date=$build_date -X main.BuildType=release" \
-  -o "$staging/sub2api" ./cmd/server)
-python3 - "$staging" "$commit" "$tree" <<'PY'
+binary_commit=$commit
+binary_tree=$tree
+if [[ -n ${TEST_STATION_REUSE_BUILD_FROM:-} ]]; then
+  reuse=$TEST_STATION_REUSE_BUILD_FROM
+  [[ "$reuse" == "$root/.release/test-station-api-"* && -d "$reuse" && ! -L "$reuse" ]] || fail 'reuse requires a local release artifact'
+  binary_commit=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source_commit"])' "$reuse/manifest.json")
+  binary_tree=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source_tree"])' "$reuse/manifest.json")
+  [[ "$binary_commit" =~ ^[a-f0-9]{40}$ && "$binary_tree" == $(git rev-parse "$binary_commit^{tree}") ]] || fail 'reused source identity is invalid'
+  git diff --quiet "$binary_commit" HEAD -- upstream/sub2api || fail 'runtime inputs changed; rebuild required'
+  python3 - "$reuse" "$staging/previous-state.json" <<'PY'
+import hashlib,json,pathlib,sys
+root=pathlib.Path(sys.argv[1]); manifest=json.loads((root/'manifest.json').read_text())
+previous=json.load(open(sys.argv[2]))
+binary=root/'sub2api'
+if binary.is_symlink() or hashlib.sha256(binary.read_bytes()).hexdigest()!=manifest['binary_sha256']:
+    raise SystemExit('reused binary checksum mismatch')
+if previous['image_id']!=manifest['base_image_id']:
+    raise SystemExit('runtime dependencies changed; rebuild required')
+PY
+  cp "$reuse/sub2api" "$staging/sub2api"
+  printf 'test_station_api_release stage=reused_build binary_source_commit=%s\n' "$binary_commit"
+else
+  printf 'test_station_api_release stage=frontend_build\n'
+  (cd "$root/upstream/sub2api/frontend"; pnpm run build)
+  printf 'test_station_api_release stage=embedded_server_build\n'
+  version=$(cat "$root/upstream/sub2api/backend/cmd/server/VERSION")
+  build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  (cd "$root/upstream/sub2api/backend"; CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags embed -trimpath \
+    -ldflags="-s -w -X main.Version=$version -X main.Commit=$commit -X main.Date=$build_date -X main.BuildType=release" \
+    -o "$staging/sub2api" ./cmd/server)
+fi
+python3 - "$staging" "$commit" "$tree" "$binary_commit" "$binary_tree" <<'PY'
 import hashlib,json,pathlib,sys
 root=pathlib.Path(sys.argv[1]); previous=json.loads((root/'previous-state.json').read_text())
 manifest={'source_commit':sys.argv[2],'source_tree':sys.argv[3], 'previous_commit':previous['source_commit'],
-          'base_image_id':previous['image_id'],'binary_sha256':hashlib.sha256((root/'sub2api').read_bytes()).hexdigest()}
+          'base_image_id':previous['image_id'],'binary_sha256':hashlib.sha256((root/'sub2api').read_bytes()).hexdigest(),
+          'binary_source_commit':sys.argv[4], 'binary_source_tree':sys.argv[5]}
 (root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 PY
 [[ -z $(git status --porcelain) && "$commit" == $(git rev-parse HEAD) ]] || fail 'source changed during build'
