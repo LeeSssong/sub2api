@@ -30,7 +30,7 @@ const { t } = useI18n()
 .storefront-frame {
   display: block;
   width: 100%;
-  height: clamp(540px, 68vh, 760px);
+  height: max(1100px, 100vh);
   border: 0;
   background: var(--xq-surface);
 }
