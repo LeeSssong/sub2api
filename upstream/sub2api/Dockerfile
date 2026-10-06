@@ -1,3 +1,7 @@
+# Bounded application-only release: reuse the verified production runtime.
+# Before using, verify token-guard requirements, vendor inputs, entrypoint, and
+# all other runtime dependencies match the RUNTIME_IMAGE source commit.
+# Compile application code and embed frontend from this checkout.
 # =============================================================================
 # Sub2API Multi-Stage Dockerfile
 # =============================================================================
@@ -14,6 +18,7 @@ ARG POSTGRES_IMAGE=docker.io/library/postgres:18-alpine@sha256:77f585114c32fbca2
 ARG GOPROXY=https://goproxy.cn,direct
 ARG GOSUMDB=sum.golang.google.cn
 ARG NPM_CONFIG_REGISTRY=
+ARG RUNTIME_IMAGE=ghcr.io/leesssong/xingqiao-sub2api:release-15679c9de17731413dc02c8b4594442a8b540883-514c0def75a304fcbbd36b3f77d363bf97b963d2b46dbd9dd0248d101d0b5889
 ARG GPT56_VENDOR_IMAGE=ghcr.io/leesssong/xingqiao-sub2api:release-5e098c4a91865853312fe5bdc869d9d15c00eb3f-e3e958d95cf12c08acbb74f6449114ef7069a3ad92527d80da1bab9eb9503c16
 
 # -----------------------------------------------------------------------------
@@ -75,7 +80,6 @@ ENV GOPROXY=${GOPROXY}
 ENV GOSUMDB=${GOSUMDB}
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app/backend
 
@@ -124,45 +128,18 @@ FROM ${GPT56_VENDOR_IMAGE} AS gpt56-v411-vendor
 # -----------------------------------------------------------------------------
 # Stage 4: Final Runtime Image
 # -----------------------------------------------------------------------------
-FROM ${ALPINE_IMAGE}
+FROM ${RUNTIME_IMAGE}
 
 # Labels
 LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
 LABEL description="Sub2API - AI API Gateway Platform"
 LABEL org.opencontainers.image.source="https://github.com/Wei-Shaw/sub2api"
 
-# Install runtime dependencies
-RUN apk add --no-cache \
-    ca-certificates \
-    python3 \
-    py3-pip \
-    nodejs \
-    curl \
-    tzdata \
-    su-exec \
-    libpq \
-    zstd-libs \
-    lz4-libs \
-    krb5-libs \
-    libldap \
-    libedit \
-    && rm -rf /var/cache/apk/*
-
 # Native credential guard executor, pinned dependencies and upstream sources.
 COPY token-guard /app/token-guard
 COPY Dockerfile deploy/docker-entrypoint.sh /app/token-guard/build/
-RUN python3 -m venv /app/token-guard-venv && \
-    /app/token-guard-venv/bin/pip install --no-cache-dir -r /app/token-guard/requirements.txt
-
 # Copy pg_dump and psql from the same postgres image used in docker-compose
 # This ensures version consistency between backup tools and the database server
-COPY --from=pg-client /usr/local/bin/pg_dump /usr/local/bin/pg_dump
-COPY --from=pg-client /usr/local/bin/psql /usr/local/bin/psql
-COPY --from=pg-client /usr/local/lib/libpq.so.5* /usr/local/lib/
-
-# Create non-root user
-RUN addgroup -g 1000 sub2api && \
-    adduser -u 1000 -G sub2api -s /bin/sh -D sub2api
 
 # Set working directory
 WORKDIR /app
