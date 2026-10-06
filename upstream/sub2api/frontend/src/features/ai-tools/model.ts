@@ -64,6 +64,57 @@ export function compareQuality(a: Group,b: Group, metrics: Map<number,MonitorV4G
     || (am?.latency_p50_ms??Infinity)-(bm?.latency_p50_ms??Infinity)
     || (rates[a.id]??a.rate_multiplier)-(rates[b.id]??b.rate_multiplier) || a.id-b.id
 }
+export interface WeightedRouteRanking {
+  group: Group
+  score: number
+  successRate: number
+  cacheHitRate: number
+  ttftScore: number
+  ttftP50Ms: number
+}
+function weightedMetric(metric: MonitorV4Group | undefined, now: number, snapshotGeneratedAt?: string | null): metric is MonitorV4Group & { cache_hit_rate: number; ttft_p50_ms: number } {
+  return freshSnapshot(now, snapshotGeneratedAt)
+    && validRealCounts(metric)
+    && metric.real_request_count > 0
+    && typeof metric.cache_hit_rate === 'number'
+    && Number.isFinite(metric.cache_hit_rate)
+    && metric.cache_hit_rate >= 0
+    && metric.cache_hit_rate <= 1
+    && typeof metric.ttft_p50_ms === 'number'
+    && Number.isFinite(metric.ttft_p50_ms)
+    && metric.ttft_p50_ms >= 0
+}
+export function rankWeightedRoutes(
+  groups: Group[],
+  metrics: Map<number, MonitorV4Group>,
+  now = Date.now(),
+  snapshotGeneratedAt?: string | null,
+): WeightedRouteRanking[] {
+  const candidates = groups
+    .filter(group => group.status === 'active')
+    .flatMap(group => {
+      const metric = metrics.get(group.id)
+      return weightedMetric(metric, now, snapshotGeneratedAt) ? [{ group, metric }] : []
+    })
+  if (!candidates.length) return []
+  const ttfts = candidates.map(item => item.metric.ttft_p50_ms)
+  const fastest = Math.min(...ttfts)
+  const slowest = Math.max(...ttfts)
+  const range = slowest - fastest
+  return candidates.map(({ group, metric }) => {
+    const successRate = metric.real_success_count / metric.real_request_count * 100
+    const cacheHitRate = metric.cache_hit_rate * 100
+    const ttftScore = range === 0 ? 100 : (slowest - metric.ttft_p50_ms) / range * 100
+    return {
+      group,
+      score: successRate * 0.5 + cacheHitRate * 0.3 + ttftScore * 0.2,
+      successRate,
+      cacheHitRate,
+      ttftScore,
+      ttftP50Ms: metric.ttft_p50_ms,
+    }
+  }).sort((a, b) => b.score - a.score || b.successRate - a.successRate || b.cacheHitRate - a.cacheHitRate || a.ttftP50Ms - b.ttftP50Ms || a.group.id - b.group.id)
+}
 export const metricLabel = (ms?: number|null) => ms == null ? '—' : `${(ms/1000).toFixed(2)}s`
 export const providerIcon = (platform: string) => `/xingqiao/providers/${platform === 'grok' ? 'xai' : platform}.svg`
 export const platformLabel = (platform: string) => ({openai:'OpenAI',anthropic:'Anthropic',grok:'xAI',deepseek:'DeepSeek'}[platform]||platform)

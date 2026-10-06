@@ -32,6 +32,61 @@ describe('原型AI工具交互',()=>{
   expect(mocks.push).not.toHaveBeenCalled()
   w.unmount()
  })
+ it('uses a 24-hour weighted score and includes active unlinked lines in the best route',async()=>{
+  const candidateGroups=[
+   {id:1,name:'已关联线路',platform:'openai',rate_multiplier:1,status:'active'},
+   {id:2,name:'未关联最佳线路',platform:'openai',rate_multiplier:1,status:'active'},
+   {id:3,name:'停用线路',platform:'openai',rate_multiplier:1,status:'inactive'},
+  ]
+  mocks.groups.mockResolvedValue(candidateGroups)
+  mocks.keys.mockResolvedValue({items:[{id:1,group_id:1,status:'active',group:candidateGroups[0]}],total:1})
+  const snapshot=(window:string)=>({generated_at:new Date().toISOString(),groups:candidateGroups.map(group=>({
+   ...metric(group.id),
+   cache_hit_rate: window==='24h' ? ({1:.9,2:1,3:1}[group.id]) : .5,
+   real_request_count:100,
+   real_success_count:window==='24h' ? ({1:100,2:99,3:100}[group.id]) : 98,
+   ttft_p50_ms:window==='24h' ? ({1:3000,2:100,3:1}[group.id]) : 2160,
+  }))})
+  mocks.snapshot.mockImplementation((window:string)=>Promise.resolve(snapshot(window)))
+  const w=make();await flushPromises()
+  expect(mocks.snapshot.mock.calls.map(([window])=>window)).toContain('24h')
+  expect(w.get('.tool-card .tool-best .best').text()).toBe('未关联最佳线路')
+  await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
+  const bestCard=()=>w.findAll('.route-detail-card').find(card=>card.find('.best-route-badge').exists())!
+  expect(bestCard().get('h3').text()).toBe('未关联最佳线路')
+  await w.findAll('button').find(button=>button.text()==='近 7 天')!.trigger('click');await flushPromises()
+  expect(bestCard().get('h3').text()).toBe('未关联最佳线路')
+  mocks.snapshot.mockImplementation((window:string)=>Promise.resolve({
+   ...snapshot(window),groups:snapshot(window).groups.map(g=>({...g,cache_hit_rate:1,ttft_p50_ms:1000,real_success_count:g.id===1?100:90})),
+  }))
+  await w.findAll('button').find(button=>button.text()==='近 24 小时')!.trigger('click');await flushPromises()
+  expect(w.get('.tool-card .best').text()).toBe('已关联线路')
+  expect(bestCard().get('h3').text()).toBe('已关联线路')
+  w.unmount()
+ })
+ it('keeps the cached 24-hour best route when returning before statistics finish loading',async()=>{
+  mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>({...metric(g.id),cache_hit_rate:.5}))})
+  const first=make();await flushPromises()
+  const best=first.get('.tool-card .best').text();expect(best).toBe('GPT-Pro');first.unmount()
+  const pending=deferred<unknown>();mocks.snapshot.mockReturnValue(pending.promise)
+  const w=make();await flushPromises()
+  expect(w.get('.tool-card .best').text()).toBe(best)
+  pending.resolve({generated_at:new Date().toISOString(),groups:[]});await flushPromises()
+  w.unmount()
+ })
+ it('explains incomplete recommendation metrics and permits retry after a 24-hour failure',async()=>{
+  mocks.snapshot.mockImplementation((window:string)=>window==='24h'
+   ? Promise.reject(new Error('offline'))
+   : Promise.resolve({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))}))
+  const w=make();await flushPromises()
+  expect(w.get('.ranking-error').text()).toContain('近 24 小时')
+  expect(w.get('.tool-card .best').text()).toBe('暂无请求数据')
+  mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))})
+  await w.get('.ranking-error button').trigger('click');await flushPromises()
+  expect(w.find('.ranking-error').exists()).toBe(false)
+  expect(w.get('.tool-card .best').text()).toBe('统计不足')
+  w.unmount()
+ })
  it('distinguishes zero real requests from missing statistics in cards',async()=>{
   mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:[{...metric(1),real_request_count:0,real_success_count:0}]})
   const w=make();await flushPromises()

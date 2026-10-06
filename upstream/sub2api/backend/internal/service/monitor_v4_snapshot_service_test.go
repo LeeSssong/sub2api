@@ -87,6 +87,25 @@ func TestMonitorV4RefreshUsesOneAsOfAndPublishesOnce(t *testing.T) {
 	}
 }
 
+func TestMonitorV4RefreshIncludesAllActiveGroupsOutsideMonitorConfiguration(t *testing.T) {
+	native := &monitorV4NativeReaderStub{}
+	store := &monitorV4RefreshStoreStub{}
+	svc := NewMonitorV4Service(&monitorV4GroupRepoStub{groups: []Group{
+		{ID: 7, Status: StatusActive},
+		{ID: 8, Status: StatusActive},
+		{ID: 9, Status: "inactive"},
+	}}, &monitorV4AvailableGroupReaderStub{}, native, nil, &monitorV4ConfiguredGroupReaderStub{config: &ChannelMonitorV2Config{GroupIDs: []int64{7}}})
+	svc.SetSnapshotStore(store)
+	if err := svc.RefreshMonitorV4Snapshots(context.Background(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range native.calls {
+		if len(call.groupIDs) != 2 || call.groupIDs[0] != 7 || call.groupIDs[1] != 8 {
+			t.Fatalf("group IDs = %v, want all active groups [7 8]", call.groupIDs)
+		}
+	}
+}
+
 func TestMonitorV4SnapshotRejectsInvalidProjectionCounts(t *testing.T) {
 	store := &monitorV4SnapshotStoreStub{loaded: MonitorV4StoredWindow{
 		Window: MonitorV4Window7D, SnapshotID: "snapshot", WindowStart: time.Date(2026, 8, 24, 0, 0, 0, 0, time.UTC), WindowEnd: time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC), GeneratedAt: time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC), ContractVersion: MonitorV4ContractVersion,

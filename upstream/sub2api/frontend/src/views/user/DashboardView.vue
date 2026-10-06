@@ -4,6 +4,7 @@
       <header class="page-head"><h1 id="ai-tools-title">请选择你的 AI 工具</h1></header>
       <div v-if="workspaceError" class="workspace-error" role="alert">{{ workspaceError }} <button class="xq-button" @click="loadWorkspace">重试</button></div>
       <div v-if="statsError" class="workspace-error statistics-error" role="alert">{{ statsError }} <button class="xq-button" @click="loadWorkspace">重试</button></div>
+      <div v-if="rankingFailed" class="workspace-error ranking-error" role="alert">近 24 小时推荐统计读取失败，请刷新重试。 <button class="xq-button" @click="loadWorkspace">重试</button></div>
       <div v-if="loading && !loaded" class="empty" role="status">正在读取 AI 工具…</div>
       <template v-if="loaded">
         <div class="tool-grid" :aria-busy="loading">
@@ -20,7 +21,7 @@
               <Icon class="tool-status-arrow" name="chevronRight" size="sm" />
             </button>
             <div class="card-bottom">
-              <div class="tool-best"><small>最佳线路</small><strong class="best" :class="{muted:!tool.best}">{{ tool.best?.name || '暂无请求数据' }}</strong></div>
+              <div class="tool-best" title="近 24 小时：成功率 50% · 缓存命中率 30% · 首字速度 20%"><small>最佳线路</small><strong class="best" :class="{muted:!tool.best}">{{ tool.best?.name || tool.bestEmptyText }}</strong></div>
               <button class="xq-button" :disabled="!tool.active.length" @click="openCreate(tool)">关联密钥</button>
             </div>
           </article>
@@ -94,7 +95,7 @@ import keysAPI from '@/api/keys'
 import { getHybridPerformanceSnapshot } from '@/features/monitor-v4/api'
 import { formatLineRate, resolveLineRate } from '@/components/keys/lineOptions'
 import { checkLines, type LineCheck } from '@/features/ai-tools/api'
-import { tools, linkedCounts, configuredLines, routeHealth, routeHealthTone, routeSuccessLabel, compareQuality, metricLabel, providerIcon, platformLabel, toolIdsForGroup } from '@/features/ai-tools/model'
+import { tools, linkedCounts, configuredLines, routeHealth, routeHealthTone, routeSuccessLabel, compareQuality, rankWeightedRoutes, metricLabel, providerIcon, platformLabel, toolIdsForGroup } from '@/features/ai-tools/model'
 import { getDashboardWorkspaceSnapshot, setDashboardWorkspaceSnapshot } from '@/features/ai-tools/workspaceCache'
 import type { ApiKey, Group } from '@/types'
 import type { MonitorV4Group, MonitorV4Window } from '@/features/monitor-v4/types'
@@ -113,9 +114,10 @@ const cacheUserId=String(authStore.user?.id||'')
 const cachedWorkspace=getDashboardWorkspaceSnapshot(cacheUserId)
 const clock=ref(Date.now())
 let freshnessTimer: ReturnType<typeof setInterval> | undefined
-const groups=ref<Group[]>(cachedWorkspace?.groups||[]), keys=ref<ApiKey[]>(cachedWorkspace?.keys||[]), rates=ref<Record<number,number>>(cachedWorkspace?.rates||{}), metrics=ref<MonitorV4Group[]>(cachedWorkspace?.metrics||[])
+const groups=ref<Group[]>(cachedWorkspace?.groups||[]), keys=ref<ApiKey[]>(cachedWorkspace?.keys||[]), rates=ref<Record<number,number>>(cachedWorkspace?.rates||{}), metrics=ref<MonitorV4Group[]>(cachedWorkspace?.metrics||[]), rankingMetrics=ref<MonitorV4Group[]>(cachedWorkspace?.rankingMetrics||[])
 const metricsGeneratedAt=ref<string|null>(cachedWorkspace?.metricsGeneratedAt||null)
-const loading=ref(false), loaded=ref(!!cachedWorkspace), workspaceError=ref(''), statsFailed=ref(false), statsError=ref(''), checking=ref(false), checkError=ref('')
+const rankingMetricsGeneratedAt=ref<string|null>(cachedWorkspace?.rankingMetricsGeneratedAt||null)
+const loading=ref(false), loaded=ref(!!cachedWorkspace), workspaceError=ref(''), statsFailed=ref(false), statsError=ref(''), rankingFailed=ref(false), checking=ref(false), checkError=ref('')
 const checks=ref<Record<number,LineCheck>>({}), detailWindow=ref<MonitorV4Window>('24h'), detailGranularity=ref<'hour'|'day'>('hour'), detailLoading=ref(false), detailError=ref(''), detailData=ref<MonitorV4Group[]>([])
 let loadController:AbortController|undefined, detailController:AbortController|undefined, checkController:AbortController|undefined
 const detailCache=new Map<MonitorV4Window,MonitorV4Group[]>()
@@ -123,6 +125,7 @@ let returnToDetailGroup:number|undefined
 let detailsTrigger:HTMLElement|null=null, createTrigger:HTMLElement|null=null
 const counts=computed(()=>linkedCounts(keys.value))
 const metricsById=computed(()=>new Map(metrics.value.map(m=>[m.id,m])))
+const rankingMetricsById=computed(()=>new Map(rankingMetrics.value.map(m=>[m.id,m])))
 const detailMetrics=computed(()=>new Map(detailData.value.map(m=>[m.id,m])))
 const allGroups=computed(()=>{const all=new Map(groups.value.map(g=>[g.id,g]));for(const g of configuredLines(groups.value,keys.value))all.set(g.id,g);return [...all.values()]})
 const sort=(list:Group[], ms=metricsById.value)=>[...list].sort((a,b)=>compareQuality(a,b,ms,rates.value,clock.value,metricsGeneratedAt.value))
@@ -130,13 +133,15 @@ const stateOf=(g:Group)=>routeHealth(statsFailed.value?undefined:metricsById.val
 const HEALTH_ORDER=['success','warning','danger','muted'] as const
 const HEALTH_LABELS={success:'正常',warning:'波动',danger:'异常',muted:'无数据'} as const
 const toolCards=computed(()=>tools.map(tool=>{
-  const matching=sort(allGroups.value.filter(g=>toolIdsForGroup(g,metricsById.value.get(g.id)).includes(tool.id)))
+  const matching=sort(allGroups.value.filter(g=>toolIdsForGroup(g,rankingMetricsById.value.get(g.id)||metricsById.value.get(g.id)).includes(tool.id)))
   const active=matching.filter(g=>g.status==='active')
+  const ranked=rankingFailed.value?[]:rankWeightedRoutes(matching,rankingMetricsById.value,clock.value,rankingMetricsGeneratedAt.value)
+  const bestEmptyText=!rankingFailed.value&&active.some(g=>routeHealth(rankingMetricsById.value.get(g.id),clock.value,rankingMetricsGeneratedAt.value).rate!==null)?'统计不足':'暂无请求数据'
   const healthCounts={success:0,warning:0,danger:0,muted:0}
   for(const group of matching) healthCounts[stateOf(group).kind] += 1
   const healthItems=HEALTH_ORDER.map(kind=>({kind,text:HEALTH_LABELS[kind],count:healthCounts[kind]})).filter(item=>item.count>0)
   const healthSummary=healthItems.map(item=>`${item.text} ${item.count} 条`).join('，')||'暂无线路'
-  return {...tool,groups:matching,active,best:active.find(g=>stateOf(g).rate!==null),healthItems,healthSummary}
+  return {...tool,groups:matching,active,best:ranked[0]?.group,bestEmptyText,healthItems,healthSummary}
 }))
 type ToolCard=typeof toolCards.value[number]
 const pricingTool=ref<ToolCard|null>(null)
@@ -146,7 +151,7 @@ function closePricing(){pricingTool.value=null;nextTick(()=>pricingTrigger?.focu
 const selectedTool=ref<ToolCard|null>(null), createTool=ref<ToolCard|null>(null),createGroupId=ref<number>()
 const routeRows=computed(()=>sort(configuredLines(groups.value,keys.value)))
 const detailRows=computed(()=>sort(selectedTool.value?.groups||[],detailMetrics.value))
-const detailBest=computed(()=>sort(selectedTool.value?.groups||[]).find(g=>g.status==='active' && stateOf(g).rate!==null))
+const detailBest=computed(()=>toolCards.value.find(tool=>tool.id===selectedTool.value?.id)?.best)
 const periods=[{value:'1h' as const,label:'近 1 小时'},{value:'24h' as const,label:'近 24 小时'},{value:'7d' as const,label:'近 7 天'}]
 const rateLabel=(g:Group)=>formatLineRate(resolveLineRate(g,rates.value))
 function metricHealth(g:Group,ms:Map<number,MonitorV4Group>,hour:boolean){
@@ -166,12 +171,13 @@ function checkOf(g:Group){
   if(r.status==='success'&&r.ttft_ms!=null)return {kind:'success',text:metricLabel(r.ttft_ms)}
   return {kind:r.status==='disabled'?'muted':'danger',text:r.status==='timeout'?'响应超时':r.status==='disabled'?'线路已停用':'检查失败'}
 }
-function cacheWorkspace(){setDashboardWorkspaceSnapshot({userId:cacheUserId,groups:groups.value,keys:keys.value,rates:rates.value,metrics:metrics.value,metricsGeneratedAt:metricsGeneratedAt.value})}
+function cacheWorkspace(){setDashboardWorkspaceSnapshot({userId:cacheUserId,groups:groups.value,keys:keys.value,rates:rates.value,metrics:metrics.value,metricsGeneratedAt:metricsGeneratedAt.value,rankingMetrics:rankingMetrics.value,rankingMetricsGeneratedAt:rankingMetricsGeneratedAt.value})}
 async function loadAllKeys(signal:AbortSignal){const first=await keysAPI.list(1,100,undefined,{signal});const items=[...first.items];for(let page=2;page<=Math.ceil(first.total/100);page++){const next=await keysAPI.list(page,100,undefined,{signal});items.push(...next.items)}return items}
 async function loadWorkspace(){
   loadController?.abort();const c=new AbortController();loadController=c;loading.value=true;workspaceError.value=''
   try {
     const statsRequest=getHybridPerformanceSnapshot('1h',c.signal).then(value=>({ok:true as const,value}),()=>({ok:false as const}))
+    const rankingRequest=getHybridPerformanceSnapshot('24h',c.signal).then(value=>({ok:true as const,value}),()=>({ok:false as const}))
     const [gs,rs,ks]=await Promise.allSettled([userGroupsAPI.getAvailable(),userGroupsAPI.getUserGroupRates(),loadAllKeys(c.signal)])
     if(c.signal.aborted)return
     if(gs.status==='rejected'||ks.status==='rejected'||rs.status==='rejected') {workspaceError.value=loaded.value?'刷新失败，保留上次成功数据。':'AI 工具数据暂时不可用，请重试。';return}
@@ -180,15 +186,45 @@ async function loadWorkspace(){
     loaded.value=true
     cacheWorkspace()
     if(selectedTool.value) selectedTool.value=toolCards.value.find(t=>t.id===selectedTool.value?.id)||null
-    const stats=await statsRequest
+    const [stats,ranking]=await Promise.all([statsRequest,rankingRequest])
     if(c.signal.aborted)return
     if(stats.ok){clock.value=Date.now();statsFailed.value=false;statsError.value='';metrics.value=stats.value.groups;metricsGeneratedAt.value=stats.value.generated_at;cacheWorkspace()}
     else {statsFailed.value=true;statsError.value='近 1 小时统计读取失败，请刷新重试。'}
+    if(ranking.ok){rankingFailed.value=false;rankingMetrics.value=ranking.value.groups;rankingMetricsGeneratedAt.value=ranking.value.generated_at}
+    else {rankingFailed.value=true;rankingMetrics.value=[];rankingMetricsGeneratedAt.value=null}
+    cacheWorkspace()
   }finally{if(!c.signal.aborted)loading.value=false}
 }
 async function openDetails(tool:ToolCard){detailsTrigger=document.activeElement as HTMLElement;selectedTool.value=tool;detailGranularity.value='hour';await loadDetails('24h')}
 function closeDetails(){detailController?.abort();selectedTool.value=null;nextTick(()=>detailsTrigger?.focus())}
-async function loadDetails(window:MonitorV4Window){detailController?.abort();const c=new AbortController();detailController=c;detailWindow.value=window;void loadTimeline(window,c.signal);detailLoading.value=true;detailError.value='';detailData.value=detailCache.get(window)||[];try{const result=await getHybridPerformanceSnapshot(window,c.signal);if(!c.signal.aborted){detailData.value=result.groups;detailCache.set(window,result.groups);if(window==='1h'){metrics.value=result.groups;metricsGeneratedAt.value=result.generated_at;clock.value=Date.now();statsFailed.value=false;statsError.value='';cacheWorkspace()}}}catch{if(!c.signal.aborted){detailError.value=detailCache.has(window)?'统计刷新失败，保留上次成功数据。':'统计读取失败，请重试。';if(window==='1h'){statsFailed.value=true;statsError.value='近 1 小时统计读取失败，请刷新重试。'}}}finally{if(!c.signal.aborted)detailLoading.value=false}}
+async function loadDetails(window:MonitorV4Window){
+  detailController?.abort();const c=new AbortController();detailController=c
+  detailWindow.value=window;void loadTimeline(window,c.signal)
+  detailLoading.value=true;detailError.value='';detailData.value=detailCache.get(window)||[]
+  try{
+    const result=await getHybridPerformanceSnapshot(window,c.signal)
+    if(c.signal.aborted)return
+    detailData.value=result.groups;detailCache.set(window,result.groups)
+    clock.value=Date.now()
+    if(window==='1h'){
+      metrics.value=result.groups;metricsGeneratedAt.value=result.generated_at
+      statsFailed.value=false;statsError.value=''
+    }
+    if(window==='24h'){
+      rankingMetrics.value=result.groups;rankingMetricsGeneratedAt.value=result.generated_at
+      rankingFailed.value=false
+    }
+    cacheWorkspace()
+  }catch{
+    if(!c.signal.aborted){
+      detailError.value=detailCache.has(window)?'统计刷新失败，保留上次成功数据。':'统计读取失败，请重试。'
+      if(window==='1h'){statsFailed.value=true;statsError.value='近 1 小时统计读取失败，请刷新重试。'}
+      if(window==='24h'){
+        rankingFailed.value=true;rankingMetrics.value=[];rankingMetricsGeneratedAt.value=null;cacheWorkspace()
+      }
+    }
+  }finally{if(!c.signal.aborted)detailLoading.value=false}
+}
 function openCreate(tool:ToolCard,id?:number){createTrigger=document.activeElement as HTMLElement;createTool.value=tool;createGroupId.value=id}
 function restoreDetailFocus(){
   if(returnToDetailGroup){document.querySelector<HTMLElement>(`[data-detail-group-id="${returnToDetailGroup}"]`)?.focus();returnToDetailGroup=undefined}

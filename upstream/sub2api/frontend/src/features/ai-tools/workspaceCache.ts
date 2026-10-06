@@ -8,6 +8,8 @@ export interface DashboardWorkspaceSnapshot {
   rates: Record<number, number>
   metrics: MonitorV4Group[]
   metricsGeneratedAt: string | null
+  rankingMetrics: MonitorV4Group[]
+  rankingMetricsGeneratedAt: string | null
 }
 
 let snapshot: DashboardWorkspaceSnapshot | null = null
