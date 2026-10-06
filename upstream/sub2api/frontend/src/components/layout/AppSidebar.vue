@@ -1303,15 +1303,15 @@ onBeforeUnmount(() => {
 .user-sidebar {
   width: 242px !important;
   transform: none !important;
-  padding: 24px 18px var(--xq-bottom-gutter, 24px);
+  padding: 0 18px var(--xq-bottom-gutter, 24px);
   background: var(--xq-canvas);
   border-right: 1px solid var(--xq-line);
   box-shadow: none;
   color: var(--xq-text);
 }
 .user-sidebar .sidebar-header {
-  height: auto; min-height: 0; flex-shrink: 0; align-items: center;
-  gap: 12px; padding: 2px 10px 12px; margin-bottom: 28px;
+  height: var(--xq-header-height, 64px); min-height: 0; flex-shrink: 0; align-items: center;
+  gap: 12px; padding: 0 10px; margin-bottom: 28px;
   border-bottom: 1px solid var(--xq-line);
 }
 .user-sidebar .sidebar-logo {
@@ -1389,8 +1389,8 @@ onBeforeUnmount(() => {
 .user-account-menu-danger { color: var(--xq-danger); }
 @media (min-width: 701px) and (max-width: 1050px) { .user-sidebar { width: 200px !important; } }
 @media (max-width: 700px) {
-  .user-sidebar { width: 76px !important; padding: 18px 10px var(--xq-bottom-gutter, 18px); }
-  .user-sidebar .sidebar-header { padding: 0 12px 22px; }
+  .user-sidebar { width: 76px !important; padding: 0 10px var(--xq-bottom-gutter, 18px); }
+  .user-sidebar .sidebar-header { padding: 0 12px; }
   .user-sidebar-bottom { margin-left: -10px; margin-right: -10px; padding-left: 10px; padding-right: 10px; }
   .user-sidebar .sidebar-brand, .user-sidebar .sidebar-label,
   .user-recharge-button strong, .user-recharge-button span, .user-account-name { display: none !important; }
@@ -1421,7 +1421,7 @@ onBeforeUnmount(() => {
   .admin-sidebar:not(.admin-sidebar-open) .sidebar-section-title { display: none; }
   .admin-sidebar:not(.admin-sidebar-open) .sidebar-link > span:not(.sidebar-svg-icon),
   .admin-sidebar:not(.admin-sidebar-open) .sidebar-section > div { display: none; }
-  .admin-sidebar-open { width: 242px !important; padding: 18px 18px var(--xq-bottom-gutter, 18px); }
+  .admin-sidebar-open { width: 242px !important; padding: 0 18px var(--xq-bottom-gutter, 18px); }
   .admin-sidebar-open .user-sidebar-bottom { margin-left: -18px; margin-right: -18px; padding-left: 18px; padding-right: 18px; }
   .admin-sidebar-open .sidebar-brand, .admin-sidebar-open .sidebar-label,
   .admin-sidebar-open .user-recharge-button strong, .admin-sidebar-open .user-recharge-button span,

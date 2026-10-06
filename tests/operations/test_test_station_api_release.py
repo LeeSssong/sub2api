@@ -23,6 +23,14 @@ class ReleaseScopeTests(unittest.TestCase):
         return subprocess.run(['bash', '-c', script], capture_output=True, text=True,
             env=dict(os.environ, CHANGED_PATHS='\n'.join(paths), update_worker=str(update_worker).lower(), previous='old'))
 
+    def test_frontend_design_rules_allow_api_only_release_without_widening_runtime_scope(self):
+        result = self.check_scope(['upstream/sub2api/frontend/DESIGN.md',
+                                   'upstream/sub2api/frontend/src/components/layout/AppSidebar.vue'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for path in ['package.json', 'pnpm-lock.yaml', 'vite.config.ts']:
+            with self.subTest(path=path):
+                self.assertNotEqual(self.check_scope(['upstream/sub2api/frontend/' + path]).returncode, 0)
+
     def test_native_group_catalog_changes_allow_api_only_release(self):
         paths = ['internal/handler/' + name for name in (
             'api_key_handler.go', 'gateway_handler.go', 'gateway_user_models.go',

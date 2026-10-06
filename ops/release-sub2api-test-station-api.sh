@@ -28,7 +28,7 @@ update_worker=${TEST_STATION_UPDATE_WORKER:-false}
 # Runtime dependency, migration and other backend changes remain excluded.
 while IFS= read -r path; do
   case "$path" in
-    upstream/sub2api/frontend/src/*|docs/*|ops/*|tests/*|artifacts/*) ;;
+    upstream/sub2api/frontend/src/*|upstream/sub2api/frontend/DESIGN.md|docs/*|ops/*|tests/*|artifacts/*) ;;
     upstream/sub2api/backend/internal/handler/usage_handler.go|\
     upstream/sub2api/backend/internal/handler/usage_model_popularity.go|\
     upstream/sub2api/backend/internal/handler/usage_model_popularity_test.go|\
