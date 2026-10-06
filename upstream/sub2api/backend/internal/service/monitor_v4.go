@@ -93,6 +93,9 @@ type MonitorV4Group struct {
 }
 
 type MonitorV4Snapshot struct {
+	// Statistical bounds are independent of snapshot freshness.
+	WindowStart            time.Time
+	WindowEnd              time.Time
 	ContractVersion        string
 	Window                 MonitorV4Window
 	RefreshIntervalSeconds int
@@ -197,6 +200,8 @@ func (s *MonitorV4Service) Snapshot(ctx context.Context, userID int64, window Mo
 	if err != nil {
 		return nil, err
 	}
+	snapshot.WindowStart = stored.WindowStart.UTC()
+	snapshot.WindowEnd = stored.WindowEnd.UTC()
 	return snapshot, nil
 }
 
@@ -204,8 +209,8 @@ func (s *MonitorV4Service) RefreshMonitorV4Snapshots(ctx context.Context, asOf t
 	if s == nil || s.groupRepo == nil || s.native == nil || s.store == nil {
 		return fmt.Errorf("monitor v4 snapshot refresh dependencies unavailable")
 	}
-	end := asOf.UTC().Truncate(time.Minute)
-	if end.IsZero() {
+	generatedAt := asOf.UTC().Truncate(time.Minute)
+	if generatedAt.IsZero() {
 		return fmt.Errorf("monitor v4 snapshot refresh time unavailable")
 	}
 	allGroups, err := s.groupRepo.ListActive(ctx)
@@ -223,6 +228,11 @@ func (s *MonitorV4Service) RefreshMonitorV4Snapshots(ctx context.Context, asOf t
 	}
 	snapshots := make([]MonitorV4StoredWindow, 0, 3)
 	for _, window := range []MonitorV4Window{MonitorV4Window1H, MonitorV4Window24H, MonitorV4Window7D} {
+		end := generatedAt
+		if window != MonitorV4Window1H {
+			// Keep a complete rolling window of whole hours, not a calendar day.
+			end = end.Truncate(time.Hour)
+		}
 		start, err := monitorV4WindowStart(window, end)
 		if err != nil {
 			return err
@@ -239,7 +249,7 @@ func (s *MonitorV4Service) RefreshMonitorV4Snapshots(ctx context.Context, asOf t
 				return fmt.Errorf("project monitor v4 snapshot %s group %d: %w", window, groupID, err)
 			}
 		}
-		snapshots = append(snapshots, MonitorV4StoredWindow{Window: window, SnapshotID: "pending", WindowStart: start, WindowEnd: end, GeneratedAt: end, ContractVersion: MonitorV4ContractVersion, Groups: projections})
+		snapshots = append(snapshots, MonitorV4StoredWindow{Window: window, SnapshotID: "pending", WindowStart: start, WindowEnd: end, GeneratedAt: generatedAt, ContractVersion: MonitorV4ContractVersion, Groups: projections})
 	}
 	snapshotID := uuid.NewString()
 	for i := range snapshots {

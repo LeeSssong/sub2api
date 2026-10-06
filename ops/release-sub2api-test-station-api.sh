@@ -20,11 +20,16 @@ staging="$root/.release/test-station-api-$commit"
 mkdir -p "$staging"
 ssh -T "${ssh_opts[@]}" sub2api-test-station 'sudo -n cat /opt/sub2api-test-station/release-state.json' >"$staging/previous-state.json"
 previous=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source_commit"])' "$staging/previous-state.json")
-# Reuse runtime dependencies only when the entire backend and runtime source match.
+update_worker=${TEST_STATION_UPDATE_WORKER:-false}
+[[ "$update_worker" == true || "$update_worker" == false ]] || fail 'invalid worker update flag'
+# Monitor service changes require the same new binary in API and singleton worker.
+# Runtime dependency, migration and other backend changes remain excluded.
 while IFS= read -r path; do
   case "$path" in
     upstream/sub2api/frontend/src/*|docs/*|ops/*|tests/*|artifacts/*) ;;
-    *) fail "API-only release excludes non-UI runtime changes: $path" ;;
+    upstream/sub2api/backend/internal/service/monitor_v4*.go)
+      [[ "$update_worker" == true ]] || fail 'monitor backend changes require a worker update' ;;
+    *) fail "release excludes unsupported runtime changes: $path" ;;
   esac
 done < <(git diff --name-only "$previous" HEAD)
 binary_commit=$commit
@@ -58,12 +63,12 @@ else
     -ldflags="-s -w -X main.Version=$version -X main.Commit=$commit -X main.Date=$build_date -X main.BuildType=release" \
     -o "$staging/sub2api" ./cmd/server)
 fi
-python3 - "$staging" "$commit" "$tree" "$binary_commit" "$binary_tree" <<'PY'
+python3 - "$staging" "$commit" "$tree" "$binary_commit" "$binary_tree" "$update_worker" <<'PY'
 import hashlib,json,pathlib,sys
 root=pathlib.Path(sys.argv[1]); previous=json.loads((root/'previous-state.json').read_text())
 manifest={'source_commit':sys.argv[2],'source_tree':sys.argv[3], 'previous_commit':previous['source_commit'],
           'base_image_id':previous['image_id'],'binary_sha256':hashlib.sha256((root/'sub2api').read_bytes()).hexdigest(),
-          'binary_source_commit':sys.argv[4], 'binary_source_tree':sys.argv[5]}
+          'binary_source_commit':sys.argv[4], 'binary_source_tree':sys.argv[5], 'update_worker':sys.argv[6]=='true'}
 (root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 PY
 [[ -z $(git status --porcelain) && "$commit" == $(git rev-parse HEAD) ]] || fail 'source changed during build'

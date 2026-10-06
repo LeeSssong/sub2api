@@ -51,3 +51,47 @@ func TestMonitorV4TimelineVisibilityAndWindows(t *testing.T) {
 		})
 	}
 }
+
+func TestMonitorV4RefreshSummaryAndTimelineShareHourlyBounds(t *testing.T) {
+	zone := time.FixedZone("Asia/Shanghai", 8*60*60)
+	for _, asOf := range []time.Time{
+		time.Date(2026, 10, 7, 2, 47, 37, 0, zone),
+		time.Date(2026, 10, 7, 0, 3, 37, 0, zone),
+		time.Date(2026, 10, 7, 2, 0, 0, 0, zone),
+	} {
+		t.Run(asOf.Format(time.RFC3339), func(t *testing.T) {
+			native := &timelineReaderStub{}
+			store := &monitorV4RefreshStoreStub{}
+			svc := NewMonitorV4Service(&monitorV4GroupRepoStub{groups: []Group{{ID: 7, Status: StatusActive}}}, &monitorV4AvailableGroupReaderStub{}, native, nil, &monitorV4ConfiguredGroupReaderStub{config: &ChannelMonitorV2Config{GroupIDs: []int64{7}}})
+			svc.SetSnapshotStore(store)
+			require.NoError(t, svc.RefreshMonitorV4Snapshots(context.Background(), asOf))
+			store.byWindow = map[MonitorV4Window]MonitorV4StoredWindow{}
+			for i, row := range store.replaced {
+				store.byWindow[row.Window] = row
+				wantEnd := asOf.UTC().Truncate(time.Hour)
+				duration := 24 * time.Hour
+				if row.Window == MonitorV4Window1H {
+					wantEnd = asOf.UTC().Truncate(time.Minute)
+					duration = time.Hour
+				} else if row.Window == MonitorV4Window7D {
+					duration = 7 * 24 * time.Hour
+				}
+				require.Equal(t, wantEnd, row.WindowEnd)
+				require.Equal(t, wantEnd.Add(-duration), row.WindowStart)
+				require.Equal(t, row.WindowEnd, native.calls[i].end)
+				require.Equal(t, row.WindowStart, native.calls[i].start)
+				snapshot, err := svc.Snapshot(context.Background(), 42, row.Window, asOf)
+				require.NoError(t, err)
+				// An hourly statistical cutoff must not make a freshly rebuilt snapshot stale.
+				require.Equal(t, asOf.UTC().Truncate(time.Minute), snapshot.GeneratedAt)
+				for _, granularity := range []string{"hour", "day"} {
+					timeline, err := svc.TimelineWithGranularity(context.Background(), 42, row.Window, granularity, asOf)
+					require.NoError(t, err)
+					require.Equal(t, row.WindowStart, native.start)
+					require.Equal(t, row.WindowEnd, native.end)
+					require.Equal(t, snapshot.GeneratedAt, timeline.GeneratedAt)
+				}
+			}
+		})
+	}
+}

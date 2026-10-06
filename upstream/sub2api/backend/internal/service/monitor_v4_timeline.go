@@ -54,11 +54,9 @@ func (s *MonitorV4Service) TimelineWithGranularity(ctx context.Context, userID i
 		step = 5 * time.Minute
 		granularity = "5m"
 	}
-	end := snapshot.GeneratedAt.UTC()
-	start, err := monitorV4WindowStart(window, end)
-	if err != nil {
-		return nil, err
-	}
+	// Read the same persisted statistical range as the summary. GeneratedAt
+	// represents refresh freshness and may be later than the hourly cutoff.
+	start, end := snapshot.WindowStart, snapshot.WindowEnd
 	ids := make([]int64, 0, len(snapshot.Groups))
 	for _, g := range snapshot.Groups {
 		ids = append(ids, g.ID)
@@ -73,5 +71,5 @@ func (s *MonitorV4Service) TimelineWithGranularity(ctx context.Context, userID i
 	if err != nil {
 		return nil, err
 	}
-	return &MonitorV4Timeline{Granularity: granularity, Window: window, GeneratedAt: end, Points: points}, nil
+	return &MonitorV4Timeline{Granularity: granularity, Window: window, GeneratedAt: snapshot.GeneratedAt, Points: points}, nil
 }

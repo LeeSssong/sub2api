@@ -49,6 +49,30 @@ class APIReleaseTests(unittest.TestCase):
         self.assertEqual(new['services'][service]['environment']['SUB2API_CONTAINER_SLOT'], service)
         self.assertEqual(old['services']['test-station-api']['environment']['SUB2API_CONTAINER_SLOT'], 'standalone')
 
+    def test_worker_config_preserves_live_credentials_mounts_and_unrelated_services(self):
+        live = {'services': {'test-station-worker': {'image': 'old-worker',
+            'environment': {'SERVER_PROCESS_ROLE': 'worker', 'SECRET': 'preserved'},
+            'volumes': ['isolated:/app/data'], 'depends_on': {'db': {}}},
+            'test-station-detector': {'image': 'detector'}}, 'networks': {}}
+        candidate = release.worker_config(live, 'new', 'a'*40)
+        worker = candidate['services']['test-station-worker']
+        self.assertEqual(worker['environment']['SECRET'], 'preserved')
+        self.assertEqual(worker['volumes'], ['isolated:/app/data'])
+        self.assertEqual(candidate['services']['test-station-detector'], live['services']['test-station-detector'])
+        self.assertEqual(live['services']['test-station-worker']['image'], 'old-worker')
+        with self.assertRaises(ValueError):
+            release.worker_config({'services': {'test-station-worker': {'environment': {'SERVER_PROCESS_ROLE': 'all'}}}}, 'new', 'a'*40)
+
+    def test_unclean_worker_exit_refuses_replacement(self):
+        with patch.object(release, 'run'), patch.object(release, 'inspect', return_value={'State': {'Status': 'exited', 'ExitCode': 137}}):
+            with self.assertRaises(RuntimeError):
+                release.stop_worker('old-worker')
+
+    def test_multiple_workers_fail_closed(self):
+        with patch.object(release, 'run', return_value='worker-1\nworker-2\n'):
+            with self.assertRaises(ValueError):
+                release.active_worker()
+
     def test_changes_only_exact_caddy_upstream(self):
         source = ':80 {\n reverse_proxy /api/* test-station-api:8080\n # test-station-api:8080 unchanged comment\n reverse_proxy test-station-api:8080\n}\n'
         new = release.change_upstream(source, 'test-station-api', 'test-station-api-green')
@@ -63,7 +87,7 @@ class APIReleaseTests(unittest.TestCase):
 
 
 class HostFlowTests(unittest.TestCase):
-    def exercise(self, fail_probe=False):
+    def exercise(self, fail_probe=False, update_worker=False, fail_worker=False, fail_rollback_probe=False):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / 'station'
             old_release = root / 'releases' / ('b' * 40)
@@ -81,18 +105,26 @@ class HostFlowTests(unittest.TestCase):
             bundle.mkdir()
             (bundle / 'sub2api').write_bytes(b'binary')
             (bundle / 'manifest.json').write_text(json.dumps({'source_commit': 'a' * 40, 'source_tree': 'd' * 40,
-                'previous_commit': 'b' * 40, 'base_image_id': 'base', 'binary_sha256': release.hashlib.sha256(b'binary').hexdigest()}))
+                'previous_commit': 'b' * 40, 'base_image_id': 'base', 'update_worker': update_worker, 'binary_sha256': release.hashlib.sha256(b'binary').hexdigest()}))
             config = {'services': {'test-station-api': {'image': 'old', 'environment': {'SERVER_PROCESS_ROLE': 'api'}, 'networks': ['test-station']},
-                'test-station-worker': {'image': 'old'}, 'test-station-detector': {'image': 'old'}},
+                'test-station-worker': {'image': 'old-worker-image', 'environment': {'SERVER_PROCESS_ROLE': 'worker'}, 'volumes': ['app:/app/data']}, 'test-station-detector': {'image': 'old'}},
                 'networks': {'test-station': {'name': 'sub2api-test-station-network'}}}
             old = {'Image': 'base', 'Config': {'Labels': {'com.docker.compose.service': 'test-station-api', 'com.docker.compose.project.config_files': str(old_config)}}}
+            worker_started = False
+            worker_restored = False
             def invoke(args, data=None):
+                nonlocal worker_started, worker_restored
+                if args[-4:] == ["up", "-d", "--no-deps", "test-station-worker"]:
+                    worker_started = True
+                    worker_restored = "previous-worker-compose.json" in " ".join(args)
+                if args[-3:] == ["ps", "-q", "test-station-worker"]:
+                    return "new-worker"
                 if args[:3] == ['docker', 'ps', '-q']:
-                    return 'caddy' if 'label=com.docker.compose.service=test-station-caddy' in args else 'old-api'
+                    return 'caddy' if 'label=com.docker.compose.service=test-station-caddy' in args else 'restored-worker' if 'label=com.docker.compose.service=test-station-worker' in args and worker_restored else 'new-worker' if 'label=com.docker.compose.service=test-station-worker' in args and worker_started else 'old-worker' if 'label=com.docker.compose.service=test-station-worker' in args else 'old-api'
                 if args[-3:] == ['config', '--format', 'json']:
                     return json.dumps(config)
                 if args[:3] == ['docker', 'image', 'inspect']:
-                    return 'base' if args[-1] == 'old' else 'new-image'
+                    return 'base' if args[-1] == 'old' else 'worker-base' if args[-1] == 'old-worker-image' else 'new-image'
                 if args[-3:] == ['cat', '/etc/caddy/Caddyfile'] or args[-2:] == ['cat', '/etc/caddy/Caddyfile']:
                     return caddy.read_text()
                 if args[-3:] == ['ps', '-q', 'test-station-api-green']:
@@ -100,32 +132,76 @@ class HostFlowTests(unittest.TestCase):
                 if '/proc/net/tcp' in args:
                     return ''
                 return ''
-            probes = [RuntimeError('offline'), None] if fail_probe else [None]
+            worker = {'Image': 'worker-base', 'Config': {'Labels': {'com.docker.compose.service': 'test-station-worker', 'com.docker.compose.project.config_files': str(old_config)}}, 'State': {'Status': 'exited', 'ExitCode': 0}}
+            def inspected(value):
+                if value == 'old-api':
+                    return old
+                if value in ('old-worker', 'restored-worker'):
+                    return worker
+                if value == 'new-worker':
+                    return dict(worker, Image='new-image')
+                return {'Mounts': [{'Destination': '/etc/caddy/Caddyfile', 'Source': str(caddy)}]}
+            def readiness(value):
+                if fail_worker and value == 'new-worker':
+                    raise RuntimeError('worker not ready')
+            probes = [RuntimeError('offline'), RuntimeError('still offline') if fail_rollback_probe else None] if fail_probe else [None]
             with patch.object(release, 'ROOT', root), patch.object(release, 'run', side_effect=invoke) as commands, \
-                 patch.object(release, 'inspect', side_effect=lambda value: old if value == 'old-api' else {'Mounts': [{'Destination': '/etc/caddy/Caddyfile', 'Source': str(caddy)}]}), \
-                 patch.object(release, 'healthy'), patch.object(release, 'reload_caddy') as reloads, \
+                 patch.object(release, 'inspect', side_effect=inspected), \
+                 patch.object(release, 'healthy', side_effect=readiness), patch.object(release, 'reload_caddy') as reloads, \
                  patch.object(release, 'public_probes', side_effect=probes), contextlib.redirect_stdout(io.StringIO()):
-                if fail_probe:
+                if fail_probe or fail_worker:
                     with self.assertRaises(RuntimeError):
                         release.deploy(bundle)
-                    self.assertEqual(json.loads((root / 'release-state.json').read_text()), previous)
+                    restored_state = json.loads((root / 'release-state.json').read_text())
+                    self.assertEqual({k:restored_state[k] for k in previous}, previous)
+                    if update_worker and not fail_rollback_probe:
+                        self.assertEqual(restored_state['active_worker_container'], 'restored-worker')
+                    if fail_rollback_probe:
+                        self.assertEqual(json.loads((root / 'releases' / ('a'*40) / 'deployment.json').read_text())['rollback_errors'], ['public_readiness'])
                     self.assertEqual(reloads.call_args[0][1], ':80 {\n reverse_proxy test-station-api:8080\n}\n')
                 else:
                     release.deploy(bundle)
                     before = list(commands.call_args_list)
-                    self.assertFalse(any('stop' in call.args[0] for call in before))
+                    self.assertFalse(any('stop' in call.args[0] and 'old-api' in call.args[0] for call in before))
                     release.finalize(root / 'releases' / ('a' * 40))
                     self.assertIn(unittest.mock.call(['docker', 'stop', '--time', '10', 'old-api']), commands.call_args_list)
                     self.assertEqual(json.loads((root / 'release-state.json').read_text())['active_api_container'], 'new-api')
                 starts = [call.args[0] for call in commands.call_args_list if 'up' in call.args[0]]
-                self.assertEqual(len(starts), 1)
                 self.assertEqual(starts[0][-4:], ['up', '-d', '--no-deps', 'test-station-api-green'])
+                if update_worker:
+                    commands_list = [call.args[0] for call in commands.call_args_list]
+                    stopped = ['docker', 'kill', '--signal', 'TERM', 'old-worker']
+                    self.assertIn(stopped, commands_list)
+                    start_worker = next(i for i, args in enumerate(commands_list) if args[-4:] == ['up', '-d', '--no-deps', 'test-station-worker'])
+                    self.assertLess(commands_list.index(stopped), start_worker)
+                    if fail_probe or fail_worker:
+                        self.assertGreaterEqual(len(starts), 3)
+                        self.assertTrue(any('previous-worker-compose.json' in ' '.join(args) for args in starts))
+                    else:
+                        self.assertEqual(len(starts), 2)
+                        state = json.loads((root / 'release-state.json').read_text())
+                        self.assertFalse(state['api_only_release'])
+                        self.assertEqual(state['active_worker_container'], 'new-worker')
+                else:
+                    self.assertEqual(len(starts), 1)
 
     def test_ready_candidate_then_route_then_drain_without_restarting_jobs(self):
         self.exercise()
 
     def test_failed_public_probe_restores_old_route_and_state(self):
         self.exercise(fail_probe=True)
+
+    def test_worker_replaced_without_overlap_and_dependencies_stay_untouched(self):
+        self.exercise(update_worker=True)
+
+    def test_worker_readiness_failure_restores_previous_worker_and_api(self):
+        self.exercise(update_worker=True, fail_worker=True)
+
+    def test_public_failure_restores_previous_worker_and_api(self):
+        self.exercise(update_worker=True, fail_probe=True)
+
+    def test_worker_restored_even_when_rollback_public_probe_also_fails(self):
+        self.exercise(update_worker=True, fail_probe=True, fail_rollback_probe=True)
 
 
 if __name__ == '__main__':

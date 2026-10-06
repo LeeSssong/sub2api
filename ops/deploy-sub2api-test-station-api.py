@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""API-only blue/green release for the isolated test station; no migrations/jobs."""
+"""Isolated API blue/green release with optional serialized worker replacement; no migrations."""
 import argparse
 import copy
 import fcntl
@@ -51,6 +51,78 @@ def change_upstream(config, previous, candidate):
 def established_connections(rows):
     return sum(1 for line in rows.splitlines() if len(line.split()) >= 4
                and line.split()[1].endswith(':1F90') and line.split()[3] == '01')
+
+
+def worker_config(config, image, commit):
+    result = copy.deepcopy(config)
+    worker = result['services']['test-station-worker']
+    if worker.get('environment', {}).get('SERVER_PROCESS_ROLE') != 'worker':
+        raise ValueError('expected a dedicated worker role')
+    worker['image'] = image
+    worker['environment']['SUB2API_DEPLOYMENT_COMMIT'] = commit
+    worker['environment']['SUB2API_CONTAINER_SLOT'] = 'test-station-worker'
+    worker['stop_grace_period'] = '300s'
+    worker.pop('depends_on', None)
+    return result
+
+
+def active_worker():
+    value = run(['docker', 'ps', '-q', '--filter', 'label=com.docker.compose.project=' + PROJECT,
+                 '--filter', 'label=com.docker.compose.service=test-station-worker']).strip()
+    if not value or '\n' in value:
+        raise ValueError('expected exactly one running worker')
+    return value
+
+
+def stop_worker(container, timeout=300):
+    # Signal and wait; never SIGKILL a worker or overlap singleton consumers.
+    run(['docker', 'kill', '--signal', 'TERM', container])
+    deadline = time.monotonic() + timeout
+    while True:
+        state = inspect(container)['State']
+        if state['Status'] == 'exited':
+            if state.get('ExitCode') != 0 or state.get('OOMKilled', False):
+                raise RuntimeError('worker did not exit cleanly')
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError('worker graceful shutdown timed out')
+        time.sleep(1)
+
+
+def load_worker_config(container):
+    current = inspect(container)
+    labels = current['Config']['Labels']
+    path = Path(labels['com.docker.compose.project.config_files'])
+    env = path.parent / '.env'
+    if not str(path).startswith(str(ROOT / 'releases') + '/') or path.is_symlink() or env.is_symlink() or (env.stat().st_mode & 0o777) != 0o600:
+        raise ValueError('unsafe worker config')
+    config = json.loads(run(['docker', 'compose', '-p', PROJECT, '--env-file', str(env), '-f', str(path), 'config', '--format', 'json']))
+    if config['networks']['test-station']['name'] != PROJECT + '-network':
+        raise ValueError('worker network mismatch')
+    worker = config['services']['test-station-worker']
+    if worker.get('environment', {}).get('SERVER_PROCESS_ROLE') != 'worker':
+        raise ValueError('expected a dedicated worker role')
+    if run(['docker', 'image', 'inspect', '--format', '{{.Id}}', worker['image']]).strip() != current['Image']:
+        raise ValueError('active worker config image mismatch')
+    return config, env, current['Image']
+
+
+def restore_worker(release, meta):
+    # On partial replacement the running worker may still be the original one.
+    current = run(['docker', 'ps', '-q', '--filter', 'label=com.docker.compose.project=' + PROJECT,
+                   '--filter', 'label=com.docker.compose.service=test-station-worker']).strip()
+    if '\n' in current:
+        raise ValueError('multiple workers during rollback')
+    if current and current != meta['previous_worker_container']:
+        stop_worker(current)
+    compose = ['docker', 'compose', '-p', PROJECT, '--env-file', str(release / 'previous-worker.env'),
+               '-f', str(release / 'previous-worker-compose.json')]
+    run(compose + ['up', '-d', '--no-deps', 'test-station-worker'])
+    restored = active_worker()
+    healthy(restored)
+    if inspect(restored)['Image'] != meta['previous_worker_image_id']:
+        raise RuntimeError('worker rollback image mismatch')
+    return restored
 
 
 def run(args, data=None):
@@ -106,14 +178,32 @@ def reload_caddy(container, config):
 def rollback(release):
     previous = json.loads((release / 'previous-state.json').read_text())
     meta = json.loads((release / 'deployment.json').read_text())
-    old = meta['previous_api_container']
-    run(['docker', 'start', old])
-    healthy(old)
+    errors = []
     config = (release / 'previous-Caddyfile').read_text()
-    reload_caddy(meta['caddy_container'], config)
-    private_write(meta['caddy_host_path'], config)
-    public_probes()
+    try:
+        run(['docker', 'start', meta['previous_api_container']])
+        healthy(meta['previous_api_container'])
+        reload_caddy(meta['caddy_container'], config)
+        private_write(meta['caddy_host_path'], config)
+    except Exception:
+        errors.append('api_route')
+    # Always attempt worker recovery, even if route recovery or probes fail.
+    if meta.get('worker_update_started'):
+        try:
+            restored = restore_worker(release, meta)
+            meta['restored_worker_container'] = restored
+            previous.update(active_worker_container=restored, worker_image_id=meta['previous_worker_image_id'])
+        except Exception:
+            errors.append('worker')
+    try:
+        public_probes()
+    except Exception:
+        errors.append('public_readiness')
     # Keep failed candidate alive for in-flight connections; never kill it at cutback.
+    if errors:
+        meta.update(result='rollback_failed', rolled_back=False, rollback_errors=errors)
+        save(release / 'deployment.json', meta)
+        raise RuntimeError('rollback failed stages=' + ','.join(errors))
     save(ROOT / 'release-state.json', previous)
     meta.update(result='rolled_back', rolled_back=True)
     save(release / 'deployment.json', meta)
@@ -125,6 +215,9 @@ def deploy(bundle):
     commit, tree = manifest['source_commit'], manifest['source_tree']
     if not all(re.fullmatch('[a-f0-9]{40}', value) for value in (commit, tree)):
         raise ValueError('invalid source identity')
+    update_worker = manifest.get('update_worker', False)
+    if not isinstance(update_worker, bool):
+        raise ValueError('invalid worker update flag')
     binary = bundle / 'sub2api'
     if binary.is_symlink() or hashlib.sha256(binary.read_bytes()).hexdigest() != manifest['binary_sha256']:
         raise ValueError('binary checksum mismatch')
@@ -158,6 +251,12 @@ def deploy(bundle):
     caddy_config = Path(caddy_path).read_text()
     image = PROJECT + '-runtime:' + commit
     candidate, service = candidate_config(config, old_service, image, commit)
+    previous_worker_config = None
+    if update_worker:
+        worker_id = active_worker()
+        previous_worker_config, worker_env, worker_image_id = load_worker_config(worker_id)
+        # Read the live worker's own Compose config, not a stale API release copy.
+        candidate['services']['test-station-worker'] = worker_config(previous_worker_config, image, commit)['services']['test-station-worker']
     new_caddy = change_upstream(caddy_config, old_service, service)
     release = ROOT / 'releases' / commit
     release.mkdir(mode=0o700)
@@ -165,6 +264,9 @@ def deploy(bundle):
     private_write(release / 'previous-Caddyfile', caddy_config)
     private_write(release / '.env', old_env.read_text())
     save(release / 'compose.yaml', candidate)
+    if update_worker:
+        save(release / 'previous-worker-compose.json', previous_worker_config)
+        private_write(release / 'previous-worker.env', worker_env.read_text())
     base_tag = previous['image_tag']
     if run(['docker', 'image', 'inspect', '--format', '{{.Id}}', base_tag]).strip() != manifest['base_image_id']:
         raise ValueError('base dependency identity mismatch')
@@ -177,6 +279,8 @@ def deploy(bundle):
         'binary_source_tree': manifest.get('binary_source_tree', tree),
         'previous_api_container': api_id, 'previous_api_service': old_service, 'candidate_service': service,
         'caddy_container': caddy_id, 'caddy_host_path': caddy_path, 'result': 'prepared', 'rolled_back': False, 'stage_seconds': {}}
+    if update_worker:
+        meta.update(previous_worker_container=worker_id, previous_worker_image_id=worker_image_id, worker_update_started=False)
     save(release / 'deployment.json', meta)
     compose = ['docker', 'compose', '-p', PROJECT, '--env-file', str(release / '.env'), '-f', str(release / 'compose.yaml')]
     try:
@@ -187,6 +291,16 @@ def deploy(bundle):
         meta['candidate_container'] = candidate_id
         meta['stage_seconds']['build_and_ready'] = round(time.monotonic() - started, 2)
         run(['docker', 'exec', candidate_id, 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/readyz'])
+        if update_worker:
+            worker_started = time.monotonic()
+            meta['worker_update_started'] = True
+            save(release / 'deployment.json', meta)
+            stop_worker(worker_id)
+            run(compose + ['up', '-d', '--no-deps', 'test-station-worker'])
+            new_worker = active_worker()
+            healthy(new_worker)
+            meta['candidate_worker_container'] = new_worker
+            meta['stage_seconds']['worker_replace'] = round(time.monotonic() - worker_started, 2)
         reload_caddy(caddy_id, new_caddy)
         public_probes()
         private_write(caddy_path, new_caddy)
@@ -196,7 +310,10 @@ def deploy(bundle):
         save(release / 'deployment.json', meta)
         state = dict(previous, source_commit=commit, source_tree=tree, image_id=image_id, image_tag=image,
             release_dir=str(release), previous_release_dir=previous['release_dir'], active_api_container=candidate_id,
-            active_api_service=service, api_only_release=True, binary_sha256=manifest['binary_sha256'], result='succeeded', rolled_back=False)
+            active_api_service=service, api_only_release=not update_worker, binary_sha256=manifest['binary_sha256'], result='succeeded', rolled_back=False)
+        if update_worker:
+            state['active_worker_container'] = new_worker
+            state['worker_image_id'] = image_id
         state['binary_source_commit'] = manifest.get('binary_source_commit', commit)
         state['binary_source_tree'] = manifest.get('binary_source_tree', tree)
         state.pop('image_archive_sha256', None)
