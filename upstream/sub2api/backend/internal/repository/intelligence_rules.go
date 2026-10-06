@@ -26,7 +26,7 @@ func (r *pelicanGroupTestRepository) SaveIntelligenceRule(ctx context.Context, k
 		return err
 	}
 	existing := map[int64]int64{}
-	busy := false
+	runningGroups := map[int64]bool{}
 	for rows.Next() {
 		var id, gid int64
 		var running bool
@@ -35,15 +35,26 @@ func (r *pelicanGroupTestRepository) SaveIntelligenceRule(ctx context.Context, k
 			return err
 		}
 		existing[gid] = id
-		busy = busy || running
+		runningGroups[gid] = running
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
 		return err
 	}
-	if busy {
-		return service.ErrPelicanGroupTestPlanRunning
+	// Runs own a configuration snapshot. Updates affect only future claims and
+	// must keep the lease and plan row so the current run can persist and finish.
+	retained := map[int64]bool{}
+	for _, p := range plans {
+		retained[p.GroupID] = true
+	}
+	for gid, running := range runningGroups {
+		if running && !retained[gid] {
+			if len(plans) == 0 {
+				return service.ErrPelicanGroupTestPlanRunning
+			}
+			return infraerrors.Conflict("INTELLIGENCE_GROUP_RUNNING", "正在检测的分组暂不能移除；可先暂停规则，等待本轮结束后移除")
+		}
 	}
 	// Lock group rows in stable order to serialize overlapping rule saves, including first creation.
 	sorted := append([]*service.PelicanGroupTestPlan(nil), plans...)

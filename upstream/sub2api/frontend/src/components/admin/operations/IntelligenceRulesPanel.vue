@@ -37,12 +37,12 @@
         >
           立即检测</button
         ><button
-          :disabled="busy || rule.plans.some(running)"
+          :disabled="busy"
           @click="toggle(rule.plans)"
         >
           {{ rule.plans[0].enabled ? "暂停" : "启用" }}</button
         ><button
-          :disabled="busy || rule.plans.some(running)"
+          :disabled="busy"
           @click="open(rule.plans)"
         >
           编辑</button
@@ -69,6 +69,9 @@
         @submit.prevent="save"
       >
         <fieldset :disabled="busy">
+          <p v-if="editingRunning" class="rule-help" role="status">
+            检测正在进行，可以暂停或修改；修改将在下一个周期生效，本轮检测继续使用原配置。
+          </p>
           <div class="rule-fields">
             <label
               >规则名称<input
@@ -347,6 +350,11 @@ const error = ref("");
 const formError = ref("");
 const notice = ref("");
 const deleting = ref<string | null>(null);
+const editingRunning = computed(() =>
+  props.plans.some(
+    (p) => p.pelican_config.intelligence?.id === editing.value && running(p),
+  ),
+);
 const missingGroups = computed(
   () =>
     draft.value?.group_ids.filter(
