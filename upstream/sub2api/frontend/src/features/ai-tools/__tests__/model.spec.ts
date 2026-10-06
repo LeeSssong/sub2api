@@ -1,6 +1,6 @@
 import * as model from '../model'
 import { describe, expect, it } from 'vitest'
-import { linkedCounts, configuredLines, routeHealth, compareQuality, metricLabel, toolIdsForGroup } from '../model'
+import { linkedCounts, configuredLines, routeHealth, compareQuality, metricLabel, toolIdsForGroup, rankWeightedRoutes } from '../model'
 import type { ApiKey, Group } from '@/types'
 import type { MonitorV4Group } from '@/features/monitor-v4/types'
 const group = (id: number, status = 'active') => ({ id, name: `线路${id}`, status, platform: 'openai', rate_multiplier: 1 }) as Group
@@ -46,6 +46,40 @@ describe('AI线路真实口径', () => {
   it('sorts sampled routes by real success, sample size and P50, ignoring probe flags', () => {
     const ms = new Map([[1,metric({real_request_count:2,real_success_count:2})],[2,metric({real_request_count:20,real_success_count:20})]])
     expect([group(1),group(2)].sort((a,b)=>compareQuality(a,b,ms,{},now,new Date(now).toISOString()))[0].id).toBe(2)
+  })
+  it('ranks only active routes with complete 24h metrics using 50/30/20 weighted quality', () => {
+    const routes = [group(1), group(2), group(3, 'inactive')]
+    const ms = new Map([
+      [1, metric({ real_request_count: 100, real_success_count: 100, cache_hit_rate: 0.2, ttft_p50_ms: 1000 })],
+      [2, metric({ real_request_count: 100, real_success_count: 90, cache_hit_rate: 0.8, ttft_p50_ms: 500 })],
+      [3, metric({ real_request_count: 100, real_success_count: 100, cache_hit_rate: 1, ttft_p50_ms: 1 })],
+    ])
+    const ranked = rankWeightedRoutes(routes, ms, now, new Date(now).toISOString())
+    expect(ranked.map(item => item.group.id)).toEqual([2, 1])
+    expect(ranked[0].score).toBeCloseTo(89)
+  })
+  it('excludes active routes when any weighted metric is unavailable', () => {
+    const routes = [group(1), group(2)]
+    const ms = new Map([
+      [1, metric({ real_request_count: 10, real_success_count: 10, cache_hit_rate: null, ttft_p50_ms: 500 })],
+      [2, metric({ real_request_count: 10, real_success_count: 10, cache_hit_rate: 0.5, ttft_p50_ms: null })],
+    ])
+    expect(rankWeightedRoutes(routes, ms, now, new Date(now).toISOString())).toEqual([])
+  })
+  it('gives equal TTFTs full speed points and sorts exact ties by ID', () => {
+    const m = metric({real_request_count:10, real_success_count:9, cache_hit_rate:0, ttft_p50_ms:0})
+    const ranked = rankWeightedRoutes([group(2),group(1)], new Map([[1,m],[2,m]]), now, new Date(now).toISOString())
+    expect(ranked.map(item => item.group.id)).toEqual([1,2])
+    expect(ranked[0].ttftScore).toBe(100)
+    expect(ranked[0].score).toBe(65)
+    expect(rankWeightedRoutes([group(1)],new Map([[1,m]]),now,new Date(now).toISOString())[0].score).toBe(65)
+  })
+  it('does not rank zero requests, invalid metrics, or stale snapshots', () => {
+    const valid = metric({real_request_count:10, real_success_count:9, cache_hit_rate:.5, ttft_p50_ms:1000})
+    for (const override of [{real_request_count:0,real_success_count:0},{cache_hit_rate:NaN},{cache_hit_rate:1.1},{ttft_p50_ms:-1},{ttft_p50_ms:Infinity}]) {
+      expect(rankWeightedRoutes([group(1)],new Map([[1, {...valid,...override}]]),now,new Date(now).toISOString())).toEqual([])
+    }
+    expect(rankWeightedRoutes([group(1)],new Map([[1,valid]]),now,new Date(now-421000).toISOString())).toEqual([])
   })
   it('does not substitute P95 or a check value for missing P50', () => {
     expect(metricLabel(undefined)).toBe('—')

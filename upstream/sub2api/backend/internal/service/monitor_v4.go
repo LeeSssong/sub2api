@@ -201,7 +201,7 @@ func (s *MonitorV4Service) Snapshot(ctx context.Context, userID int64, window Mo
 }
 
 func (s *MonitorV4Service) RefreshMonitorV4Snapshots(ctx context.Context, asOf time.Time) error {
-	if s == nil || s.groupRepo == nil || s.configured == nil || s.native == nil || s.store == nil {
+	if s == nil || s.groupRepo == nil || s.native == nil || s.store == nil {
 		return fmt.Errorf("monitor v4 snapshot refresh dependencies unavailable")
 	}
 	end := asOf.UTC().Truncate(time.Minute)
@@ -212,35 +212,11 @@ func (s *MonitorV4Service) RefreshMonitorV4Snapshots(ctx context.Context, asOf t
 	if err != nil {
 		return fmt.Errorf("list active groups for monitor v4 snapshot refresh: %w", err)
 	}
-	config, err := s.configured.GetConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("load channel monitor config for monitor v4 snapshot refresh: %w", err)
-	}
-	configuredIDs := map[int64]struct{}{}
-	if config != nil {
-		for _, id := range config.GroupIDs {
-			if id > 0 {
-				configuredIDs[id] = struct{}{}
-			}
-		}
-	}
-	mappedIDs := map[int64]bool{}
-	if repo, ok := s.groupRepo.(GroupToolMappingRepository); ok {
-		ids := make([]int64, 0, len(allGroups))
-		for _, group := range allGroups {
-			ids = append(ids, group.ID)
-		}
-		mappings, err := repo.ReadGroupToolMappings(ctx, ids)
-		if err != nil {
-			return fmt.Errorf("read tool mappings for refresh: %w", err)
-		}
-		for id, mapping := range mappings {
-			mappedIDs[id] = len(mapping.ToolIDs) > 0
-		}
-	}
+	// Request statistics cover every enabled group; probe/monitor configuration
+	// must not exclude a group from the user-facing 24h recommendation data.
 	groupIDs := make([]int64, 0, len(allGroups))
 	for _, group := range allGroups {
-		if group.Status != StatusActive || (len(configuredIDs) > 0 && !mappedIDs[group.ID] && func() bool { _, ok := configuredIDs[group.ID]; return !ok }()) {
+		if group.Status != StatusActive {
 			continue
 		}
 		groupIDs = append(groupIDs, group.ID)
