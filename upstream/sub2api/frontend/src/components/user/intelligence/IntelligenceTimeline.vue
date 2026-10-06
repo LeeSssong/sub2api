@@ -18,7 +18,7 @@
       >
     </div>
     <div class="iq-stats">
-      <strong :class="stats.total ? 'passed' : 'iq-muted'"
+      <strong :class="{ 'iq-muted': !stats.total }"
         >{{ stats.percentage }}<template v-if="stats.total">%</template></strong
       >
       <span
