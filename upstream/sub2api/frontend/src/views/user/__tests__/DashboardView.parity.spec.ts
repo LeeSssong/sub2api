@@ -46,39 +46,47 @@ describe('原型AI工具交互',()=>{
   w.unmount()
  })
 
- it('summarizes each route health state with a count on the tool card',async()=>{
-  const threeRoutes=[
-   {id:1,name:'正常线路',platform:'openai',rate_multiplier:1,status:'active'},
-   {id:2,name:'波动线路',platform:'openai',rate_multiplier:1,status:'active'},
-   {id:3,name:'暂无数据线路',platform:'openai',rate_multiplier:1,status:'active'},
-  ]
-  mocks.groups.mockResolvedValue(threeRoutes)
-  mocks.keys.mockResolvedValue({items:threeRoutes.map((group,index)=>({id:index+1,group_id:group.id,status:'active',group})),total:3})
+ it('shows all route states and exact counts on one clickable tool entry',async()=>{
+  const fiveRoutes=Array.from({length:5},(_,index)=>({id:index+1,name:`线路 ${index+1}`,platform:'openai',rate_multiplier:1,status:'active'}))
+  mocks.groups.mockResolvedValue(fiveRoutes)
+  mocks.keys.mockResolvedValue({items:[],total:0})
   mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:[
-   {...metric(1),real_request_count:100,real_success_count:95},
-   {...metric(2),real_request_count:100,real_success_count:80},
-   {...metric(3),real_request_count:0,real_success_count:0},
+   {...metric(1),real_success_count:95},
+   {...metric(2),real_success_count:100},
+   {...metric(3),real_success_count:80},
+   {...metric(4),real_success_count:20},
+   {...metric(5),real_request_count:0,real_success_count:0},
   ]})
   const w=make();await flushPromises()
-  const status=w.get('.tool-card')
-  expect(status.find('[data-health-count="success"]').text()).toBe('正常运行 1')
-  expect(status.find('[data-health-count="warning"]').text()).toBe('波动 1')
-  expect(status.find('[data-health-count="muted"]').text()).toBe('暂无数据 1')
-  expect(status.find('[data-health-count="danger"]').exists()).toBe(false)
+  const status=w.get('button[aria-label="Codex 线路详情"]')
+  expect(status.findAll('[data-health-count]').map(item=>item.text())).toEqual(['正常2','波动1','异常1','无数据1'])
+  expect(status.attributes('title')).toBe('正常 2 条，波动 1 条，异常 1 条，无数据 1 条')
+  expect(status.attributes('aria-expanded')).toBe('false')
+  await status.trigger('click');await flushPromises()
+  expect(status.attributes('aria-expanded')).toBe('true')
+  expect(w.findAll('.route-detail-card')).toHaveLength(5)
+  w.unmount()
+ })
+
+ it('hides zero counts and distinguishes no routes from routes without request data',async()=>{
+  const w=make();await flushPromises()
+  const status=w.get('button[aria-label="Codex 线路详情"]')
+  expect(status.findAll('[data-health-count]').map(item=>item.text())).toEqual(['正常2'])
+  expect(w.get('button[aria-label="DeepSeek 线路详情"]').text()).toBe('暂无线路')
   w.unmount()
  })
 
  it('invalidates one-hour health after detail failure and clears only the statistics error on recovery',async()=>{
   const w=make();await flushPromises()
-  expect(w.get('.tool-status').text()).toContain('正常运行 2')
+  expect(w.get('.tool-status').text()).toBe('正常2')
   await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
   mocks.snapshot.mockRejectedValueOnce(new Error('offline'))
   await w.findAll('button').find(b=>b.text()==='近 1 小时')!.trigger('click');await flushPromises()
-  expect(w.get('.tool-status').text()).toContain('暂无数据 2')
+  expect(w.get('.tool-status').text()).toBe('无数据2')
   expect(w.get('.route-health').text()).toBe('暂无数据')
   expect(w.get('.statistics-error').text()).toContain('统计读取失败')
   await w.get('[role="dialog"]').findAll('button').find(b=>b.text()==='重试')!.trigger('click');await flushPromises()
-  expect(w.get('.tool-status').text()).toContain('正常运行 2')
+  expect(w.get('.tool-status').text()).toBe('正常2')
   expect(w.find('.statistics-error').exists()).toBe(false)
   w.unmount()
  })
@@ -101,8 +109,7 @@ describe('原型AI工具交互',()=>{
  it('weights card requests and keeps route status on one hour after selecting seven days',async()=>{
   mocks.snapshot.mockImplementation((window:string)=>Promise.resolve({generated_at:new Date().toISOString(),groups:groups.map(g=>({...metric(g.id),real_request_count:g.id===1?1:99,real_success_count:window==='7d'?0:g.id===1?0:99}))}))
   const w=make();await flushPromises()
-  expect(w.get('.tool-status').find('[data-health-count="success"]').text()).toBe('正常运行 1')
-  expect(w.get('.tool-status').find('[data-health-count="danger"]').text()).toBe('异常 1')
+  expect(w.get('.tool-status').findAll('[data-health-count]').map(item=>item.text())).toEqual(['正常1','异常1'])
   expect(w.get('.route-row .route-name').text()).toContain('异常')
   await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
   await w.findAll('button').find(b=>b.text()==='近 7 天')!.trigger('click');await flushPromises()
