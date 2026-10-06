@@ -7,13 +7,15 @@ import (
 )
 
 type MonitorV4TimelinePoint struct {
-	CacheHitRate *float64  `json:"cache_hit_rate"`
-	TTFTP50MS    *float64  `json:"ttft_p50_ms"`
-	GroupID      int64     `json:"group_id"`
-	Start        time.Time `json:"start"`
-	End          time.Time `json:"end"`
-	RequestCount int       `json:"request_count"`
-	SuccessCount int       `json:"success_count"`
+	GradedRoundCount            int       `json:"graded_round_count"`
+	SuspectedDegradedRoundCount int       `json:"suspected_degraded_round_count"`
+	CacheHitRate                *float64  `json:"cache_hit_rate"`
+	TTFTP50MS                   *float64  `json:"ttft_p50_ms"`
+	GroupID                     int64     `json:"group_id"`
+	Start                       time.Time `json:"start"`
+	End                         time.Time `json:"end"`
+	RequestCount                int       `json:"request_count"`
+	SuccessCount                int       `json:"success_count"`
 }
 type MonitorV4Timeline struct {
 	Granularity string                   `json:"granularity"`

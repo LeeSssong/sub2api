@@ -217,5 +217,14 @@ func (r *accountMonitorRepository) ReadMonitorV4Timeline(ctx context.Context, id
 		p.End = p.Start.Add(step)
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := r.readGradedCandyRounds(ctx, ids, start, end, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
