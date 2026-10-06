@@ -26,6 +26,55 @@ beforeEach(() => {
 enableAutoUnmount(afterEach)
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 describe('原生扣费标准同步', () => {
+  it('compares short and long context prices under range headers in one model row', async () => {
+    mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-5.4'], official_pricing: {
+      'gpt-5.4': { input_price: 1e-6, output_price: 2e-6, cache_read_price: null, cache_write_price: null, intervals: [
+        { min_tokens: 0, max_tokens: 272000, tier_label: '≤272K', input_price: 1e-6, output_price: 2e-6, cache_read_price: 0, cache_write_price: 3e-6, cache_write_1h_price: 4e-6 },
+        { min_tokens: 272000, max_tokens: null, tier_label: '>272K', input_price: 5e-6, output_price: 6e-6, cache_read_price: .5e-6, cache_write_price: 7e-6, cache_write_1h_price: 8e-6 },
+      ] },
+    } }])
+    const w = make(); await flushPromises()
+    expect(w.findAll('.model-pricing-table thead tr')).toHaveLength(2)
+    const headers = w.findAll('.model-pricing-table thead [scope="colgroup"]')
+    expect(headers.map(header => header.text())).toEqual(['短上下文≤272K', '长上下文>272K'])
+    expect(headers.map(header => header.attributes('colspan'))).toEqual(['4', '4'])
+    expect(w.get('.model-pricing-table thead th').attributes('rowspan')).toBe('2')
+    const row = w.get('.model-pricing-table tbody tr')
+    expect(row.findAll('.model-name')).toHaveLength(1)
+    expect(row.findAll('td').map(cell => cell.text())).toEqual(['$1.00', '$0.00', '5分钟 $3.001小时 $4.00', '$2.00', '$5.00', '$0.50', '5分钟 $7.001小时 $8.00', '$6.00'])
+    expect(row.findAll('td')[4].classes()).toContain('context-divider')
+  })
+  it('does not label different native thresholds as a universal 272K range', async () => {
+    const priced = (threshold: number) => ({ input_price: 1e-6, output_price: 2e-6, cache_read_price: null, cache_write_price: null, intervals: [
+      { min_tokens: 0, max_tokens: threshold, input_price: 1e-6 },
+      { min_tokens: threshold, max_tokens: null, input_price: 3e-6 },
+    ] })
+    mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['model-a', 'model-b'], official_pricing: {
+      'model-a': priced(272000), 'model-b': priced(200000),
+    } }])
+    const w = make(); await flushPromises()
+    expect(w.findAll('.model-pricing-table thead [scope="colgroup"]').map(header => header.text())).toEqual(['短上下文', '长上下文'])
+    const rows = w.findAll('.model-pricing-table tbody tr')
+    expect(rows[0].text()).toContain('≤272K')
+    expect(rows[0].text()).toContain('>272K')
+    expect(rows[1].text()).toContain('≤200K')
+    expect(rows[1].text()).toContain('>200K')
+  })
+  it('distinguishes all-context prices from a missing context tier', async () => {
+    mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['flat', 'tiered'], official_pricing: {
+      flat: { input_price: 9e-6, output_price: 10e-6, cache_read_price: null, cache_write_price: null },
+      tiered: { input_price: 1e-6, output_price: 2e-6, cache_read_price: null, cache_write_price: null, intervals: [
+        { min_tokens: 0, max_tokens: 272000, tier_label: '≤272K', input_price: 1e-6 },
+        { min_tokens: 272000, max_tokens: null, tier_label: '>272K', input_price: 3e-6 },
+      ] },
+    } }])
+    const w = make(); await flushPromises()
+    const flat = w.findAll('.model-pricing-table tbody tr').find(row => row.get('.model-name').text() === 'flat')!
+    expect(flat.text()).toContain('全部上下文')
+    expect(flat.text()).toContain('适用全部上下文')
+    expect(flat.findAll('td').at(-1)!.attributes('colspan')).toBe('4')
+    expect(flat.text()).not.toContain('无此档位')
+  })
   it('orders newer models first and filters official types without changing group fees', async () => {
     mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-5.2', 'gpt-image-2', 'gpt-5.4', 'gpt-4o-transcribe', 'gpt-realtime', 'gpt-5.6-cyber', 'gpt-6.1-sol'] }])
     const w = make(); await flushPromises()

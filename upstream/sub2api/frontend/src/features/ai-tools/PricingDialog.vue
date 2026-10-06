@@ -1,5 +1,5 @@
 <template>
-  <BaseDialog brand-theme :show="!!tool" :title="`${tool?.label || ''} 价格表`" width="full" panel-class="xq-pricing-dialog" :close-on-click-outside="true" @close="emit('close')">
+  <BaseDialog brand-theme :show="!!tool" :title="`${tool?.label || ''} 价格表`" width="full" panel-class="xq-pricing-dialog xq-context-pricing-dialog" :close-on-click-outside="true" @close="emit('close')">
     <div class="pricing-content">
       <section class="official-pricing-section" aria-labelledby="official-pricing-title">
         <div class="pricing-heading official-pricing-heading">
@@ -14,11 +14,28 @@
           <p v-if="loading && !hasLoaded" role="status">正在读取分组、模型与倍率…</p>
           <div v-else-if="error" class="pricing-error" role="alert">分组、模型或倍率读取失败，请重试。<button type="button" class="btn btn-secondary" @click="loadPricing">重试</button></div>
           <div v-else-if="priceRows.length" class="table-scroll model-pricing-table context-pricing-table" tabindex="0" aria-label="模型价格，美元 / 100 万 Token">
-            <table>
-              <thead><tr><th scope="col">模型</th><th v-for="column in priceColumns" :key="column.key" scope="col">{{ column.label }}</th></tr></thead>
+            <table :style="{ minWidth: `${180 + contextGroups.length * contextPriceColumns.length * 124}px` }">
+              <colgroup><col class="model-column" /></colgroup>
+              <colgroup v-for="group in contextGroups" :key="group.index" :span="contextPriceColumns.length" />
+              <thead>
+                <tr><th scope="col" rowspan="2" class="model-column">模型</th><th v-for="group in contextGroups" :key="group.index" scope="colgroup" :colspan="contextPriceColumns.length" class="context-divider context-heading">{{ group.label }}<span v-if="group.context"> {{ group.context }}</span></th></tr>
+                <tr><template v-for="group in contextGroups" :key="group.index"><th v-for="(column, index) in contextPriceColumns" :key="column.key" scope="col" :class="{ 'context-divider': index === 0 }">{{ column.label }}</th></template></tr>
+              </thead>
               <tbody><tr v-for="row in priceRows" :key="row.key">
-                <th scope="row"><span class="model-name">{{ row.model }}</span><span class="model-context" v-for="(tier, index) in row.tiers" :key="index">{{ tier.label ? `${tier.label}上下文 · ` : '' }}{{ tier.context }}</span></th>
-                <td v-for="column in priceColumns" :key="column.key"><div v-for="(tier, index) in row.tiers" :key="index" class="context-price"><span v-if="tier.label" class="context-label">{{ tier.label }}</span><span>{{ formatNativePrice(tier.prices[column.key]) }}</span></div></td>
+                <th scope="row" class="model-column"><span class="model-name">{{ row.model }}</span><span v-if="!row.tiers[0].label" class="model-context">{{ row.tiers[0].context }}</span></th>
+                <template v-for="group in contextGroups" :key="group.index">
+                  <template v-if="row.tiers[group.index]">
+                    <td v-for="(column, index) in contextPriceColumns" :key="column.key" :class="{ 'context-divider': index === 0 }">
+                      <span v-if="index === 0 && !group.context && row.tiers[group.index].label" class="model-context context-range">{{ row.tiers[group.index].context }}</span>
+                      <template v-if="column.key === 'cache_write_price' && (row.tiers[group.index].prices.cache_write_price != null || row.tiers[group.index].prices.cache_write_1h_price != null)">
+                        <span class="cache-price"><span class="cache-duration">5分钟</span> {{ formatNativePrice(row.tiers[group.index].prices.cache_write_price) }}</span>
+                        <span v-if="row.tiers[group.index].prices.cache_write_1h_price != null" class="cache-price"><span class="cache-duration">1小时</span> {{ formatNativePrice(row.tiers[group.index].prices.cache_write_1h_price) }}</span>
+                      </template>
+                      <template v-else>{{ formatNativePrice(row.tiers[group.index].prices[column.key]) }}</template>
+                    </td>
+                  </template>
+                  <td v-else :colspan="contextPriceColumns.length" class="context-divider context-unavailable">{{ row.tiers[0].label ? '无此档位' : row.tiers[0].context === '全部上下文' ? '适用全部上下文，单价同左侧' : '暂无参考价' }}</td>
+                </template>
               </tr></tbody>
             </table>
           </div>
@@ -56,7 +73,7 @@ import userGroupsAPI from '@/api/groups'
 import { getGroupModels, type GroupModels } from './api'
 import { toolIdsForGroup, tools } from './model'
 import { modelCategories, modelCategory, sortOpenAIModels, type ModelCategory } from './modelMetadata'
-import { formatNativePrice, nativePriceRows, priceColumns } from './officialPricing'
+import { contextPriceColumns, formatNativePrice, nativeContextGroups, nativePriceRows } from './officialPricing'
 
 const props = defineProps<{ tool: { id: string; label: string } | null; lines: Group[]; rates: Record<number, number> }>()
 const emit = defineEmits<{ close: [] }>()
@@ -100,6 +117,7 @@ const categoryOptions = computed(() => modelCategories.map(category => ({
 })))
 const filteredModels = computed(() => !isOpenAiTool.value || selectedCategory.value === 'all' ? allowedModels.value : allowedModels.value.filter(model => modelCategory(model) === selectedCategory.value))
 const priceRows = computed(() => nativePriceRows(filteredModels.value, modelData.value.filter(group => pricingGroups.value.some(line => line.id === group.group_id))))
+const contextGroups = computed(() => nativeContextGroups(priceRows.value))
 
 function groupModels(id: number) {
   return modelsByGroup.value.get(id)?.join('、') || '暂无可用模型'
@@ -198,22 +216,29 @@ onBeforeUnmount(() => {
 .pricing-content th,.pricing-content td { border-bottom:1px solid var(--xq-border); padding:8px 12px; }
 .pricing-content thead th { font-weight:500; color:var(--xq-muted); }
 .pricing-content tbody th { font-weight:600; }
-.model-pricing-table table { min-width:1000px; table-layout:fixed; }
-.model-pricing-table th:first-child { width:180px; }
+.model-pricing-table table { table-layout:fixed; }
+.model-pricing-table .model-column { width:180px; }
+.model-pricing-table th.model-column { position:sticky; left:0; z-index:1; background:var(--xq-raised); }
+.model-pricing-table .context-divider { border-left:1px solid var(--xq-border); }
 .pricing-filter { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
 .pricing-filter > :first-child { width:260px; max-width:100%; }
 .pricing-sort-note { color:var(--xq-muted); font-size:12px; }
 .model-name { display:block; }
 .model-context { display:block; color:var(--xq-muted); font-size:11px; font-weight:400; line-height:1.8; }
-.context-price { display:flex; align-items:baseline; gap:8px; line-height:1.8; }
-.context-label { color:var(--xq-muted); font-size:11px; min-width:1em; }
+.cache-price { display:block; line-height:1.8; }
+.cache-duration { color:var(--xq-muted); font-size:11px; }
+.context-range { margin-bottom:4px; }
+.context-unavailable { color:var(--xq-muted); font-size:12px; }
 .model-pricing-table td { vertical-align:top; }
 .model-pricing-table tbody th { font-size:13px; overflow-wrap:anywhere; }
 .model-pricing-table th,.model-pricing-table td { padding:10px 13px; }
-.model-pricing-table thead th { height:44px; box-sizing:border-box; color:var(--xq-text); font-size:12px; line-height:1.3; white-space:nowrap; }
-.model-pricing-table thead tr:first-child th { background:var(--xq-depth); font-size:13px; }
+.model-pricing-table thead th { position:sticky; top:40px; z-index:2; height:40px; box-sizing:border-box; background:var(--xq-depth); color:var(--xq-text); font-size:12px; line-height:1.3; white-space:nowrap; }
+.model-pricing-table thead tr:first-child th { top:0; font-size:13px; }
+.model-pricing-table thead th.model-column { z-index:3; background:var(--xq-depth); }
+.model-pricing-table .context-heading span { margin-left:8px; color:var(--xq-muted); font-weight:400; }
 .model-pricing-table td { font-variant-numeric:tabular-nums; white-space:nowrap; }
 .model-pricing-table tbody tr:nth-child(even) { background:var(--xq-depth); }
+.model-pricing-table tbody tr:nth-child(even) th.model-column { background:var(--xq-depth); }
 
 .fee-heading { margin-bottom:24px; }
 .pricing-refresh { display:inline-flex; align-items:center; gap:6px; flex:0 0 auto; }
@@ -224,10 +249,14 @@ onBeforeUnmount(() => {
 .fee-table thead th:nth-child(4) { width:30%; }
 .fee-table td,.fee-table tbody th { vertical-align:top; }
 .supported-models { overflow-wrap:anywhere; }
+@media (min-width:641px) {
+  :global(.xq-dialog .xq-pricing-dialog.xq-context-pricing-dialog) { width:min(1360px,calc(100vw - 48px)); }
+}
 @media (max-width:640px) {
   .fee-heading { flex-wrap:wrap; }
   .official-pricing-section { padding:16px 12px; }
   .pricing-content h3 { font-size:17px; }
   .official-pricing-heading { flex-wrap:wrap; }
+  .model-pricing-table .model-column { width:120px; }
 }
 </style>
