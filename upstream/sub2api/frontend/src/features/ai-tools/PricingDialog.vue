@@ -253,6 +253,9 @@ onBeforeUnmount(() => {
 .fee-heading { margin-bottom:24px; }
 .pricing-refresh { display:inline-flex; align-items:center; gap:6px; flex:0 0 auto; }
 .fee-table table { min-width:720px; table-layout:fixed; }
+.pricing-content .fee-table thead th { color:var(--xq-text); font-size:12px; }
+.pricing-content .fee-table tbody th,.pricing-content .fee-table td { color:var(--xq-text); font-size:14px; font-weight:600; }
+.pricing-content .fee-table tbody th { font-weight:650; }
 .fee-table thead th:nth-child(1) { width:18%; }
 .fee-table thead th:nth-child(2) { width:40%; }
 .fee-table thead th:nth-child(3) { width:12%; }
