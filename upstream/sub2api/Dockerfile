@@ -136,10 +136,11 @@ LABEL description="Sub2API - AI API Gateway Platform"
 LABEL org.opencontainers.image.source="https://github.com/Wei-Shaw/sub2api"
 
 # Native credential guard executor, pinned dependencies and upstream sources.
+RUN --mount=type=bind,source=token-guard/requirements.txt,target=/tmp/token-guard-requirements.txt,readonly \
+    cmp /tmp/token-guard-requirements.txt /app/token-guard/requirements.txt
 COPY token-guard /app/token-guard
 COPY Dockerfile deploy/docker-entrypoint.sh /app/token-guard/build/
-# Copy pg_dump and psql from the same postgres image used in docker-compose
-# This ensures version consistency between backup tools and the database server
+# The verified runtime retains its PostgreSQL clients and dependency environment.
 
 # Set working directory
 WORKDIR /app
