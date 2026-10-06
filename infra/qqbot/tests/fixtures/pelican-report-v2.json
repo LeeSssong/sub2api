@@ -1,0 +1,144 @@
+{
+  "fixture_notice": "离线自测样例，非线上检测结果",
+  "report": {
+    "schema_version": 2,
+    "as_of": "2026-09-26T07:05:00Z",
+    "snapshot_id": "sha256:test-fixture",
+    "group": {
+      "id": 6,
+      "name": "GPT-Pro5x",
+      "platform": "openai",
+      "rate_multiplier": 5.0
+    },
+    "model_id": "gpt-6-astra",
+    "window": {
+      "from": "2026-09-25T07:05:00Z",
+      "to": "2026-09-26T07:05:00Z"
+    },
+    "statistics": {
+      "candy": {
+        "success_count": 1,
+        "total_count": 1,
+        "failure_count": 0,
+        "ungraded_count": 0,
+        "observed_count": 1,
+        "success_rate": 100.0,
+        "timed_count": 1,
+        "avg_latency_ms": 10000.0,
+        "execution_count": 1
+      },
+      "pelican": {
+        "success_count": 1,
+        "total_count": 1,
+        "failure_count": 0,
+        "ungraded_count": 0,
+        "observed_count": 1,
+        "success_rate": 100.0,
+        "timed_count": 1,
+        "avg_latency_ms": 20000.0,
+        "execution_count": 1
+      }
+    },
+    "history": {
+      "candy": [
+        {
+          "result_id": 101,
+          "execution_id": "446b23d2-23f0-4a0d-987a-826894b61d51",
+          "shared_round_id": null,
+          "scheduled_for": "2026-09-26T07:00:00Z",
+          "status": "success",
+          "judgment": "builtin_candy",
+          "started_at": "2026-09-26T07:00:01Z",
+          "completed_at": "2026-09-26T07:00:11Z",
+          "latency_ms": 10000
+        }
+      ],
+      "pelican": [
+        {
+          "result_id": 102,
+          "execution_id": "2435ce67-1583-4e7c-b7a1-8a56c82c0b60",
+          "shared_round_id": null,
+          "scheduled_for": "2026-09-26T07:00:00Z",
+          "status": "success",
+          "judgment": "drawing",
+          "started_at": "2026-09-26T07:00:01Z",
+          "completed_at": "2026-09-26T07:00:21Z",
+          "latency_ms": 20000
+        }
+      ]
+    },
+    "latest": {
+      "candy": {
+        "execution_id": "446b23d2-23f0-4a0d-987a-826894b61d51",
+        "shared_round_id": null,
+        "scheduled_for": "2026-09-26T07:00:00Z",
+        "status": "success",
+        "expected_count": 1,
+        "completed_count": 1,
+        "started_at": "2026-09-26T07:00:01Z",
+        "completed_at": "2026-09-26T07:00:11Z",
+        "latency_ms": 10000,
+        "results": [
+          {
+            "result_id": 101,
+            "execution_id": "446b23d2-23f0-4a0d-987a-826894b61d51",
+            "shared_round_id": null,
+            "scheduled_for": "2026-09-26T07:00:00Z",
+            "status": "success",
+            "judgment": "builtin_candy",
+            "started_at": "2026-09-26T07:00:01Z",
+            "completed_at": "2026-09-26T07:00:11Z",
+            "latency_ms": 10000
+          }
+        ]
+      },
+      "pelican": {
+        "execution_id": "2435ce67-1583-4e7c-b7a1-8a56c82c0b60",
+        "shared_round_id": null,
+        "scheduled_for": "2026-09-26T07:00:00Z",
+        "status": "success",
+        "expected_count": 1,
+        "completed_count": 1,
+        "started_at": "2026-09-26T07:00:01Z",
+        "completed_at": "2026-09-26T07:00:21Z",
+        "latency_ms": 20000,
+        "results": [
+          {
+            "result_id": 102,
+            "execution_id": "2435ce67-1583-4e7c-b7a1-8a56c82c0b60",
+            "shared_round_id": null,
+            "scheduled_for": "2026-09-26T07:00:00Z",
+            "status": "success",
+            "judgment": "drawing",
+            "started_at": "2026-09-26T07:00:01Z",
+            "completed_at": "2026-09-26T07:00:21Z",
+            "latency_ms": 20000
+          }
+        ]
+      }
+    },
+    "current_round": null,
+    "artwork": {
+      "id": 34,
+      "source_result_id": 102,
+      "execution_id": "2435ce67-1583-4e7c-b7a1-8a56c82c0b60",
+      "group_id": 6,
+      "model_id": "gpt-6-astra",
+      "reasoning_effort": "medium",
+      "generated_at": "2026-09-26T07:00:01Z",
+      "response_text": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 100\"><text x=\"20\" y=\"55\">Fixture pelican</text></svg>"
+    },
+    "history_meta": {
+      "candy": {
+        "total_count": 1,
+        "returned_count": 1,
+        "limit": 240
+      },
+      "pelican": {
+        "total_count": 1,
+        "returned_count": 1,
+        "limit": 240
+      }
+    }
+  }
+}

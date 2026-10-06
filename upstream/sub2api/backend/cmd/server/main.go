@@ -4,10 +4,13 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/repository"
+	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	"log"
 	"net/http"
 	"os"
@@ -19,13 +22,15 @@ import (
 	_ "github.com/Wei-Shaw/sub2api/ent/runtime"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/mihomo"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
+	"github.com/Wei-Shaw/sub2api/internal/server"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/setup"
 	"github.com/Wei-Shaw/sub2api/internal/web"
 
 	"github.com/gin-gonic/gin"
+	_ "github.com/lib/pq"
 )
 
 //go:embed VERSION
@@ -61,10 +66,39 @@ func main() {
 	// Parse command line flags
 	setupMode := flag.Bool("setup", false, "Run setup wizard in CLI mode")
 	showVersion := flag.Bool("version", false, "Show version information")
+	migrateOnly := flag.Bool("migrate-only", false, "Apply database migrations without starting API or background jobs")
+	migrateMihomo := flag.String("migrate-mihomo", "", "Stage legacy Mihomo into the specified Sub2API data directory (root deployment only)")
+	checkMihomo := flag.String("check-managed-mihomo", "", "Check managed Mihomo in the specified data directory")
 	flag.Parse()
+	if *checkMihomo != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := mihomo.CheckManaged(ctx, *checkMihomo); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if *migrateMihomo != "" {
+		if os.Geteuid() != 0 {
+			log.Fatal("Mihomo migration requires root")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		if err := mihomo.PrepareLegacy(ctx, *migrateMihomo, "/etc/mihomo-codex/config.yaml", "/var/lib/mihomo-codex/providers/airport.yaml", "/usr/local/bin/mihomo"); err != nil {
+			log.Fatalf("Mihomo migration failed: %v", err)
+		}
+		log.Print("Mihomo migration staged; original configuration retained")
+		return
+	}
 
 	if *showVersion {
 		log.Printf("Sub2API %s (commit: %s, built: %s)\n", Version, Commit, Date)
+		return
+	}
+	if *migrateOnly {
+		if err := migrateOnlyFromConfig(); err != nil {
+			log.Fatalf("Migration failed: %v", err)
+		}
 		return
 	}
 
@@ -88,6 +122,29 @@ func main() {
 	if err != nil {
 		log.Fatalf("Startup failed: %v", err)
 	}
+}
+
+func onlineMigrationDSN(cfg *config.Config) string {
+	return cfg.Database.DSNWithTimezone(cfg.Timezone) + " lock_timeout=100ms statement_timeout=2s"
+}
+
+func runMigrationsOnly(ctx context.Context, db *sql.DB, apply func(context.Context, *sql.DB) error) error {
+	return apply(ctx, db)
+}
+
+func migrateOnlyFromConfig() error {
+	cfg, err := config.LoadForBootstrap()
+	if err != nil {
+		return err
+	}
+	db, err := sql.Open("postgres", onlineMigrationDSN(cfg))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	return runMigrationsOnly(ctx, db, repository.ApplyMigrations)
 }
 
 type startupActions struct {
@@ -153,7 +210,7 @@ func runSetupServer() {
 
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           r,
+		Handler:           server.SetupHandler(r),
 		ReadHeaderTimeout: 30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 		Protocols:         protocols,
@@ -219,12 +276,23 @@ func runMainServer() {
 
 	log.Println("Shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	app.Lifecycle.BeginDrain()
+	if delay := time.Duration(cfg.Server.ShutdownDrainDelay) * time.Second; delay > 0 {
+		time.Sleep(delay)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout())
 	defer cancel()
 
 	if err := app.Server.Shutdown(ctx); err != nil {
 		log.Printf("Server forced to shutdown: %v", err)
 	}
 
+	if err := app.Lifecycle.Wait(ctx); err != nil {
+		log.Printf("Active request drain deadline reached: %v", err)
+	}
+	if err := app.Server.Close(); err != nil {
+		log.Printf("Closing server connections: %v", err)
+	}
 	log.Println("Server exited")
+	mihomo.CloseAll()
 }

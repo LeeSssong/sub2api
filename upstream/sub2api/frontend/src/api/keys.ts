@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from './client'
-import type { ApiKey, CreateApiKeyRequest, UpdateApiKeyRequest, PaginatedResponse } from '@/types'
+import type { ApiKey, ApiKeyConcurrencySnapshot, CreateApiKeyRequest, UpdateApiKeyRequest, PaginatedResponse } from '@/types'
 
 /**
  * List all API keys for current user
@@ -55,6 +55,7 @@ export async function getById(id: number): Promise<ApiKey> {
  * @param quota - Optional quota limit in USD (0 = unlimited)
  * @param expiresInDays - Optional days until expiry (undefined = never expires)
  * @param rateLimitData - Optional rate limit fields
+ * @param concurrencyLimit - Concurrent request limit (0 = no additional key limit)
  * @returns Created API key
  */
 export async function create(
@@ -65,9 +66,10 @@ export async function create(
   ipBlacklist?: string[],
   quota?: number,
   expiresInDays?: number,
-  rateLimitData?: { rate_limit_5h?: number; rate_limit_1d?: number; rate_limit_7d?: number }
+  rateLimitData?: { rate_limit_5h?: number; rate_limit_1d?: number; rate_limit_7d?: number },
+  concurrencyLimit: number = 0
 ): Promise<ApiKey> {
-  const payload: CreateApiKeyRequest = { name }
+  const payload: CreateApiKeyRequest = { name, concurrency_limit: concurrencyLimit }
   if (groupId !== undefined) {
     payload.group_id = groupId
   }
@@ -111,6 +113,32 @@ export async function update(id: number, updates: UpdateApiKeyRequest): Promise<
   return data
 }
 
+export interface BulkUpdateApiKeysResult {
+  succeededIds: number[]
+  failures: Array<{ id: number; error: unknown }>
+}
+
+/** Reuse per-key validation and permissions, with at most five requests in flight. */
+export async function bulkUpdate(
+  ids: number[],
+  updates: UpdateApiKeyRequest
+): Promise<BulkUpdateApiKeysResult> {
+  const uniqueIds = [...new Set(ids)]
+  const result: BulkUpdateApiKeysResult = { succeededIds: [], failures: [] }
+  for (let offset = 0; offset < uniqueIds.length; offset += 5) {
+    const batch = uniqueIds.slice(offset, offset + 5)
+    const responses = await Promise.allSettled(batch.map((id) => update(id, updates)))
+    responses.forEach((response, index) => {
+      if (response.status === 'fulfilled') {
+        result.succeededIds.push(batch[index])
+      } else {
+        result.failures.push({ id: batch[index], error: response.reason })
+      }
+    })
+  }
+  return result
+}
+
 /**
  * Delete API key
  * @param id - API key ID
@@ -131,11 +159,22 @@ export async function toggleStatus(id: number, status: 'active' | 'inactive'): P
   return update(id, { status })
 }
 
+/** Read actual queue policy and counts; omitting IDs requests policy only. */
+export async function getConcurrency(ids: number[] = [], options?: { signal?: AbortSignal }): Promise<ApiKeyConcurrencySnapshot> {
+  const { data } = await apiClient.get<ApiKeyConcurrencySnapshot>('/keys/concurrency', {
+    params: ids.length ? { ids: ids.join(',') } : {},
+    signal: options?.signal,
+  })
+  return data
+}
+
 export const keysAPI = {
+  getConcurrency,
   list,
   getById,
   create,
   update,
+  bulkUpdate,
   delete: deleteKey,
   toggleStatus
 }

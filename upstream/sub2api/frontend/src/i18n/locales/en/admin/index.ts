@@ -1,3 +1,4 @@
+import requestCapture from './requestCapture'
 import overview from './overview'
 import channels from './channels'
 import accounts from './accounts'
@@ -7,8 +8,10 @@ import settings from './settings'
 import audit from './audit'
 import promptAudit from './promptAudit'
 import plugins from './plugins'
+import harvestFlow from './harvestFlow'
 
 export default {
+  ...requestCapture,
   ...overview,
   ...channels,
   ...accounts,
@@ -21,12 +24,6 @@ export default {
   settings: {
     ...settings.settings,
     openaiExperimentalScheduler: settings.settings.openaiExperimentalScheduler,
-  },
-  schedulerLogs: {
-    title: 'Scheduler Logs', description: 'Trace why each OpenAI / Codex request selected its account.', range: 'Time range', oneHour: '1 hour', day: '24 hours', week: '7 days',
-    incomplete: 'Logs may be incomplete in this window; {count} best-effort events were dropped.', loadFailed: 'Failed to load scheduler logs', detailFailed: 'Failed to load scheduler detail',
-    requests: 'Scheduled requests', request: 'Request', runtime: 'Actual runtime', empty: 'No scheduler logs in this time range', selectRequest: 'Select a request to inspect its decision chain', loadMore: 'Load more', detail: 'Scheduler detail',
-    algorithm: 'Actual algorithm version', budget: 'Runtime retry budget', switches: 'Actual account switches', account: 'Account', attemptTimeline: 'Attempt decision chain', attempt: 'Attempt', statusCode: 'Upstream status', rank: 'Request-time rank', score: 'Quality score', replay: 'Safe to replay',
   },
   accountProfitability: {
     eyebrow: 'Operations',
@@ -84,9 +81,9 @@ export default {
     upstreamRequestId: 'Upstream Request ID',
     siteStandardCost: 'Site Standard Cost',
     siteActualCost: 'Site Actual Charge',
-    upstreamActualCost: 'Upstream Actual Charge',
-    profit: 'Profit',
-    costSource: 'Cost Evidence',
+    upstreamActualCost: 'Account Cost (Calculated)',
+    profit: 'Gross Profit (Calculated)',
+    costSource: 'Upstream Ledger Type',
     siteGroupMultiplier: 'Site Group Multiplier',
     upstreamMultiplier: 'Upstream Multiplier',
     includedCost: 'Cost Counted for This Request',
@@ -241,4 +238,5 @@ export default {
       loadError: 'Failed to load monitor history',
     },
   },
+  ...harvestFlow,
 }

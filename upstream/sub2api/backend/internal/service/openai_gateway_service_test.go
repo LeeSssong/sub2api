@@ -59,6 +59,15 @@ func (r *snapshotUpdateAccountRepo) UpdateExtra(ctx context.Context, id int64, u
 	return nil
 }
 
+func (r stubOpenAIAccountRepo) GetOpenAITurnAdmission(ctx context.Context, id int64) (*Account, *Account, error) {
+	account, err := r.GetByID(ctx, id)
+	var parent *Account
+	if err == nil && account != nil && account.IsShadow() {
+		parent, err = r.GetByID(ctx, *account.ParentAccountID)
+	}
+	return account, parent, err
+}
+
 func (r stubOpenAIAccountRepo) GetByID(ctx context.Context, id int64) (*Account, error) {
 	for i := range r.accounts {
 		if r.accounts[i].ID == id {
@@ -589,6 +598,37 @@ func TestOpenAIGatewayService_BindHTTPResponseAccount(t *testing.T) {
 	require.False(t, owned)
 }
 
+func TestOpenAIGatewayService_BindHTTPResponseAccount_DetachesCanceledRequestContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+	groupID := int64(4201)
+	c.Set("api_key", &APIKey{ID: 501, GroupID: &groupID})
+	SetOpenAIHTTPResponseOwner(c, 601, 501)
+
+	cache := &responseBindContextProbeCache{}
+	svc := &OpenAIGatewayService{cache: cache}
+	account := &Account{ID: 37001, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	requestCtx, cancelRequest := context.WithCancel(context.Background())
+	cancelRequest()
+	startedAt := time.Now()
+
+	svc.bindHTTPResponseAccount(requestCtx, c, account, "resp_http_canceled_001")
+
+	require.Len(t, cache.setContextErrors, 3)
+	for _, contextErr := range cache.setContextErrors {
+		require.NoError(t, contextErr, "response affinity writes must survive downstream cancellation")
+	}
+	require.Len(t, cache.setDeadlines, 3)
+	for _, deadline := range cache.setDeadlines {
+		require.True(t, deadline.After(startedAt))
+		require.LessOrEqual(t, deadline.Sub(startedAt), openAIWSStateStoreRedisTimeout+100*time.Millisecond)
+	}
+	require.Len(t, cache.sessionBindings, 3)
+	require.Contains(t, cache.sessionBindings, openAIWSResponseAccountCacheKey("resp_http_canceled_001"))
+}
+
 func TestOpenAIGatewayService_GenerateExplicitSessionHash_SkipsContentFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := &OpenAIGatewayService{}
@@ -708,6 +748,23 @@ func (c stubConcurrencyCache) GetAccountWaitingCount(ctx context.Context, accoun
 type stubGatewayCache struct {
 	sessionBindings map[string]int64
 	deletedSessions map[string]int
+}
+
+type responseBindContextProbeCache struct {
+	stubGatewayCache
+	setContextErrors []error
+	setDeadlines     []time.Time
+}
+
+func (c *responseBindContextProbeCache) SetSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64, ttl time.Duration) error {
+	c.setContextErrors = append(c.setContextErrors, ctx.Err())
+	if deadline, ok := ctx.Deadline(); ok {
+		c.setDeadlines = append(c.setDeadlines, deadline)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return c.stubGatewayCache.SetSessionAccountID(ctx, groupID, sessionHash, accountID, ttl)
 }
 
 func (c *stubGatewayCache) GetSessionAccountID(ctx context.Context, groupID int64, sessionHash string) (int64, error) {
@@ -1562,6 +1619,10 @@ func TestOpenAIStreamingTimeout(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "\"type\":\"error\"") || !strings.Contains(rec.Body.String(), "stream_timeout") {
 		t.Fatalf("expected OpenAI-compatible error SSE event, got %q", rec.Body.String())
 	}
+	payload := strings.TrimSpace(strings.TrimPrefix(rec.Body.String(), "event: error\ndata: "))
+	require.Equal(t, "stream_timeout", gjson.Get(payload, "code").String())
+	require.False(t, gjson.Get(payload, "error").Exists())
+	require.True(t, IsResponseCommitted(c))
 }
 
 func TestOpenAIStreamingContextCanceledReturnsIncompleteErrorWithoutInjectingErrorEvent(t *testing.T) {
@@ -1624,6 +1685,53 @@ func TestOpenAIStreamingReadErrorBeforeOutputReturnsFailover(t *testing.T) {
 	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
 	require.False(t, c.Writer.Written())
 	require.Empty(t, rec.Body.String())
+}
+
+func TestOpenAIStreamingReadErrorAfterOutputUsesResponsesErrorSchema(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name  string
+		cause error
+		code  string
+	}{
+		{"reset", errors.New("read tcp 192.0.2.1:1234->192.0.2.2:443: connection reset by peer"), OpenAIUpstreamStreamReadErrorCode},
+		{"http2", errors.New("stream error: stream ID 3; INTERNAL_ERROR; received from peer"), OpenAIUpstreamHTTP2StreamErrorCode},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}}
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: &openAIStreamReadThenErrorCloser{
+				reader: strings.NewReader("event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n"),
+				err:    tc.cause,
+			}}
+			_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI}, time.Now(), "model", "model")
+			require.ErrorIs(t, err, tc.cause)
+			body := rec.Body.String()
+			require.Contains(t, body, "partial")
+			require.NotContains(t, body, "192.0.2.")
+			require.NotContains(t, body, "stream ID")
+			require.NotContains(t, body, "response.completed")
+			require.NotContains(t, body, "[DONE]")
+			require.Equal(t, 1, strings.Count(body, "event: error\n"))
+			require.True(t, IsResponseCommitted(c), "the handler must not append another failure")
+			var events []gjson.Result
+			for _, line := range strings.Split(body, "\n") {
+				if strings.HasPrefix(line, "data: ") {
+					event := gjson.Parse(strings.TrimPrefix(line, "data: "))
+					if event.Get("type").String() == "error" {
+						events = append(events, event)
+					}
+				}
+			}
+			require.Len(t, events, 1)
+			require.Equal(t, tc.code, events[0].Get("code").String())
+			require.NotEmpty(t, events[0].Get("message").String())
+			require.False(t, events[0].Get("error").Exists(), "Responses errors have top-level fields")
+			require.True(t, events[0].Get("param").Exists())
+		})
+	}
 }
 
 func TestOpenAIStreamingPostOutputDisconnectQuarantinesSharedProxyWithoutSameStreamFailover(t *testing.T) {
@@ -2019,7 +2127,8 @@ func TestOpenAIStreamingResponseFailedAfterOutputSanitizesVerboseResponseForClie
 	require.Contains(t, body, "event: response.failed")
 	require.Contains(t, body, "context_length_exceeded")
 	require.Contains(t, body, `"type":"invalid_request_error"`)
-	require.Contains(t, body, "Your input exceeds the context window")
+	require.Contains(t, body, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, "rid-failed-after-output"))
+	require.NotContains(t, body, "Your input exceeds the context window")
 	require.NotContains(t, body, "You are GPT-5.1 running in the Codex CLI")
 	require.NotContains(t, body, `"instructions"`)
 	require.NotContains(t, body, `"output"`)
@@ -2060,8 +2169,10 @@ func TestOpenAIStreamingContextWindowResponseFailedBeforeOutputPassesThrough(t *
 	require.False(t, errors.As(err, &failoverErr))
 	require.True(t, c.Writer.Written())
 	require.Contains(t, rec.Body.String(), "response.failed")
-	require.Contains(t, rec.Body.String(), `"type":"upstream_error"`)
-	require.Contains(t, rec.Body.String(), "Your input exceeds the context window")
+	require.Contains(t, rec.Body.String(), `"type":"invalid_request_error"`)
+	require.Contains(t, rec.Body.String(), "context_length_exceeded")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""))
+	require.NotContains(t, rec.Body.String(), "Your input exceeds the context window")
 }
 
 func TestOpenAIStreamingContextWindowResponseFailedBeforeOutputAppliesPassthroughRule(t *testing.T) {
@@ -2107,8 +2218,9 @@ func TestOpenAIStreamingContextWindowResponseFailedBeforeOutputAppliesPassthroug
 	require.True(t, IsResponseCommitted(c))
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	body := rec.Body.String()
-	require.Equal(t, "upstream_error", gjson.Get(body, "error.type").String())
-	require.Equal(t, upstreamMessage, gjson.Get(body, "error.message").String())
+	require.Equal(t, "invalid_request_error", gjson.Get(body, "error.type").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""), gjson.Get(body, "error.message").String())
+	require.NotContains(t, body, upstreamMessage)
 	require.NotContains(t, body, "response.failed")
 	require.NotContains(t, body, "Upstream request failed")
 	// 命中透传规则也应记录 ops 上游错误事件（对齐 CC/Messages 与 antigravity 先例）。
@@ -2312,7 +2424,8 @@ func TestOpenAIStreamingPolicyResponseFailedBeforeOutputPassesThrough(t *testing
 	require.False(t, errors.As(err, &failoverErr))
 	require.True(t, c.Writer.Written())
 	require.Contains(t, rec.Body.String(), "response.failed")
-	require.Contains(t, rec.Body.String(), "high-risk cyber activity")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.NotContains(t, rec.Body.String(), "high-risk cyber activity")
 }
 
 func TestOpenAIStreamingClientDisconnectDrainsUpstreamUsage(t *testing.T) {
@@ -2540,8 +2653,9 @@ func TestOpenAIStreamingPassthroughContextWindowResponseFailedBeforeOutputApplie
 	require.True(t, IsResponseCommitted(c))
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	body := rec.Body.String()
-	require.Equal(t, "upstream_error", gjson.Get(body, "error.type").String())
-	require.Equal(t, upstreamMessage, gjson.Get(body, "error.message").String())
+	require.Equal(t, "invalid_request_error", gjson.Get(body, "error.type").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, "rid-pass-context-window-passthrough-rule"), gjson.Get(body, "error.message").String())
+	require.NotContains(t, body, upstreamMessage)
 	require.NotContains(t, body, "response.failed")
 	require.NotContains(t, body, "Upstream request failed")
 	// 命中透传规则也应记录 ops 上游错误事件（对齐 CC/Messages 与 antigravity 先例）。
@@ -2584,7 +2698,8 @@ func TestOpenAIStreamingPassthroughContextWindowResponseFailedBeforeOutputWithou
 	body := rec.Body.String()
 	require.Contains(t, body, "event: response.failed")
 	require.Contains(t, body, "context_length_exceeded")
-	require.Contains(t, body, "Your input exceeds the context window")
+	require.Contains(t, body, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, "rid-pass-context-window-no-rule"))
+	require.NotContains(t, body, "Your input exceeds the context window")
 }
 
 func TestOpenAIStreamingPassthroughResponseFailedAfterOutputSanitizesVerboseResponseForClient(t *testing.T) {
@@ -2628,7 +2743,8 @@ func TestOpenAIStreamingPassthroughResponseFailedAfterOutputSanitizesVerboseResp
 	require.Contains(t, body, "event: response.failed")
 	require.Contains(t, body, "context_length_exceeded")
 	require.Contains(t, body, `"type":"invalid_request_error"`)
-	require.Contains(t, body, "Your input exceeds the context window")
+	require.Contains(t, body, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, "rid-pass-failed-after-output"))
+	require.NotContains(t, body, "Your input exceeds the context window")
 	require.NotContains(t, body, "You are GPT-5.1 running in the Codex CLI")
 	require.NotContains(t, body, `"instructions"`)
 	require.NotContains(t, body, `"output"`)
@@ -2743,6 +2859,10 @@ func TestOpenAIStreamingTooLong(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "\"type\":\"error\"") || !strings.Contains(rec.Body.String(), "response_too_large") {
 		t.Fatalf("expected OpenAI-compatible error SSE event, got %q", rec.Body.String())
 	}
+	payload := strings.TrimSpace(strings.TrimPrefix(rec.Body.String(), "event: error\ndata: "))
+	require.Equal(t, "response_too_large", gjson.Get(payload, "code").String())
+	require.False(t, gjson.Get(payload, "error").Exists())
+	require.True(t, IsResponseCommitted(c))
 }
 
 func TestOpenAINonStreamingContentTypePassThrough(t *testing.T) {
@@ -3147,6 +3267,58 @@ func TestOpenAIBuildUpstreamRequestOAuthMessagesBridgeUsesSessionOnly(t *testing
 	require.Empty(t, req.Header.Get("originator"))
 }
 
+func TestOpenAIBuildUpstreamRequestOAuthResponsesPreservesCallerBeta(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	makeRequest := func(betaValues ...string) *gin.Context {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader([]byte(`{"model":"gpt-5.5","input":"hello"}`)))
+		for _, value := range betaValues {
+			c.Request.Header.Add("OpenAI-Beta", value)
+		}
+		return c
+	}
+	svc := &OpenAIGatewayService{}
+	oauth := &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "chatgpt-acc"}}
+	apiKey := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-api-key"}}
+
+	t.Run("preserves caller multi-agent beta", func(t *testing.T) {
+		c := makeRequest("responses_multi_agent=v1")
+		req, err := svc.buildUpstreamRequest(c.Request.Context(), c, oauth, []byte(`{"model":"gpt-5.5","input":"hello"}`), "token", true, "", false)
+		require.NoError(t, err)
+		require.Equal(t, "responses_multi_agent=v1", req.Header.Get("OpenAI-Beta"))
+	})
+
+	t.Run("preserves mixed beta tokens and removes legacy token", func(t *testing.T) {
+		c := makeRequest("responses_multi_agent=v1, responses=experimental", "future_feature=v2")
+		req, err := svc.buildUpstreamRequest(c.Request.Context(), c, oauth, []byte(`{"model":"gpt-5.5","input":"hello"}`), "token", true, "", false)
+		require.NoError(t, err)
+		require.Equal(t, []string{"responses_multi_agent=v1", "future_feature=v2"}, req.Header.Values("OpenAI-Beta"))
+	})
+
+	t.Run("absent beta remains absent", func(t *testing.T) {
+		c := makeRequest()
+		req, err := svc.buildUpstreamRequest(c.Request.Context(), c, oauth, []byte(`{"model":"gpt-5.5","input":"hello"}`), "token", true, "", false)
+		require.NoError(t, err)
+		require.Empty(t, req.Header.Values("OpenAI-Beta"))
+	})
+
+	t.Run("api key remains caller controlled", func(t *testing.T) {
+		c := makeRequest("responses=experimental, responses_multi_agent=v1")
+		req, err := svc.buildUpstreamRequest(c.Request.Context(), c, apiKey, []byte(`{"model":"gpt-5.5","input":"hello"}`), "token", true, "", false)
+		require.NoError(t, err)
+		require.Equal(t, []string{"responses=experimental, responses_multi_agent=v1"}, req.Header.Values("OpenAI-Beta"))
+	})
+
+	t.Run("compact OAuth removes legacy token and preserves independent beta", func(t *testing.T) {
+		c := makeRequest("responses=experimental, future_feature=v1")
+		c.Request.URL.Path = "/v1/responses/compact"
+		req, err := svc.buildUpstreamRequest(c.Request.Context(), c, oauth, []byte(`{"model":"gpt-5.5","input":"hello"}`), "token", false, "", false)
+		require.NoError(t, err)
+		require.Equal(t, "future_feature=v1", req.Header.Get("OpenAI-Beta"))
+	})
+}
+
 func TestOpenAIBuildUpstreamRequestPreservesCompactPathForAPIKeyBaseURL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
@@ -3276,11 +3448,11 @@ func TestReplaceModelInSSELine(t *testing.T) {
 			expected: `data: {"type":"response","response":{"id":"resp-1","model":"my-model","output":[]}}`,
 		},
 		{
-			name:     "model 不匹配时不替换",
+			name:     "上游别名仍替换",
 			line:     `data: {"id":"chatcmpl-123","model":"gpt-3.5-turbo","choices":[]}`,
 			from:     "gpt-4o",
 			to:       "my-model",
-			expected: `data: {"id":"chatcmpl-123","model":"gpt-3.5-turbo","choices":[]}`,
+			expected: `data: {"id":"chatcmpl-123","model":"my-model","choices":[]}`,
 		},
 		{
 			name:     "无 model 字段时不替换",
@@ -3346,11 +3518,11 @@ func TestReplaceModelInSSELine(t *testing.T) {
 			expected: `data: {"id":"abc","object":"chat.completion.chunk","model":"alias","created":1234567890,"choices":[{"index":0,"delta":{"content":"hi"}}]}`,
 		},
 		{
-			name:     "顶层优先于嵌套：同时存在两个 model",
+			name:     "同时替换两个 model",
 			line:     `data: {"model":"gpt-4o","response":{"model":"gpt-4o"}}`,
 			from:     "gpt-4o",
 			to:       "replaced",
-			expected: `data: {"model":"replaced","response":{"model":"gpt-4o"}}`,
+			expected: `data: {"model":"replaced","response":{"model":"replaced"}}`,
 		},
 	}
 
@@ -3380,11 +3552,11 @@ func TestReplaceModelInSSEBody(t *testing.T) {
 			expected: "data: {\"model\":\"alias\",\"choices\":[]}\n\ndata: {\"model\":\"alias\",\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\ndata: [DONE]\n",
 		},
 		{
-			name:     "无需替换的 body",
+			name:     "上游别名 body",
 			body:     "data: {\"model\":\"gpt-3.5-turbo\"}\n\ndata: [DONE]\n",
 			from:     "gpt-4o",
 			to:       "alias",
-			expected: "data: {\"model\":\"gpt-3.5-turbo\"}\n\ndata: [DONE]\n",
+			expected: "data: {\"model\":\"alias\"}\n\ndata: [DONE]\n",
 		},
 		{
 			name:     "混合 event 和 data 行",
@@ -3428,11 +3600,11 @@ func TestReplaceModelInResponseBody(t *testing.T) {
 			expected: `{"id":"chatcmpl-123","model":"alias","choices":[]}`,
 		},
 		{
-			name:     "model 不匹配不替换",
+			name:     "上游别名仍替换",
 			body:     `{"id":"chatcmpl-123","model":"gpt-3.5-turbo","choices":[]}`,
 			from:     "gpt-4o",
 			to:       "alias",
-			expected: `{"id":"chatcmpl-123","model":"gpt-3.5-turbo","choices":[]}`,
+			expected: `{"id":"chatcmpl-123","model":"alias","choices":[]}`,
 		},
 		{
 			name:     "无 model 字段不替换",
@@ -3829,7 +4001,8 @@ func TestHandleSSEToJSON_ResponseFailedWithoutAccountReturnsProtocolError(t *tes
 	require.Nil(t, usage)
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadGateway, rec.Code)
-	require.Contains(t, rec.Body.String(), "upstream rejected request")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.NotContains(t, rec.Body.String(), "upstream rejected request")
 	require.Contains(t, rec.Header().Get("Content-Type"), "application/json")
 }
 
@@ -3884,7 +4057,10 @@ func TestStreamingPassthroughCyberPolicyMarksAndPassesThrough(t *testing.T) {
 	require.Error(t, err)
 	var failoverErr *UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr), "cyber must NOT failover")
-	require.Contains(t, rec.Body.String(), "cyber_policy", "response.failed passed through to client")
+	require.Contains(t, rec.Body.String(), openAICyberPolicyClientCode)
+	require.Contains(t, rec.Body.String(), openAICyberPolicyClientMessage)
+	require.NotContains(t, rec.Body.String(), "cyber_policy")
+	require.NotContains(t, rec.Body.String(), "flagged for cyber policy")
 	mark := GetOpsCyberPolicy(c)
 	require.NotNil(t, mark)
 	require.Equal(t, "flagged for cyber policy", mark.Message)
@@ -3931,7 +4107,10 @@ func TestHandleErrorResponseCyberPolicyPassthrough(t *testing.T) {
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "a"}, nil)
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, rec.Code, "passthrough upstream 400, not rewrapped 502")
-	require.Contains(t, rec.Body.String(), "cyber_policy", "client sees original cyber body")
+	require.Contains(t, rec.Body.String(), openAICyberPolicyClientCode)
+	require.Contains(t, rec.Body.String(), openAICyberPolicyClientMessage)
+	require.NotContains(t, rec.Body.String(), "cyber_policy")
+	require.NotContains(t, rec.Body.String(), "flagged for cyber policy")
 	require.NotContains(t, rec.Body.String(), "Upstream request failed", "must not 502-rewrap")
 	mark := GetOpsCyberPolicy(c)
 	require.NotNil(t, mark)
@@ -3960,7 +4139,7 @@ func TestHandleCompatErrorResponseCyberPolicyEarlyReturn(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, gotStatus)
 	require.Equal(t, "invalid_request_error", gotType)
-	require.Contains(t, gotMsg, "flagged for cyber policy")
+	require.Equal(t, openAICyberPolicyClientMessage, gotMsg)
 	require.NotContains(t, gotMsg, "Upstream request failed")
 	require.NotNil(t, GetOpsCyberPolicy(c))
 }

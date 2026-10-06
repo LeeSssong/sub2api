@@ -119,7 +119,7 @@ func ToUserErrorRequest(e *OpsErrorLog) *UserErrorRequest {
 		Stream:          e.Stream,
 		UserAgent:       e.UserAgent,
 	}
-	applyNativeUserErrorProjection(out, diagnosis, e.Message)
+	applyNativeUserErrorProjection(out, diagnosis, e)
 	return out
 }
 
@@ -137,7 +137,7 @@ func ToUserErrorRequestDetail(e *OpsErrorLogDetail) *UserErrorRequestDetail {
 	}
 	base := ToUserErrorRequest(&e.OpsErrorLog)
 	diagnosis := ProjectNativeErrorDiagnosis(e)
-	applyNativeUserErrorProjection(base, diagnosis, e.Message)
+	applyNativeUserErrorProjection(base, diagnosis, &e.OpsErrorLog)
 	requestID := strings.TrimSpace(e.RequestID)
 	if requestID == "" {
 		requestID = strings.TrimSpace(e.ClientRequestID)
@@ -148,7 +148,7 @@ func ToUserErrorRequestDetail(e *OpsErrorLogDetail) *UserErrorRequestDetail {
 	}
 }
 
-func applyNativeUserErrorProjection(out *UserErrorRequest, diagnosis *NativeErrorDiagnosis, nativeMessage string) {
+func applyNativeUserErrorProjection(out *UserErrorRequest, diagnosis *NativeErrorDiagnosis, e *OpsErrorLog) {
 	if out == nil {
 		return
 	}
@@ -159,12 +159,18 @@ func applyNativeUserErrorProjection(out *UserErrorRequest, diagnosis *NativeErro
 		out.Suggestion = diagnosis.UserSuggestion
 		return
 	}
-	safeMessage := sanitizeNativeDiagnosticEvidence(nativeMessage, 2048)
-	if safeMessage == "" {
-		safeMessage = "请求失败"
+	input := NativeUserErrorInput{}
+	if e != nil {
+		input.Status = e.StatusCode
+		input.Type = e.Type
+		input.Stage = e.Phase
+		input.Ownership = e.Owner
+		input.Message = e.Message
+		input.AccountSelected = e.AccountID != nil && *e.AccountID > 0
 	}
-	out.Message = safeMessage
+	projected := ProjectNativeUserErrorCore(input)
+	out.Message = projected.Message
 	out.ErrorClass = ""
-	out.Meaning = safeMessage
-	out.Suggestion = ""
+	out.Meaning = projected.Message
+	out.Suggestion = NativeUserErrorContactAdminSuggestion
 }

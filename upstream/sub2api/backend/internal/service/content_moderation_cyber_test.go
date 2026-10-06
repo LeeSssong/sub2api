@@ -149,8 +149,8 @@ func TestRecordCyberPolicyEvent_WritesLogWhenEnabled(t *testing.T) {
 	// endpoint
 	require.Equal(t, "/v1/responses", log.Endpoint)
 
-	// violation count >= 1 (side-effects ran)
-	require.GreaterOrEqual(t, log.ViolationCount, 1)
+	// cyber 不再参与封号计数。
+	require.Equal(t, 0, log.ViolationCount)
 
 	// Error field should also contain the upstream body JSON
 	require.True(t, strings.Contains(log.Error, "cyber_policy") || strings.Contains(log.Error, "flagged"),
@@ -190,13 +190,12 @@ func TestRecordCyberPolicyEvent_RespectsContentModerationScope(t *testing.T) {
 			wantLogs: 0,
 		},
 		{
-			name:       "included group and model",
-			config:     `{"enabled":false,"mode":"off","sample_rate":0,"all_groups":false,"group_ids":[7],"model_filter":{"type":"include","models":["gpt-5"]},"ban_threshold":1}`,
-			groupID:    &groupID,
-			model:      "gpt-5",
-			wantCalls:  []bool{false},
-			wantLogs:   1,
-			wantBanned: true,
+			name:      "included group and model",
+			config:    `{"enabled":false,"mode":"off","sample_rate":0,"all_groups":false,"group_ids":[7],"model_filter":{"type":"include","models":["gpt-5"]},"ban_threshold":1}`,
+			groupID:   &groupID,
+			model:     "gpt-5",
+			wantCalls: nil,
+			wantLogs:  1,
 		},
 	}
 
@@ -428,9 +427,9 @@ func TestRecordCyberPolicyEvent_DefaultCountsTowardBan(t *testing.T) {
 		UpstreamStatus:  400,
 	})
 
-	require.Equal(t, []bool{false}, repo.snapshotCountCalls(),
-		"默认配置必须执行计数查询且不排除 cyber 行")
+	require.Empty(t, repo.snapshotCountCalls(), "cyber 不再参与封号计数")
 	logs := repo.snapshotLogs()
 	require.Len(t, logs, 1)
-	require.GreaterOrEqual(t, logs[0].ViolationCount, 1, "默认路径行为不变（现状回归）")
+	require.Equal(t, 0, logs[0].ViolationCount)
+	require.False(t, logs[0].AutoBanned)
 }

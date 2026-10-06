@@ -1,0 +1,181 @@
+# Review package: 63b51e8535..ac3d87a60e
+
+## Commits
+ac3d87a60e Fix configured intelligence navigation and recharge badge anchors
+
+## Files changed
+ .../progress.md                                      |  5 +++++
+ .../task-1-report.md                                 |  9 +++++++++
+ .../frontend/src/components/layout/AppSidebar.vue    |  4 ++--
+ .../components/layout/__tests__/AppSidebar.spec.ts   | 10 ++++++++++
+ .../frontend/src/components/payment/AmountInput.vue  |  2 +-
+ .../components/payment/__tests__/AmountInput.spec.ts | 20 ++++++++++++++++++++
+ 6 files changed, 47 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-10-05-test-uiux-main-integration/progress.md b/.superpowers/sdd/2026-10-05-test-uiux-main-integration/progress.md
+index 8e90d3f304..5aa4fbe864 100644
+--- a/.superpowers/sdd/2026-10-05-test-uiux-main-integration/progress.md
++++ b/.superpowers/sdd/2026-10-05-test-uiux-main-integration/progress.md
+@@ -11,10 +11,15 @@ Backup remote verified: backup/pre-main-integration-20261005-96c0818277
+ | Task 3 | Completion evidence vs UI approval | New navigation approval required; all unresolved checks stated |
+ | Task 1/2 | Same Git worktree/index | Sequential writers; Task 2 after Task 1 writer stops |
+ | Task 1/3 | Candidate routes/UI and verification | Existing tests reused; screenshot comparison separately required |
+ | Task 2/3 | Rollback entry evidence | Temporary bare-repo functional test required; no live rollback |
+ 
+ Task 1: active; merge has 37 text conflicts, 109 overlapping paths.
+ 
+ 2026-10-05 用户追加明确指令：去掉调度日志页。删除旧调度日志页面、路由、导航和 API 依赖，保留主站原生调度。此指令覆盖旧页面保留要求；不实施历史归档 UI。主站既有 240_remove_custom_scheduler_artifacts.sql 保持不可变，未来部署执行前须确认历史日志删除范围与数据备份恢复边界。本次不部署。
+ 
+ Task 1: candidate merge conflict resolution and directly related build/tests complete; candidate visual comparison/new-entry approvals pending. Scheduler page removed per explicit user change; no release. Detailed evidence task-1-report.md.
++
++Task 1: candidate 884d82dda6; implementer /root/integrate_candidate released writer; review pending, visual additions pending user reply.
++Task 2: active, BASE 884d82dda6.
++
++Task1 review findings resolved: configured admin intelligence direct route restored in both modes; bonus badge owner buttons position relative. Red→green targeted tests (33 passing), typecheck passing, no new UI entries. Task2 preserved.
+diff --git a/.superpowers/sdd/2026-10-05-test-uiux-main-integration/task-1-report.md b/.superpowers/sdd/2026-10-05-test-uiux-main-integration/task-1-report.md
+index e9b84260f7..1ba27484fc 100644
+--- a/.superpowers/sdd/2026-10-05-test-uiux-main-integration/task-1-report.md
++++ b/.superpowers/sdd/2026-10-05-test-uiux-main-integration/task-1-report.md
+@@ -91,10 +91,19 @@ Commands below executed locally. Logs copied into task directory; no production
+ - `upstream/sub2api/frontend/src/views/admin/__tests__/GroupsView.codexManifest.spec.ts`
+ - `upstream/sub2api/frontend/src/views/admin/ops/components/OpsErrorDetailModal.vue`
+ - `upstream/sub2api/frontend/src/views/admin/ops/components/__tests__/OpsErrorDetailModal.spec.ts`
+ - `upstream/sub2api/frontend/src/views/auth/__tests__/RegisterView.spec.ts`
+ - `upstream/sub2api/frontend/src/views/user/KeysView.vue`
+ - `upstream/sub2api/frontend/src/views/user/PaymentView.vue`
+ - `upstream/sub2api/frontend/src/views/user/RedeemView.vue`
+ - `upstream/sub2api/frontend/src/views/user/UsageView.vue`
+ - `upstream/sub2api/frontend/src/views/user/__tests__/CustomPageView.spec.ts`
+ - `upstream/sub2api/frontend/src/views/user/__tests__/KeysView.spec.ts`
++
++## Review fixes — 2026-10-05
++
++Two direct review findings fixed after Task2 commit 63b51e8535; all rollback-tool changes preserved.
++
++1. Administrator configured intelligence menus: both simple and normal admin custom-menu loops again map configured `/intelligence-test` URL to the native route instead of `/custom/id`; normalize legacy 智商检测 label to 智商监测. This restores the existing main configured route behavior without adding new entries or changing test sidebar styles. Targeted assertions cover both branches; existing CustomPageView safety tests retained.
++2. Quick amount promotion badges: every quick amount button now supplies `relative`, so its existing absolute badge is positioned against its own button. Tests cover three simultaneously qualifying amounts in default/recharge variants, individual tier labels, direct badge parent association and clicked-amount emissions.
++
++Verification: new tests before implementation failed in 4 cases / 2 suites (both route branches + both badge variants), proving the defects. After fix `pnpm exec vitest run src/components/layout/__tests__/AppSidebar.spec.ts src/components/payment/__tests__/AmountInput.spec.ts src/views/user/__tests__/CustomPageView.spec.ts` passed 3 suites / 33 tests; `pnpm typecheck` passed. `git diff --check` clean. No browser visual check performed for this small positional correction; actual CSS layout/visual acceptance remains pending controller review. No push/deploy/subagent or new visible navigation.
+diff --git a/upstream/sub2api/frontend/src/components/layout/AppSidebar.vue b/upstream/sub2api/frontend/src/components/layout/AppSidebar.vue
+index 37642cb16f..e570ddd851 100644
+--- a/upstream/sub2api/frontend/src/components/layout/AppSidebar.vue
++++ b/upstream/sub2api/frontend/src/components/layout/AppSidebar.vue
+@@ -991,28 +991,28 @@ const adminNavItems = computed((): NavItem[] => {
+   ]
+ 
+   const visible = applyFeatureFlags(baseItems)
+ 
+   // 简单模式下，在系统设置前插入 API密钥
+   if (authStore.isSimpleMode) {
+     const filtered = visible.filter(item => !item.hideInSimpleMode)
+     filtered.push({ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon })
+     filtered.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
+     for (const cm of customMenuItemsForAdmin.value) {
+-      filtered.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
++      filtered.push({ path: cm.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${cm.id}`, label: cm.url === '/intelligence-test' && cm.label === '智商检测' ? '智商监测' : cm.label, icon: null, iconSvg: cm.icon_svg })
+     }
+     return filtered
+   }
+ 
+   visible.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
+   for (const cm of customMenuItemsForAdmin.value) {
+-    visible.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
++    visible.push({ path: cm.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${cm.id}`, label: cm.url === '/intelligence-test' && cm.label === '智商检测' ? '智商监测' : cm.label, icon: null, iconSvg: cm.icon_svg })
+   }
+   return visible
+ })
+ 
+ // Use exactly the visible navigation, including the personal section only when shown.
+ 
+ function toggleSidebar() {
+   appStore.toggleSidebar()
+ }
+ 
+diff --git a/upstream/sub2api/frontend/src/components/layout/__tests__/AppSidebar.spec.ts b/upstream/sub2api/frontend/src/components/layout/__tests__/AppSidebar.spec.ts
+index 06444526e3..fe009d68cf 100644
+--- a/upstream/sub2api/frontend/src/components/layout/__tests__/AppSidebar.spec.ts
++++ b/upstream/sub2api/frontend/src/components/layout/__tests__/AppSidebar.spec.ts
+@@ -83,10 +83,20 @@ describe('AppSidebar user navigation structure', () => {
+     expect(userItemsSource).not.toContain("path: '/orders'")
+     expect(userItemsSource).not.toContain("path: '/redeem'")
+     expect(userItemsSource).not.toContain("path: '/profile'")
+     expect(componentSource).toContain('data-testid="user-sidebar-recharge"')
+     expect(componentSource).toContain('data-testid="user-sidebar-account"')
+     expect(componentSource).toContain('data-testid="user-sidebar-support"')
+     expect(componentSource).toContain(':src="siteLogo || DEFAULT_SITE_LOGO"')
+     expect(componentSource).toContain("星桥 AI Link")
+   })
+ })
++
++
++describe('AppSidebar administrator custom-menu destinations', () => {
++  it.each(['filtered', 'visible'])('keeps the native intelligence destination in the %s navigation path', (list) => {
++    const entry = componentSource.split(`${list}.push({ path: cm.url`)[1]?.split('})')[0]
++    expect(entry).toBeDefined()
++    expect(entry).toContain("=== '/intelligence-test' ? '/intelligence-test' : `/custom/${cm.id}`")
++    expect(entry).toContain("cm.label === '智商检测' ? '智商监测' : cm.label")
++  })
++})
+diff --git a/upstream/sub2api/frontend/src/components/payment/AmountInput.vue b/upstream/sub2api/frontend/src/components/payment/AmountInput.vue
+index e97474b0bc..341a77ce60 100644
+--- a/upstream/sub2api/frontend/src/components/payment/AmountInput.vue
++++ b/upstream/sub2api/frontend/src/components/payment/AmountInput.vue
+@@ -4,21 +4,21 @@
+     <div>
+       <label v-if="variant !== 'recharge'" class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+         {{ t('payment.quickAmounts') }}
+       </label>
+       <div :class="variant === 'recharge' ? 'grid grid-cols-3 gap-[10px]' : 'grid grid-cols-2 gap-2 sm:grid-cols-5'">
+         <button
+           v-for="amt in filteredAmounts"
+           :key="amt"
+           type="button"
+           :class="[
+-            'min-h-12 border px-3 text-center text-sm font-medium transition-colors',
++            'relative min-h-12 border px-3 text-center text-sm font-medium transition-colors',
+             variant === 'recharge' ? 'rounded-[9px]' : 'rounded-lg py-3',
+             modelValue === amt
+               ? 'border-[var(--xq-accent)] bg-[var(--xq-raised)] dark:bg-[linear-gradient(167deg,rgba(31,87,110,0.82),rgba(15,48,69,0.9))] text-[var(--xq-core)] dark:shadow-[0_12px_30px_rgba(27,112,139,0.12)]'
+               : 'border-[var(--xq-border)] bg-[var(--xq-depth)] text-[var(--xq-secondary)] hover:border-[var(--xq-accent)] hover:text-[var(--xq-text)]',
+           ]"
+           :data-testid="`quick-amount-${amt}`"
+           @click="selectAmount(amt)"
+         >
+           <!-- 促销价签（单行）：仅命中档位的金额显示；红底白字、内圈点线、右侧圆孔、整体旋转 -->
+           <span
+diff --git a/upstream/sub2api/frontend/src/components/payment/__tests__/AmountInput.spec.ts b/upstream/sub2api/frontend/src/components/payment/__tests__/AmountInput.spec.ts
+index 44e6144fd1..c53c9b238f 100644
+--- a/upstream/sub2api/frontend/src/components/payment/__tests__/AmountInput.spec.ts
++++ b/upstream/sub2api/frontend/src/components/payment/__tests__/AmountInput.spec.ts
+@@ -83,10 +83,30 @@ describe('recharge bonus hints on quick amounts', () => {
+     })
+     const below = wrapper.get('[data-testid="quick-amount-50"]')
+     const hit = wrapper.get('[data-testid="quick-amount-500"]')
+     expect(below.find('[data-testid="quick-amount-bonus-badge"]').exists()).toBe(false)
+     expect(below.get('[data-testid="quick-amount-credited"]').text()).toContain('50.00')
+     expect(hit.get('[data-testid="quick-amount-bonus-badge"]').text()).toBe('30% OFF')
+     // 500 × (1 − 30%) = 350
+     expect(hit.get('[data-testid="quick-amount-credited"]').text()).toContain('350.00')
+   })
+ })
++
++
++describe('quick amount badge ownership', () => {
++  it.each(['default', 'recharge'] as const)('anchors multiple qualifying badges to their own %s buttons and submits the clicked amount', async (variant) => {
++    const wrapper = mount(AmountInput, { props: {
++      modelValue: null, variant, amounts: [10, 30, 50],
++      bonusTiers: [{ min_amount: 10, bonus_percent: 5 }, { min_amount: 30, bonus_percent: 10 }],
++    } })
++    for (const [amount, bonus] of [[10, '+5%'], [30, '+10%'], [50, '+10%']] as const) {
++      const button = wrapper.get(`[data-testid="quick-amount-${amount}"]`)
++      const badge = button.get('[data-testid="quick-amount-bonus-badge"]')
++      expect(button.classes()).toContain('relative')
++      expect(badge.classes()).toContain('absolute')
++      expect(badge.element.parentElement).toBe(button.element)
++      expect(badge.text()).toBe(bonus)
++      await button.trigger('click')
++      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([amount])
++    }
++  })
++})

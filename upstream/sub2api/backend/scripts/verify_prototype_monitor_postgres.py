@@ -3,6 +3,7 @@
 No published ports, host volumes, site containers, credentials, or upstream calls.
 Extracts production query text so this validates the candidate SQL, not a copy.
 """
+import os
 import json
 import pathlib
 import re
@@ -11,9 +12,9 @@ import time
 import uuid
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-REPORT = ROOT / 'scripts' / 'prototype-monitor-postgres-results.json'
+REPORT = pathlib.Path(os.environ.get('MONITOR_SQL_REPORT', ROOT / 'scripts' / 'prototype-monitor-postgres-results.json'))
 NAME = 'codex-parity-pg-' + uuid.uuid4().hex[:10]
-results = {'database': 'postgres:16-alpine', 'container': NAME, 'network': 'none', 'published_ports': False, 'checks': []}
+results = {'database': os.environ.get('MONITOR_SQL_IMAGE', 'postgres:16-alpine'), 'container': NAME, 'network': 'none', 'published_ports': False, 'checks': []}
 
 
 def command(args, text=None):

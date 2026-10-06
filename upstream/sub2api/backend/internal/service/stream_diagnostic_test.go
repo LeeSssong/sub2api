@@ -8,7 +8,7 @@ import (
 
 func TestProjectStreamDiagnosticFromErrorDetails(t *testing.T) {
 	details := []*OpsErrorLogDetail{{
-		OpsErrorLog: OpsErrorLog{RequestID: "req-1"},
+		OpsErrorLog:    OpsErrorLog{RequestID: "req-1"},
 		UpstreamErrors: `[{"kind":"stream_failure","stream_observation":{"event":"openai.stream.lifecycle","stage":"failed","request_id":"req-1","logical_request_id":"logical-1","attempt_id":"attempt-1","environment":"production","container_slot":"blue","error_class":"upstream_eof","failure_stage":"upstream_body_read","error_chain":"unexpected EOF","root_cause":"insufficient_evidence"}}]`,
 	}}
 

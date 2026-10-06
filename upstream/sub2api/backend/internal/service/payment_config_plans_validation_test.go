@@ -131,10 +131,10 @@ func TestValidatePlanPatch_NilOriginalPrice(t *testing.T) {
 
 // --- validatePlanPatch: other fields ---
 
-func ptrStr(s string) *string     { return &s }
-func ptrInt(i int) *int           { return &i }
-func ptrInt64(i int64) *int64     { return &i }
-func ptrFloat(f float64) *float64 { return &f }
+func ptrStr(s string) *string                   { return &s }
+func ptrInt(i int) *int                         { return &i }
+func ptrInt64(i int64) *int64                   { return &i }
+func planValidationFloatPtr(f float64) *float64 { return &f }
 
 func TestValidatePlanPatch_EmptyName(t *testing.T) {
 	err := validatePlanPatch(UpdatePlanRequest{Name: ptrStr("")})
@@ -154,19 +154,19 @@ func TestValidatePlanPatch_ZeroGroupID(t *testing.T) {
 }
 
 func TestValidatePlanPatch_NegativePrice(t *testing.T) {
-	err := validatePlanPatch(UpdatePlanRequest{Price: ptrFloat(-1)})
+	err := validatePlanPatch(UpdatePlanRequest{Price: planValidationFloatPtr(-1)})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "price")
 }
 
 func TestValidatePlanPatch_ZeroPrice(t *testing.T) {
-	err := validatePlanPatch(UpdatePlanRequest{Price: ptrFloat(0)})
+	err := validatePlanPatch(UpdatePlanRequest{Price: planValidationFloatPtr(0)})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "price")
 }
 
 func TestValidatePlanPatch_ValidPrice(t *testing.T) {
-	err := validatePlanPatch(UpdatePlanRequest{Price: ptrFloat(9.99)})
+	err := validatePlanPatch(UpdatePlanRequest{Price: planValidationFloatPtr(9.99)})
 	require.NoError(t, err)
 }
 

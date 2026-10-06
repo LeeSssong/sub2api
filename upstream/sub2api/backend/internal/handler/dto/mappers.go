@@ -2,6 +2,7 @@
 package dto
 
 import (
+	"context"
 	"strconv"
 	"time"
 
@@ -22,6 +23,7 @@ func UserFromServiceShallow(u *service.User) *User {
 		Concurrency:                u.Concurrency,
 		Status:                     u.Status,
 		AllowedGroups:              u.AllowedGroups,
+		ObserverGroupIDs:           u.ObserverGroupIDs,
 		LastActiveAt:               u.LastActiveAt,
 		CreatedAt:                  u.CreatedAt,
 		UpdatedAt:                  u.UpdatedAt,
@@ -97,6 +99,7 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		UpdatedAt:          k.UpdatedAt,
 		CurrentConcurrency: k.CurrentConcurrency,
 		RateLimit5h:        k.RateLimit5h,
+		ConcurrencyLimit:   k.ConcurrencyLimit,
 		RateLimit1d:        k.RateLimit1d,
 		RateLimit7d:        k.RateLimit7d,
 		Usage5h:            k.EffectiveUsage5h(),
@@ -146,6 +149,7 @@ func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
 	}
 	out := &AdminGroup{
 		Group:                       groupFromServiceBase(g),
+		StreamOnly:                  g.StreamOnly,
 		ProfitControlEnabled:        g.ProfitControlEnabled,
 		ProfitMinMargin:             g.ProfitMinMargin,
 		ProfitSafetyBuffer:          g.ProfitSafetyBuffer,
@@ -237,6 +241,10 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 	if state := service.OllamaCloudUsageStateFromAccount(a); state.Eligible {
 		ollamaCloudUsage = state
 	}
+	var openCodeGoUsage *service.OpenCodeGoUsageState
+	if state := service.OpenCodeGoUsageStateFromAccount(a); state.Eligible {
+		openCodeGoUsage = state
+	}
 	effectiveCost := service.EffectiveCostForAccount(a)
 	out := &Account{
 		ID:                         a.ID,
@@ -249,6 +257,7 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		Extra:                      extra,
 		ActiveProbeEnabled:         a.ActiveProbeEnabled(),
 		OllamaCloudUsage:           ollamaCloudUsage,
+		OpenCodeGoUsage:            openCodeGoUsage,
 		ProxyID:                    a.ProxyID,
 		ProxyFallbackOriginID:      a.ProxyFallbackOriginID,
 		ProxyFallbackOriginName:    a.ProxyFallbackOriginName,
@@ -285,9 +294,10 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		GroupIDs:                   a.GroupIDs,
 		ParentAccountID:            a.ParentAccountID,
 		QuotaDimension:             a.QuotaDimension,
+		GroupRateMultiplier:        a.UserGroupRateMultiplier(),
 	}
 
-	// 提取 5h 窗口费用控制和会话数量控制配置（仅 Anthropic OAuth/SetupToken 账号有效）
+	// 提取 Anthropic OAuth/SetupToken 的配额控制配置。
 	if a.IsAnthropicOAuthOrSetupToken() {
 		if limit := a.GetWindowCostLimit(); limit > 0 {
 			out.WindowCostLimit = &limit
@@ -340,6 +350,12 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 			if customURL := a.GetCustomBaseURL(); customURL != "" {
 				out.CustomBaseURL = &customURL
 			}
+		}
+	}
+	// OpenAI OAuth uses only a strict per-minute request ceiling.
+	if a.IsOpenAIOAuth() {
+		if rpm := a.GetBaseRPM(); rpm > 0 {
+			out.BaseRPM = &rpm
 		}
 	}
 
@@ -422,10 +438,14 @@ func redactAccountManagedExtra(extra map[string]any) map[string]any {
 	}
 	redacted := make(map[string]any, len(extra))
 	for key, value := range extra {
-		switch key {
-		case service.OllamaCloudUsageSessionExtraKey,
-			service.OllamaCloudUsageAutoRefreshExtraKey,
-			service.OllamaCloudUsageSnapshotExtraKey:
+		switch {
+		case key == service.OllamaCloudUsageSessionExtraKey,
+			key == service.OllamaCloudUsageAutoRefreshExtraKey,
+			key == service.OllamaCloudUsageSnapshotExtraKey,
+			key == service.OpenCodeGoUsageAutoRefreshExtraKey,
+			key == service.OpenCodeGoUsageSnapshotExtraKey:
+			continue
+		case service.IsOpenAICodexTicketPrivateExtraKey(key):
 			continue
 		default:
 			redacted[key] = value
@@ -463,10 +483,12 @@ func AccountListItemFromAccount(a *Account) *AccountListItem {
 	return &AccountListItem{
 		ID: a.ID, Name: a.Name, Notes: a.Notes, Platform: a.Platform, Type: a.Type,
 		Credentials: a.Credentials, CredentialsStatus: a.CredentialsStatus, Extra: a.Extra,
-		OllamaCloudUsage: a.OllamaCloudUsage,
-		ProxyID:          a.ProxyID, ProxyFallbackOriginID: a.ProxyFallbackOriginID, ProxyFallbackOriginName: a.ProxyFallbackOriginName,
+		OllamaCloudUsage: a.OllamaCloudUsage, CodexTurnTickets: a.CodexTurnTickets,
+		ProxyID: a.ProxyID, ProxyFallbackOriginID: a.ProxyFallbackOriginID, ProxyFallbackOriginName: a.ProxyFallbackOriginName,
 		Concurrency: a.Concurrency, LoadFactor: a.LoadFactor, Priority: a.Priority, RateMultiplier: a.RateMultiplier,
-		Status: a.Status, ErrorMessage: a.ErrorMessage, LastUsedAt: a.LastUsedAt, ExpiresAt: a.ExpiresAt,
+		ProcurementCostCNY: a.ProcurementCostCNY, GroupRateMultiplier: a.GroupRateMultiplier,
+		OpenCodeGoUsage: a.OpenCodeGoUsage,
+		Status:          a.Status, ErrorMessage: a.ErrorMessage, LastUsedAt: a.LastUsedAt, ExpiresAt: a.ExpiresAt,
 		AutoPauseOnExpired: a.AutoPauseOnExpired, CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt,
 		Schedulable: a.Schedulable, RateLimitedAt: a.RateLimitedAt, RateLimitResetAt: a.RateLimitResetAt,
 		OverloadUntil: a.OverloadUntil, TempUnschedulableUntil: a.TempUnschedulableUntil,
@@ -507,12 +529,13 @@ func AccountGroupFromService(ag *service.AccountGroup) *AccountGroup {
 		return nil
 	}
 	return &AccountGroup{
-		AccountID: ag.AccountID,
-		GroupID:   ag.GroupID,
-		Priority:  ag.Priority,
-		CreatedAt: ag.CreatedAt,
-		Account:   AccountFromServiceShallow(ag.Account),
-		Group:     GroupFromServiceShallow(ag.Group),
+		AccountID:     ag.AccountID,
+		GroupID:       ag.GroupID,
+		Priority:      ag.Priority,
+		AllowedModels: ag.AllowedModels,
+		CreatedAt:     ag.CreatedAt,
+		Account:       AccountFromServiceShallow(ag.Account),
+		Group:         GroupFromServiceShallow(ag.Group),
 	}
 }
 
@@ -1001,4 +1024,28 @@ func PromoCodeUsageFromService(u *service.PromoCodeUsage) *PromoCodeUsage {
 		UsedAt:      u.UsedAt,
 		User:        UserFromServiceShallow(u.User),
 	}
+}
+
+// AccountForObserver filters only the freshly allocated response DTO. Never
+// mutate service accounts: they also feed credential refresh and scheduler caches.
+func AccountForObserver(ctx context.Context, account *Account) *Account {
+	if _, scoped := service.ObserverGroupIDs(ctx); !scoped || account == nil {
+		return account
+	}
+	account.GroupIDs = service.ObserverVisibleGroups(ctx, account.GroupIDs)
+	groups := account.Groups[:0]
+	for _, group := range account.Groups {
+		if group != nil && service.ObserverCanManageGroup(ctx, group.ID) {
+			groups = append(groups, group)
+		}
+	}
+	account.Groups = groups
+	links := account.AccountGroups[:0]
+	for _, link := range account.AccountGroups {
+		if service.ObserverCanManageGroup(ctx, link.GroupID) {
+			links = append(links, link)
+		}
+	}
+	account.AccountGroups = links
+	return account
 }

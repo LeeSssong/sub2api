@@ -29,6 +29,8 @@ const (
 	FieldPayAmount = "pay_amount"
 	// FieldFeeRate holds the string denoting the fee_rate field in the database.
 	FieldFeeRate = "fee_rate"
+	// FieldBonusAmount holds the string denoting the bonus_amount field in the database.
+	FieldBonusAmount = "bonus_amount"
 	// FieldPaidQuotaUsd holds the string denoting the paid_quota_usd field in the database.
 	FieldPaidQuotaUsd = "paid_quota_usd"
 	// FieldGiftQuotaUsd holds the string denoting the gift_quota_usd field in the database.
@@ -152,6 +154,7 @@ var Columns = []string{
 	FieldAmount,
 	FieldPayAmount,
 	FieldFeeRate,
+	FieldBonusAmount,
 	FieldPaidQuotaUsd,
 	FieldGiftQuotaUsd,
 	FieldTotalQuotaUsd,
@@ -212,6 +215,8 @@ var (
 	UserNameValidator func(string) error
 	// DefaultFeeRate holds the default value on creation for the "fee_rate" field.
 	DefaultFeeRate float64
+	// DefaultBonusAmount holds the default value on creation for the "bonus_amount" field.
+	DefaultBonusAmount float64
 	// DefaultPaidQuotaUsd holds the default value on creation for the "paid_quota_usd" field.
 	DefaultPaidQuotaUsd decimal.Decimal
 	// DefaultGiftQuotaUsd holds the default value on creation for the "gift_quota_usd" field.
@@ -305,6 +310,11 @@ func ByPayAmount(opts ...sql.OrderTermOption) OrderOption {
 // ByFeeRate orders the results by the fee_rate field.
 func ByFeeRate(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFeeRate, opts...).ToFunc()
+}
+
+// ByBonusAmount orders the results by the bonus_amount field.
+func ByBonusAmount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBonusAmount, opts...).ToFunc()
 }
 
 // ByPaidQuotaUsd orders the results by the paid_quota_usd field.

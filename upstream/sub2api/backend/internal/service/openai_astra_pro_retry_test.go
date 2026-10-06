@@ -56,7 +56,8 @@ func TestOpenAIGatewayService_OAuthAstraProModeRejectionPassesThrough(t *testing
 	require.Equal(t, "invalid_request_error", gjson.Get(respJSON, "error.type").String())
 	require.Equal(t, "model_specific_rejection", gjson.Get(respJSON, "error.code").String())
 	require.Equal(t, "reasoning.mode", gjson.Get(respJSON, "error.param").String())
-	require.Equal(t, "reasoning.mode is not supported for this model", gjson.Get(respJSON, "error.message").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""), gjson.Get(respJSON, "error.message").String())
+	require.NotContains(t, respJSON, "reasoning.mode is not supported")
 }
 
 // TestOpenAIGatewayService_OAuthAstraProModeKeptAcrossRejectedFieldRetry reuses

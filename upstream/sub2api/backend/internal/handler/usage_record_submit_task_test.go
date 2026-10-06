@@ -344,7 +344,7 @@ func TestUsageRecordStreamSuccessfulResponsesHandlerCallsOpenAIRecordUsage(t *te
 	billingCache := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 	t.Cleanup(billingCache.Stop)
 	gatewayService := service.NewOpenAIGatewayService(
-		&openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}, usageRepo, nil, nil, nil, nil, nil, cfg, nil, nil,
+		&openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}, nil, usageRepo, nil, nil, nil, nil, nil, cfg, nil, nil,
 		service.NewBillingService(cfg, nil), nil, billingCache, &handlerUsageRecordOpenAIUpstream{}, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil,
 	)
 	gatewayService.SetUsageCostEvidenceRegistrar(registrar)

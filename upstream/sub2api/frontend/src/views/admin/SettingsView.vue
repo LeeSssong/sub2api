@@ -51,7 +51,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-admin-api-key" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.adminApiKey.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -203,12 +203,13 @@
 
         <!-- Tab: Gateway -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
+          <ServerlessSettings v-if="activeTab === 'gateway'" />
           <!-- Overload Cooldown (529) Settings -->
           <div class="card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-overload-cooldown" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.overloadCooldown.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -309,7 +310,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-rate-limit429cooldown" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.rateLimit429Cooldown.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -416,7 +417,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-stream-timeout" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.streamTimeout.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -596,7 +597,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-rectifier" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.rectifier.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -795,7 +796,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-beta-policy" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.betaPolicy.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -1074,7 +1075,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-openai-fast-policy" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.openaiFastPolicy.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -1184,6 +1185,7 @@
                           | 'all'
                           | 'priority'
                           | 'flex'
+                          | 'missing'
                       "
                       :options="openaiFastPolicyTierOptions"
                     />
@@ -1427,7 +1429,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-registration" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.registration.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -1759,7 +1761,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-api-key-acl" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.apiKeyAcl.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -1852,7 +1854,7 @@
                   size="md"
                   class="text-primary-500"
                 />
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2 id="settings-section-panel-rate-limit" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                   {{ t("admin.settings.panelRateLimit.title") }}
                 </h2>
               </div>
@@ -2037,7 +2039,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-captcha" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.captcha.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -2441,7 +2443,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-linuxdo" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.linuxdo.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -2559,7 +2561,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-email-oauth" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ localText("邮箱快捷登录", "Email OAuth Sign-in") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -2785,7 +2787,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-wechat-connect" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.wechatConnect.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -3127,7 +3129,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-dingtalk" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.dingtalk.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -3415,7 +3417,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-oidc" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.oidc.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -3828,7 +3830,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-defaults" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.defaults.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -4054,7 +4056,7 @@
                       </tr>
                     </thead>
                     <tbody class="space-y-2">
-                      <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'grok'] as const)" :key="p" class="align-top">
+                      <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'typesafe'] as const)" :key="p" class="align-top">
                         <td class="pr-4 py-1">
                           <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ p }}</span>
                         </td>
@@ -4101,7 +4103,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-auth-source-defaults" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.authSourceDefaults.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -4389,7 +4391,7 @@
                             </tr>
                           </thead>
                           <tbody>
-                            <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'grok'] as const)" :key="`${authSource.source}-pq-${p}`" class="align-top">
+                            <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'typesafe'] as const)" :key="`${authSource.source}-pq-${p}`" class="align-top">
                               <td class="pr-4 py-1">
                                 <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ p }}</span>
                               </td>
@@ -4444,7 +4446,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-claude-code" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.claudeCode.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -4492,15 +4494,264 @@
           </div>
 
           <!-- Codex Settings -->
+          <div class="card" data-testid="turn-state-reuse-settings">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t("admin.settings.turnStateReuse.title") }}</h2>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t("admin.settings.turnStateReuse.description") }}</p>
+                </div>
+                <Toggle v-model="turnStateReuseForm.enabled" data-testid="turn-state-reuse-enabled" />
+              </div>
+            </div>
+            <div class="space-y-5 p-6">
+              <div class="grid gap-4 lg:grid-cols-2">
+                <div>
+                  <label class="input-label">{{ t("admin.settings.turnStateReuse.proxyUrls") }}</label>
+                  <textarea v-model="turnStateProxyUrlsText" rows="4" class="input font-mono text-xs" :placeholder="t('admin.settings.turnStateReuse.proxyUrlsPlaceholder')" />
+                  <p class="input-hint">{{ t("admin.settings.turnStateReuse.proxyUrlsHint") }}</p>
+                </div>
+                <div class="space-y-4">
+                  <div class="flex items-center justify-between rounded border border-gray-200 p-3 dark:border-dark-600">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">{{ t("admin.settings.turnStateReuse.useProxyPool") }}</span>
+                    <Toggle v-model="turnStateReuseForm.harvest_use_proxy_pool" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t("admin.settings.turnStateReuse.harvestModel") }}</label>
+                    <input :value="turnStateReuseForm.harvest_model" disabled class="input font-mono" />
+                  </div>
+                </div>
+              </div>
+              <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label class="input-label">{{ t("admin.settings.turnStateReuse.missAction") }}</label>
+                  <select v-model="turnStateReuseForm.miss_action" class="input">
+                    <option value="none">{{ t("admin.settings.turnStateReuse.actions.none") }}</option>
+                    <option value="rebind_group">{{ t("admin.settings.turnStateReuse.actions.rebindGroup") }}</option>
+                    <option value="unbind_groups">{{ t("admin.settings.turnStateReuse.actions.unbindGroups") }}</option>
+                    <option value="unschedulable">{{ t("admin.settings.turnStateReuse.actions.unschedulable") }}</option>
+                  </select>
+                  <select v-if="turnStateReuseForm.miss_action === 'rebind_group'" v-model.number="turnStateReuseForm.miss_target_group_id" class="input mt-2">
+                    <option :value="null">{{ t("admin.settings.turnStateReuse.selectGroup") }}</option>
+                    <option v-for="group in openAITurnStateGroups" :key="group.id" :value="group.id">{{ group.name }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="input-label">{{ t("admin.settings.turnStateReuse.recoveredAction") }}</label>
+                  <select v-model="turnStateReuseForm.recovered_action" class="input">
+                    <option value="none">{{ t("admin.settings.turnStateReuse.actions.none") }}</option>
+                    <option value="rebind_group">{{ t("admin.settings.turnStateReuse.actions.rebindGroup") }}</option>
+                    <option value="restore_schedulable">{{ t("admin.settings.turnStateReuse.actions.restoreSchedulable") }}</option>
+                  </select>
+                  <select v-if="turnStateReuseForm.recovered_action === 'rebind_group'" v-model.number="turnStateReuseForm.recovered_target_group_id" class="input mt-2">
+                    <option :value="null">{{ t("admin.settings.turnStateReuse.selectGroup") }}</option>
+                    <option v-for="group in openAITurnStateGroups" :key="group.id" :value="group.id">{{ group.name }}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="flex justify-end">
+                <button type="button" class="btn btn-primary" :disabled="turnStateReuseSaving" @click="saveTurnStateReuseSettings">{{ t("common.save") }}</button>
+              </div>
+              <div class="overflow-x-auto border-t border-gray-200 pt-5 dark:border-dark-600">
+                <table class="min-w-full text-left text-sm">
+                  <thead class="text-xs text-gray-500"><tr><th class="px-2 py-2">{{ t("admin.settings.turnStateReuse.account") }}</th><th class="px-2 py-2">{{ t("admin.settings.turnStateReuse.status") }}</th><th class="px-2 py-2">{{ t("admin.settings.turnStateReuse.ticket") }}</th><th class="px-2 py-2">{{ t("admin.settings.turnStateReuse.lastResult") }}</th></tr></thead>
+                  <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+                    <tr v-for="item in turnStateReuseStatus" :key="item.account_id"><td class="px-2 py-2 font-medium">{{ item.account_name }}</td><td class="px-2 py-2">{{ t(`admin.settings.turnStateReuse.statuses.${item.status}`) }}</td><td class="px-2 py-2 font-mono text-xs">{{ item.encoded_length || '-' }} / {{ item.remaining_seconds ?? '-' }}s</td><td class="px-2 py-2 text-xs text-gray-500">HTTP {{ item.last_http_status || '-' }} · {{ item.last_error || item.last_route || '-' }}</td></tr>
+                    <tr v-if="!turnStateReuseStatus.length"><td colspan="4" class="px-2 py-6 text-center text-gray-500">{{ t("admin.settings.turnStateReuse.empty") }}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Codex Settings -->
           <div class="card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-gateway-forwarding-codex-hardening-title" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.gatewayForwarding.codexHardeningTitle") }}
               </h2>
             </div>
             <div class="p-6 space-y-4">
+                <div class="flex items-center justify-between gap-4">
+                  <div class="min-w-0">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+                      {{ t("admin.settings.gatewayForwarding.codexTicketEnabled") }}
+                    </h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.gatewayForwarding.codexTicketEnabledDesc") }}
+                    </p>
+                  </div>
+                  <Toggle
+                    id="codex-ticket-enabled"
+                    v-model="form.openai_codex_ticket_enabled"
+                  />
+                </div>
+                <div class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+                  <div class="min-w-0">
+                    <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                      {{ t("admin.settings.gatewayForwarding.codexTicketFailClosed") }}
+                    </h3>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.gatewayForwarding.codexTicketFailClosedDesc") }}
+                    </p>
+                  </div>
+                  <Toggle
+                    id="codex-ticket-fail-closed"
+                    v-model="form.openai_codex_ticket_fail_closed"
+                  />
+                </div>
+                <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+                  <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                    {{ t("admin.settings.gatewayForwarding.codexTicketModels") }}
+                  </h3>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayForwarding.codexTicketModelsDesc") }}
+                  </p>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayForwarding.codexTicketShapeNotice") }}
+                  </p>
+                  <fieldset class="mt-3 rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+                    <legend class="px-1 text-sm font-semibold">{{ localText('自动打票范围', 'Automatic harvest scope') }}</legend>
+                    <select id="codex-ticket-harvest-scope" v-model="form.openai_codex_ticket_harvest_scope.mode" class="input">
+                      <option value="all">{{ localText('全部 OpenAI 账号（兼容原设置）', 'All OpenAI accounts (legacy default)') }}</option>
+                      <option value="selected">{{ localText('仅指定分组', 'Selected groups only') }}</option>
+                    </select>
+                    <label class="mt-3 block text-sm" for="codex-ticket-account-policy">{{ localText('账号采集策略', 'Account harvest policy') }}</label>
+                    <select id="codex-ticket-account-policy" v-model="form.openai_codex_ticket_harvest_scope.account_policy" class="input mt-2">
+                      <option value="schedulable_only">{{ localText('仅可调度账号（默认）', 'Schedulable accounts only (default)') }}</option>
+                      <option value="prioritize_schedulable">{{ localText('可调度优先，手动停调账号排队', 'Prioritize schedulable; queue manually disabled accounts') }}</option>
+                    </select>
+                    <div v-if="form.openai_codex_ticket_harvest_scope.mode === 'selected'" class="mt-3 space-y-2">
+                      <p v-if="codexHarvestGroupsLoadFailed" class="text-sm text-amber-600">{{ localText('分组加载失败，已选范围保留，请刷新后重试。', 'Could not load groups. Saved selection is preserved; refresh to retry.') }}</p>
+                      <label v-for="group in codexHarvestGroupChoices" :key="group.id" class="flex items-center gap-2 text-sm">
+                        <input :id="'codex-ticket-group-' + group.id" v-model="form.openai_codex_ticket_harvest_scope.group_ids" type="checkbox" :value="group.id" />
+                        <span>{{ group.name }} (#{{ group.id }})</span>
+                      </label>
+                      <p v-if="form.openai_codex_ticket_harvest_scope.group_ids.length === 0" class="text-sm text-amber-600">{{ localText('未选择分组：不会自动打票，不会退回全部账号。', 'No groups selected: automatic harvesting is paused, not broadened to all accounts.') }}</p>
+                    </div>
+                    <p class="mt-2 text-xs text-gray-500">{{ localText('控制后台采集。范围外账号不再自动补票；缺票拦截开启时，范围外遗留门票也不再参与门控选号。账号级「不打票」只停采集，不停调度，也不等于降智。限流、过载、临时冷却、过期和配额耗尽账号始终跳过。兼容模式只会把手动关闭「参与调度」的账号放到后排。保存后下轮生效。', 'Controls background harvesting. Out-of-scope accounts are not probed, and fail-closed routing will not spend leftover tickets on them. Per-account skip-harvest only stops probing — the account stays schedulable and is not treated as paused or 降智. Rate-limited, overloaded, cooling-down, expired, and quota-exhausted accounts are always skipped. Compatibility mode only defers accounts whose scheduling switch was manually disabled. Changes apply next round.') }}</p>
+                  </fieldset>
+                  <label class="mt-3 block text-sm" for="codex-ticket-strategy">{{ localText('票据刷新策略', 'Ticket refresh strategy') }}</label>
+                  <select id="codex-ticket-strategy" v-model="form.openai_codex_ticket_strategy" class="input mt-2">
+                    <option value="standby">{{ localText('提前准备备用（默认）', 'Prepare standby (default)') }}</option>
+                    <option value="fixed">{{ localText('固定主用，失效后再采集', 'Keep primary until invalid') }}</option>
+                  </select>
+                  <label class="mt-3 flex items-center gap-2 text-sm"><input id="codex-ticket-strict" type="checkbox" v-model="form.openai_codex_ticket_strict_response" />{{ localText('严格拦截票据响应不匹配（默认关闭）', 'Reject mismatched ticket responses (off by default)') }}</label>
+                  <p class="mt-1 text-xs text-gray-500">{{ localText('仅在 HTTP 响应头明确不匹配时拦截正文；当前请求可能已计费，不会自动重放。关闭时只更新后续票据调度。', 'Rejects the body when HTTP response state headers mismatch. The upstream may have charged; the request is not replayed. When off, only future ticket scheduling changes.') }}</p>
+                  <p class="mt-1 text-xs text-gray-500">{{ localText('切换策略保留有效主备票据和冷却。固定主用可能在失效后短暂等待新票。', 'Switching preserves valid tickets and cooldowns. Fixed primary may briefly wait for a new ticket after expiry.') }}</p>
+                  <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        id="codex-ticket-model-astra"
+                        type="checkbox"
+                        :checked="form.openai_codex_ticket_models.includes('gpt-6-astra')"
+                        @change="toggleCodexTicketModel('gpt-6-astra', ($event.target as HTMLInputElement).checked)"
+                      />
+                      <span>Astra (gpt-6-astra)</span>
+                    </label>
+                    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        id="codex-ticket-model-sol"
+                        type="checkbox"
+                        :checked="form.openai_codex_ticket_models.includes('gpt-5.6-sol')"
+                        @change="toggleCodexTicketModel('gpt-5.6-sol', ($event.target as HTMLInputElement).checked)"
+                      />
+                      <span>Sol (gpt-5.6-sol)</span>
+                    </label>
+                  </div>
+                </div>
+                <div>
+                  <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+                    {{ t("admin.settings.gatewayForwarding.codexTicketHarvestProxy") }}
+                  </h3>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayForwarding.codexTicketHarvestProxyDesc") }}
+                  </p>
+                  <div class="mt-3 flex flex-wrap gap-2" role="radiogroup" :aria-label="t('admin.settings.gatewayForwarding.codexTicketProxyMode')">
+                    <label
+                      class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
+                      :class="codexTicketProxyMode === 'mihomo'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                        : 'border-gray-200 text-gray-600 hover:border-primary-300 dark:border-dark-600 dark:text-gray-400'"
+                    >
+                      <input
+                        class="sr-only"
+                        type="radio"
+                        name="codex-ticket-proxy-mode"
+                        value="mihomo"
+                        :checked="codexTicketProxyMode === 'mihomo'"
+                        @change="selectCodexTicketProxyMode('mihomo')"
+                      />
+                      <span>{{ t("admin.settings.gatewayForwarding.codexTicketProxyModeMihomo") }}</span>
+                    </label>
+                    <label
+                      class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
+                      :class="codexTicketProxyMode === 'static'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                        : 'border-gray-200 text-gray-600 hover:border-primary-300 dark:border-dark-600 dark:text-gray-400'"
+                    >
+                      <input
+                        class="sr-only"
+                        type="radio"
+                        name="codex-ticket-proxy-mode"
+                        value="static"
+                        :checked="codexTicketProxyMode === 'static'"
+                        @change="selectCodexTicketProxyMode('static')"
+                      />
+                      <span>{{ t("admin.settings.gatewayForwarding.codexTicketProxyModeStatic") }}</span>
+                    </label>
+                    <label
+                      class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
+                      :class="codexTicketProxyMode === 'ip_pool'
+                        ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                        : 'border-gray-200 text-gray-600 hover:border-primary-300 dark:border-dark-600 dark:text-gray-400'"
+                    >
+                      <input
+                        class="sr-only"
+                        type="radio"
+                        name="codex-ticket-proxy-mode"
+                        value="ip_pool"
+                        :checked="codexTicketProxyMode === 'ip_pool'"
+                        @change="selectCodexTicketProxyMode('ip_pool')"
+                      />
+                      <span>{{ t("admin.settings.gatewayForwarding.codexTicketProxyModeIPPool") }}</span>
+                    </label>
+                  </div>
+                  <div
+                    v-if="codexTicketProxyMode === 'mihomo'"
+                    class="mt-3 rounded-md border border-primary-200 bg-primary-50/60 px-3 py-2.5 dark:border-primary-800 dark:bg-primary-900/20"
+                  >
+                    <div class="flex flex-wrap items-center gap-2 text-sm text-primary-800 dark:text-primary-200">
+                      <span>{{ t("admin.settings.gatewayForwarding.codexTicketProxyMihomoEndpoint") }}</span>
+                      <code class="rounded bg-white/70 px-1.5 py-0.5 font-mono text-xs dark:bg-dark-800/70">{{ CODEX_TICKET_MIHOMO_PROXY_URL }}</code>
+                    </div>
+                    <MihomoProxySelector @ready="selectMihomoHarvestProxy" />
+                  </div>
+                  <p
+                    v-else-if="codexTicketProxyMode === 'ip_pool'"
+                    data-testid="codex-ticket-proxy-ip-pool-hint"
+                    class="mt-3 rounded-md border border-primary-200 bg-primary-50/60 px-3 py-2.5 text-sm text-primary-800 dark:border-primary-800 dark:bg-primary-900/20 dark:text-primary-200"
+                  >
+                    {{ t("admin.settings.gatewayForwarding.codexTicketProxyIPPoolHint") }}
+                  </p>
+                  <input
+                    v-else
+                    id="codex-ticket-harvest-proxy"
+                    v-model="form.openai_codex_ticket_harvest_proxy_url"
+                    type="text"
+                    class="input mt-3 w-full font-mono text-sm"
+                    :placeholder="t('admin.settings.gatewayForwarding.codexTicketHarvestProxyPlaceholder')"
+                    autocomplete="off"
+                  />
+                  <p
+                    v-if="form.openai_codex_ticket_harvest_proxy_configured && codexTicketProxyMode === 'static'"
+                    class="mt-1.5 text-xs text-gray-500 dark:text-gray-400"
+                  >
+                    {{ t("admin.settings.gatewayForwarding.codexTicketHarvestProxyConfigured") }}
+                  </p>
+                </div>
                 <div>
                   <h3 class="text-base font-semibold text-gray-900 dark:text-white">
                     {{ t("admin.settings.gatewayForwarding.codexClientRestrictionTitle") }}
@@ -4744,7 +4995,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-upstream-billing-probe" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.upstreamBillingProbe.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -4828,7 +5079,7 @@
           <!-- Ollama Cloud Usage Settings -->
           <div class="card" data-testid="ollama-cloud-usage-global-settings">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-ollama-cloud-usage" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.ollamaCloudUsage.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -4909,12 +5160,96 @@
             </div>
           </div>
 
+          <!-- OpenCode Go Usage Settings -->
+          <div class="card" data-testid="opencode-go-usage-global-settings">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 id="settings-section-opencode-go-usage" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.opencodeGoUsage.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.opencodeGoUsage.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div v-if="opencodeGoUsageLoading" class="flex items-center gap-2 text-gray-500">
+                <div class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"></div>
+                {{ t("common.loading") }}
+              </div>
+              <template v-else>
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">
+                      {{ t("admin.settings.opencodeGoUsage.enabled") }}
+                    </label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.opencodeGoUsage.enabledHint") }}
+                    </p>
+                  </div>
+                  <Toggle
+                    v-model="opencodeGoUsageForm.enabled"
+                    :aria-label="t('admin.settings.opencodeGoUsage.enabled')"
+                    data-testid="opencode-go-usage-global-enabled"
+                  />
+                </div>
+                <div v-if="opencodeGoUsageForm.enabled" class="space-y-4 border-t border-gray-100 pt-4 dark:border-dark-700">
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300" for="opencode-go-usage-debounce">
+                      {{ t("admin.settings.opencodeGoUsage.debounceMinutes") }}
+                    </label>
+                    <input
+                      id="opencode-go-usage-debounce"
+                      v-model.number="opencodeGoUsageForm.debounce_minutes"
+                      type="number"
+                      min="1"
+                      max="60"
+                      class="input w-32"
+                      data-testid="opencode-go-usage-global-debounce"
+                      @keydown.enter.prevent="saveOpenCodeGoUsageSettings"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.opencodeGoUsage.debounceHint") }}
+                    </p>
+                  </div>
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300" for="opencode-go-usage-interval">
+                      {{ t("admin.settings.opencodeGoUsage.intervalMinutes") }}
+                    </label>
+                    <input
+                      id="opencode-go-usage-interval"
+                      v-model.number="opencodeGoUsageForm.interval_minutes"
+                      type="number"
+                      min="5"
+                      max="1440"
+                      class="input w-32"
+                      data-testid="opencode-go-usage-global-interval"
+                      @keydown.enter.prevent="saveOpenCodeGoUsageSettings"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.opencodeGoUsage.intervalHint") }}
+                    </p>
+                  </div>
+                </div>
+                <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm"
+                    :disabled="opencodeGoUsageSaving"
+                    data-testid="opencode-go-usage-global-save"
+                    @click="saveOpenCodeGoUsageSettings"
+                  >
+                    {{ opencodeGoUsageSaving ? t("common.saving") : t("common.save") }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Gateway Scheduling Settings -->
           <div class="card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-scheduling" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.scheduling.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -5008,7 +5343,14 @@
                 </div>
               </div>
 
-              <template v-if="false">
+              <p
+                role="status"
+                data-testid="scheduler-retirement-notice"
+                class="border-t border-gray-100 pt-5 text-sm text-gray-500 dark:border-dark-700 dark:text-gray-400"
+              >
+                普通 OpenAI 文本已恢复原生调度，自定义质量评分与调度事件采集已停用。历史记录仍可查询；旧分组策略保留，可能仍用于 WebSocket、图片等专用路径，当前不开放编辑。
+              </p>
+
               <div
                 v-if="!form.openai_advanced_scheduler_enabled"
                 class="flex items-center justify-between border-t border-gray-100 pt-5 dark:border-dark-700"
@@ -5153,7 +5495,8 @@
               </div>
 
               <div
-                v-if="false"
+                v-if="form.openai_advanced_scheduler_enabled"
+                data-testid="openai-advanced-scheduler-weights"
                 class="border-t border-gray-100 pt-5 dark:border-dark-700"
               >
                 <div>
@@ -5181,6 +5524,7 @@
                     <input
                       v-model="form[field.key]"
                       class="input mt-1"
+                      :data-testid="`openai-scheduler-field-${field.key}`"
                       inputmode="decimal"
                       :placeholder="field.placeholder"
                       type="text"
@@ -5191,160 +5535,6 @@
                   </label>
                 </div>
               </div>
-
-              <div
-                v-if="form.openai_advanced_scheduler_enabled"
-                class="border-t border-gray-100 pt-5 dark:border-dark-700"
-                data-testid="openai-scheduler-fairness"
-              >
-                <div class="mb-4">
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t("admin.settings.openaiExperimentalScheduler.title") }}
-                  </label>
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.openaiExperimentalScheduler.description") }}
-                  </p>
-                </div>
-                <div v-if="false" class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <label class="block">
-                    <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.poolMode") }}</span>
-                    <select v-model="form.openai_advanced_scheduler_candidate_pool_mode" class="input mt-1" data-testid="scheduler-pool-mode">
-                      <option value="hybrid">{{ t("admin.settings.openaiExperimentalScheduler.poolModeHybrid") }}</option>
-                      <option value="top_k">{{ t("admin.settings.openaiExperimentalScheduler.poolModeTopK") }}</option>
-                      <option value="all_eligible">{{ t("admin.settings.openaiExperimentalScheduler.poolModeAll") }}</option>
-                    </select>
-                    <span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.poolModeHint") }}</span>
-                  </label>
-                  <label class="block">
-                    <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.explorationRatio") }}</span>
-                    <input v-model.number="form.openai_advanced_scheduler_exploration_ratio" class="input mt-1" data-testid="scheduler-exploration-ratio" min="0" max="100" step="1" type="number" />
-                    <span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.explorationRatioHint") }}</span>
-                  </label>
-                  <label class="block">
-                    <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.starvationThreshold") }}</span>
-                    <input v-model.number="form.openai_advanced_scheduler_starvation_threshold_seconds" class="input mt-1" data-testid="scheduler-starvation-threshold" min="0" max="86400" step="300" type="number" />
-                    <span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.starvationThresholdHint") }}</span>
-                  </label>
-                  <label class="block">
-                    <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.fairnessWeight") }}</span>
-                    <input v-model.number="form.openai_advanced_scheduler_fairness_weight" class="input mt-1" data-testid="scheduler-fairness-weight" min="0" max="10" step="0.1" type="number" />
-                    <span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.fairnessWeightHint") }}</span>
-                  </label>
-                </div>
-                <div class="mt-4 border-t border-gray-100 pt-5 dark:border-dark-700" data-testid="scheduler-group-policy-panel">
-                  <p v-if="schedulerGroupsLoadError" class="mb-3 text-sm text-red-600 dark:text-red-400" data-testid="scheduler-groups-error">
-                    {{ t("admin.settings.failedToLoad") }}
-                  </p>
-                  <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.openaiExperimentalScheduler.stepGroup") }}
-                  </div>
-                  <label class="block">
-                      <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.groupSelect") }}</span>
-                      <select v-model="schedulerSelectedGroupId" class="input mt-1" data-testid="scheduler-group-select" @change="selectSchedulerPolicyGroup">
-                        <option value="">{{ t("admin.settings.openaiExperimentalScheduler.groupSelectPlaceholder") }}</option>
-                        <option v-for="group in schedulerPolicyGroups" :key="group.id" :value="String(group.id)">{{ group.name }}</option>
-                      </select>
-                  </label>
-                  <div class="mt-5 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.openaiExperimentalScheduler.stepMode") }}
-                  </div>
-                  <div class="hidden mt-2 inline-flex rounded border border-gray-200 p-1 dark:border-dark-700" data-testid="scheduler-policy-mode">
-                    <button type="button" class="rounded px-3 py-1.5 text-sm" :class="schedulerPolicyDraft.mode === 'custom' ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'text-gray-600 dark:text-gray-300'" data-testid="scheduler-policy-mode-custom" @click="setSchedulerPolicyMode('custom')">
-                      {{ t("admin.settings.openaiExperimentalScheduler.customMode") }}
-                    </button>
-                    <button type="button" class="rounded px-3 py-1.5 text-sm" :class="schedulerPolicyDraft.mode === 'preset' ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'text-gray-600 dark:text-gray-300'" data-testid="scheduler-policy-mode-preset" @click="setSchedulerPolicyMode('preset')">
-                      {{ t("admin.settings.openaiExperimentalScheduler.presetMode") }}
-                    </button>
-                  </div>
-                  <p v-if="!schedulerSelectedGroupId" class="mt-3 text-sm text-gray-500 dark:text-gray-400" data-testid="scheduler-policy-gate">
-                    {{ t("admin.settings.openaiExperimentalScheduler.selectGroupBeforePolicy") }}
-                  </p>
-                  <div v-if="schedulerSelectedGroupId" class="mt-4 space-y-5" data-testid="scheduler-business-policy">
-                    <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200" data-testid="scheduler-service-guard">
-                      {{ t("admin.settings.openaiExperimentalScheduler.serviceGuard") }}
-                    </div>
-                    <div class="grid gap-3 md:grid-cols-3">
-                      <div v-for="metric in schedulerBusinessMetrics" :key="metric.key" class="rounded-lg border border-gray-200 p-4 dark:border-dark-700">
-                        <div class="text-sm font-medium text-gray-900 dark:text-white">{{ metric.label }}</div>
-                        <div class="mt-3 grid grid-cols-3 gap-2" role="group" :aria-label="metric.label">
-                          <button v-for="value in [1, 2, 3]" :key="value" type="button" class="rounded border px-3 py-2 text-sm font-semibold" :aria-pressed="schedulerPolicyDraft.priority[metric.key] === value" :data-testid="`scheduler-priority-${metric.key}-${value}`" @click="setSchedulerBusinessPriority(metric.key, value)">{{ value }}</button>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="grid gap-4 md:grid-cols-3">
-                      <div v-for="control in schedulerBusinessControls" :key="control.key" class="rounded-lg border border-gray-200 p-4 dark:border-dark-700">
-                        <div class="text-sm font-medium text-gray-900 dark:text-white">{{ control.label }}</div>
-                        <div class="mt-3 grid grid-cols-3 gap-1 rounded bg-gray-100 p-1 dark:bg-dark-800" role="group" :aria-label="control.label">
-                          <button v-for="option in control.options" :key="option.value" type="button" class="rounded px-2 py-2 text-xs font-medium" :aria-pressed="schedulerPolicyDraft.operations[control.key] === option.value" :data-testid="`scheduler-operation-${control.key}-${option.value}`" @click="setSchedulerBusinessOperation(control.key, option.value)">{{ option.label }}</button>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-700" data-testid="scheduler-policy-summary">
-                      <div class="text-sm font-medium text-gray-900 dark:text-white">{{ t("admin.settings.openaiExperimentalScheduler.prioritySummary") }}</div>
-                      <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ schedulerPrioritySummary }}</p>
-                    </div>
-                    <div class="grid gap-3 md:grid-cols-3" data-testid="scheduler-scenario-previews">
-                      <div v-for="preview in schedulerScenarioPreviews" :key="preview.title" class="rounded-lg bg-gray-50 p-4 text-sm dark:bg-dark-800">
-                        <div class="font-medium text-gray-900 dark:text-white">{{ preview.title }}</div>
-                        <p class="mt-1 text-gray-600 dark:text-gray-300">{{ preview.body }}</p>
-                      </div>
-                    </div>
-                    <button type="button" class="btn btn-secondary btn-sm" data-testid="scheduler-reset-recommended" @click="resetSchedulerBusinessPolicy">{{ t("admin.settings.openaiExperimentalScheduler.resetRecommended") }}</button>
-                  </div>
-                  <div v-if="schedulerSelectedGroupId" class="hidden mt-4">
-                    <div class="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      {{ t("admin.settings.openaiExperimentalScheduler.stepValues") }}
-                    </div>
-                    <div v-if="schedulerPolicyDraft.mode === 'preset'" class="grid gap-4 md:grid-cols-2">
-                      <label class="block">
-                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.presetSelect") }}</span>
-                        <select v-model="schedulerPolicyDraft.preset_id" class="input mt-1" data-testid="scheduler-policy-preset" @change="applySchedulerPreset">
-                          <option v-for="preset in schedulerPresetDefinitions" :key="preset.id" :value="preset.id">{{ preset.name }}</option>
-                        </select>
-                      </label>
-                      <div class="rounded border border-gray-200 p-3 text-xs text-gray-500 dark:border-dark-700 dark:text-gray-400">
-                        {{ t("admin.settings.openaiExperimentalScheduler.presetValuesHint", { mode: schedulerPolicyModeLabel }) }}
-                      </div>
-                    </div>
-                    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                      <label class="block">
-                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.topKLabel") }}</span>
-                        <input v-model.number="schedulerPolicyDraft.top_k" class="input mt-1" data-testid="scheduler-policy-top-k" :min="OPENAI_SCHEDULER_LIMITS.topK.min" :max="OPENAI_SCHEDULER_LIMITS.topK.max" :step="OPENAI_SCHEDULER_LIMITS.topK.step" type="number" :disabled="schedulerPolicyDraft.mode === 'preset'" />
-                        <span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.topKRange") }}</span>
-                        <span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.topKShortHint") }}</span>
-                      </label>
-                      <label v-for="field in schedulerPolicyWeightFields" :key="field.key" class="block">
-                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ field.label }}</span>
-                        <input v-model.number="schedulerPolicyDraft.weight_overrides[field.key]" class="input mt-1" data-testid="scheduler-policy-weight" :data-field="field.key" :min="OPENAI_SCHEDULER_LIMITS.weight.min" :max="OPENAI_SCHEDULER_LIMITS.weight.max" :step="OPENAI_SCHEDULER_LIMITS.weight.step" type="number" :disabled="schedulerPolicyDraft.mode === 'preset'" />
-                        <span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ field.range }}</span>
-                        <span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ field.hint }}</span>
-                      </label>
-                    </div>
-                    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                      <label class="block"><span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.poolMode") }}</span><select v-model="schedulerPolicyDraft.fairness.candidate_pool_mode" class="input mt-1" data-testid="scheduler-policy-pool-mode" :disabled="schedulerPolicyDraft.mode === 'preset'"><option v-for="mode in OPENAI_SCHEDULER_POOL_MODES" :key="mode" :value="mode">{{ t(`admin.settings.openaiExperimentalScheduler.poolMode${mode === 'top_k' ? 'TopK' : mode === 'all_eligible' ? 'All' : 'Hybrid'}`) }}</option></select><span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.poolModeRange") }}</span><span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.poolModeShortHint") }}</span></label>
-                      <label class="block"><span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.explorationRatio") }}</span><input v-model.number="schedulerPolicyDraft.fairness.exploration_ratio" class="input mt-1" data-testid="scheduler-policy-exploration" :min="OPENAI_SCHEDULER_LIMITS.explorationRatio.min" :max="OPENAI_SCHEDULER_LIMITS.explorationRatio.max" :step="OPENAI_SCHEDULER_LIMITS.explorationRatio.step" :disabled="schedulerPolicyDraft.mode === 'preset'" type="number" /><span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.explorationRange") }}</span><span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.explorationShortHint") }}</span></label>
-                      <label class="block"><span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.starvationThreshold") }}</span><input v-model.number="schedulerPolicyDraft.fairness.starvation_threshold_seconds" class="input mt-1" data-testid="scheduler-policy-starvation" :min="OPENAI_SCHEDULER_LIMITS.starvationThreshold.min" :max="OPENAI_SCHEDULER_LIMITS.starvationThreshold.max" :step="OPENAI_SCHEDULER_LIMITS.starvationThreshold.step" :disabled="schedulerPolicyDraft.mode === 'preset'" type="number" /><span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.starvationRange") }}</span><span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.starvationShortHint") }}</span></label>
-                      <label class="block"><span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.fairnessWeight") }}</span><input v-model.number="schedulerPolicyDraft.fairness.fairness_weight" class="input mt-1" data-testid="scheduler-policy-fairness" :min="OPENAI_SCHEDULER_LIMITS.fairnessWeight.min" :max="OPENAI_SCHEDULER_LIMITS.fairnessWeight.max" :step="OPENAI_SCHEDULER_LIMITS.fairnessWeight.step" :disabled="schedulerPolicyDraft.mode === 'preset'" type="number" /><span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.fairnessRange") }}</span><span class="mt-1 block text-[11px] leading-4 text-gray-500 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.fairnessShortHint") }}</span></label>
-                    </div>
-                    <div v-if="schedulerPolicyDraft.mode === 'custom'" class="mt-5 flex flex-col gap-2 border-t border-gray-100 pt-4 dark:border-dark-700 sm:flex-row sm:items-end">
-                      <label class="block min-w-0 flex-1"><span class="text-xs font-medium text-gray-600 dark:text-gray-400">{{ t("admin.settings.openaiExperimentalScheduler.customPresetName") }}</span><input v-model="schedulerPresetNameDraft" class="input mt-1" data-testid="scheduler-preset-name" :placeholder="t('admin.settings.openaiExperimentalScheduler.customPresetNamePlaceholder')" maxlength="40" /></label>
-                      <button type="button" class="btn btn-secondary btn-sm" data-testid="scheduler-save-preset" @click="saveCurrentSchedulerPreset">{{ t("admin.settings.openaiExperimentalScheduler.saveAsPreset") }}</button>
-                    </div>
-                    <p v-if="schedulerPresetActionError" class="mt-2 text-sm text-red-600 dark:text-red-400" data-testid="scheduler-preset-error">{{ schedulerPresetActionError }}</p>
-                  <button v-if="schedulerSelectedGroupId" type="button" class="btn btn-secondary btn-sm mt-4" data-testid="scheduler-policy-clear" @click="clearSchedulerPolicy">
-                      {{ t("admin.settings.openaiExperimentalScheduler.clearGroupPolicy") }}
-                    </button>
-                  <div v-if="schedulerPresetDefinitions.some((preset) => preset.kind === 'custom')" class="mt-6 border-t border-gray-100 pt-4 dark:border-dark-700" data-testid="scheduler-custom-presets">
-                    <div class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.settings.openaiExperimentalScheduler.customPresetTitle") }}</div>
-                    <div v-for="preset in schedulerPresetDefinitions.filter((item) => item.kind === 'custom')" :key="preset.id" class="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                      <input class="input min-w-[12rem] flex-1" :value="preset.name" :data-testid="`scheduler-preset-name-${preset.id.split(':').join('-')}`" maxlength="40" @change="renameSchedulerCustomPreset(preset.id as OpenAISchedulerPresetID, ($event.target as HTMLInputElement).value)" />
-                      <button type="button" class="btn btn-secondary btn-sm" :data-testid="`scheduler-preset-delete-${preset.id.split(':').join('-')}`" :disabled="isSchedulerPresetReferenced(preset.id)" @click="deleteSchedulerCustomPreset(preset.id as OpenAISchedulerPresetID)">{{ t("admin.settings.openaiExperimentalScheduler.deletePreset") }}</button>
-                    </div>
-                  </div>
-                  </div>
-                </div>
-              </div>
-              </template>
             </div>
           </div>
 
@@ -5353,7 +5543,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-gateway-forwarding" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.gatewayForwarding.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -5934,6 +6124,61 @@
                 <Toggle v-model="form.openai_codex_version_auto_sync_enabled" />
               </div>
 
+              <!-- Claude Code 客户端版本号 -->
+              <div>
+                <label
+                  class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  {{
+                    t(
+                      "admin.settings.gatewayForwarding.claudeCodeClientVersion",
+                    )
+                  }}
+                </label>
+                <input
+                  v-model="form.claude_code_client_version"
+                  type="text"
+                  class="input w-full font-mono text-sm"
+                  placeholder="2.1.280"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{
+                    t(
+                      "admin.settings.gatewayForwarding.claudeCodeClientVersionHint",
+                    )
+                  }}
+                </p>
+              </div>
+
+              <!-- Claude Code 版本号自动同步 -->
+              <div class="flex items-center justify-between">
+                <div>
+                  <label
+                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.claudeCodeVersionAutoSync",
+                      )
+                    }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.claudeCodeVersionAutoSyncHint",
+                      )
+                    }}
+                  </p>
+                  <p
+                    v-if="claudeSyncedVersionLabel"
+                    class="mt-0.5 text-xs text-gray-500 dark:text-gray-400"
+                  >
+                    {{ claudeSyncedVersionLabel }}
+                  </p>
+                </div>
+                <Toggle v-model="form.claude_code_version_auto_sync_enabled" />
+              </div>
+
             </div>
           </div>
 
@@ -5942,7 +6187,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-web-search-emulation" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.webSearchEmulation.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -6376,7 +6621,7 @@
         <!-- Usage Records Settings -->
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <h2 id="settings-section-usage-records" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.usageRecords.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -6399,6 +6644,20 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.long_context_badge.label') }}
+                </label>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.long_context_badge.description') }}
+                </p>
+              </div>
+              <label class="toggle">
+                <input v-model="form.usage_show_long_context_badge" type="checkbox" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
         </div>
         </div>
@@ -6411,7 +6670,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-site" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.site.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -6778,7 +7037,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-custom-menu" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.customMenu.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -6913,13 +7172,24 @@
                     </label>
                     <input
                       v-model="item.url"
-                      type="url"
+                      type="text"
                       class="input font-mono text-sm"
                       :placeholder="
                         t('admin.settings.customMenu.urlPlaceholder')
                       "
                     />
                   </div>
+
+                  <label class="flex items-center gap-2 sm:col-span-2">
+                    <input
+                      v-model="item.hide_open_button"
+                      type="checkbox"
+                      data-testid="custom-menu-hide-open-button"
+                    />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">
+                      {{ t("admin.settings.customMenu.hideOpenButton") }}
+                    </span>
+                  </label>
 
                   <!-- SVG Icon (full width) -->
                   <div class="sm:col-span-2">
@@ -6972,7 +7242,7 @@
 	            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
 	              <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 	                <div>
-	                  <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+	                  <h2 id="settings-section-login-agreement" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
 	                    {{ localText("登录条款确认", "Login agreement") }}
 	                  </h2>
 	                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7170,10 +7440,150 @@
 
 	        <!-- Tab: Features (功能开关) -->
         <div v-show="activeTab === 'features'" class="space-y-6">
+        <div class="card" data-testid="request-capture-settings">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 id="settings-section-request-capture" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.requestCapture.title') }}</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.requestCapture.description') }}</p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between gap-4">
+              <label for="request-capture-enabled" class="input-label">{{ t('admin.requestCapture.enabled') }}</label>
+              <Toggle id="request-capture-enabled" v-model="form.request_capture_enabled" />
+            </div>
+            <div class="grid gap-5 md:grid-cols-2">
+              <label class="space-y-1"><span class="input-label">{{ t('admin.requestCapture.quota') }}</span><input v-model.number="form.request_capture_quota_mib" class="input" type="number" min="1" step="1" required /></label>
+              <label class="space-y-1"><span class="input-label">{{ t('admin.requestCapture.retention') }}</span><input v-model.number="form.request_capture_retention_days" class="input" type="number" min="1" max="30" step="1" required /></label>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.requestCapture.limitsHint') }}</p>
+            <p class="text-xs text-amber-700 dark:text-amber-300">{{ t('admin.requestCapture.privacy') }}</p>
+          </div>
+        </div>
+        <div class="card" data-testid="excel-bps-image-settings">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 id="settings-section-features-excel-bps-images" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.excelBpsImages.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.excelBpsImages.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label for="excel-bps-image-enabled" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.excelBpsImages.enabled') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.excelBpsImages.enabledHint') }}
+                </p>
+              </div>
+              <Toggle id="excel-bps-image-enabled" v-model="form.excel_bps_image_relay_enabled" />
+            </div>
+            <div v-if="form.excel_bps_image_relay_enabled">
+              <label for="excel-bps-image-mode" class="input-label">{{ t('admin.settings.features.excelBpsImages.mode') }}</label>
+              <select id="excel-bps-image-mode" v-model="form.excel_bps_image_mode" class="input">
+                <option value="relay">{{ t('admin.settings.features.excelBpsImages.modeRelay') }}</option>
+                <option value="native">{{ t('admin.settings.features.excelBpsImages.modeNative') }}</option>
+              </select>
+              <p v-if="form.excel_bps_image_mode === 'native'" class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.settings.features.excelBpsImages.nativeHint') }}
+              </p>
+              <div v-if="form.excel_bps_image_mode === 'relay'" class="mt-5">
+                <label for="excel-bps-image-base-url" class="input-label">
+                  {{ t('admin.settings.features.excelBpsImages.baseUrl') }}
+                </label>
+                <input
+                  id="excel-bps-image-base-url"
+                  v-model.trim="form.excel_bps_image_base_url"
+                  type="url"
+                  class="input"
+                  placeholder="https://your-api.example.com"
+                  required
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.excelBpsImages.baseUrlHint') }}
+                </p>
+              </div>
+              <div class="mt-5 space-y-3" data-testid="bps-image-policy">
+                <label class="input-label" for="bps-image-limit-policy">{{ t('admin.settings.features.excelBpsImages.policyTitle') }}</label>
+                <select id="bps-image-limit-policy" v-model="form.excel_bps_image_limit_policy" class="input">
+                  <option value="off">{{ t('admin.settings.features.excelBpsImages.policyOff') }}</option>
+                  <option value="auto_compact">{{ t('admin.settings.features.excelBpsImages.policyAuto') }}</option>
+                  <option value="warn">{{ t('admin.settings.features.excelBpsImages.policyWarn') }}</option>
+                </select>
+                <p class="text-xs text-gray-500">{{ t('admin.settings.features.excelBpsImages.policyHint') }}</p>
+                <div v-if="form.excel_bps_image_limit_policy === 'warn'" class="grid gap-4 sm:grid-cols-2">
+                  <label class="space-y-1"><span class="input-label">{{ t('admin.settings.features.excelBpsImages.policyWarning') }}</span><input id="bps-image-warning-remaining" v-model.number="form.excel_bps_image_warning_remaining" class="input" type="number" min="1" :max="excelBPSImageLimits.images" required /></label>
+                  <label class="space-y-1"><span class="input-label">{{ t('admin.settings.features.excelBpsImages.policyReserve') }}</span><input id="bps-image-compact-reserve" v-model.number="form.excel_bps_image_compact_reserve" class="input" type="number" min="1" :max="excelBPSImageLimits.images" required /></label>
+                  <p class="text-xs text-gray-500 sm:col-span-2">{{ t('admin.settings.features.excelBpsImages.policyMarginsHint') }}</p>
+                </div>
+              </div>
+              <h4 class="mt-6 input-label">{{ t('admin.settings.features.excelBpsImages.requestLimitsTitle') }}</h4>
+              <div class="mt-5 grid gap-4 sm:grid-cols-4">
+                <div class="space-y-1">
+                  <label for="excel-bps-image-body-limit" class="input-label">{{ t('admin.settings.features.excelBpsImages.bodyLimit') }}</label>
+                  <input id="excel-bps-image-body-limit" v-model.number="form.excel_bps_image_body_limit_mib" class="input" type="number" min="1" :max="excelBPSImageLimits.bodyMiB" step="1" required />
+                </div>
+                <div class="space-y-1">
+                  <label for="excel-bps-image-budget" class="input-label">{{ t('admin.settings.features.excelBpsImages.budget') }}</label>
+                  <input id="excel-bps-image-budget" v-model.number="form.excel_bps_image_budget_mib" class="input" type="number" :min="excelBPSImageLimits.minBudgetMiB" :max="excelBPSImageLimits.budgetMiB" step="1" required />
+                </div>
+                <div class="space-y-1">
+                  <label for="excel-bps-image-max-requests" class="input-label">{{ t('admin.settings.features.excelBpsImages.maxRequests') }}</label>
+                  <input id="excel-bps-image-max-requests" v-model.number="form.excel_bps_image_max_requests" class="input" type="number" min="1" :max="excelBPSImageLimits.requests" step="1" required />
+                </div>
+                <div class="space-y-1">
+                  <label for="excel-bps-image-max-images" class="input-label">{{ t('admin.settings.features.excelBpsImages.maxImages') }}</label>
+                  <input id="excel-bps-image-max-images" v-model.number="form.excel_bps_image_max_images" class="input" type="number" min="1" :max="excelBPSImageLimits.images" step="1" required />
+                  <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.features.excelBpsImages.limitRange', { max: excelBPSImageLimits.images }) }}</p>
+                </div>
+              </div>
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.settings.features.excelBpsImages.budgetHint', excelBPSImageLimits) }}
+              </p>
+              <p v-if="form.excel_bps_image_mode === 'native'" class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.settings.features.excelBpsImages.nativeRetentionHint', { maxImages: form.excel_bps_image_max_images }) }}
+              </p>
+              <template v-if="form.excel_bps_image_mode === 'relay'">
+                <h4 class="mt-6 input-label">{{ t('admin.settings.features.excelBpsImages.imageLimitsTitle') }}</h4>
+                <div class="mt-3 grid gap-4 sm:grid-cols-3">
+                  <div class="space-y-1">
+                    <label for="excel-bps-image-max-image-mib" class="input-label">{{ t('admin.settings.features.excelBpsImages.maxImageMiB') }}</label>
+                    <input id="excel-bps-image-max-image-mib" v-model.number="form.excel_bps_image_max_image_mib" class="input" type="number" min="1" :max="excelBPSImageLimits.imageMiB" step="1" required />
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.features.excelBpsImages.limitRange', { max: excelBPSImageLimits.imageMiB }) }}</p>
+                  </div>
+                  <div class="space-y-1">
+                    <label for="excel-bps-image-max-total-mib" class="input-label">{{ t('admin.settings.features.excelBpsImages.maxTotalMiB') }}</label>
+                    <input id="excel-bps-image-max-total-mib" v-model.number="form.excel_bps_image_max_total_mib" class="input" type="number" min="1" :max="excelBPSImageLimits.totalMiB" step="1" required />
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.features.excelBpsImages.limitRange', { max: excelBPSImageLimits.totalMiB }) }}</p>
+                  </div>
+                  <div class="space-y-1">
+                    <label for="excel-bps-image-storage-mib" class="input-label">{{ t('admin.settings.features.excelBpsImages.storageMiB') }}</label>
+                    <input id="excel-bps-image-storage-mib" v-model.number="form.excel_bps_image_storage_mib" class="input" type="number" min="1" :max="excelBPSImageLimits.storageMiB" step="1" required />
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.features.excelBpsImages.limitRange', { max: excelBPSImageLimits.storageMiB }) }}</p>
+                  </div>
+                  <div class="space-y-1">
+                    <label for="excel-bps-image-storage-entries" class="input-label">{{ t('admin.settings.features.excelBpsImages.storageEntries') }}</label>
+                    <input id="excel-bps-image-storage-entries" v-model.number="form.excel_bps_image_storage_entries" class="input" type="number" min="1" :max="excelBPSImageLimits.storageEntries" step="1" required />
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.features.excelBpsImages.limitRange', { max: excelBPSImageLimits.storageEntries }) }}</p>
+                  </div>
+                  <div class="space-y-1">
+                    <label for="excel-bps-image-ttl-minutes" class="input-label">{{ t('admin.settings.features.excelBpsImages.ttlMinutes') }}</label>
+                    <input id="excel-bps-image-ttl-minutes" v-model.number="form.excel_bps_image_ttl_minutes" class="input" type="number" min="1" :max="excelBPSImageLimits.ttlMinutes" step="1" required />
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.features.excelBpsImages.limitRange', { max: excelBPSImageLimits.ttlMinutes }) }}</p>
+                  </div>
+                </div>
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.excelBpsImages.retentionHint') }}
+                </p>
+              </template>
+            </div>
+          </div>
+        </div>
 
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <h2 id="settings-section-features-channel-monitor" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.channelMonitor.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7353,7 +7763,7 @@
 
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <h2 id="settings-section-features-available-channels" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.availableChannels.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7384,9 +7794,28 @@
           </div>
         </div>
 
+        <!-- The Pelican showcase is configured with its group tests under Smart Ops. -->
+        <div class="card" data-testid="pelican-showcase-moved">
+          <div class="px-6 py-4">
+            <h2 id="settings-section-features-pelican-showcase" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.pelicanShowcase.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.pelicanShowcase.movedHint') }}
+              <router-link
+                to="/admin/pelican-tests"
+                class="ml-1 inline-flex items-center gap-1 text-primary-600 hover:underline dark:text-primary-400"
+              >
+                {{ t('admin.settings.features.pelicanShowcase.movedLink') }}
+                <span aria-hidden="true">→</span>
+              </router-link>
+            </p>
+          </div>
+        </div>
+
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <h2 id="settings-section-features-model-plaza" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.modelPlaza.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7436,7 +7865,37 @@
 
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <h2 id="settings-section-features-site-billing-mode" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.siteBillingMode.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.siteBillingMode.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div class="min-w-0">
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.siteBillingMode.label') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ siteBillingModeHint }}
+                </p>
+              </div>
+              <div class="w-full shrink-0 sm:w-56">
+                <Select
+                  :modelValue="siteBillingMode"
+                  :options="siteBillingModeOptions"
+                  @update:modelValue="siteBillingMode = $event as SiteBillingMode"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 id="settings-section-features-plugin-management" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.pluginManagement.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7460,7 +7919,7 @@
 
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <h2 id="settings-section-features-risk-control" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.riskControl.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7489,6 +7948,18 @@
               <Toggle v-model="form.risk_control_enabled" />
             </div>
 
+            <div>
+              <label class="input-label">
+                {{ t('admin.settings.features.riskControl.riskControlUserAllowlist') }}
+              </label>
+              <OpenAIFastPolicyUserSelector
+                v-model="riskControlAllowlistedUserIds"
+              />
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.settings.features.riskControl.riskControlUserAllowlistHint') }}
+              </p>
+            </div>
+
             <div class="flex items-center justify-between">
               <div>
                 <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -7513,13 +7984,30 @@
                 class="input"
               />
             </div>
+
+            <div
+              v-if="form.cyber_session_block_enabled"
+              class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-950/30"
+            >
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <label class="text-sm font-medium text-amber-900 dark:text-amber-200">
+                    {{ t('admin.settings.features.riskControl.cyberSessionIdentityStrict') }}
+                  </label>
+                  <p class="mt-1 text-xs text-amber-800 dark:text-amber-300">
+                    {{ t('admin.settings.features.riskControl.cyberSessionIdentityStrictHint') }}
+                  </p>
+                </div>
+                <Toggle v-model="form.cyber_session_identity_strict_enabled" />
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Affiliate (邀请返利) feature card -->
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <h2 id="settings-section-features-affiliate" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.affiliate.title') }}
             </h2>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -7938,7 +8426,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-payment" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.payment.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -8464,6 +8952,14 @@
             </div>
           </div>
 
+          <!-- 充值优惠阶梯（独立卡片，与服务商管理同级） -->
+          <RechargeBonusTierEditor
+            v-if="form.payment_enabled"
+            v-model="form.payment_recharge_bonus_tiers"
+            v-model:mode="form.payment_recharge_bonus_mode"
+            v-model:notice="form.payment_recharge_bonus_notice"
+          />
+
           <!-- Provider Management -->
           <PaymentProviderList
             v-if="form.payment_enabled"
@@ -8511,7 +9007,7 @@
               class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
               <div>
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                <h2 id="settings-section-smtp" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                   {{ t("admin.settings.smtp.title") }}
                 </h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -8673,7 +9169,7 @@
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <h2 id="settings-section-test-email" tabindex="-1" class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.testEmail.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -8985,8 +9481,11 @@
 </template>
 
 <script setup lang="ts">
+import { excelBPSImageLimits } from "@/utils/excelBPSImageLimits";
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useSettingsNavigation } from "@/composables/useSettingsNavigation";
+import type { SettingsTab } from "@/utils/settingsSearch";
 import { adminAPI } from "@/api";
 import {
   appendAuthSourceDefaultsToUpdateRequest,
@@ -9000,8 +9499,6 @@ import {
   deriveWeChatConnectStoredMode,
   normalizeDefaultSubscriptionSettings,
   resolveWeChatConnectModeCapabilities,
-  OPENAI_SCHEDULER_LIMITS,
-  OPENAI_SCHEDULER_POOL_MODES,
 } from "@/api/admin/settings";
 import type {
   AuthSourceDefaultsState,
@@ -9015,16 +9512,8 @@ import type {
   WebSearchEmulationConfig,
   WebSearchProviderConfig,
   WebSearchTestResult,
- OpenAISchedulerGroupPolicy,
-  OpenAISchedulerBusinessPriority,
-  OpenAISchedulerOperations,
-  OpenAISchedulerGroupPolicyMode,
-  OpenAISchedulerPreset,
-  OpenAISchedulerPresetID,
-  OpenAISchedulerPolicyValues,
-  OpenAISchedulerFairnessOverride,
-  OpenAISchedulerPresetDefinition,
-  OpenAISchedulerCustomPreset,
+  OpenAITurnStateReuseSettings,
+  OpenAITurnStateAccountStatus,
 } from "@/api/admin/settings";
 import type {
   AdminGroup,
@@ -9035,7 +9524,14 @@ import type {
 import type { ProviderInstance } from "@/types/payment";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import Icon from "@/components/icons/Icon.vue";
-import Select from "@/components/common/Select.vue";
+import Select, { type SelectOption } from "@/components/common/Select.vue";
+import {
+  SITE_BILLING_MODES,
+  SITE_BILLING_MODE_I18N_KEYS,
+  billingModeToSettings,
+  resolveSiteBillingMode,
+  type SiteBillingMode,
+} from "@/utils/siteBillingMode";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import PaymentProviderList from "@/components/payment/PaymentProviderList.vue";
 import PaymentProviderDialog from "@/components/payment/PaymentProviderDialog.vue";
@@ -9045,8 +9541,18 @@ import Toggle from "@/components/common/Toggle.vue";
 import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
+import ServerlessSettings from "@/components/settings/ServerlessSettings.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
+import RechargeBonusTierEditor from "@/components/admin/settings/RechargeBonusTierEditor.vue";
+import {
+  normalizeRechargeBonusMode,
+  normalizeRechargeBonusTiers,
+  sanitizeRechargeBonusTiersForSubmit,
+  type RechargeBonusMode,
+  type RechargeBonusTierDraft,
+} from "@/utils/rechargeBonus";
 import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
+import MihomoProxySelector from "@/views/admin/settings/MihomoProxySelector.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import {
   useStepUp,
@@ -9096,17 +9602,9 @@ const paymentMethodsHref = computed(() =>
     : "https://github.com/Wei-Shaw/sub2api/blob/main/docs/PAYMENT.md#supported-payment-methods",
 );
 
-type SettingsTab =
-  | "general"
-  | "agreement"
-  | "features"
-  | "security"
-  | "users"
-  | "gateway"
-  | "payment"
-  | "email"
-  | "backup";
-const activeTab = ref<SettingsTab>("general");
+const loading = ref(true);
+const loadFailed = ref(false);
+const { activeTab, selectSettingsTab } = useSettingsNavigation(loading, loadFailed);
 const settingsTabs = [
   { key: "general" as SettingsTab, icon: "home" as const },
   { key: "agreement" as SettingsTab, icon: "document" as const },
@@ -9127,10 +9625,6 @@ const settingsTabKeyboardActions = {
   Home: "first",
   End: "last",
 } as const;
-
-function selectSettingsTab(tab: SettingsTab): void {
-  activeTab.value = tab;
-}
 
 function focusSettingsTab(tab: SettingsTab): void {
   window.requestAnimationFrame(() => {
@@ -9171,8 +9665,6 @@ function handleSettingsTabKeydown(event: KeyboardEvent, tab: SettingsTab): void 
 
 const { copyToClipboard } = useClipboard();
 
-const loading = ref(true);
-const loadFailed = ref(false);
 const saving = ref(false);
 const testingSmtp = ref(false);
 const sendingTestEmail = ref(false);
@@ -9190,6 +9682,17 @@ const adminApiKeyMasked = ref("");
 const adminApiKeyOperating = ref(false);
 const newAdminApiKey = ref("");
 const subscriptionGroups = ref<AdminGroup[]>([]);
+const codexHarvestGroups = ref<AdminGroup[]>([]);
+const codexHarvestGroupsLoadFailed = ref(false);
+const codexHarvestGroupChoices = computed(() => {
+  const known = new Set(codexHarvestGroups.value.map(group => group.id));
+  return [
+    ...codexHarvestGroups.value.map(group => ({ id: group.id, name: group.name })),
+    ...form.openai_codex_ticket_harvest_scope.group_ids.filter(id => !known.has(id)).map(id => ({
+      id, name: localText('不可用或已删除的分组', 'Unavailable or deleted group') + ' #' + id,
+    })),
+  ];
+});
 const schedulerGroups = ref<AdminGroup[]>([]);
 const schedulerGroupsLoadError = ref(false);
 
@@ -9206,6 +9709,14 @@ const ollamaCloudUsageSaving = ref(false);
 const ollamaCloudUsageForm = reactive({
   enabled: false,
   interval_minutes: 60,
+  debounce_minutes: 1,
+});
+
+const opencodeGoUsageLoading = ref(true);
+const opencodeGoUsageSaving = ref(false);
+const opencodeGoUsageForm = reactive({
+  enabled: false,
+  interval_minutes: 15,
   debounce_minutes: 1,
 });
 
@@ -9280,6 +9791,53 @@ const openaiFastPolicyForm = reactive({
 // 标记 openai_fast_policy_settings 是否已成功从后端加载，
 // 避免后端 GET 出错或字段缺失时，保存把默认规则覆盖成空数组。
 const openaiFastPolicyLoaded = ref(false);
+const turnStateReuseSaving = ref(false);
+const turnStateProxyUrlsText = ref("");
+const turnStateReuseStatus = ref<OpenAITurnStateAccountStatus[]>([]);
+const turnStateReuseForm = reactive<OpenAITurnStateReuseSettings>({
+  enabled: false,
+  harvest_model: "gpt-6-astra",
+  harvest_proxy_urls: [],
+  harvest_use_proxy_pool: true,
+  miss_action: "none",
+  miss_target_group_id: null,
+  recovered_action: "none",
+  recovered_target_group_id: null,
+  inject_compact: false,
+});
+const openAITurnStateGroups = computed(() => schedulerGroups.value.filter((group) => group.platform === "openai"));
+
+async function loadTurnStateReuseSettings() {
+  try {
+    Object.assign(turnStateReuseForm, await adminAPI.settings.getOpenAITurnStateReuseSettings());
+    turnStateProxyUrlsText.value = turnStateReuseForm.harvest_proxy_urls.join("\n");
+    turnStateReuseStatus.value = await adminAPI.settings.getOpenAITurnStateReuseStatus();
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error));
+  }
+}
+
+async function saveTurnStateReuseSettings() {
+  if (turnStateReuseForm.miss_action === "rebind_group" && !turnStateReuseForm.miss_target_group_id) {
+    appStore.showError(t("admin.settings.turnStateReuse.targetRequired"));
+    return;
+  }
+  if (turnStateReuseForm.recovered_action === "rebind_group" && !turnStateReuseForm.recovered_target_group_id) {
+    appStore.showError(t("admin.settings.turnStateReuse.targetRequired"));
+    return;
+  }
+  turnStateReuseSaving.value = true;
+  try {
+    turnStateReuseForm.harvest_proxy_urls = turnStateProxyUrlsText.value.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    Object.assign(turnStateReuseForm, await adminAPI.settings.updateOpenAITurnStateReuseSettings({ ...turnStateReuseForm }));
+    appStore.showSuccess(t("common.saved"));
+    await loadTurnStateReuseSettings();
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error));
+  } finally {
+    turnStateReuseSaving.value = false;
+  }
+}
 
 const tablePageSizeMin = 5;
 const tablePageSizeMax = 1000;
@@ -9724,7 +10282,9 @@ type SettingsForm = Omit<
   | "wechat_connect_open_enabled"
   | "wechat_connect_mp_enabled"
   | "wechat_connect_mobile_enabled"
+  | "openai_oauth_scheduling_rate_multiplier"
 > & {
+  openai_codex_ticket_harvest_scope: { mode: "all" | "selected"; group_ids: number[]; account_policy: "schedulable_only" | "prioritize_schedulable" };
   /** Form always binds a concrete boolean (SystemSettings marks this optional). */
   channel_monitor_hide_throughput: boolean;
   channel_monitor_show_quota: boolean;
@@ -9749,7 +10309,7 @@ type SettingsForm = Omit<
   google_oauth_client_secret: string;
   force_email_on_third_party_signup: boolean;
   openai_low_upstream_rate_priority_enabled: boolean;
-  openai_oauth_scheduling_rate_multiplier: number;
+  openai_oauth_scheduling_rate_multiplier: number | "" | null;
   openai_advanced_scheduler_enabled: boolean;
   openai_advanced_scheduler_sticky_weighted_enabled: boolean;
   openai_advanced_scheduler_subscription_priority_enabled: boolean;
@@ -9764,14 +10324,10 @@ type SettingsForm = Omit<
   openai_advanced_scheduler_weight_upstream_cost: string;
   openai_advanced_scheduler_weight_previous_response: string;
   openai_advanced_scheduler_weight_session_sticky: string;
-  openai_advanced_scheduler_candidate_pool_mode: string;
-  openai_advanced_scheduler_exploration_ratio: number;
-  openai_advanced_scheduler_starvation_threshold_seconds: number;
-  openai_advanced_scheduler_fairness_weight: number;
-  openai_advanced_scheduler_group_overrides: Record<string, unknown>;
-  openai_advanced_scheduler_group_policies: Record<string, OpenAISchedulerGroupPolicy>;
-  openai_advanced_scheduler_custom_presets: Record<string, OpenAISchedulerCustomPreset>;
-  openai_advanced_scheduler_available_presets: OpenAISchedulerPresetDefinition[];
+  // 充值赠送阶梯编辑态：允许留空的行，提交时清洗为 RechargeBonusTier[]
+  payment_recharge_bonus_tiers: RechargeBonusTierDraft[];
+  payment_recharge_bonus_mode: RechargeBonusMode;
+  payment_recharge_bonus_notice: string;
   // 系统全局平台限额 map；form 内始终归一化为全 4 平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
   account_scheduling_thresholds: ReturnType<typeof normalizeAccountSchedulingThresholdsMap>;
@@ -9824,8 +10380,10 @@ const form = reactive<SettingsForm>({
   hide_ccs_import_button: false,
   payment_enabled: false,
   risk_control_enabled: false,
+  cyber_policy_user_allowlist: "",
   cyber_session_block_enabled: false,
   cyber_session_block_ttl_seconds: 3600,
+  cyber_session_identity_strict_enabled: false,
   payment_min_amount: 1,
   payment_max_amount: 10000,
   payment_daily_limit: 50000,
@@ -9835,6 +10393,9 @@ const form = reactive<SettingsForm>({
   payment_balance_recharge_multiplier: 1,
   payment_subscription_usd_to_cny_rate: 0,
   payment_recharge_fee_rate: 0,
+  payment_recharge_bonus_tiers: [],
+  payment_recharge_bonus_mode: "bonus",
+  payment_recharge_bonus_notice: "",
   payment_enabled_types: [],
   payment_help_image_url: "",
   payment_help_text: "",
@@ -9857,6 +10418,7 @@ const form = reactive<SettingsForm>({
     url: string;
     visibility: "user" | "admin";
     sort_order: number;
+    hide_open_button?: boolean;
   }>,
   custom_endpoints: [] as Array<{
     name: string;
@@ -10014,14 +10576,6 @@ const form = reactive<SettingsForm>({
   openai_advanced_scheduler_weight_upstream_cost: "",
   openai_advanced_scheduler_weight_previous_response: "",
   openai_advanced_scheduler_weight_session_sticky: "",
-  openai_advanced_scheduler_candidate_pool_mode: "hybrid",
-  openai_advanced_scheduler_exploration_ratio: 20,
-  openai_advanced_scheduler_starvation_threshold_seconds: 21600,
-  openai_advanced_scheduler_fairness_weight: 2,
-  openai_advanced_scheduler_group_overrides: {},
-  openai_advanced_scheduler_group_policies: {},
-  openai_advanced_scheduler_custom_presets: {},
-  openai_advanced_scheduler_available_presets: [],
   // Gateway forwarding behavior
   openai_ttft_mode: "semantic",
   enable_fingerprint_unification: true,
@@ -10039,6 +10593,18 @@ const form = reactive<SettingsForm>({
   // 只读展示：自动同步任务写入的官方最新稳定版，不参与提交（提交载荷按字段显式构造）
   openai_codex_client_version_synced: "",
   openai_codex_version_auto_sync_enabled: true,
+  openai_codex_ticket_enabled: false,
+  openai_codex_ticket_fail_closed: false,
+  openai_codex_ticket_strategy: 'standby',
+  openai_codex_ticket_harvest_scope: { mode: 'all' as 'all' | 'selected', group_ids: [] as number[], account_policy: 'schedulable_only' as 'schedulable_only' | 'prioritize_schedulable' },
+  openai_codex_ticket_strict_response: false,
+  openai_codex_ticket_harvest_proxy_url: "",
+  openai_codex_ticket_harvest_proxy_configured: false,
+  openai_codex_ticket_models: ["gpt-6-astra", "gpt-5.6-sol"],
+  claude_code_client_version: "",
+  // 只读展示：自动同步任务写入的官方最新稳定版，不参与提交（提交载荷按字段显式构造）
+  claude_code_client_version_synced: "",
+  claude_code_version_auto_sync_enabled: true,
   // codex_cli_only 加固
   min_codex_version: "",
   max_codex_version: "",
@@ -10063,6 +10629,8 @@ const form = reactive<SettingsForm>({
   channel_monitor_hide_user_ranking: false,
   // Available Channels feature switch
   available_channels_enabled: false,
+  // Subscription feature switch (user sidebar "My Subscriptions" entry)
+  subscription_enabled: true,
   // Model Plaza feature switches + description
   model_plaza_enabled: false,
   model_plaza_require_auth: false,
@@ -10073,433 +10641,26 @@ const form = reactive<SettingsForm>({
   affiliate_enabled: false,
   // Allow user view error requests
   allow_user_view_error_requests: false,
+  usage_show_long_context_badge: true,
+  request_capture_enabled: false,
+  request_capture_quota_mib: 1024,
+  request_capture_retention_days: 7,
+  excel_bps_image_mode: 'native' as 'relay' | 'native',
+  excel_bps_image_relay_enabled: true,
+  excel_bps_image_base_url: '',
+  excel_bps_image_body_limit_mib: 64,
+  excel_bps_image_budget_mib: 1024,
+  excel_bps_image_max_requests: 128,
+  excel_bps_image_max_image_mib: 20,
+  excel_bps_image_max_images: 20,
+  excel_bps_image_limit_policy: "off" as "off" | "auto_compact" | "warn",
+  excel_bps_image_warning_remaining: 8,
+  excel_bps_image_compact_reserve: 3,
+  excel_bps_image_max_total_mib: 32,
+  excel_bps_image_storage_mib: 1024,
+  excel_bps_image_storage_entries: 512,
+  excel_bps_image_ttl_minutes: 30,
 });
-
-const schedulerGroupOverridesText = ref("{}");
-
-type SchedulerPolicyDraft = {
-  mode: OpenAISchedulerGroupPolicyMode;
-  preset_id: OpenAISchedulerPresetID;
-  priority: OpenAISchedulerBusinessPriority;
-  operations: OpenAISchedulerOperations;
-  top_k: number;
-  weight_overrides: Record<string, number | undefined>;
-  fairness: {
-    candidate_pool_mode: "top_k" | "all_eligible" | "hybrid";
-    exploration_ratio: number;
-    starvation_threshold_seconds: number;
-    fairness_weight: number;
-  };
-};
-
-const schedulerSelectedGroupId = ref("");
-const schedulerDraftGroupId = ref("");
-const schedulerPolicyDrafts = reactive<Record<string, SchedulerPolicyDraft>>({});
-const schedulerPolicySnapshots = reactive<Record<string, OpenAISchedulerPolicyValues>>({});
-const schedulerCustomPresetDrafts = reactive<Record<string, OpenAISchedulerCustomPreset>>({});
-const schedulerPresetNameDraft = ref("");
-const schedulerPresetActionError = ref("");
-const schedulerPolicyDraft = reactive<SchedulerPolicyDraft>({
-  mode: "custom",
-  preset_id: "builtin:balanced",
-  priority: { profit: 1, ttft: 1, latency: 1 },
-  operations: { balance: "standard", peak_protection: "strict", session_continuity: "standard" },
-  top_k: 7,
-  weight_overrides: {},
-  fairness: {
-    candidate_pool_mode: "hybrid",
-    exploration_ratio: 25,
-    starvation_threshold_seconds: 21600,
-    fairness_weight: 3,
-  },
-});
-
-const schedulerPolicyPresetValues: Record<OpenAISchedulerPreset, SchedulerPolicyDraft> = {
-  special_offer: {
-    mode: "preset", preset_id: "builtin:special_offer", top_k: 7,
-    priority: { profit: 1, ttft: 2, latency: 3 },
-    operations: { balance: "standard", peak_protection: "strict", session_continuity: "standard" },
-    weight_overrides: { priority: .8, load: .8, queue: .5, error_rate: .8, ttft: .2, reset: 0, quota_headroom: 0, upstream_cost: 2.5, previous_response: 5, session_sticky: 3 },
-    fairness: { candidate_pool_mode: "hybrid", exploration_ratio: 15, starvation_threshold_seconds: 21600, fairness_weight: 2 },
-  },
-  balanced: {
-    mode: "preset", preset_id: "builtin:balanced", top_k: 7,
-    priority: { profit: 1, ttft: 1, latency: 1 },
-    operations: { balance: "standard", peak_protection: "strict", session_continuity: "standard" },
-    weight_overrides: { priority: 1, load: 1, queue: .7, error_rate: .8, ttft: .5, reset: 0, quota_headroom: 0, upstream_cost: 0, previous_response: 5, session_sticky: 3 },
-    fairness: { candidate_pool_mode: "hybrid", exploration_ratio: 25, starvation_threshold_seconds: 21600, fairness_weight: 3 },
-  },
-  pro: {
-    mode: "preset", preset_id: "builtin:pro", top_k: 10,
-    priority: { profit: 3, ttft: 1, latency: 2 },
-    operations: { balance: "standard", peak_protection: "strict", session_continuity: "standard" },
-    weight_overrides: { priority: 1.2, load: 1.4, queue: 1.2, error_rate: 2.5, ttft: 2, reset: .5, quota_headroom: .2, upstream_cost: 1.5, previous_response: 5, session_sticky: 3 },
-    fairness: { candidate_pool_mode: "hybrid", exploration_ratio: 40, starvation_threshold_seconds: 10800, fairness_weight: 5 },
-  },
-};
-
-const schedulerPolicyWeightKeys = [
-  "priority", "load", "queue", "error_rate", "ttft", "reset", "quota_headroom", "upstream_cost", "previous_response", "session_sticky",
-];
-
-const schedulerPolicyWeightFields = computed(() => [
-  { key: "priority", label: t("admin.settings.openaiExperimentalScheduler.priorityWeight"), range: t("admin.settings.openaiExperimentalScheduler.weightRange"), hint: t("admin.settings.openaiExperimentalScheduler.priorityShortHint") },
-  { key: "load", label: t("admin.settings.openaiExperimentalScheduler.loadWeight"), range: t("admin.settings.openaiExperimentalScheduler.weightRange"), hint: t("admin.settings.openaiExperimentalScheduler.loadShortHint") },
-  { key: "queue", label: t("admin.settings.openaiExperimentalScheduler.queueWeight"), range: t("admin.settings.openaiExperimentalScheduler.weightRange"), hint: t("admin.settings.openaiExperimentalScheduler.queueShortHint") },
-  { key: "error_rate", label: t("admin.settings.openaiExperimentalScheduler.errorRateWeight"), range: t("admin.settings.openaiExperimentalScheduler.weightRange"), hint: t("admin.settings.openaiExperimentalScheduler.errorRateShortHint") },
-  { key: "ttft", label: t("admin.settings.openaiExperimentalScheduler.ttftWeight"), range: t("admin.settings.openaiExperimentalScheduler.weightRange"), hint: t("admin.settings.openaiExperimentalScheduler.ttftShortHint") },
-  { key: "reset", label: t("admin.settings.openaiExperimentalScheduler.resetWeight"), range: t("admin.settings.openaiExperimentalScheduler.weightRange"), hint: t("admin.settings.openaiExperimentalScheduler.resetShortHint") },
-  { key: "quota_headroom", label: t("admin.settings.openaiExperimentalScheduler.quotaHeadroomWeight"), range: t("admin.settings.openaiExperimentalScheduler.weightRange"), hint: t("admin.settings.openaiExperimentalScheduler.quotaHeadroomShortHint") },
-  { key: "upstream_cost", label: t("admin.settings.openaiExperimentalScheduler.upstreamCostWeight"), range: t("admin.settings.openaiExperimentalScheduler.weightRange"), hint: t("admin.settings.openaiExperimentalScheduler.upstreamCostShortHint") },
-  { key: "previous_response", label: t("admin.settings.openaiExperimentalScheduler.previousResponseWeight"), range: t("admin.settings.openaiExperimentalScheduler.weightRange"), hint: t("admin.settings.openaiExperimentalScheduler.previousResponseShortHint") },
-  { key: "session_sticky", label: t("admin.settings.openaiExperimentalScheduler.sessionStickyWeight"), range: t("admin.settings.openaiExperimentalScheduler.weightRange"), hint: t("admin.settings.openaiExperimentalScheduler.sessionStickyShortHint") },
-]);
-
-const schedulerPolicyGroups = computed(() => schedulerGroups.value);
-type SchedulerBusinessMetricKey = keyof OpenAISchedulerBusinessPriority;
-type SchedulerBusinessControlKey = keyof OpenAISchedulerOperations;
-const schedulerBusinessMetrics: Array<{ key: SchedulerBusinessMetricKey; label: string }> = [
-  { key: "profit", label: t("admin.settings.openaiExperimentalScheduler.metricProfit") },
-  { key: "ttft", label: t("admin.settings.openaiExperimentalScheduler.metricTTFT") },
-  { key: "latency", label: t("admin.settings.openaiExperimentalScheduler.metricLatency") },
-];
-const schedulerBusinessControls: Array<{ key: SchedulerBusinessControlKey; label: string; options: Array<{ value: string; label: string }> }> = [
-  { key: "balance", label: t("admin.settings.openaiExperimentalScheduler.balanceTitle"), options: [{ value: "low", label: t("admin.settings.openaiExperimentalScheduler.balanceLow") }, { value: "standard", label: t("admin.settings.openaiExperimentalScheduler.balanceStandard") }, { value: "high", label: t("admin.settings.openaiExperimentalScheduler.balanceHigh") }] },
-  { key: "peak_protection", label: t("admin.settings.openaiExperimentalScheduler.peakTitle"), options: [{ value: "strict", label: t("admin.settings.openaiExperimentalScheduler.peakStrict") }, { value: "standard", label: t("admin.settings.openaiExperimentalScheduler.peakStandard") }, { value: "open", label: t("admin.settings.openaiExperimentalScheduler.peakOpen") }] },
-  { key: "session_continuity", label: t("admin.settings.openaiExperimentalScheduler.sessionTitle"), options: [{ value: "keep", label: t("admin.settings.openaiExperimentalScheduler.sessionKeep") }, { value: "standard", label: t("admin.settings.openaiExperimentalScheduler.sessionStandard") }, { value: "switch", label: t("admin.settings.openaiExperimentalScheduler.sessionSwitch") }] },
-];
-const schedulerPrioritySummary = computed(() => `${t("admin.settings.openaiExperimentalScheduler.metricProfit")} ${schedulerPolicyDraft.priority.profit} · ${t("admin.settings.openaiExperimentalScheduler.metricTTFT")} ${schedulerPolicyDraft.priority.ttft} · ${t("admin.settings.openaiExperimentalScheduler.metricLatency")} ${schedulerPolicyDraft.priority.latency}`);
-const schedulerScenarioPreviews = computed(() => [
-  { title: t("admin.settings.openaiExperimentalScheduler.previewNormalTitle"), body: t("admin.settings.openaiExperimentalScheduler.previewNormalBody") },
-  { title: t("admin.settings.openaiExperimentalScheduler.previewPeakTitle"), body: schedulerPolicyDraft.operations.peak_protection === "strict" ? t("admin.settings.openaiExperimentalScheduler.previewPeakStrict") : t("admin.settings.openaiExperimentalScheduler.previewPeakOpen") },
-  { title: t("admin.settings.openaiExperimentalScheduler.previewSessionTitle"), body: schedulerPolicyDraft.operations.session_continuity === "keep" ? t("admin.settings.openaiExperimentalScheduler.previewSessionKeep") : schedulerPolicyDraft.operations.session_continuity === "switch" ? t("admin.settings.openaiExperimentalScheduler.previewSessionSwitch") : t("admin.settings.openaiExperimentalScheduler.previewSessionStandard") },
-]);
-function setSchedulerBusinessPriority(key: SchedulerBusinessMetricKey, value: number): void { schedulerPolicyDraft.priority[key] = value; }
-function setSchedulerBusinessOperation(key: SchedulerBusinessControlKey, value: string): void { schedulerPolicyDraft.operations[key] = value as never; }
-function recommendedSchedulerBusinessPriority(groupName?: string): OpenAISchedulerBusinessPriority {
-  const name = String(groupName || "").trim();
-  if (name === "GPT-特惠") return { profit: 1, ttft: 2, latency: 3 };
-  if (name === "GPT-Pro" || name === "【专属】GPT-PRO") return { profit: 3, ttft: 1, latency: 2 };
-  return { profit: 1, ttft: 1, latency: 1 };
-}
-
-function hasValidSchedulerBusinessPriority(priority: OpenAISchedulerBusinessPriority): boolean {
-  return [priority.profit, priority.ttft, priority.latency].every(
-    (value) => Number.isInteger(value) && value >= 1 && value <= 3,
-  );
-}
-function resetSchedulerBusinessPolicy(): void {
-  const group = schedulerPolicyGroups.value.find((item) => String(item.id) === schedulerSelectedGroupId.value);
-  schedulerPolicyDraft.priority = recommendedSchedulerBusinessPriority(group?.name);
-  schedulerPolicyDraft.operations = { balance: "standard", peak_protection: "strict", session_continuity: "standard" };
-}
-const schedulerPolicyModeLabel = computed(() => schedulerPolicyDraft.mode === "preset"
-  ? t("admin.settings.openaiExperimentalScheduler.fairMode")
-  : t("admin.settings.openaiExperimentalScheduler.weightedMode"));
-
-function valuesFromDraft(draft: SchedulerPolicyDraft): OpenAISchedulerPolicyValues {
-  const topK = Number(draft.top_k);
-  const normalizedTopK = Number.isFinite(topK)
-    ? Math.min(OPENAI_SCHEDULER_LIMITS.topK.max, Math.max(OPENAI_SCHEDULER_LIMITS.topK.min, Math.trunc(topK)))
-    : OPENAI_SCHEDULER_LIMITS.topK.min;
-  const weights = Object.fromEntries(
-    schedulerPolicyWeightKeys
-      .map((key) => [key, Number(draft.weight_overrides[key])])
-      .filter(([, value]) => Number.isFinite(Number(value)) && Number(value) >= OPENAI_SCHEDULER_LIMITS.weight.min && Number(value) <= OPENAI_SCHEDULER_LIMITS.weight.max),
-  ) as Record<string, number>;
-  return {
-    top_k: normalizedTopK,
-    weight_overrides: weights,
-    fairness: normalizeSchedulerFairness(draft.fairness),
-  };
-}
-
-function normalizeSchedulerFairness(fairness?: OpenAISchedulerFairnessOverride | null): Required<OpenAISchedulerFairnessOverride> {
-  const finite = (value: unknown, fallback: number, min: number, max: number, integer = false): number => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return fallback;
-    const normalized = integer ? Math.trunc(parsed) : parsed;
-    return Math.min(max, Math.max(min, normalized));
-  };
-  const rawStarvation = Number(fairness?.starvation_threshold_seconds);
-  const starvation = !Number.isFinite(rawStarvation)
-    ? 21600
-    : rawStarvation === 0
-      ? 0
-      : Math.min(86400, Math.max(300, Math.trunc(rawStarvation)));
-  return {
-    candidate_pool_mode: OPENAI_SCHEDULER_POOL_MODES.includes(fairness?.candidate_pool_mode as typeof OPENAI_SCHEDULER_POOL_MODES[number])
-      ? fairness!.candidate_pool_mode as Required<OpenAISchedulerFairnessOverride>["candidate_pool_mode"]
-      : "hybrid",
-    exploration_ratio: finite(fairness?.exploration_ratio, 0, 0, 100, true),
-    starvation_threshold_seconds: starvation,
-    fairness_weight: finite(fairness?.fairness_weight, 0, 0, 10),
-  };
-}
-
-function draftFromValues(values: OpenAISchedulerPolicyValues, mode: OpenAISchedulerGroupPolicyMode, presetId: OpenAISchedulerPresetID): SchedulerPolicyDraft {
-  return {
-    mode,
-    preset_id: presetId,
-    priority: { profit: 1, ttft: 1, latency: 1 },
-    operations: { balance: "standard", peak_protection: "strict", session_continuity: "standard" },
-    top_k: Number.isFinite(Number(values.top_k)) ? Math.min(32, Math.max(1, Math.trunc(Number(values.top_k)))) : 7,
-    weight_overrides: { ...(values.weight_overrides || {}) },
-    fairness: {
-      ...normalizeSchedulerFairness(values.fairness),
-    },
-  };
-}
-
-function builtinPresetDefinitions(): OpenAISchedulerPresetDefinition[] {
-  return (Object.entries(schedulerPolicyPresetValues) as Array<[OpenAISchedulerPreset, SchedulerPolicyDraft]>).map(([id, draft]) => ({
-    id: `builtin:${id}` as OpenAISchedulerPresetID,
-    name: t(`admin.settings.openaiExperimentalScheduler.preset${id === "special_offer" ? "SpecialOffer" : id === "balanced" ? "Balanced" : "Pro"}`),
-    kind: "builtin",
-    values: valuesFromDraft(draft),
-  }));
-}
-
-function builtinPresetLabel(id: string): string {
-  const suffix = id.endsWith("special_offer") ? "SpecialOffer" : id.endsWith("balanced") ? "Balanced" : "Pro";
-  return t(`admin.settings.openaiExperimentalScheduler.preset${suffix}`);
-}
-
-const schedulerPresetDefinitions = computed(() =>
-  (() => {
-    const definitions = form.openai_advanced_scheduler_available_presets?.length
-      ? [...form.openai_advanced_scheduler_available_presets]
-      : builtinPresetDefinitions();
-    const localizedDefinitions = definitions.map((definition) => definition.kind === "builtin"
-      ? { ...definition, name: builtinPresetLabel(definition.id) }
-      : definition);
-    const known = new Set(localizedDefinitions.map((definition) => definition.id));
-    for (const preset of Object.values(form.openai_advanced_scheduler_custom_presets || {})) {
-      if (!known.has(preset.id)) {
-        localizedDefinitions.push({ id: preset.id, name: preset.name, kind: "custom", values: preset.values });
-      }
-    }
-    return localizedDefinitions;
-  })(),
-);
-
-function presetDefinition(id: OpenAISchedulerPresetID): OpenAISchedulerPresetDefinition | undefined {
-  return schedulerPresetDefinitions.value.find((definition) => definition.id === id);
-}
-
-function snapshotValuesForPolicy(policy: OpenAISchedulerGroupPolicy, presetId: OpenAISchedulerPresetID): OpenAISchedulerPolicyValues | undefined {
-  const definition = presetDefinition(presetId);
-  if (!definition) return undefined;
-  return valuesFromDraft({
-    mode: "preset",
-    preset_id: presetId,
-    priority: policy.priority || { profit: 1, ttft: 1, latency: 1 },
-    operations: policy.operations || { balance: "standard", peak_protection: "strict", session_continuity: "standard" },
-    top_k: Number(policy.top_k) || definition.values.top_k,
-    weight_overrides: { ...definition.values.weight_overrides, ...(policy.weight_overrides || {}) },
-    fairness: { ...definition.values.fairness, ...(policy.fairness || {}) },
-  });
-}
-
-function cloneSchedulerPolicyDraft(source: SchedulerPolicyDraft): SchedulerPolicyDraft {
-  return {
-    mode: source.mode,
-    preset_id: source.preset_id,
-    priority: { ...source.priority },
-    operations: { ...source.operations },
-    top_k: source.top_k,
-    weight_overrides: { ...source.weight_overrides },
-    fairness: { ...source.fairness },
-  };
-}
-
-function normalizeSchedulerPolicy(policy?: OpenAISchedulerGroupPolicy): SchedulerPolicyDraft {
-  if (!policy) {
-    return {
-      mode: "custom",
-      preset_id: "builtin:balanced",
-      priority: { profit: 1, ttft: 1, latency: 1 },
-      operations: { balance: "standard", peak_protection: "strict", session_continuity: "standard" },
-      top_k: Number(form.openai_advanced_scheduler_effective_lb_top_k) || 7,
-      weight_overrides: {},
-      fairness: { ...schedulerPolicyDraft.fairness },
-    };
-  }
-  const legacyMode = policy.mode as string | undefined;
-  if (legacyMode === "fair") {
-    const presetId = `builtin:${policy.preset || "balanced"}` as OpenAISchedulerPresetID;
-    const definition = presetDefinition(presetId);
-    return definition ? draftFromValues(definition.values, "preset", presetId) : cloneSchedulerPolicyDraft(schedulerPolicyPresetValues.balanced);
-  }
-  if (legacyMode === "preset") {
-    const presetId = policy.preset_id || (`builtin:${policy.preset || "balanced"}` as OpenAISchedulerPresetID);
-    const values = snapshotValuesForPolicy(policy, presetId);
-    return values ? draftFromValues(values, "preset", presetId) : cloneSchedulerPolicyDraft(schedulerPolicyPresetValues.balanced);
-  }
-  const draft = draftFromValues({
-    top_k: Number(policy.top_k) || Number(form.openai_advanced_scheduler_effective_lb_top_k) || 7,
-    weight_overrides: { ...(policy.weight_overrides || {}) },
-    fairness: normalizeSchedulerFairness(policy.fairness || schedulerPolicyDraft.fairness),
-  }, "custom", "builtin:balanced");
-  if (policy.priority) draft.priority = { ...policy.priority };
-  if (policy.operations) draft.operations = { ...policy.operations };
-  return draft;
-}
-
-function storeSchedulerPolicyDraft(): void {
-  if (schedulerDraftGroupId.value) {
-    schedulerPolicyDrafts[schedulerDraftGroupId.value] = cloneSchedulerPolicyDraft(schedulerPolicyDraft);
-  }
-}
-
-function loadSchedulerPolicyDraft(groupId: string): void {
-  const next = schedulerPolicyDrafts[groupId] || normalizeSchedulerPolicy(form.openai_advanced_scheduler_group_policies?.[groupId]);
-  const group = schedulerPolicyGroups.value.find((item) => String(item.id) === groupId);
-  if (!hasValidSchedulerBusinessPriority(next.priority)) {
-    next.priority = recommendedSchedulerBusinessPriority(group?.name);
-  }
-  schedulerPolicyDrafts[groupId] = cloneSchedulerPolicyDraft(next);
-  if (!schedulerPolicySnapshots[groupId] && next.mode === "preset") {
-    const definition = presetDefinition(next.preset_id);
-    if (definition) schedulerPolicySnapshots[groupId] = { ...definition.values, weight_overrides: { ...definition.values.weight_overrides }, fairness: { ...definition.values.fairness } };
-  }
-  schedulerDraftGroupId.value = groupId;
-  Object.assign(schedulerPolicyDraft, next);
-}
-
-function selectSchedulerPolicyGroup(): void {
-  storeSchedulerPolicyDraft();
-  schedulerPresetActionError.value = "";
-  if (schedulerSelectedGroupId.value) loadSchedulerPolicyDraft(schedulerSelectedGroupId.value);
-}
-
-function setSchedulerPolicyMode(mode: OpenAISchedulerGroupPolicyMode): void {
-  if (!schedulerSelectedGroupId.value) return;
-  schedulerPolicyDraft.mode = mode;
-  schedulerPresetActionError.value = "";
-  if (mode === "preset") applySchedulerPreset();
-}
-
-function applySchedulerPreset(): void {
-  const selected = String(schedulerPolicyDraft.preset_id);
-  const legacyID = (selected === "special_offer" || selected === "balanced" || selected === "pro"
-    ? `builtin:${selected}` as OpenAISchedulerPresetID
-    : selected) as OpenAISchedulerPresetID;
-  schedulerPolicyDraft.preset_id = legacyID;
-  const definition = presetDefinition(legacyID);
-  if (definition) {
-    Object.assign(schedulerPolicyDraft, draftFromValues(definition.values, "preset", legacyID));
-    if (schedulerDraftGroupId.value) schedulerPolicySnapshots[schedulerDraftGroupId.value] = { ...definition.values, weight_overrides: { ...definition.values.weight_overrides }, fairness: { ...definition.values.fairness } };
-  }
-}
-
-function addSchedulerCustomPreset(name: string): void {
-  const id = `custom:new:${Date.now()}` as OpenAISchedulerPresetID;
-  const preset: OpenAISchedulerCustomPreset = { id, name: name.trim(), values: valuesFromDraft(schedulerPolicyDraft) };
-  schedulerCustomPresetDrafts[id] = preset;
-  form.openai_advanced_scheduler_custom_presets = { ...form.openai_advanced_scheduler_custom_presets, [id]: preset };
-}
-
-function saveCurrentSchedulerPreset(): void {
-  const name = schedulerPresetNameDraft.value.trim();
-  if (name.length < 1 || name.length > 40) {
-    schedulerPresetActionError.value = t("admin.settings.openaiExperimentalScheduler.presetNameRequired");
-    return;
-  }
-  if (schedulerPresetDefinitions.value.some((preset) => preset.name.trim().toLowerCase() === name.toLowerCase())) {
-    schedulerPresetActionError.value = t("admin.settings.openaiExperimentalScheduler.presetNameDuplicate");
-    return;
-  }
-  addSchedulerCustomPreset(name);
-  schedulerPresetNameDraft.value = "";
-  schedulerPresetActionError.value = "";
-}
-
-function renameSchedulerCustomPreset(id: OpenAISchedulerPresetID, name: string): void {
-  const preset = form.openai_advanced_scheduler_custom_presets[id];
-  if (!preset) return;
-  form.openai_advanced_scheduler_custom_presets = { ...form.openai_advanced_scheduler_custom_presets, [id]: { ...preset, name: name.trim() } };
-}
-
-function deleteSchedulerCustomPreset(id: OpenAISchedulerPresetID): void {
-  if (isSchedulerPresetReferenced(id)) {
-    schedulerPresetActionError.value = t("admin.settings.openaiExperimentalScheduler.presetReferenced");
-    return;
-  }
-  const presets = { ...form.openai_advanced_scheduler_custom_presets };
-  delete presets[id];
-  form.openai_advanced_scheduler_custom_presets = presets;
-  delete schedulerCustomPresetDrafts[id];
-}
-
-function isSchedulerPresetReferenced(id: string): boolean {
-  return Object.values(form.openai_advanced_scheduler_group_policies || {}).some((policy) => policy.preset_id === id);
-}
-
-defineExpose({
-  addSchedulerCustomPreset,
-  renameSchedulerCustomPreset,
-  deleteSchedulerCustomPreset,
-});
-
-function serializeSchedulerPolicies(): Record<string, OpenAISchedulerGroupPolicy> {
-  storeSchedulerPolicyDraft();
-  const policies = { ...form.openai_advanced_scheduler_group_policies };
-  for (const [groupId, draft] of Object.entries(schedulerPolicyDrafts)) {
-    const business = {
-      priority: { ...draft.priority },
-      operations: { ...draft.operations },
-    };
-    if (draft.mode === "preset") {
-      const values = schedulerPolicySnapshots[groupId] || presetDefinition(draft.preset_id)?.values;
-      policies[groupId] = {
-        ...business,
-        mode: "preset",
-        preset_id: draft.preset_id,
-      };
-      if (values) {
-        policies[groupId].top_k = values.top_k;
-        policies[groupId].weight_overrides = { ...values.weight_overrides };
-        policies[groupId].fairness = { ...values.fairness };
-      }
-      continue;
-    }
-    const weightOverrides = Object.fromEntries(
-      schedulerPolicyWeightKeys
-        .map((key) => [key, draft.weight_overrides[key]])
-        .filter(([, value]) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 10),
-    );
-    policies[groupId] = {
-      ...business,
-      mode: "custom",
-      top_k: Math.min(32, Math.max(1, Math.trunc(draft.top_k))),
-      weight_overrides: weightOverrides,
-      fairness: normalizeSchedulerFairness(draft.fairness),
-    };
-  }
-  return policies;
-}
-
-function clearSchedulerPolicy(): void {
-  if (!schedulerSelectedGroupId.value) return;
-  const policies = { ...form.openai_advanced_scheduler_group_policies };
-  delete policies[schedulerSelectedGroupId.value];
-  form.openai_advanced_scheduler_group_policies = policies;
-  delete schedulerPolicyDrafts[schedulerSelectedGroupId.value];
-  loadSchedulerPolicyDraft(schedulerSelectedGroupId.value);
-}
-
-function validateSchedulerPolicyDraft(): boolean {
-  if (!schedulerSelectedGroupId.value) return true;
-  if (!Number.isInteger(schedulerPolicyDraft.top_k) || schedulerPolicyDraft.top_k < 1 || schedulerPolicyDraft.top_k > 32) return false;
-  for (const value of Object.values(schedulerPolicyDraft.weight_overrides)) {
-    if (value !== undefined && (!Number.isFinite(value) || value < 0 || value > 10)) return false;
-  }
-  const fairness = schedulerPolicyDraft.fairness;
-  if (fairness.exploration_ratio < 0 || fairness.exploration_ratio > 100 || fairness.fairness_weight < 0 || fairness.fairness_weight > 10) return false;
-  if (fairness.starvation_threshold_seconds !== 0 && (fairness.starvation_threshold_seconds < 300 || fairness.starvation_threshold_seconds > 86400)) return false;
-  return true;
-}
 
 // 人机验证 UI 状态：单卡片「总开关 + 服务商单选」，落库仍是三个独立
 // enabled 键（与上游一致），由下面的映射保证同一时间至多一家启用。
@@ -10512,6 +10673,19 @@ function applyCaptchaSelection(provider: CaptchaProviderSelection | null): void 
   form.tencent_captcha_enabled = provider === "tencent";
   form.aliyun_captcha_enabled = provider === "aliyun";
 }
+
+// Keep the settings API representation as user IDs; the selector displays emails.
+const riskControlAllowlistedUserIds = computed<number[]>({
+  get: () => Array.from(new Set(
+    form.cyber_policy_user_allowlist
+      .split(/[,\s]+/)
+      .map(Number)
+      .filter((id) => Number.isSafeInteger(id) && id > 0),
+  )),
+  set: (ids) => {
+    form.cyber_policy_user_allowlist = ids.join(",");
+  },
+});
 
 const captchaMasterEnabled = computed({
   get: () =>
@@ -11463,6 +11637,62 @@ const codexSyncedVersionLabel = computed(() => {
   });
 });
 
+const CODEX_TICKET_MIHOMO_PROXY_URL = "http://127.0.0.1:3101";
+const CODEX_TICKET_IP_POOL_PROXY_URL = "ippool://active";
+type CodexTicketProxyMode = "mihomo" | "static" | "ip_pool";
+const codexTicketProxyMode = ref<CodexTicketProxyMode>("static");
+const codexTicketStaticProxyDraft = ref("");
+
+function isCodexTicketMihomoProxyURL(value: string): boolean {
+  return value.trim().replace(/\/+$/, "") === CODEX_TICKET_MIHOMO_PROXY_URL;
+}
+
+function isCodexTicketIPPoolProxyURL(value: string): boolean {
+  return value.trim() === CODEX_TICKET_IP_POOL_PROXY_URL;
+}
+
+function codexTicketProxyModeOf(value: string): CodexTicketProxyMode {
+  if (isCodexTicketMihomoProxyURL(value)) return "mihomo";
+  if (isCodexTicketIPPoolProxyURL(value)) return "ip_pool";
+  return "static";
+}
+
+function selectMihomoHarvestProxy(endpoint: string): void {
+  form.openai_codex_ticket_harvest_proxy_url = endpoint;
+  appStore.showSuccess(t("admin.settings.gatewayForwarding.codexTicketProxyMihomoSelected"));
+}
+
+function syncCodexTicketProxyMode(): void {
+  const current = form.openai_codex_ticket_harvest_proxy_url;
+  const mode = codexTicketProxyModeOf(current);
+  codexTicketProxyMode.value = mode;
+  codexTicketStaticProxyDraft.value = mode === "static" ? current : form.openai_codex_ticket_static_proxy_url || "";
+}
+
+function selectCodexTicketProxyMode(mode: CodexTicketProxyMode): void {
+  const previous = codexTicketProxyModeOf(form.openai_codex_ticket_harvest_proxy_url);
+  if (previous === "static") {
+    codexTicketStaticProxyDraft.value =
+      form.openai_codex_ticket_harvest_proxy_url;
+  }
+  codexTicketProxyMode.value = mode;
+  if (mode === "ip_pool") {
+    form.openai_codex_ticket_harvest_proxy_url = CODEX_TICKET_IP_POOL_PROXY_URL;
+  } else if (previous !== "static" && previous !== mode) {
+    // Mihomo writes its endpoint only once the kernel reports ready, so until
+    // then the form keeps the static address rather than the pool sentinel.
+    form.openai_codex_ticket_harvest_proxy_url =
+      codexTicketStaticProxyDraft.value;
+  }
+}
+const claudeSyncedVersionLabel = computed(() => {
+  const synced = form.claude_code_client_version_synced?.trim();
+  if (!synced) return "";
+  return t("admin.settings.gatewayForwarding.claudeCodeVersionSyncedValue", {
+    version: synced,
+  });
+});
+
 async function loadSettings() {
   loading.value = true;
   loadFailed.value = false;
@@ -11476,17 +11706,13 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
-    form.openai_advanced_scheduler_custom_presets = settings.openai_advanced_scheduler_custom_presets || {};
-    form.openai_advanced_scheduler_available_presets = settings.openai_advanced_scheduler_available_presets || [];
-    for (const [groupId, policy] of Object.entries(form.openai_advanced_scheduler_group_policies || {})) {
-      schedulerPolicyDrafts[groupId] = normalizeSchedulerPolicy(policy);
-      if ((policy.mode === "preset" || policy.mode === "fair") && schedulerPolicyDrafts[groupId].mode === "preset") {
-        const presetId = schedulerPolicyDrafts[groupId].preset_id;
-        const snapshot = snapshotValuesForPolicy(policy, presetId);
-        if (snapshot) schedulerPolicySnapshots[groupId] = snapshot;
-      }
+    form.openai_codex_ticket_harvest_scope.account_policy =
+      form.openai_codex_ticket_harvest_scope.account_policy || 'schedulable_only';
+    syncCodexTicketProxyMode();
+    // For this optional override, null explicitly selects per-account rates.
+    if (settings.openai_oauth_scheduling_rate_multiplier === null) {
+      form.openai_oauth_scheduling_rate_multiplier = null;
     }
-    schedulerGroupOverridesText.value = JSON.stringify(form.openai_advanced_scheduler_group_overrides || {}, null, 2);
     form.monitor_page_refresh_interval_seconds =
       normalizeMonitorPageRefreshInterval(
         settings.monitor_page_refresh_interval_seconds,
@@ -11539,6 +11765,13 @@ async function loadSettings() {
           }))
         : defaultLoginAgreementDocuments();
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(settings));
+    form.payment_recharge_bonus_tiers = normalizeRechargeBonusTiers(
+      settings.payment_recharge_bonus_tiers,
+    );
+    form.payment_recharge_bonus_mode = normalizeRechargeBonusMode(
+      settings.payment_recharge_bonus_mode,
+    );
+    form.payment_recharge_bonus_notice = settings.payment_recharge_bonus_notice || "";
     form.default_platform_quotas = normalizePlatformQuotasMap(settings.default_platform_quotas);
     form.account_scheduling_thresholds = normalizeAccountSchedulingThresholdsMap(
       settings.account_scheduling_thresholds,
@@ -11661,7 +11894,10 @@ async function loadSettings() {
 
 async function loadSubscriptionGroups() {
   try {
-    const groups = await adminAPI.groups.getAll("openai");
+    const allGroups = await adminAPI.groups.getAll();
+    codexHarvestGroups.value = allGroups.filter(group => group.platform === 'openai');
+    codexHarvestGroupsLoadFailed.value = false;
+    const groups = allGroups;
     subscriptionGroups.value = groups.filter(
       (group) =>
         group.subscription_type === "subscription" && group.status === "active",
@@ -11672,6 +11908,8 @@ async function loadSubscriptionGroups() {
     subscriptionGroups.value = [];
     schedulerGroups.value = [];
     schedulerGroupsLoadError.value = true;
+    codexHarvestGroups.value = [];
+    codexHarvestGroupsLoadFailed.value = true;
   }
 }
 
@@ -11731,13 +11969,77 @@ function findDuplicateDefaultSubscription(
   });
 }
 
-async function saveSettings() {
-  if (!validateSchedulerPolicyDraft()) {
-    appStore.showError(t("admin.settings.openaiExperimentalScheduler.groupOverridesInvalid"));
-    return;
+// 站点类型：由 subscription_enabled 与 payment_balance_disabled 两个开关派生的单选，
+// 保存时同时写回两者，避免出现「既无充值也无订阅」的组合。
+const siteBillingModeOptions = computed<SelectOption[]>(() =>
+  SITE_BILLING_MODES.map((mode) => ({
+    value: mode,
+    label: t(`admin.settings.features.siteBillingMode.options.${SITE_BILLING_MODE_I18N_KEYS[mode]}`),
+  })),
+);
+const siteBillingMode = computed<SiteBillingMode>({
+  get: () => resolveSiteBillingMode(form),
+  set: (mode) => {
+    Object.assign(form, billingModeToSettings(mode));
+  },
+});
+const siteBillingModeHint = computed(() =>
+  t(`admin.settings.features.siteBillingMode.hints.${SITE_BILLING_MODE_I18N_KEYS[siteBillingMode.value]}`),
+);
+
+function toggleCodexTicketModel(model: string, enabled: boolean) {
+  const models = new Set(form.openai_codex_ticket_models);
+  if (enabled) {
+    models.add(model);
+  } else {
+    models.delete(model);
   }
+  form.openai_codex_ticket_models = [...models];
+}
+
+async function saveSettings() {
+
   saving.value = true;
   try {
+    const imageBaseUrl = form.excel_bps_image_base_url.trim();
+    if ((form.excel_bps_image_relay_enabled && form.excel_bps_image_mode === 'relay') || imageBaseUrl) {
+      try {
+        const parsed = new URL(imageBaseUrl);
+        if (parsed.protocol !== 'https:' || !parsed.hostname || parsed.username || parsed.password ||
+            (parsed.pathname !== '/' && parsed.pathname !== '') || imageBaseUrl.includes('?') || imageBaseUrl.includes('#')) {
+          throw new Error('invalid image origin');
+        }
+        form.excel_bps_image_base_url = parsed.origin;
+      } catch {
+        appStore.showError(t('admin.settings.features.excelBpsImages.invalidBaseUrl'));
+        return;
+      }
+    }
+    if (
+      !Number.isInteger(form.excel_bps_image_body_limit_mib) || form.excel_bps_image_body_limit_mib < 1 || form.excel_bps_image_body_limit_mib > excelBPSImageLimits.bodyMiB ||
+      !Number.isInteger(form.excel_bps_image_budget_mib) || form.excel_bps_image_budget_mib < excelBPSImageLimits.minBudgetMiB || form.excel_bps_image_budget_mib > excelBPSImageLimits.budgetMiB || form.excel_bps_image_budget_mib < form.excel_bps_image_body_limit_mib * 8 ||
+      !Number.isInteger(form.excel_bps_image_max_requests) || form.excel_bps_image_max_requests < 1 || form.excel_bps_image_max_requests > excelBPSImageLimits.requests
+    ) {
+      appStore.showError(t('admin.settings.features.excelBpsImages.invalidCapacity', excelBPSImageLimits));
+      return;
+    }
+    if (
+      !Number.isInteger(form.excel_bps_image_max_image_mib) || form.excel_bps_image_max_image_mib < 1 || form.excel_bps_image_max_image_mib > excelBPSImageLimits.imageMiB ||
+      !Number.isInteger(form.excel_bps_image_warning_remaining) || form.excel_bps_image_warning_remaining < 1 || form.excel_bps_image_warning_remaining > excelBPSImageLimits.images ||
+      !Number.isInteger(form.excel_bps_image_compact_reserve) || form.excel_bps_image_compact_reserve < 1 || form.excel_bps_image_compact_reserve > excelBPSImageLimits.images ||
+      (form.excel_bps_image_limit_policy === 'warn' && (!Number.isInteger(form.excel_bps_image_warning_remaining) || !Number.isInteger(form.excel_bps_image_compact_reserve) || form.excel_bps_image_compact_reserve < 1 || form.excel_bps_image_compact_reserve >= form.excel_bps_image_warning_remaining || form.excel_bps_image_warning_remaining >= form.excel_bps_image_max_images)) ||
+      !Number.isInteger(form.excel_bps_image_max_images) || form.excel_bps_image_max_images < 1 || form.excel_bps_image_max_images > excelBPSImageLimits.images ||
+      !Number.isInteger(form.excel_bps_image_max_total_mib) || form.excel_bps_image_max_total_mib < 1 || form.excel_bps_image_max_total_mib > excelBPSImageLimits.totalMiB ||
+      !Number.isInteger(form.excel_bps_image_storage_mib) || form.excel_bps_image_storage_mib < 1 || form.excel_bps_image_storage_mib > excelBPSImageLimits.storageMiB ||
+      !Number.isInteger(form.excel_bps_image_storage_entries) || form.excel_bps_image_storage_entries < 1 || form.excel_bps_image_storage_entries > excelBPSImageLimits.storageEntries ||
+      !Number.isInteger(form.excel_bps_image_ttl_minutes) || form.excel_bps_image_ttl_minutes < 1 || form.excel_bps_image_ttl_minutes > excelBPSImageLimits.ttlMinutes ||
+      form.excel_bps_image_max_total_mib < form.excel_bps_image_max_image_mib ||
+      form.excel_bps_image_storage_mib < form.excel_bps_image_max_total_mib ||
+      form.excel_bps_image_storage_entries < form.excel_bps_image_max_images
+    ) {
+      appStore.showError(t('admin.settings.features.excelBpsImages.invalidLimits'));
+      return;
+    }
     const normalizedTableDefaultPageSize = Math.floor(
       Number(form.table_default_page_size),
     );
@@ -11883,6 +12185,16 @@ async function saveSettings() {
       );
     form.claude_oauth_system_prompt_blocks =
       claudeOAuthSystemPromptBlocksJSON;
+
+    const oauthSchedulingRate = form.openai_oauth_scheduling_rate_multiplier;
+    if (
+      oauthSchedulingRate !== "" &&
+      oauthSchedulingRate !== null &&
+      (!Number.isFinite(oauthSchedulingRate) || oauthSchedulingRate < 0)
+    ) {
+      appStore.showError(t("admin.settings.openaiExperimentalScheduler.oauthRateInvalid"));
+      return;
+    }
 
     const payload: UpdateSettingsRequest = {
       registration_enabled: form.registration_enabled,
@@ -12091,6 +12403,22 @@ async function saveSettings() {
         form.openai_codex_client_version?.trim() || "",
       openai_codex_version_auto_sync_enabled:
         form.openai_codex_version_auto_sync_enabled,
+      openai_codex_ticket_enabled: form.openai_codex_ticket_enabled,
+      openai_codex_ticket_fail_closed: form.openai_codex_ticket_fail_closed,
+      openai_codex_ticket_strategy: form.openai_codex_ticket_strategy || 'standby',
+      openai_codex_ticket_harvest_scope: {
+        mode: form.openai_codex_ticket_harvest_scope.mode,
+        group_ids: [...form.openai_codex_ticket_harvest_scope.group_ids],
+        account_policy: form.openai_codex_ticket_harvest_scope.account_policy,
+      },
+      openai_codex_ticket_strict_response: form.openai_codex_ticket_strict_response || false,
+      openai_codex_ticket_harvest_proxy_url:
+        form.openai_codex_ticket_harvest_proxy_url?.trim() || "",
+      openai_codex_ticket_use_saved_static_proxy: codexTicketProxyMode.value === 'static',
+      openai_codex_ticket_models: [...form.openai_codex_ticket_models],
+      claude_code_client_version: form.claude_code_client_version?.trim() || "",
+      claude_code_version_auto_sync_enabled:
+        form.claude_code_version_auto_sync_enabled,
       min_codex_version: form.min_codex_version?.trim() || "",
       max_codex_version: form.max_codex_version?.trim() || "",
       codex_cli_only_allow_app_server_clients:
@@ -12107,9 +12435,12 @@ async function saveSettings() {
       // Payment configuration
       payment_enabled: form.payment_enabled,
       risk_control_enabled: form.risk_control_enabled,
+      cyber_policy_user_allowlist: form.cyber_policy_user_allowlist,
       cyber_session_block_enabled: form.cyber_session_block_enabled,
       cyber_session_block_ttl_seconds:
         Number(form.cyber_session_block_ttl_seconds) || 3600,
+      cyber_session_identity_strict_enabled:
+        form.cyber_session_identity_strict_enabled,
       payment_min_amount: Number(form.payment_min_amount) || 0,
       payment_max_amount: Number(form.payment_max_amount) || 0,
       payment_daily_limit: Number(form.payment_daily_limit) || 0,
@@ -12122,6 +12453,11 @@ async function saveSettings() {
       payment_subscription_usd_to_cny_rate:
         Number(form.payment_subscription_usd_to_cny_rate) || 0,
       payment_recharge_fee_rate: Number(form.payment_recharge_fee_rate) || 0,
+      payment_recharge_bonus_tiers: sanitizeRechargeBonusTiersForSubmit(
+        form.payment_recharge_bonus_tiers,
+      ),
+      payment_recharge_bonus_mode: form.payment_recharge_bonus_mode,
+      payment_recharge_bonus_notice: form.payment_recharge_bonus_notice,
       payment_enabled_types: form.payment_enabled_types,
       payment_load_balance_strategy: form.payment_load_balance_strategy,
       payment_product_name_prefix: form.payment_product_name_prefix,
@@ -12142,7 +12478,7 @@ async function saveSettings() {
       openai_low_upstream_rate_priority_enabled:
         form.openai_low_upstream_rate_priority_enabled,
       openai_oauth_scheduling_rate_multiplier:
-        form.openai_oauth_scheduling_rate_multiplier,
+        oauthSchedulingRate === "" ? null : oauthSchedulingRate,
       openai_advanced_scheduler_enabled: form.openai_advanced_scheduler_enabled,
       openai_advanced_scheduler_sticky_weighted_enabled:
         form.openai_advanced_scheduler_sticky_weighted_enabled,
@@ -12170,18 +12506,6 @@ async function saveSettings() {
         form.openai_advanced_scheduler_weight_previous_response.trim(),
       openai_advanced_scheduler_weight_session_sticky:
         form.openai_advanced_scheduler_weight_session_sticky.trim(),
-      openai_advanced_scheduler_candidate_pool_mode:
-        form.openai_advanced_scheduler_candidate_pool_mode,
-      openai_advanced_scheduler_exploration_ratio:
-        form.openai_advanced_scheduler_exploration_ratio,
-      openai_advanced_scheduler_starvation_threshold_seconds:
-        form.openai_advanced_scheduler_starvation_threshold_seconds,
-      openai_advanced_scheduler_fairness_weight:
-        form.openai_advanced_scheduler_fairness_weight,
-      openai_advanced_scheduler_group_policies: serializeSchedulerPolicies(),
-      openai_advanced_scheduler_custom_presets: {
-        ...form.openai_advanced_scheduler_custom_presets,
-      },
       // 余额、订阅到期与账号限额通知
       balance_low_notify_enabled: form.balance_low_notify_enabled,
       balance_low_notify_threshold:
@@ -12208,6 +12532,8 @@ async function saveSettings() {
       channel_monitor_hide_user_ranking: Boolean(form.channel_monitor_hide_user_ranking),
       // Available Channels feature switch
       available_channels_enabled: form.available_channels_enabled,
+      // Subscription feature switch
+      subscription_enabled: form.subscription_enabled,
       // Model Plaza feature switches + description
       model_plaza_enabled: form.model_plaza_enabled,
       model_plaza_require_auth: form.model_plaza_require_auth,
@@ -12216,6 +12542,26 @@ async function saveSettings() {
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
       allow_user_view_error_requests: form.allow_user_view_error_requests,
+      usage_show_long_context_badge: form.usage_show_long_context_badge,
+      request_capture_enabled: form.request_capture_enabled,
+      request_capture_quota_mib: form.request_capture_quota_mib,
+      request_capture_retention_days: form.request_capture_retention_days,
+      excel_bps_image_mode: form.excel_bps_image_mode,
+      excel_bps_image_relay_enabled: form.excel_bps_image_relay_enabled,
+      excel_bps_image_base_url: form.excel_bps_image_base_url.trim(),
+      excel_bps_image_body_limit_mib: form.excel_bps_image_body_limit_mib,
+      excel_bps_image_budget_mib: form.excel_bps_image_budget_mib,
+      excel_bps_image_max_requests: form.excel_bps_image_max_requests,
+      excel_bps_image_max_image_mib: form.excel_bps_image_max_image_mib,
+      excel_bps_image_max_images: form.excel_bps_image_max_images,
+      excel_bps_image_limit_policy: form.excel_bps_image_limit_policy,
+      excel_bps_image_warning_remaining: form.excel_bps_image_warning_remaining,
+      excel_bps_image_compact_reserve: form.excel_bps_image_compact_reserve,
+
+      excel_bps_image_max_total_mib: form.excel_bps_image_max_total_mib,
+      excel_bps_image_storage_mib: form.excel_bps_image_storage_mib,
+      excel_bps_image_storage_entries: form.excel_bps_image_storage_entries,
+      excel_bps_image_ttl_minutes: form.excel_bps_image_ttl_minutes,
     };
 
     // 仅当 openai_fast_policy_settings 已成功从后端加载时才回写，
@@ -12264,6 +12610,9 @@ async function saveSettings() {
       if (value !== null && value !== undefined) {
         (form as Record<string, unknown>)[key] = value;
       }
+    }
+    if (updated.openai_oauth_scheduling_rate_multiplier === null) {
+      form.openai_oauth_scheduling_rate_multiplier = null;
     }
     form.monitor_page_refresh_interval_seconds =
       normalizeMonitorPageRefreshInterval(
@@ -12556,6 +12905,30 @@ async function saveOllamaCloudUsageSettings() {
   }
 }
 
+async function loadOpenCodeGoUsageSettings() {
+  opencodeGoUsageLoading.value = true;
+  try {
+    Object.assign(opencodeGoUsageForm, await adminAPI.accounts.getOpenCodeGoUsageSettings());
+  } catch (_error: unknown) {
+    // Keep the fail-safe disabled defaults when this optional setting cannot be loaded.
+  } finally {
+    opencodeGoUsageLoading.value = false;
+  }
+}
+
+async function saveOpenCodeGoUsageSettings() {
+  opencodeGoUsageSaving.value = true;
+  try {
+    const updated = await adminAPI.accounts.updateOpenCodeGoUsageSettings({ ...opencodeGoUsageForm });
+    Object.assign(opencodeGoUsageForm, updated);
+    appStore.showSuccess(t("admin.settings.opencodeGoUsage.saved"));
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t("admin.settings.opencodeGoUsage.saveFailed")));
+  } finally {
+    opencodeGoUsageSaving.value = false;
+  }
+}
+
 // Overload Cooldown 方法
 async function loadOverloadCooldownSettings() {
   overloadCooldownLoading.value = true;
@@ -12842,6 +13215,7 @@ const openaiFastPolicyTierOptions = computed(() => [
     label: t("admin.settings.openaiFastPolicy.tierUltrafast"),
   },
   { value: "flex", label: t("admin.settings.openaiFastPolicy.tierFlex") },
+  { value: "missing", label: t("admin.settings.openaiFastPolicy.tierMissing") },
 ]);
 
 const openaiFastPolicyActionOptions = computed(() => [
@@ -13305,12 +13679,14 @@ onMounted(() => {
   loadAdminApiKey();
   loadUpstreamBillingProbeSettings();
   loadOllamaCloudUsageSettings();
+  loadOpenCodeGoUsageSettings();
   loadOverloadCooldownSettings();
   loadRateLimit429CooldownSettings();
   loadPanelRateLimitSettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();
+  loadTurnStateReuseSettings();
   loadProviders();
 });
 
@@ -13684,6 +14060,15 @@ watch(
 </script>
 
 <style scoped>
+h2[id^="settings-section-"] {
+  scroll-margin-top: 6rem;
+}
+h2[id^="settings-section-"]:target {
+  outline: 2px solid var(--color-primary-500, #6366f1);
+  outline-offset: 6px;
+  border-radius: 2px;
+}
+
 .default-sub-group-select :deep(.select-trigger) {
   @apply h-[42px];
 }

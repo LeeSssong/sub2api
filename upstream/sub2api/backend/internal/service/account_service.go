@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -82,6 +83,8 @@ type AccountRepository interface {
 	SetSchedulable(ctx context.Context, id int64, schedulable bool) error
 	AutoPauseExpiredAccounts(ctx context.Context, now time.Time) (int64, error)
 	BindGroups(ctx context.Context, accountID int64, groupIDs []int64) error
+	// SetGroupAllowedModels 覆盖账号在各已绑定分组内的模型限制，未列出的分组恢复为不限制。
+	SetGroupAllowedModels(ctx context.Context, accountID int64, allowed map[int64][]string) error
 
 	ListSchedulable(ctx context.Context) ([]Account, error)
 	ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]Account, error)
@@ -140,9 +143,20 @@ type NewAPIRateRefreshCompletion struct {
 // NewAPIRateRefreshRepository owns the CAS lifecycle for automatic NewAPI
 // multiplier registration without widening the general account repository.
 type NewAPIRateRefreshRepository interface {
-	ClaimNewAPIRateRefresh(ctx context.Context, accountID int64, refreshDate, claimToken string, claimUntil time.Time) (bool, error)
+	ClaimNewAPIRateRefresh(ctx context.Context, accountID int64, observedRate float64, refreshDate, claimToken string, claimUntil time.Time) (bool, error)
 	CompleteNewAPIRateRefresh(ctx context.Context, input NewAPIRateRefreshCompletion) error
 	ReleaseNewAPIRateRefresh(ctx context.Context, accountID int64, claimToken string) error
+}
+
+// AccountExcelBPSRepository disables only BPS, provided the account credentials and opt-in switches still match.
+type AccountExcelBPSRepository interface {
+	DisableExcelBPSOn403(ctx context.Context, account *Account) (bool, error)
+}
+
+// AccountExcelBPSGroupRepository applies an opted-in group action atomically
+// after rechecking the account identity, policy and current memberships.
+type AccountExcelBPSGroupRepository interface {
+	MoveExcelBPSOn403(ctx context.Context, account *Account) (bool, error)
 }
 
 type AccountDuplicateRepository interface {
@@ -187,6 +201,7 @@ type AccountBulkUpdate struct {
 	Extra                      map[string]any
 	ProbeEnabled               *bool
 	ActiveProbeEnabled         *bool
+	GroupRateMultiplier        *float64
 	EnsureCodexFingerprintSeed bool
 }
 
@@ -241,6 +256,12 @@ func NewAccountService(accountRepo AccountRepository, groupRepo GroupRepository)
 
 // Create 创建账号
 func (s *AccountService) Create(ctx context.Context, req CreateAccountRequest) (*Account, error) {
+	if err := ValidateModelMappingMode(req.Credentials); err != nil {
+		return nil, err
+	}
+	if req.Platform == PlatformTypeSafe && req.Type != AccountTypeAPIKey {
+		return nil, errors.New("typesafe accounts only support apikey credentials")
+	}
 	// 验证分组是否存在（如果指定了分组）
 	if len(req.GroupIDs) > 0 {
 		if err := s.validateGroupIDsExist(ctx, req.GroupIDs); err != nil {
@@ -347,6 +368,9 @@ func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccount
 	}
 
 	if req.Credentials != nil {
+		if err := ValidateModelMappingMode(*req.Credentials); err != nil {
+			return nil, err
+		}
 		account.Credentials = SanitizeStoredCredentials(account.Platform, *req.Credentials)
 	}
 
@@ -533,8 +557,11 @@ func (s *AccountService) TestCredentials(ctx context.Context, id int64) error {
 	case PlatformGrok:
 		// Grok OAuth credentials are validated via token exchange/refresh and request-path probes.
 		return nil
-	case PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformMiniMax:
-		// 国产 OpenAI 兼容供应商：凭证为 API Key，实际可用性经余额/额度探测与转发路径验证。
+	case PlatformTypeSafe:
+		// TypeSafe credentials are API keys; inference failures drive health and cooldown state.
+		return nil
+	case PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformMiniMax, PlatformOpenCodeGo:
+		// 国产 OpenAI 兼容供应商与 OpenCode：凭证为 API Key，实际可用性经余额/额度探测与转发路径验证。
 		return nil
 	default:
 		return fmt.Errorf("unsupported platform: %s", account.Platform)

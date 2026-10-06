@@ -30,8 +30,25 @@
       </div>
     </div>
 
+
     <!-- Navigation -->
     <nav ref="sidebarNavRef" class="sidebar-nav">
+      <div v-if="authStore.isObserver" class="sidebar-section">
+        <router-link to="/admin/accounts" class="sidebar-link mb-1"
+          :class="{ 'sidebar-link-active': isActive('/admin/accounts'), 'sidebar-link-collapsed': sidebarCollapsed }"
+          :title="sidebarCollapsed ? t('nav.accounts') : undefined"
+          @click="handleMenuItemClick('/admin/accounts')">
+          <GlobeIcon class="h-5 w-5 flex-shrink-0" />
+          <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }">{{ t('nav.accounts') }}</span>
+        </router-link>
+        <router-link v-if="appStore.backendModeEnabled" to="/usage" class="sidebar-link mb-1"
+          :class="{ 'sidebar-link-active': isActive('/usage'), 'sidebar-link-collapsed': sidebarCollapsed }"
+          :title="sidebarCollapsed ? t('nav.usage') : undefined"
+          @click="handleMenuItemClick('/usage')">
+          <ChartIcon class="h-5 w-5 flex-shrink-0" />
+          <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }">{{ t('nav.usage') }}</span>
+        </router-link>
+      </div>
       <!-- Admin View: Admin menu first, then personal menu -->
       <template v-if="isAdmin">
         <!-- Admin Section -->
@@ -138,10 +155,13 @@
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
             :aria-label="item.label"
             :aria-current="isActive(item.path) ? 'page' : undefined"
+            :title="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
-            <img :src="userNavIcon(item.path)" class="user-nav-icon" alt="" aria-hidden="true" />
+            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" aria-hidden="true" v-html="sanitizeSvg(item.iconSvg)"></span>
+            <img v-else-if="userNavIcon(item.path)" :src="userNavIcon(item.path)" class="user-nav-icon" alt="" aria-hidden="true" />
+            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" aria-hidden="true" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
           </router-link>
         </div>
@@ -242,14 +262,15 @@
 </template>
 
 <script setup lang="ts">
+import Icon from '@/components/icons/Icon.vue'
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
-import Icon from '@/components/icons/Icon.vue'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
+import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { DEFAULT_SITE_LOGO } from '@/utils/branding'
 import { FeatureFlags, makeSidebarFlag, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
@@ -310,7 +331,9 @@ const accountMenuOpen = ref(false)
 const supportDialogOpen = ref(false)
 const accountMenuRef = ref<HTMLElement | null>(null)
 
-const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
+const homePath = computed(() => (
+  isAdmin.value ? '/admin/dashboard' : authStore.isObserver ? '/admin/accounts' : '/dashboard'
+))
 
 // Per-group expand/collapse overrides. A group with no entry follows the
 // automatic behavior (expanded while the active route is one of its children);
@@ -331,6 +354,7 @@ const userAvatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
 const displayName = computed(() => user.value?.username || user.value?.email?.split('@')[0] || '')
 
 // SVG Icon Components
+
 const DashboardIcon = {
   render: () =>
     h(
@@ -525,6 +549,7 @@ const GlobeIcon = {
       ]
     )
 }
+
 
 const ServerIcon = {
   render: () =>
@@ -779,6 +804,19 @@ const LogoutIcon = {
 const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
 const flagPayment = makeSidebarFlag(FeatureFlags.payment)
 const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
+const flagSubscription = makeSidebarFlag(FeatureFlags.subscription)
+
+// 购买入口文案随站点计费模式切换：仅充值 → 「充值」，仅订阅 → 「订阅」，否则「充值/订阅」。
+const purchaseNavLabel = computed(() => {
+  switch (resolveSiteBillingMode(appStore.cachedPublicSettings)) {
+    case 'recharge_only':
+      return t('nav.recharge')
+    case 'subscription_only':
+      return t('nav.subscribe')
+    default:
+      return t('nav.buySubscription')
+  }
+})
 const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
@@ -788,8 +826,8 @@ const flagBatchImageAccess = () => canUseBatchImage.value
 // buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
 // withDashboard=true 时包含仪表盘（用户端），false 时不含（管理员的个人区已经有独立仪表盘入口）。
 //
-// 条目顺序：密钥 → 用量 → 可用渠道 → 渠道状态 → 订阅/支付 → 兑换/资料。
-// 可用渠道紧挨渠道状态之上，让用户"先看自己能用什么、再看对应状态"。
+// 条目顺序：密钥 → 用量 → 可用渠道 → 订阅/支付 → 兑换/资料。
+// 渠道状态入口已屏蔽，分组性能监控走自定义菜单 /custom/performance-monitor。
 function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   const items: NavItem[] = []
   if (withDashboard) {
@@ -798,16 +836,17 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
-    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
+    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: !authStore.isObserver },
     { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
-    { path: '/purchase', label: t('nav.buySubscription'), icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
+    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
+    { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
     { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
     { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
-      path: `/custom/${item.id}`,
-      label: item.label,
+      path: item.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${item.id}`,
+      label: item.url === '/intelligence-test' && item.label === '智商检测' ? '智商监测' : item.label,
       icon: item.id === 'performance-monitor' ? PerformanceMonitorIcon : null,
       iconSvg: item.icon_svg,
     })),
@@ -826,8 +865,9 @@ function userNavLabel(key: string, fallback: string): string {
   return translated === `nav.${key}` ? fallback : translated
 }
 
-function userNavIcon(path: string): string {
-  return `/xingqiao/${({ '/dashboard': 'tools', '/usage': 'history', '/keys': 'key' } as Record<string, string>)[path]}.svg`
+function userNavIcon(path: string): string | undefined {
+  const name = ({ '/dashboard': 'tools', '/usage': 'history', '/keys': 'key' } as Record<string, string>)[path]
+  return name ? `/xingqiao/${name}.svg` : undefined
 }
 
 function buildUserNavItems(): NavItem[] {
@@ -835,6 +875,15 @@ function buildUserNavItems(): NavItem[] {
     { path: '/dashboard', label: userNavLabel('aiTools', 'AI 工具'), icon: DashboardIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/keys', label: userNavLabel('myKeys', '我的密钥'), icon: KeyIcon },
+    // Reuse the existing storefront configuration and embedded custom-page route.
+    ...customMenuItemsForUser.value
+      .filter(item => item.id === 'xingqiao-storefront' || item.url === '/intelligence-test')
+      .map((item): NavItem => ({
+        path: item.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${item.id}`,
+        label: item.url === '/intelligence-test' && item.label === '智商检测' ? '智商监测' : item.label,
+        icon: item.url === '/intelligence-test' ? PerformanceMonitorIcon : CreditCardIcon,
+        iconSvg: item.icon_svg,
+      })),
   ]
 }
 
@@ -900,6 +949,17 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/accounts/monitor', label: t('nav.accountMonitor'), icon: ChartIcon },
+    { path: '/admin/smart-ops', label: t('accountOps.smartTitle'), icon: GlobeIcon, expandOnly: true, children: [
+      { path: '/admin/auto-config', label: t('autoConfig.title'), icon: GlobeIcon },
+      { path: '/admin/priority-scheduling', label: t('priorityScheduling.title'), icon: GlobeIcon },
+      { path: '/admin/account-quality', label: t('qualityOps.title'), icon: ChartIcon },
+      { path: '/admin/account-ops', label: t('accountOps.title'), icon: GlobeIcon },
+      { path: '/admin/token-guard', label: t('tokenGuard.title'), icon: ShieldIcon },
+      { path: '/admin/token-guard-v2', label: t('tokenGuardV2.title'), icon: ShieldIcon },
+      { path: '/admin/pelican-tests', label: t('pelicanTests.title'), icon: ChartIcon },
+      { path: '/admin/request-captures', label: t('admin.requestCapture.title'), icon: ChartIcon, featureFlag: () => adminSettingsStore.requestCaptureEnabled },
+      { path: '/admin/harvest-flow', label: t('nav.harvestFlow'), icon: ChartIcon },
+    ] },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     {
@@ -951,21 +1011,21 @@ const adminNavItems = computed((): NavItem[] => {
   if (authStore.isSimpleMode) {
     const filtered = visible.filter(item => !item.hideInSimpleMode)
     filtered.push({ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon })
-    filtered.push({ path: '/admin/scheduler-logs', label: t('nav.schedulerLogs'), icon: OrderListIcon })
     filtered.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
     for (const cm of customMenuItemsForAdmin.value) {
-      filtered.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+      filtered.push({ path: cm.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${cm.id}`, label: cm.url === '/intelligence-test' && cm.label === '智商检测' ? '智商监测' : cm.label, icon: null, iconSvg: cm.icon_svg })
     }
     return filtered
   }
 
-  visible.push({ path: '/admin/scheduler-logs', label: t('nav.schedulerLogs'), icon: OrderListIcon })
   visible.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
   for (const cm of customMenuItemsForAdmin.value) {
-    visible.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+    visible.push({ path: cm.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${cm.id}`, label: cm.url === '/intelligence-test' && cm.label === '智商检测' ? '智商监测' : cm.label, icon: null, iconSvg: cm.icon_svg })
   }
   return visible
 })
+
+// Use exactly the visible navigation, including the personal section only when shown.
 
 function toggleSidebar() {
   appStore.toggleSidebar()

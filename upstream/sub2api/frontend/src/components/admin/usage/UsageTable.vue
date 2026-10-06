@@ -28,8 +28,9 @@
       >
         <template #cell-user="{ row }">
           <div class="text-sm">
+            <span v-if="observerMode" class="font-medium text-gray-900 dark:text-white">{{ row.user?.email || "-" }}</span>
             <button
-              v-if="row.user?.email"
+              v-else-if="row.user?.email"
               class="font-medium text-primary-600 underline decoration-dashed underline-offset-2 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
               @click="$emit('userClick', row.user_id, row.user?.email)"
               :title="t('admin.usage.clickToViewBalance')"
@@ -174,10 +175,17 @@
                   <span class="font-medium text-gray-900 dark:text-white">{{ row.output_tokens?.toLocaleString() || 0 }}</span>
                 </div>
               </div>
-              <div v-if="row.cache_read_tokens > 0 || row.cache_creation_tokens > 0" class="flex items-center gap-2">
+              <div v-if="row.cache_read_tokens > 0 || row.cache_creation_tokens > 0" class="flex flex-wrap items-center gap-2">
                 <div v-if="row.cache_read_tokens > 0" class="inline-flex items-center gap-1">
                   <svg class="h-3.5 w-3.5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                   <span class="font-medium text-sky-600 dark:text-sky-400">{{ formatCacheTokens(row.cache_read_tokens) }}</span>
+                  <span
+                    v-if="formatCacheHitRate(row)"
+                    data-testid="cache-hit-rate"
+                    class="ml-1 inline-flex items-center rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300"
+                  >
+                    {{ t('usage.cacheHitValue', { value: formatCacheHitRate(row) }) }}
+                  </span>
                 </div>
                 <div v-if="row.cache_creation_tokens > 0" class="inline-flex items-center gap-1">
                   <svg class="h-3.5 w-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -217,7 +225,7 @@
             <div class="flex items-center gap-1.5">
               <span class="font-medium text-green-600 dark:text-green-400">{{ formatUsdMoney(row.actual_cost) }}</span>
               <span
-                v-if="row.long_context_billing_applied"
+                v-if="row.long_context_billing_applied && showLongContextBadge"
                 data-testid="long-context-billing-marker"
                 class="inline-flex items-center rounded px-1 py-px text-[10px] font-semibold leading-tight bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:ring-amber-500/30"
               >x2</span>
@@ -232,20 +240,26 @@
                 </div>
               </div>
             </div>
+            <div
+              v-if="showCacheMetrics && formatCacheSavings(row)"
+              data-testid="cache-savings"
+              class="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+            >
+              {{ t('usage.cacheSaved', { value: formatCacheSavings(row) }) }}
+            </div>
             <div v-if="showAccountBilling && row.account_rate_multiplier != null" class="mt-0.5 text-[11px] text-orange-500 dark:text-orange-400">
               A {{ formatUsdMoney(accountBilled(row)) }}
             </div>
           </div>
         </template>
 
-        <!-- 合并首字/总耗时的健康度列：左侧色条上端随首字档、下端随总耗时档，中段(40%-60%)短渐变过渡，便于纵向扫视整体健康状况 -->
+        <!-- 合并首字/总耗时/TPS 的健康度列：左侧色条上中下三段分别随首字、总耗时、TPS 档，段间短渐变过渡，便于纵向扫视整体健康状况 -->
         <template #cell-latency="{ row }">
-          <div class="flex items-stretch gap-2">
+          <component :is="enableTimingDetails ? 'button' : 'div'" :type="enableTimingDetails ? 'button' : undefined" class="flex items-stretch gap-2 text-left" :class="enableTimingDetails ? 'hover:opacity-80 focus-visible:outline focus-visible:outline-primary-500' : ''" :aria-label="enableTimingDetails ? t('requestTiming.title') : undefined" @click="enableTimingDetails && (timingRecord = row)">
             <span
+              data-testid="latency-bar"
               class="w-1 shrink-0 rounded-full"
-              :class="row.first_token_ms != null
-                ? ['bg-gradient-to-b from-40% to-60%', LATENCY_BAR_FROM_CLASSES[firstTokenSeverity(row.first_token_ms)], LATENCY_BAR_TO_CLASSES[durationSeverity(row.duration_ms ?? 0)]]
-                : LATENCY_BAR_CLASSES[durationSeverity(row.duration_ms ?? 0)]"
+              :class="latencyBarClasses(row)"
               aria-hidden="true"
             ></span>
             <div class="grid grid-cols-[max-content_max-content] items-baseline gap-x-2 gap-y-0.5 text-xs">
@@ -254,8 +268,19 @@
               <span v-else class="text-gray-400 dark:text-gray-500">-</span>
               <span class="text-gray-400 dark:text-gray-500">{{ t('usage.latencyDuration') }}</span>
               <span class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]">{{ formatDuration(row.duration_ms) }}</span>
+              <template v-if="enableTimingDetails">
+              <span class="text-gray-400 dark:text-gray-500">{{ t('usage.latencyTps') }}</span>
+              <span
+                v-if="formatUsageOutputTps(row)"
+                data-testid="latency-tps"
+                class="font-medium tabular-nums"
+                :class="LATENCY_TEXT_CLASSES[tpsSeverity(usageOutputTps(row) ?? 0)]"
+                :title="row.first_token_ms != null ? t('usage.latencyTpsHint') : t('usage.latencyTpsHintNoFirstToken')"
+              >{{ formatUsageOutputTps(row) }}</span>
+              <span v-else data-testid="latency-tps" class="text-gray-400 dark:text-gray-500">-</span>
+              </template>
             </div>
-          </div>
+          </component>
         </template>
 
         <template #cell-created_at="{ value }">
@@ -491,7 +516,7 @@
               </div>
               <div class="flex items-center justify-between gap-4">
                 <span class="text-gray-400">{{ t('usage.imageUnitPrice') }}</span>
-                <span class="font-medium text-sky-300">${{ imageUnitPrice(tooltipData).toFixed(6) }}</span>
+                <span class="font-medium text-sky-300">${{ imageUnitPrice(tooltipData).toFixed(8) }}</span>
               </div>
               <div class="flex items-center justify-between gap-4">
                 <span class="text-gray-400">{{ t('usage.imageTotalPrice') }}</span>
@@ -551,25 +576,32 @@
       </div>
     </div>
   </Teleport>
+  <UsageTimingDialog v-if="enableTimingDetails" :record="timingRecord" @close="timingRecord = null" />
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, inject } from 'vue'
+import UsageTimingDialog from './UsageTimingDialog.vue'
+import { observerUsageContext } from './observerUsageContext'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime, formatUsdMoney, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
 import { formatCacheTokens, formatMultiplierLabel } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
+import { calculateCacheHitRate, calculateCacheSavings } from '@/utils/usageCacheMetrics'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import {
   LATENCY_BAR_CLASSES,
   LATENCY_BAR_FROM_CLASSES,
   LATENCY_BAR_TO_CLASSES,
+  LATENCY_BAR_VIA_CLASSES,
   LATENCY_TEXT_CLASSES,
   durationSeverity,
   firstTokenSeverity,
+  tpsSeverity,
 } from '@/utils/latencyHealth'
+import { formatUsageOutputTps, usageOutputTps } from '@/utils/usageTps'
 import {
   BILLING_MODE_TOKEN,
   getBillingModeLabel,
@@ -617,10 +649,16 @@ interface Props {
   defaultSortKey?: string
   defaultSortOrder?: 'asc' | 'desc'
   showAccountBilling?: boolean
+  enableTimingDetails?: boolean
   showUpstreamEndpoint?: boolean
+  showCacheMetrics?: boolean
   /** 嵌入统一卡片内使用：去掉自身卡片外观 */
   flat?: boolean
 }
+
+const observerMode = inject(observerUsageContext, false)
+
+const timingRecord = ref<AdminUsageLog | null>(null)
 
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
@@ -628,7 +666,9 @@ const props = withDefaults(defineProps<Props>(), {
   defaultSortKey: '',
   defaultSortOrder: 'asc',
   showAccountBilling: true,
+  enableTimingDetails: false,
   showUpstreamEndpoint: true,
+  showCacheMetrics: false,
   flat: false
 })
 const emit = defineEmits<{
@@ -639,9 +679,11 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 const appStore = useAppStore()
+const showLongContextBadge = computed(() => appStore.cachedPublicSettings?.usage_show_long_context_badge !== false)
 const copiedRequestId = ref<string | null>(null)
 const showAccountBilling = props.showAccountBilling
 const showUpstreamEndpoint = props.showUpstreamEndpoint
+const showCacheMetrics = props.showCacheMetrics
 const ipGeoBatchLoading = ref(false)
 
 const showIpGeoToolbar = computed(() => props.columns.some((col) => col.key === 'ip_address'))
@@ -758,6 +800,23 @@ const formatDuration = (ms: number | null | undefined): string => {
   return `${Math.floor(totalSec / 3600)}h ${Math.floor((totalSec % 3600) / 60)}m`
 }
 
+// 延迟色条三段依次对应首字/总耗时/TPS 三行（30%/50%/70% 分别落在三行内）；无首字或无 TPS 的段沿用总耗时档
+const latencyBarClasses = (row: AdminUsageLog): string[] => {
+  const duration = durationSeverity(row.duration_ms ?? 0)
+  if (!props.enableTimingDetails) {
+    return row.first_token_ms != null
+      ? ['bg-gradient-to-b from-40% to-60%', LATENCY_BAR_FROM_CLASSES[firstTokenSeverity(row.first_token_ms)], LATENCY_BAR_TO_CLASSES[duration]]
+      : [LATENCY_BAR_CLASSES[duration]]
+  }
+  const tps = usageOutputTps(row)
+  return [
+    'bg-gradient-to-b from-30% via-50% to-70%',
+    LATENCY_BAR_FROM_CLASSES[row.first_token_ms != null ? firstTokenSeverity(row.first_token_ms) : duration],
+    LATENCY_BAR_VIA_CLASSES[duration],
+    LATENCY_BAR_TO_CLASSES[tps != null ? tpsSeverity(tps) : duration],
+  ]
+}
+
 // Cost tooltip functions
 const showTooltip = (event: MouseEvent, row: AdminUsageLog) => {
   const target = event.currentTarget as HTMLElement
@@ -786,5 +845,15 @@ const showTokenTooltip = (event: MouseEvent, row: AdminUsageLog) => {
 const hideTokenTooltip = () => {
   tokenTooltipVisible.value = false
   tokenTooltipData.value = null
+}
+
+const formatCacheHitRate = (row: AdminUsageLog): string | null => {
+  const rate = calculateCacheHitRate(row)
+  return rate == null ? null : `${(rate * 100).toFixed(1)}%`
+}
+
+const formatCacheSavings = (row: AdminUsageLog): string | null => {
+  const savings = calculateCacheSavings(row)
+  return savings != null && savings > 0 ? savings.toFixed(4) : null
 }
 </script>

@@ -127,9 +127,26 @@
               <label class="input-label">{{ t('usage.lineFilter') }}</label>
               <Select v-model="filters.group_id" :options="groupOptions" :placeholder="t('usage.allLines')" searchable brand @change="applyFilters" />
             </div>
-            <div>
+            <div class="w-full sm:w-auto sm:min-w-[200px]">
               <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
               <Select v-model="filters.billing_mode" :options="billingModeOptions" :placeholder="t('admin.usage.allBillingModes')" brand @change="applyFilters" />
+            </div>
+          </div>
+          <div v-if="activeTab !== 'errors'" class="mt-3">
+            <button type="button" class="btn btn-secondary" data-testid="usage-more-filters" :aria-expanded="advancedFiltersVisible" aria-controls="usage-advanced-filters" @click="advancedFiltersVisible = !advancedFiltersVisible">{{ t('usage.moreFilters') }}</button>
+            <div v-if="advancedFiltersVisible" id="usage-advanced-filters" class="usage-filter-grid mt-3" data-testid="usage-advanced-filters">
+            <div  class="w-full sm:w-auto sm:min-w-[180px]">
+              <label class="input-label">{{ t('usage.type') }}</label>
+              <Select v-model="filters.request_type" :options="requestTypeOptions" brand @change="applyFilters" />
+            </div>
+            <div  class="w-full sm:w-auto sm:min-w-[180px]">
+              <label class="input-label">{{ t('usage.compactionFilter') }}</label>
+              <Select v-model="filters.native_compaction_v2" :options="compactionOptions" brand @change="applyFilters" />
+            </div>
+            <div v-if="subscriptionFeatureEnabled" class="w-full sm:w-auto sm:min-w-[200px]">
+              <label class="input-label">{{ t('admin.usage.billingType') }}</label>
+              <Select v-model="filters.billing_type" :options="billingTypeOptions" brand @change="applyFilters" />
+            </div>
             </div>
           </div>
           <div class="usage-filter-actions" data-testid="usage-filter-actions">
@@ -188,6 +205,7 @@
           :server-side-sort="true"
           :show-account-billing="false"
           :show-upstream-endpoint="false"
+          :show-cache-metrics="true"
           default-sort-key="created_at"
           default-sort-order="desc"
           @sort="handleSort"
@@ -240,6 +258,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { keysAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import UserPageHeader from '@/components/user/UserPageHeader.vue'
@@ -401,6 +420,26 @@ const sortState = reactive({
 const granularityOptions = computed<SelectOption[]>(() => [
   { value: 'day', label: t('admin.dashboard.day') },
   { value: 'hour', label: t('admin.dashboard.hour') },
+])
+// Additional filters stay collapsed to preserve the default four-filter workspace.
+const advancedFiltersVisible = ref(false)
+const requestTypeOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('admin.usage.allTypes') },
+  { value: 'ws_v2', label: t('usage.ws') },
+  { value: 'live', label: t('usage.live') },
+  { value: 'stream', label: t('usage.stream') },
+  { value: 'sync', label: t('usage.sync') },
+])
+const compactionOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('usage.allCompactionTypes') },
+  { value: true, label: t('usage.compactionOnly') },
+])
+// 订阅功能关闭后只剩余额计费，「计费类型」筛选（余额/订阅）失去意义，整块隐藏。
+const subscriptionFeatureEnabled = computed(() => resolveFeatureFlag(appStore.cachedPublicSettings, FeatureFlags.subscription))
+const billingTypeOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('admin.usage.allBillingTypes') },
+  { value: 0, label: t('admin.usage.billingTypeBalance') },
+  { value: 1, label: t('admin.usage.billingTypeSubscription') },
 ])
 const billingModeOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allBillingModes') },
@@ -639,6 +678,7 @@ const escapeCSVValue = (value: unknown): string => {
   if (value == null) return ''
   const str = String(value)
   const escaped = str.replace(/"/g, '""')
+  if (str === '-') return str
   if (/^[=+\-@\t\r]/.test(str)) return `"\'${escaped}"`
   if (/[,"\n\r]/.test(str)) return `"${escaped}"`
   return str
@@ -654,9 +694,10 @@ const exportToCSV = async () => {
   try {
     const allLogs: UsageLog[] = []
     const pageSize = 100
+    const exportParams = buildUsageListParams(1, pageSize)
     const totalPages = Math.ceil(pagination.total / pageSize)
     for (let page = 1; page <= totalPages; page++) {
-      const response = await usageAPI.query(buildUsageListParams(page, pageSize))
+      const response = await usageAPI.query({ ...exportParams, page })
       allLogs.push(...response.items)
     }
     if (allLogs.length === 0) {
@@ -709,7 +750,7 @@ const exportToCSV = async () => {
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `usage_${startDate.value}_to_${endDate.value}.csv`
+    link.download = `usage_${exportParams.start_date}_to_${exportParams.end_date}.csv`
     link.click()
     window.URL.revokeObjectURL(url)
     appStore.showSuccess(t('usage.exportSuccess'))

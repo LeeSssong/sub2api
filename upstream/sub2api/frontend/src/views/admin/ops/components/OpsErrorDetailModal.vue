@@ -12,6 +12,10 @@
     </div>
 
     <div v-else class="space-y-6 p-6">
+      <div v-if="balanceSource" class="rounded-xl bg-amber-50 p-4 dark:bg-amber-900/10" data-testid="balance-source">
+        <div class="font-semibold text-amber-900 dark:text-amber-200">{{ t(`admin.ops.balanceError.${balanceSource}`) }}</div>
+        <p class="mt-1 text-sm text-amber-800 dark:text-amber-100">{{ t(`admin.ops.balanceError.${balanceSource}Hint`) }}</p>
+      </div>
       <!-- Summary -->
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-900">
@@ -154,6 +158,8 @@
         </div>
       </div>
 
+      <p v-if="detail.diagnosis?.original_upstream_truncated" class="text-sm text-amber-600 dark:text-amber-400">{{ t('admin.ops.errorDetail.originalUpstreamTruncated') }}</p>
+
       <!-- Response content (client request -> error_body; upstream -> upstream_error_detail/message) -->
       <div class="rounded-xl bg-gray-50 p-6 dark:bg-dark-900">
         <h3 class="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">{{ t('admin.ops.errorDetail.diagnosticPayloads') }}</h3>
@@ -161,7 +167,7 @@
         <div v-else class="mt-4 space-y-4">
           <div v-for="section in diagnosticPayloadSections" :key="section.key">
             <div class="mb-2 text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ diagnosticPayloadLabel(section.key) }}</div>
-            <pre class="max-h-[520px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ prettyJSON(section.value) }}</code></pre>
+            <pre class="max-h-[520px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ section.key === 'upstream_message' || section.key === 'upstream_detail' ? section.value : prettyJSON(section.value) }}</code></pre>
           </div>
         </div>
       </div>
@@ -250,7 +256,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { balanceErrorSource } from '../utils/balanceError'
+import { computed, ref, watch, inject } from 'vue'
+import { observerUsageAPI } from '@/api/observerUsage'
+import { observerUsageContext } from '@/components/admin/usage/observerUsageContext'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -273,6 +282,8 @@ interface Emits {
   (e: 'back'): void
 }
 
+const observerMode = inject(observerUsageContext, false)
+
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
@@ -282,7 +293,9 @@ const appStore = useAppStore()
 const loading = ref(false)
 const detail = ref<OpsErrorDetail | null>(null)
 
-const showUpstreamList = computed(() => props.errorType === 'request')
+const showUpstreamList = computed(() => !observerMode && props.errorType === 'request')
+
+const balanceSource = computed(() => balanceErrorSource(detail.value))
 
 const requestId = computed(() => detail.value?.request_id || detail.value?.client_request_id || '')
 
@@ -311,8 +324,9 @@ const diagnosticPayloadSections = computed(() => {
 })
 
 function meaningfulPayload(candidate: unknown): string {
-  const value = String(candidate || '').trim()
-  if (!value || value === '[]' || value === '{}' || value.toLowerCase() === 'null') return ''
+  const value = String(candidate || '')
+  const trimmed = value.trim()
+  if (!trimmed || trimmed === '[]' || trimmed === '{}' || trimmed.toLowerCase() === 'null') return ''
   return value
 }
 
@@ -331,7 +345,7 @@ function isUpstreamError(d: OpsErrorDetail | null): boolean {
   if (!d) return false
   const phase = String(d.phase || '').toLowerCase()
   const owner = String(d.error_owner || '').toLowerCase()
-  return phase === 'upstream' && owner === 'provider'
+  return balanceErrorSource(d) === 'upstream' || (phase === 'upstream' && owner === 'provider')
 }
 
 function formatRequestTypeLabel(type: number | null | undefined): string {
@@ -383,6 +397,7 @@ function toggleUpstreamDetail(id: number) {
 }
 
 async function fetchCorrelatedUpstreamErrors(requestErrorId: number) {
+  if (observerMode) return
   correlatedUpstreamLoading.value = true
   try {
     const res = await opsAPI.listRequestErrorUpstreamErrors(
@@ -422,7 +437,8 @@ function redactEvidence(value: string | undefined): string | undefined {
   try {
     const parsed: unknown = JSON.parse(value)
     if (parsed !== null && typeof parsed === 'object') {
-      return JSON.stringify(redactStructuredEvidence(parsed, 0))
+      const redacted = redactStructuredEvidence(parsed, 0)
+      return JSON.stringify(redacted) === JSON.stringify(parsed) ? value : JSON.stringify(redacted)
     }
   } catch {
     // Non-JSON diagnostic text is handled below.
@@ -472,7 +488,7 @@ async function fetchDetail(id: number) {
   loading.value = true
   try {
     const kind = props.errorType || (detail.value?.phase === 'upstream' ? 'upstream' : 'request')
-    const d = kind === 'upstream' ? await opsAPI.getUpstreamErrorDetail(id) : await opsAPI.getRequestErrorDetail(id)
+    const d = observerMode ? await observerUsageAPI.getErrorDetail(id) : kind === 'upstream' ? await opsAPI.getUpstreamErrorDetail(id) : await opsAPI.getRequestErrorDetail(id)
     detail.value = redactDetailEvidence(d)
   } catch (err: any) {
     detail.value = null
@@ -492,7 +508,7 @@ watch(
     if (typeof id === 'number' && id > 0) {
       expandedUpstreamDetailIds.value = new Set()
       fetchDetail(id)
-      if (props.errorType === 'request') {
+      if (!observerMode && props.errorType === 'request') {
         fetchCorrelatedUpstreamErrors(id)
       } else {
         correlatedUpstream.value = []

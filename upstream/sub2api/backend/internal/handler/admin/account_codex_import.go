@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -22,24 +23,27 @@ import (
 const codexImportClockSkewSeconds int64 = 120
 
 type CodexSessionImportRequest struct {
-	Content                 string         `json:"content"`
-	Contents                []string       `json:"contents"`
-	Name                    string         `json:"name"`
-	Notes                   *string        `json:"notes"`
-	GroupIDs                []int64        `json:"group_ids"`
-	ProxyID                 *int64         `json:"proxy_id"`
-	Concurrency             *int           `json:"concurrency"`
-	Priority                *int           `json:"priority"`
-	RateMultiplier          *float64       `json:"rate_multiplier"`
-	LoadFactor              *int           `json:"load_factor"`
-	ExpiresAt               *int64         `json:"expires_at"`
-	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
-	CredentialExtras        map[string]any `json:"credential_extras"`
-	Extra                   map[string]any `json:"extra"`
-	UpdateExisting          *bool          `json:"update_existing"`
-	SkipDefaultGroupBind    *bool          `json:"skip_default_group_bind"`
-	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"`
-	ActiveProbeEnabled      *bool          `json:"active_probe_enabled"`
+	Admission               *service.AccountAdmissionInput `json:"admission,omitempty"`
+	Content                 string                         `json:"content"`
+	Contents                []string                       `json:"contents"`
+	Name                    string                         `json:"name"`
+	Notes                   *string                        `json:"notes"`
+	GroupIDs                []int64                        `json:"group_ids"`
+	ProxyID                 *int64                         `json:"proxy_id"`
+	Concurrency             *int                           `json:"concurrency"`
+	Priority                *int                           `json:"priority"`
+	RateMultiplier          *float64                       `json:"rate_multiplier"`
+	ProcurementCostCNY      *float64                       `json:"procurement_cost_cny"`
+	LoadFactor              *int                           `json:"load_factor"`
+	ExpiresAt               *int64                         `json:"expires_at"`
+	AutoPauseOnExpired      *bool                          `json:"auto_pause_on_expired"`
+	CredentialExtras        map[string]any                 `json:"credential_extras"`
+	Extra                   map[string]any                 `json:"extra"`
+	UpdateExisting          *bool                          `json:"update_existing"`
+	SkipExisting            bool                           `json:"skip_existing"`
+	SkipDefaultGroupBind    *bool                          `json:"skip_default_group_bind"`
+	ConfirmMixedChannelRisk *bool                          `json:"confirm_mixed_channel_risk"`
+	ActiveProbeEnabled      *bool                          `json:"active_probe_enabled"`
 }
 
 type CodexSessionImportResult struct {
@@ -95,11 +99,14 @@ type codexImportAccount struct {
 }
 
 type codexJWTClaims struct {
-	Sub        string                `json:"sub"`
-	Email      string                `json:"email"`
-	Exp        int64                 `json:"exp"`
-	Iat        int64                 `json:"iat"`
-	OpenAIAuth *codexJWTOpenAIClaims `json:"https://api.openai.com/auth,omitempty"`
+	Sub           string                `json:"sub"`
+	Email         string                `json:"email"`
+	Exp           int64                 `json:"exp"`
+	Iat           int64                 `json:"iat"`
+	OpenAIAuth    *codexJWTOpenAIClaims `json:"https://api.openai.com/auth,omitempty"`
+	OpenAIProfile *struct {
+		Email string `json:"email"`
+	} `json:"https://api.openai.com/profile,omitempty"`
 }
 
 type codexJWTOpenAIClaims struct {
@@ -136,6 +143,10 @@ func (h *AccountHandler) ImportCodexSession(c *gin.Context) {
 	}
 	if req.RateMultiplier != nil && *req.RateMultiplier < 0 {
 		response.BadRequest(c, "rate_multiplier must be >= 0")
+		return
+	}
+	if req.ProcurementCostCNY != nil && (math.IsNaN(*req.ProcurementCostCNY) || math.IsInf(*req.ProcurementCostCNY, 0) || *req.ProcurementCostCNY < 0) {
+		response.BadRequest(c, "procurement_cost_cny must be a finite value >= 0")
 		return
 	}
 	if req.LoadFactor != nil && *req.LoadFactor > 10000 {
@@ -255,6 +266,25 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 		markCodexIdentitySeen(seenIdentity, item.IdentityKeys, entry.Index, item.UserID)
 
 		existing, matchedKey := index.Find(item.IdentityKeys, item.UserID)
+		// 2FA uses skip-existing before saving re-login secrets. A workspace alone
+		// cannot establish that the login belongs to this existing member.
+		if existing != nil && req.SkipExisting && !item.IsAgentIdentity && strings.HasPrefix(matchedKey, "account:") &&
+			(item.UserID == "" || codexCredentialString(existing.Credentials, "chatgpt_user_id") == "") {
+			existing = nil
+		}
+
+		if existing != nil && req.SkipExisting {
+			result.Skipped++
+			result.Items = append(result.Items, CodexSessionImportItem{
+				Index: entry.Index, Name: accountName, Action: "skipped", AccountID: existing.ID,
+			})
+			continue
+		}
+		if existing != nil && req.Admission.IsEnabled() {
+			result.Skipped++
+			result.Items = append(result.Items, CodexSessionImportItem{Index: entry.Index, Name: accountName, Action: "skipped", AccountID: existing.ID, Message: "admission skipped: existing account is preserved"})
+			continue
+		}
 		if existing != nil && updateExisting {
 			if strings.HasPrefix(matchedKey, "account:") && item.UserID != "" &&
 				codexCredentialString(existing.Credentials, "chatgpt_user_id") == "" {
@@ -331,23 +361,26 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 		}
 
 		account, createErr := h.adminService.CreateAccount(ctx, &service.CreateAccountInput{
-			Name:                  accountName,
-			Notes:                 req.Notes,
-			Platform:              service.PlatformOpenAI,
-			Type:                  service.AccountTypeOAuth,
-			Credentials:           credentials,
-			Extra:                 extra,
-			ProxyID:               req.ProxyID,
-			Concurrency:           concurrency,
-			Priority:              priority,
-			RateMultiplier:        req.RateMultiplier,
-			LoadFactor:            req.LoadFactor,
-			GroupIDs:              req.GroupIDs,
-			ExpiresAt:             effectiveExpiresAt,
-			AutoPauseOnExpired:    autoPauseOnExpired,
-			ActiveProbeEnabled:    req.ActiveProbeEnabled,
-			SkipDefaultGroupBind:  skipDefaultGroupBind,
-			SkipMixedChannelCheck: skipMixedChannelCheck,
+			Name:                    accountName,
+			Notes:                   req.Notes,
+			Platform:                service.PlatformOpenAI,
+			Type:                    service.AccountTypeOAuth,
+			Credentials:             credentials,
+			Extra:                   extra,
+			ProxyID:                 req.ProxyID,
+			Concurrency:             concurrency,
+			Priority:                priority,
+			RateMultiplier:          req.RateMultiplier,
+			ProcurementCostCNY:      req.ProcurementCostCNY,
+			LoadFactor:              req.LoadFactor,
+			GroupIDs:                req.GroupIDs,
+			Admission:               req.Admission,
+			AdmissionAllowUngrouped: true,
+			ExpiresAt:               effectiveExpiresAt,
+			AutoPauseOnExpired:      autoPauseOnExpired,
+			ActiveProbeEnabled:      req.ActiveProbeEnabled,
+			SkipDefaultGroupBind:    skipDefaultGroupBind,
+			SkipMixedChannelCheck:   skipMixedChannelCheck,
 		})
 		if createErr != nil {
 			result.Failed++
@@ -541,6 +574,7 @@ func normalizeCodexImportEntry(entry codexImportEntry) (*codexImportAccount, err
 			return item, nil
 		}
 		item.AccessToken = firstCodexString(raw,
+			[]string{"session_info", "access_token"},
 			[]string{"tokens", "access_token"},
 			[]string{"tokens", "accessToken"},
 			[]string{"access_token"},
@@ -561,6 +595,7 @@ func normalizeCodexImportEntry(entry codexImportEntry) (*codexImportAccount, err
 		)
 		item.Email = firstCodexString(raw, []string{"email"}, []string{"user", "email"})
 		item.AccountID = firstCodexString(raw,
+			[]string{"user_info", "chatgpt_account_id"},
 			[]string{"chatgpt_account_id"},
 			[]string{"chatgptAccountId"},
 			[]string{"account_id"},
@@ -678,6 +713,9 @@ func enrichCodexImportAccountFromJWT(item *codexImportAccount, token string, val
 	}
 	if item.Email == "" {
 		item.Email = strings.TrimSpace(claims.Email)
+	}
+	if item.Email == "" && claims.OpenAIProfile != nil {
+		item.Email = strings.TrimSpace(claims.OpenAIProfile.Email)
 	}
 	if claims.OpenAIAuth == nil {
 		if item.UserID == "" {
@@ -956,6 +994,23 @@ func (i *codexAccountIndex) Add(account service.Account) {
 	if i.keysByAccountID == nil {
 		i.keysByAccountID = map[int64]map[string]struct{}{}
 	}
+	// Older OAuth rows lack identity fields. Decode their stored token even if
+	// expired; this is local identity comparison, not token authentication.
+	identity := service.OpenAIOAuthStoredIdentity(&account)
+	credentials := make(map[string]any, len(account.Credentials)+3)
+	for key, value := range account.Credentials {
+		credentials[key] = value
+	}
+	for key, value := range map[string]string{
+		"chatgpt_account_id": identity.ChatGPTAccountID,
+		"chatgpt_user_id":    identity.ChatGPTUserID,
+		"email":              identity.Email,
+	} {
+		if codexCredentialString(credentials, key) == "" && value != "" {
+			credentials[key] = value
+		}
+	}
+	account.Credentials = credentials
 	keys := buildCodexStoredIdentityKeys(
 		codexCredentialString(account.Credentials, "chatgpt_account_id"),
 		codexCredentialString(account.Credentials, "chatgpt_user_id"),

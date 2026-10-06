@@ -1,0 +1,25 @@
+--- FAIL: TestNativeConvergenceRetryScope (0.00s)
+    --- FAIL: TestNativeConvergenceRetryScope/images (0.00s)
+        openai_native_convergence_test.go:33:
+                Error Trace:    /Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/scheduler-native-convergence/upstream/sub2api/backend/internal/handler/openai_native_convergence_test.go:33
+                Error:          Not equal:
+                                expected: false
+                                actual  : true
+                Test:           TestNativeConvergenceRetryScope/images
+    --- FAIL: TestNativeConvergenceRetryScope/grok (0.00s)
+        openai_native_convergence_test.go:33:
+                Error Trace:    /Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/scheduler-native-convergence/upstream/sub2api/backend/internal/handler/openai_native_convergence_test.go:33
+                Error:          Not equal:
+                                expected: false
+                                actual  : true
+                Test:           TestNativeConvergenceRetryScope/grok
+--- FAIL: TestNativeConvergenceConfiguredSwitchesRemainScoped (0.00s)
+    openai_native_convergence_test.go:52:
+            Error Trace:    /Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/scheduler-native-convergence/upstream/sub2api/backend/internal/handler/openai_native_convergence_test.go:52
+            Error:          Not equal:
+                            expected: 4
+                            actual  : 3
+            Test:           TestNativeConvergenceConfiguredSwitchesRemainScoped
+FAIL
+FAIL    github.com/Wei-Shaw/sub2api/internal/handler    1.822s
+FAIL

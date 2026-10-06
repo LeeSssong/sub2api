@@ -521,6 +521,7 @@ func TestFrontendServer_Middleware(t *testing.T) {
 		apiPaths := []string{
 			"/api/v1/users",
 			"/models",
+			"/models/gpt-5.5",
 			"/v1/models",
 			"/v1beta/chat",
 			"/backend-api/codex/responses",
@@ -531,6 +532,20 @@ func TestFrontendServer_Middleware(t *testing.T) {
 			"/readyz",
 			"/responses",
 			"/responses/compact",
+			"/chat/completions",
+			"/messages/count_tokens",
+			"/embeddings",
+			"/contents/generations/tasks",
+			"/contents/generations/tasks/task-123",
+			"/v3/contents/generations/tasks",
+			"/v3/contents/generations/tasks/task-123",
+			"/tts",
+			"/stt",
+			"/custom-voices",
+			"/custom-voices/voice-123",
+			"/realtime",
+			"/web_search",
+			"/x_search",
 		}
 
 		for _, path := range apiPaths {
@@ -651,7 +666,7 @@ func TestFrontendServer_Middleware(t *testing.T) {
 
 		// Request for existing static file
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/logo.png", nil)
+		req := httptest.NewRequest(http.MethodGet, "/xingqiao-brand-logo.png", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -741,7 +756,7 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 		router.Use(middleware)
 
 		w := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/logo.png", nil)
+		req := httptest.NewRequest(http.MethodGet, "/xingqiao-brand-logo.png", nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)

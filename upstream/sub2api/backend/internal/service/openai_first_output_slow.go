@@ -1,10 +1,40 @@
 package service
 
 import (
+	"context"
 	"sort"
 	"sync"
 	"time"
 )
+
+type openAIFirstSemanticOutputCallbackContextKey struct{}
+type openAIFirstOutputSlowObservationContextKey struct{}
+
+func WithOpenAIFirstSemanticOutputCallback(ctx context.Context, callback func()) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, openAIFirstSemanticOutputCallbackContextKey{}, callback)
+}
+
+func notifyOpenAIFirstSemanticOutput(ctx context.Context) {
+	if ctx == nil {
+		return
+	}
+	if callback, ok := ctx.Value(openAIFirstSemanticOutputCallbackContextKey{}).(func()); ok && callback != nil {
+		callback()
+	}
+	if observation, ok := ctx.Value(openAIFirstOutputSlowObservationContextKey{}).(*OpenAIFirstOutputObservation); ok && observation != nil {
+		observation.ObserveSemanticOutput(0)
+	}
+}
+
+func withOpenAIFirstOutputSlowObservation(ctx context.Context, observation *OpenAIFirstOutputObservation) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, openAIFirstOutputSlowObservationContextKey{}, observation)
+}
 
 const openAIFirstOutputSlowThreshold = 60 * time.Second
 

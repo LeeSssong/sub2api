@@ -1,0 +1,8 @@
+2026/09/19 17:01:01 Timezone initialized: UTC (UTC offset: +00:00)
+goos: darwin
+goarch: arm64
+pkg: github.com/Wei-Shaw/sub2api/internal/service
+cpu: Apple M5
+BenchmarkNativeConvergenceRetiredEvent-10            146        703676 ns/op     7225401 B/op          4 allocs/op
+PASS
+ok      github.com/Wei-Shaw/sub2api/internal/service    17.278s

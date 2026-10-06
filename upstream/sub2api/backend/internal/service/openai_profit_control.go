@@ -329,7 +329,7 @@ func openAIProfitControlVetoReasonReadOnly(ctx context.Context, account *Account
 		// availability-first full-pool fallback when no profitable account exists.
 		return true, openAIProfitFilterReasonInvalidAccountRate
 	}
-	if profitControlOverThreshold(*cost.U, gate.threshold) {
+	if profitControlOverThreshold(*cost.U, clampProfitControlThreshold(gate.threshold*account.UserGroupRateMultiplier())) {
 		return true, openAIProfitFilterReasonThreshold
 	}
 	return false, ""

@@ -42,6 +42,7 @@ const (
 	opsErrAPIKeyRequired             = "api_key_required"
 	opsErrInsufficientBalance        = "insufficient balance"
 	opsErrInsufficientAccountBalance = "insufficient account balance"
+	opsErrInsufficientUserBalance    = "insufficient user balance"
 	opsErrInsufficientQuota          = "insufficient_quota"
 
 	// 上游错误码常量 — 错误分类 (normalizeOpsErrorType / classifyOpsPhase / classifyOpsIsBusinessLimited)
@@ -527,22 +528,23 @@ type opsCaptureWriter struct {
 }
 
 type opsCaptureWriterState struct {
-	mu             sync.RWMutex
-	inFlight       sync.WaitGroup
-	generation     uint64
-	responseWriter gin.ResponseWriter
-	limit          int
-	buf            bytes.Buffer
-	probe          []byte
-	lineProbe      []byte
-	frameLineLen   int
-	frameTruncated bool
-	lineTruncated  bool
-	skipLF         bool
-	sseCapturing   bool
-	terminalError  parsedOpsError
-	terminalFound  bool
-	ctx            *gin.Context
+	mu              sync.RWMutex
+	inFlight        sync.WaitGroup
+	generation      uint64
+	responseWriter  gin.ResponseWriter
+	limit           int
+	buf             bytes.Buffer
+	probe           []byte
+	lineProbe       []byte
+	frameLineLen    int
+	frameTruncated  bool
+	lineTruncated   bool
+	skipLF          bool
+	sseCapturing    bool
+	terminalError   parsedOpsError
+	terminalFound   bool
+	terminalSuccess bool
+	ctx             *gin.Context
 }
 
 const (
@@ -590,6 +592,7 @@ func acquireOpsCaptureWriterFromPool(pool opsCaptureWriterStatePool, rw gin.Resp
 	state.sseCapturing = false
 	state.terminalError = parsedOpsError{}
 	state.terminalFound = false
+	state.terminalSuccess = false
 	state.ctx = nil
 	generation := state.generation
 	state.mu.Unlock()
@@ -625,6 +628,7 @@ func releaseOpsCaptureWriter(w *opsCaptureWriter) {
 	state.sseCapturing = false
 	state.terminalError = parsedOpsError{}
 	state.terminalFound = false
+	state.terminalSuccess = false
 	poolable := shouldPoolOpsCaptureWriterState(state)
 	state.buf.Reset()
 	state.mu.Unlock()
@@ -780,6 +784,19 @@ func (w *opsCaptureWriter) Flush() {
 	defer finishDelegatedCall(state)
 	rw.Flush()
 }
+
+// FlushError keeps the writer lease alive while exposing transport flush failures.
+// Do not expose Unwrap: it would let callers bypass the generation/in-flight guard.
+func (w *opsCaptureWriter) FlushError() error {
+	state, rw := w.beginDelegatedCall()
+	if state == nil {
+		return errors.New("response writer released")
+	}
+	state.mu.Unlock()
+	defer finishDelegatedCall(state)
+	return service.FlushGatewayResponse(rw)
+}
+
 func (w *opsCaptureWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	state, rw := w.beginDelegatedCall()
 	if state == nil {
@@ -978,6 +995,9 @@ func (state *opsCaptureWriterState) captureResponseChunk(chunk []byte, status in
 			state.lineTruncated = false
 			continue
 		}
+		if !state.frameTruncated && autoConfigSuccessfulFrame(state.probe) {
+			state.terminalSuccess = true
+		}
 		if !state.frameTruncated && isOpsTerminalSSEFrame(state.probe) {
 			state.sseCapturing = true
 			state.terminalError, state.terminalFound = parseOpsSSEFailure(state.probe)
@@ -1000,6 +1020,9 @@ func endsAtOpsSSEFrameBoundary(chunk []byte) bool {
 }
 
 func mayContainOpsTerminalSSE(chunk []byte) bool {
+	if bytes.Contains(chunk, []byte("[DONE]")) || bytes.Contains(chunk, []byte("response.completed")) || bytes.Contains(chunk, []byte("message_stop")) || bytes.Contains(chunk, []byte("finishReason")) {
+		return true
+	}
 	if bytes.Contains(chunk, []byte("response.failed")) {
 		return true
 	}
@@ -1029,6 +1052,9 @@ func (state *opsCaptureWriterState) appendTerminalProbe(chunk []byte) {
 }
 
 func (state *opsCaptureWriterState) finalizeResponseCapture() {
+	if state != nil && !state.frameTruncated && autoConfigSuccessfulFrame(state.probe) {
+		state.terminalSuccess = true
+	}
 	if state == nil {
 		return
 	}
@@ -1076,6 +1102,11 @@ func (state *opsCaptureWriterState) shouldCapture() bool {
 // - Streaming errors after the response has started (SSE) may still need explicit logging.
 func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		requestStart, ok := c.Request.Context().Value(ctxkey.RequestStartTime).(time.Time)
+		if !ok || requestStart.IsZero() {
+			requestStart = time.Now()
+			c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), ctxkey.RequestStartTime, requestStart))
+		}
 		originalWriter := c.Writer
 		w := acquireOpsCaptureWriter(originalWriter)
 		w.setContext(c)
@@ -1089,7 +1120,9 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		}()
 		c.Writer = w
 		c.Next()
+		service.SetOpsLatencyMs(c, service.OpsRequestDurationMsKey, time.Since(requestStart).Milliseconds())
 		w.finalizeCapture()
+		observeAutoConfigRequest(c, ops, w, requestStart)
 
 		if _, rejected := middleware2.GetIngressRejectReason(c); rejected {
 			return
@@ -1124,8 +1157,12 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 				// A marked in-band error is a visible request failure even though its
 				// wire status is already 200. Otherwise retain recovered attempts as a
 				// provider-health row whose 2xx status keeps it outside request SLA.
-				if len(service.GetOpsStreamErrors(c)) > 0 {
+				if streamErrs := service.GetOpsStreamErrors(c); len(streamErrs) > 0 {
 					logOpsStreamError(c, ops, status)
+					// 请求级带内结果不承载上游归因，此前尝试的上游错误仍按恢复行记录。
+					if opsStreamErrorsAllRequestScoped(streamErrs) {
+						logOpsRecoveredUpstream(c, ops, status)
+					}
 				} else {
 					logOpsRecoveredUpstream(c, ops, status)
 				}
@@ -1140,6 +1177,9 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 
 		// Skip logging if the error should be filtered based on settings
 		if shouldSkipOpsErrorLog(c.Request.Context(), ops, parsed.Message, string(body), c.Request.URL.Path) {
+			return
+		}
+		if shouldSkipOpsClientClosed(c, ops, status) {
 			return
 		}
 
@@ -1405,22 +1445,31 @@ func opsRequestTypeFromContext(c *gin.Context) *int16 {
 	return nil
 }
 
-// logOpsStreamError 记录一次挂在已固化 HTTP 200 SSE 流上的就地错误。
-// 由于 wire 状态码停留在 200，常规的 status>=400 捕获路径永远不会触发；
-// handleStreamingAwareError 通过 service.MarkOpsStreamError 标记这类错误，
-// 此函数据此补记一条错误日志，让并发限流/流内失败在错误看板里可见。
-//
-// 仅在 status<400 且不存在上游错误上下文时调用：上游透传错误已由中间件的
-// upstream-context 分支落库，无需在此重复记录。
+// logOpsStreamError 记录挂在 2xx 响应上的带内错误（就地 SSE error 帧、非流式正文里的
+// 请求级结果等）。由于 wire 状态码停留在 2xx，常规的 status>=400 捕获路径不会触发；
+// 标记方通过 service.MarkOpsStreamError / MarkOpsStreamErrorValue 登记，此函数据此补记
+// 错误日志。上游错误上下文（若有）是否参与分类与归因由标记的 RequestScoped 决定。
 func logOpsStreamError(c *gin.Context, ops *service.OpsService, wireStatus int) {
 	for _, streamErr := range service.GetOpsStreamErrors(c) {
 		logOpsStreamErrorValue(c, ops, wireStatus, streamErr)
 	}
 }
 
+func opsStreamErrorsAllRequestScoped(streamErrs []service.OpsStreamError) bool {
+	if len(streamErrs) == 0 {
+		return false
+	}
+	for _, streamErr := range streamErrs {
+		if !streamErr.RequestScoped {
+			return false
+		}
+	}
+	return true
+}
+
 func logOpsStreamErrorValue(c *gin.Context, ops *service.OpsService, wireStatus int, streamErr service.OpsStreamError) {
 	// 命中 skip_monitoring=true 透传规则的请求跳过落库，与其它分支一致。
-	if streamErr.SkipMonitoring || (streamErr.Turn == 0 && shouldSkipFinalOpsFailure(c)) {
+	if streamErr.SkipMonitoring || (streamErr.Turn == 0 && !streamErr.RequestScoped && shouldSkipFinalOpsFailure(c)) {
 		return
 	}
 
@@ -1435,9 +1484,25 @@ func logOpsStreamErrorValue(c *gin.Context, ops *service.OpsService, wireStatus 
 		classifyStatus = wireStatus
 	}
 	normalizedType := normalizeOpsErrorType(streamErr.ErrType, streamErr.Code)
-	phase, isBusinessLimited, errorOwner, errorSource := classifyOpsErrorLog(c, normalizedType, streamErr.Message, streamErr.Code, classifyStatus)
+	// Only an internal request-scoped marker can create a cancellation row.
+	// An upstream error.type/code must not be able to opt out of SLA metrics.
+	if streamErr.RequestScoped && streamErr.Code == service.OpsClientCanceledCode {
+		normalizedType = service.OpsClientCanceledCode
+	}
+	var phase, errorOwner, errorSource string
+	var isBusinessLimited bool
+	if streamErr.RequestScoped {
+		// 请求级带内结果只按错误类型分类，此前尝试残留的上游错误上下文不参与判定。
+		phase = classifyOpsPhase(normalizedType, streamErr.Message, streamErr.Code)
+		// Cancellation is visible when enabled, but is not a business limit.
+		isBusinessLimited = streamErr.Code != service.OpsClientCanceledCode
+		errorOwner = classifyOpsErrorOwner(phase, streamErr.Message)
+		errorSource = classifyOpsErrorSource(phase, streamErr.Message)
+	} else {
+		phase, isBusinessLimited, errorOwner, errorSource = classifyOpsErrorLog(c, normalizedType, streamErr.Message, streamErr.Code, classifyStatus)
+	}
 	recordedStatus := wireStatus
-	if streamErr.CountTowardsSLA && streamErr.IntendedStatus >= 400 {
+	if streamErr.IntendedStatus >= 400 && (streamErr.CountTowardsSLA || streamErr.RequestScoped) {
 		recordedStatus = streamErr.IntendedStatus
 	}
 	errorBody := ""
@@ -1488,8 +1553,8 @@ func logOpsStreamErrorValue(c *gin.Context, ops *service.OpsService, wireStatus 
 			}
 			return ""
 		}(),
-		// 就地 SSE 错误只出现在流式请求上。
-		Stream:           true,
+		// 带内错误默认挂在 SSE 流上；NonStream 标记的来自非流式 2xx 响应体。
+		Stream:           !streamErr.NonStream,
 		InboundEndpoint:  GetInboundEndpoint(c),
 		UpstreamEndpoint: GetUpstreamEndpoint(c, platform),
 		RequestedModel:   modelName,
@@ -1530,8 +1595,10 @@ func logOpsStreamErrorValue(c *gin.Context, ops *service.OpsService, wireStatus 
 		CreatedAt: time.Now(),
 	}
 	applyOpsLatencyFieldsFromContext(c, entry)
-	applyOpsUpstreamFieldsFromContext(c, entry)
-	if streamErr.Turn > 0 {
+	if !streamErr.RequestScoped {
+		applyOpsUpstreamFieldsFromContext(c, entry)
+	}
+	if streamErr.Turn > 0 && !streamErr.RequestScoped {
 		applyOpsStreamErrorSnapshot(entry, streamErr)
 	}
 
@@ -1635,6 +1702,15 @@ func isTokenCountRequestPath(path string) bool {
 func applyOpsLatencyFieldsFromContext(c *gin.Context, entry *service.OpsInsertErrorLogInput) {
 	if c == nil || entry == nil {
 		return
+	}
+	entry.DurationMs = getContextLatencyMs(c, service.OpsRequestDurationMsKey)
+	// Dedicated error paths can enqueue before the middleware unwinds.
+	if entry.DurationMs == nil && c.Request != nil {
+		if start, ok := c.Request.Context().Value(ctxkey.RequestStartTime).(time.Time); ok && !start.IsZero() {
+			if elapsed := time.Since(start).Milliseconds(); elapsed >= 0 {
+				entry.DurationMs = &elapsed
+			}
+		}
 	}
 	entry.AuthLatencyMs = getContextLatencyMs(c, service.OpsAuthLatencyMsKey)
 	entry.RoutingLatencyMs = getContextLatencyMs(c, service.OpsRoutingLatencyMsKey)
@@ -2154,7 +2230,7 @@ func classifyOpsPhase(errType, message, code string) string {
 			return "request"
 		}
 		return "upstream"
-	case "invalid_request_error", "permission_error", "forbidden_error", "not_found_error", "unsupported_model", "model_not_found":
+	case service.OpsClientCanceledCode, "invalid_request_error", "permission_error", "forbidden_error", "not_found_error", "unsupported_model", "model_not_found":
 		return "request"
 	case "upstream_error", "overloaded_error":
 		return "upstream"
@@ -2170,7 +2246,7 @@ func classifyOpsPhase(errType, message, code string) string {
 
 func classifyOpsSeverity(errType string, status int) string {
 	switch errType {
-	case "invalid_request_error", "authentication_error", "permission_error", "forbidden_error", "not_found_error", "unsupported_model", "model_not_found", "billing_error", "subscription_error":
+	case service.OpsClientCanceledCode, "invalid_request_error", "authentication_error", "permission_error", "forbidden_error", "not_found_error", "model_not_found", "billing_error", "subscription_error":
 		return "P3"
 	}
 	if status >= 500 {
@@ -2271,7 +2347,9 @@ func isOpsLocalBusinessLimitError(code string, msg string) bool {
 		opsCodeSubscriptionNotFound,
 		opsCodeSubscriptionInvalid,
 		opsCodeAPIKeyQuotaExhausted,
-		opsCodeAPIKeyQueryDeprecated:
+		opsCodeAPIKeyQueryDeprecated,
+		apiKeyQueueFullCode,
+		apiKeyQueueTimeoutCode:
 		return true
 	}
 	return strings.Contains(msg, "api key in query parameter is deprecated") ||
@@ -2279,6 +2357,7 @@ func isOpsLocalBusinessLimitError(code string, msg string) bool {
 		strings.Contains(msg, "no active subscription found for this group") ||
 		strings.Contains(msg, "subscription is invalid or expired") ||
 		strings.Contains(msg, opsErrInsufficientBalance) ||
+		strings.Contains(msg, opsErrInsufficientUserBalance) ||
 		strings.Contains(msg, "insufficient account balance") ||
 		strings.Contains(msg, "api key group platform is not gemini") ||
 		strings.Contains(msg, "api key 额度已用完") ||
@@ -2291,6 +2370,8 @@ func isOpsLocalBusinessLimitError(code string, msg string) bool {
 		strings.Contains(msg, "usage quota exhausted for this platform") ||
 		strings.Contains(msg, "requests-per-minute limit exceeded") ||
 		strings.Contains(msg, "too many pending requests") ||
+		strings.Contains(msg, "api key wait queue is full") ||
+		strings.Contains(msg, "waiting for api key concurrency slot") ||
 		strings.Contains(msg, "concurrency limit exceeded") ||
 		strings.Contains(msg, "image generation concurrency limit exceeded") ||
 		strings.Contains(msg, "this group is restricted to claude code clients") ||
@@ -2457,7 +2538,8 @@ func shouldSkipOpsErrorLog(ctx context.Context, ops *service.OpsService, message
 
 	// Check if insufficient balance errors should be ignored
 	if settings.IgnoreInsufficientBalanceErrors {
-		if strings.Contains(bodyLower, opsErrInsufficientBalance) || strings.Contains(bodyLower, opsErrInsufficientAccountBalance) ||
+		if strings.Contains(bodyLower, opsErrInsufficientUserBalance) || strings.Contains(msgLower, opsErrInsufficientUserBalance) ||
+			strings.Contains(bodyLower, opsErrInsufficientBalance) || strings.Contains(bodyLower, opsErrInsufficientAccountBalance) ||
 			strings.Contains(bodyLower, opsErrInsufficientQuota) ||
 			strings.Contains(msgLower, opsErrInsufficientBalance) || strings.Contains(msgLower, opsErrInsufficientAccountBalance) {
 			return true
@@ -2465,6 +2547,21 @@ func shouldSkipOpsErrorLog(ctx context.Context, ops *service.OpsService, message
 	}
 
 	return false
+}
+
+// shouldSkipOpsClientClosed 按 IgnoreContextCanceled 过滤纯客户端取消的 499。
+// 499 表示客户端在响应提交前断开（见 failoverClientGone），通常不带
+// "context canceled" 文案，shouldSkipOpsErrorLog 的文本过滤命中不了。
+// 本次请求未观察到上游错误时是纯客户端取消；已有上游错误的 499 表示上游失败后
+// 客户端没等到换号结果就离开，仍按上游失败落库。
+func shouldSkipOpsClientClosed(c *gin.Context, ops *service.OpsService, status int) bool {
+	if status != statusClientClosedRequest || ops == nil {
+		return false
+	}
+	if !ops.OpsAdvancedSettingsSnapshot().IgnoreContextCanceled {
+		return false
+	}
+	return !hasOpsUpstreamErrorContext(c)
 }
 
 // shouldSkipOpsErrorLogForCyber：cyber_policy 命中的请求由 recordCyberPolicyIfMarked

@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -510,7 +511,7 @@ func TestGatewayServiceRecordUsage_DeepSeekAccountStatsUsesRequestPricingAtAndUp
 		name        string
 		offPeakCost float64
 	}{
-		{"deepseek-v4-flash", 1000*2.2e-7 + 500*6.6e-7 + 1000*7e-9},
+		{"deepseek-v4-flash", 1000*1.5e-7 + 500*6e-7 + 1000*3e-9},
 		{"deepseek-v4-pro", 1000*6.6e-7 + 500*1.98e-6 + 1000*2.2e-8},
 	} {
 		for _, slot := range []struct {
@@ -651,9 +652,9 @@ func TestGatewayServiceRecordUsage_PrefersClientRequestIDOverUpstreamRequestID(t
 
 	require.NoError(t, err)
 	require.NotNil(t, billingRepo.lastCmd)
-	require.Equal(t, "client:client-stable-123", billingRepo.lastCmd.RequestID)
+	require.True(t, strings.HasPrefix(billingRepo.lastCmd.RequestID, "billing:"))
 	require.NotNil(t, usageRepo.lastLog)
-	require.Equal(t, "client:client-stable-123", usageRepo.lastLog.RequestID)
+	require.Equal(t, billingRepo.lastCmd.LogicalRequestID, usageRepo.lastLog.LogicalRequestID)
 }
 
 func TestGatewayServiceRecordUsage_PersistsUpstreamRequestIDSeparately(t *testing.T) {
@@ -664,34 +665,36 @@ func TestGatewayServiceRecordUsage_PersistsUpstreamRequestIDSeparately(t *testin
 	ctx := context.WithValue(context.Background(), ctxkey.RequestID, "local-request-789")
 	err := svc.RecordUsage(ctx, &RecordUsageInput{
 		Result: &ForwardResult{
-			RequestID: "upstream-request-789",
-			Usage:     ClaudeUsage{InputTokens: 10, OutputTokens: 6},
-			Model:     "claude-sonnet-4",
-			Duration:  time.Second,
+			RequestID:       "upstream-request-789",
+			UpstreamHeaders: http.Header{"X-Request-Id": []string{"upstream-request-789"}},
+			Usage:           ClaudeUsage{InputTokens: 10, OutputTokens: 6},
+			Model:           "claude-sonnet-4",
+			Duration:        time.Second,
 		},
 		APIKey:  &APIKey{ID: 508},
 		User:    &User{ID: 608},
-		Account: &Account{ID: 708},
+		Account: &Account{ID: 708, Extra: map[string]any{AccountExtraUpstreamRequestIDHeader: "X-Request-Id"}},
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, "local:local-request-789", usageRepo.lastLog.RequestID)
 	require.NotNil(t, billingRepo.lastCmd)
-	require.Equal(t, "local:local-request-789", billingRepo.lastCmd.RequestID)
+	require.Equal(t, usageRepo.lastLog.LogicalRequestID, billingRepo.lastCmd.LogicalRequestID)
 
 	require.NotNil(t, usageRepo.lastLog.UpstreamRequestID)
 	require.Equal(t, "upstream-request-789", *usageRepo.lastLog.UpstreamRequestID)
 }
 
-func TestGatewayServiceRecordUsage_GeneratesLocalRequestIDWhenContextMissing(t *testing.T) {
+func TestGatewayServiceRecordUsage_UsesUpstreamRequestIDWhenContextMissing(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
 		Result: &ForwardResult{
-			RequestID: "upstream-request-507",
+			RequestID:       "upstream-request-507",
+			UpstreamHeaders: http.Header{"X-Request-Id": []string{"upstream-request-507"}},
 			Usage: ClaudeUsage{
 				InputTokens:  10,
 				OutputTokens: 6,
@@ -701,14 +704,14 @@ func TestGatewayServiceRecordUsage_GeneratesLocalRequestIDWhenContextMissing(t *
 		},
 		APIKey:  &APIKey{ID: 507},
 		User:    &User{ID: 607},
-		Account: &Account{ID: 707},
+		Account: &Account{ID: 707, Extra: map[string]any{AccountExtraUpstreamRequestIDHeader: "X-Request-Id"}},
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, billingRepo.lastCmd)
-	require.True(t, strings.HasPrefix(billingRepo.lastCmd.RequestID, "generated:"))
+	require.True(t, strings.HasPrefix(billingRepo.lastCmd.RequestID, "billing:"))
 	require.NotNil(t, usageRepo.lastLog)
-	require.Equal(t, billingRepo.lastCmd.RequestID, usageRepo.lastLog.RequestID)
+	require.Equal(t, billingRepo.lastCmd.LogicalRequestID, usageRepo.lastLog.LogicalRequestID)
 	require.NotNil(t, usageRepo.lastLog.UpstreamRequestID)
 	require.Equal(t, "upstream-request-507", *usageRepo.lastLog.UpstreamRequestID)
 }
@@ -734,7 +737,7 @@ func TestGatewayServiceRecordUsage_DroppedUsageLogFallsBackToSyncCreate(t *testi
 		},
 		APIKey:  &APIKey{ID: 508},
 		User:    &User{ID: 608},
-		Account: &Account{ID: 708},
+		Account: &Account{ID: 708, Extra: map[string]any{AccountExtraUpstreamRequestIDHeader: "X-Request-Id"}},
 	})
 
 	require.NoError(t, err)
@@ -744,7 +747,7 @@ func TestGatewayServiceRecordUsage_DroppedUsageLogFallsBackToSyncCreate(t *testi
 	require.NoError(t, usageRepo.lastCtxErr)
 }
 
-func TestGatewayServiceRecordUsage_RegistersEvidenceAfterInsert(t *testing.T) {
+func TestGatewayServiceRecordUsage_DoesNotQueryUpstreamAfterInsert(t *testing.T) {
 	usageRepo := &evidenceUsageLogRepoStub{inserted: true, usageLogID: 812}
 	registrar := &usageCostEvidenceRegistrarStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
@@ -759,8 +762,8 @@ func TestGatewayServiceRecordUsage_RegistersEvidenceAfterInsert(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 1, usageRepo.calls)
-	require.Equal(t, 1, registrar.calls)
-	require.Equal(t, int64(812), registrar.usageLogID)
+	require.Zero(t, registrar.calls)
+	require.Zero(t, registrar.usageLogID)
 }
 
 func TestGatewayServiceRecordUsage_DoesNotRegisterEvidenceForConflictOrOAuth(t *testing.T) {
@@ -805,7 +808,7 @@ func TestGatewayServiceRecordUsage_RegistrationFailureDoesNotChangeSuccess(t *te
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, 1, registrar.calls)
+	require.Zero(t, registrar.calls)
 }
 
 func TestGatewayServiceRecordUsage_BillingErrorWritesUnsettledUsageLog(t *testing.T) {

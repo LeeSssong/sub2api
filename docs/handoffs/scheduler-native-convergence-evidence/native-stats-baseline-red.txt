@@ -1,0 +1,10 @@
+2026/09/19 17:01:03 Timezone initialized: UTC (UTC offset: +00:00)
+--- FAIL: TestNativeConvergenceGroupedReportsFeedNativeRuntime (0.00s)
+    openai_native_convergence_test.go:264:
+            Error Trace:    /Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/scheduler-native-convergence/upstream/sub2api/backend/internal/service/openai_native_convergence_test.go:264
+            Error:          Should be true
+            Test:           TestNativeConvergenceGroupedReportsFeedNativeRuntime
+            Messages:       native scheduler must observe grouped request results
+FAIL
+FAIL    github.com/Wei-Shaw/sub2api/internal/service    4.826s
+FAIL

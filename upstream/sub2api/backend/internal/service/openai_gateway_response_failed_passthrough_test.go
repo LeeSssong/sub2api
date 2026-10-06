@@ -81,10 +81,10 @@ func TestForwardAsChatCompletions_ResponseFailed_PassthroughRule(t *testing.T) {
 
 	respBody := rec.Body.String()
 	errType := gjson.Get(respBody, "error.type").String()
-	require.Equal(t, "upstream_error", errType)
+	require.Equal(t, "invalid_request_error", errType)
 	errMsg := gjson.Get(respBody, "error.message").String()
-	require.NotEmpty(t, errMsg, "passthrough should preserve error message")
-	require.Contains(t, errMsg, "context window")
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""), errMsg)
+	require.NotContains(t, errMsg, "context window")
 }
 
 func TestResponsesStreamAccessStateFailoverPrecedesPassthroughRule(t *testing.T) {
@@ -177,7 +177,10 @@ func TestResponsesStreamCyberPolicyPrecedesPassthroughRule(t *testing.T) {
 			require.False(t, errors.As(err, &failoverErr))
 			require.NotNil(t, GetOpsCyberPolicy(c))
 			require.NotEqual(t, http.StatusTeapot, rec.Code)
-			require.Contains(t, rec.Body.String(), "cyber_policy")
+			require.Contains(t, rec.Body.String(), openAICyberPolicyClientCode)
+			require.Contains(t, rec.Body.String(), openAICyberPolicyClientMessage)
+			require.NotContains(t, rec.Body.String(), "cyber_policy")
+			require.NotContains(t, rec.Body.String(), "blocked by cyber policy")
 		})
 	}
 }
@@ -287,8 +290,9 @@ func TestForwardAsChatCompletions_ResponseFailed_ErrorCodeRuleMatchesViaSemantic
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, rec.Code, "error-code-conditioned rule should match via semantic status inference")
 	respBody := rec.Body.String()
-	require.Equal(t, "upstream_error", gjson.Get(respBody, "error.type").String())
-	require.Contains(t, gjson.Get(respBody, "error.message").String(), "context window")
+	require.Equal(t, "invalid_request_error", gjson.Get(respBody, "error.type").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""), gjson.Get(respBody, "error.message").String())
+	require.NotContains(t, gjson.Get(respBody, "error.message").String(), "context window")
 }
 
 func TestForwardAsAnthropic_ResponseFailed_ErrorCodeRuleMatchesViaSemanticStatus(t *testing.T) {

@@ -133,18 +133,17 @@ type accountMonitorRecommendationEvaluator func(
 ) *AccountMonitorGroupRecommendation
 
 type AccountMonitorService struct {
-	repo                AccountMonitorRepository
-	accountRepo         AccountMonitorAccountRepository
-	testService         *AccountTestService
-	usage               *AccountUsageService
-	activeProbeUsage    ActiveProbeUsageWindowReader
-	multiplier          accountMonitorMultiplierResolver
-	costPricing         accountMonitorModelPricingReader
-	recommend           accountMonitorRecommendationEvaluator
-	modelDetection      *AccountModelDetectionService
-	schedulerProjection OpenAIAccountSchedulerProjectionProvider
-	concurrencyService  *ConcurrencyService
-	runtimeBlocker      AccountRuntimeBlocker
+	repo               AccountMonitorRepository
+	accountRepo        AccountMonitorAccountRepository
+	testService        *AccountTestService
+	usage              *AccountUsageService
+	activeProbeUsage   ActiveProbeUsageWindowReader
+	multiplier         accountMonitorMultiplierResolver
+	costPricing        accountMonitorModelPricingReader
+	recommend          accountMonitorRecommendationEvaluator
+	modelDetection     *AccountModelDetectionService
+	concurrencyService *ConcurrencyService
+	runtimeBlocker     AccountRuntimeBlocker
 
 	probeConnection accountMonitorProbeConnection
 	probeTimeout    time.Duration
@@ -170,14 +169,6 @@ func (s *AccountMonitorService) SetActiveProbeUsageReader(reader ActiveProbeUsag
 func (s *AccountMonitorService) SetModelDetectionService(detector *AccountModelDetectionService) {
 	if s != nil {
 		s.modelDetection = detector
-	}
-}
-
-// SetOpenAIAccountSchedulerProjectionProvider attaches the scheduler-owned
-// read-only projection without changing legacy constructors.
-func (s *AccountMonitorService) SetOpenAIAccountSchedulerProjectionProvider(provider OpenAIAccountSchedulerProjectionProvider) {
-	if s != nil {
-		s.schedulerProjection = provider
 	}
 }
 
@@ -1365,8 +1356,6 @@ func accountMonitorReasonLabel(code AccountMonitorReasonCode) string {
 	switch code {
 	case AccountMonitorReasonStrategy:
 		return "当前分组策略改变候选顺序"
-	case AccountMonitorReasonQualityGate:
-		return "质量资格影响候选资格"
 	case AccountMonitorReasonRuntimeLoad:
 		return "实时负载或排队改变候选顺序"
 	case AccountMonitorReasonCooldown:
@@ -1397,75 +1386,7 @@ func (s *AccountMonitorService) attachSchedulerProjection(
 	if platform != PlatformOpenAI && platform != PlatformGrok {
 		return
 	}
-	if s.schedulerProjection == nil {
-		markSchedulerProjectionUnavailable(rows)
-		return
-	}
-	if s.concurrencyService != nil && s.concurrencyService.cache == nil {
-		slog.WarnContext(ctx, "account monitor scheduler load snapshot unavailable", "group_id", group.ID, "reason", "concurrency cache unavailable")
-		markSchedulerProjectionUnavailable(rows)
-		return
-	}
-	loadMap := map[int64]*AccountLoadInfo{}
-	if s.concurrencyService != nil {
-		loadReq := buildOpenAIAccountLoadRequest(accounts)
-		loaded, err := s.concurrencyService.GetAccountsLoadBatch(ctx, loadReq)
-		if err != nil {
-			slog.WarnContext(ctx, "account monitor scheduler load snapshot unavailable", "group_id", group.ID, "error", err)
-			markSchedulerProjectionUnavailable(rows)
-			return
-		}
-		loadMap = loaded
-	}
-	projection, err := s.schedulerProjection.Project(ctx, OpenAIAccountSchedulerProjectionRequest{
-		GroupID:           group.ID,
-		Platform:          platform,
-		RequiredTransport: OpenAIUpstreamTransportAny,
-		RequirePrivacySet: group.RequirePrivacySet,
-		QualityOrder:      append([]int64(nil), qualityOrder...),
-		SnapshotAt:        now.UTC(),
-		Accounts:          accounts,
-		LoadMap:           loadMap,
-	})
-	if err != nil || projection == nil {
-		if err != nil {
-			slog.WarnContext(ctx, "account monitor scheduler projection unavailable", "group_id", group.ID, "error", err)
-		} else {
-			slog.WarnContext(ctx, "account monitor scheduler projection unavailable", "group_id", group.ID, "reason", "nil projection")
-		}
-		markSchedulerProjectionUnavailable(rows)
-		return
-	}
-	candidates := make(map[int64]OpenAIAccountSchedulerProjectionCandidate, len(projection.Candidates))
-	eligibleTotal := 0
-	for _, candidate := range projection.Candidates {
-		candidates[candidate.AccountID] = candidate
-		if candidate.Eligible && candidate.Rank != nil {
-			eligibleTotal++
-		}
-	}
-	for i := range rows {
-		candidate, ok := candidates[rows[i].AccountID]
-		if !ok {
-			continue
-		}
-		snapshotAt := projection.SnapshotAt.UTC()
-		rows[i].SchedulerExplanation = &AccountMonitorSchedulerExplanation{
-			Rank: candidate.Rank, RankTotal: eligibleTotal, CandidateTotal: projection.CandidateCount,
-			Eligible: candidate.Eligible, PolicyKey: projection.PolicyKey, PolicyLabel: projection.PolicyLabel,
-			EffectiveWeights: projection.EffectiveWeights, EffectiveFacts: projection.EffectiveFacts,
-			ModelQuotaParity: projection.ModelQuotaParity, CandidateScope: "group", SnapshotAt: &snapshotAt,
-			PrimaryReasonCode: candidate.PrimaryReasonCode, PrimaryReasonLabel: accountMonitorReasonLabel(candidate.PrimaryReasonCode),
-		}
-		if candidate.Eligible && candidate.Rank != nil {
-			rows[i].SchedulerRank = candidate.Rank
-			rows[i].SchedulerRankTotal = eligibleTotal
-		}
-		if candidate.QualityScore != nil {
-			rows[i].QualityScore = candidate.QualityScore
-			rows[i].SchedulerQualityScore = candidate.QualityScore
-		}
-	}
+	markSchedulerProjectionUnavailable(rows)
 }
 
 func markSchedulerProjectionUnavailable(rows []AccountMonitorGroupAccount) {

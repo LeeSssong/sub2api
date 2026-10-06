@@ -1,6 +1,13 @@
+
+vi.mock('@/api/admin/credentialEncryption', () => ({
+  getCredentialEncryption: vi.fn().mockResolvedValue({ configured: true, source: 'server_config' }),
+  initializeCredentialEncryption: vi.fn(),
+}))
 import { defineComponent } from 'vue'
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+enableAutoUnmount(afterEach)
 
 const {
   createAccountMock,
@@ -9,6 +16,7 @@ const {
   showWarningMock,
   importCodexSessionMock,
   createOpenAICodexPATMock,
+  createCredentialOperationsMock,
   authIsSimpleMode,
 } = vi.hoisted(() => ({
   createAccountMock: vi.fn(),
@@ -17,6 +25,7 @@ const {
   showWarningMock: vi.fn(),
   importCodexSessionMock: vi.fn(),
   createOpenAICodexPATMock: vi.fn(),
+  createCredentialOperationsMock: vi.fn(),
   authIsSimpleMode: { value: true },
 }))
 
@@ -39,6 +48,7 @@ vi.mock('@/stores/auth', () => ({
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
+      getManagementCapabilities: vi.fn().mockResolvedValue({ web_search_enabled: false, account_quota_notify_enabled: false }),
       create: createAccountMock,
       probeUpstreamBilling: probeUpstreamBillingMock,
       syncUpstreamModels: syncUpstreamModelsMock,
@@ -60,6 +70,10 @@ vi.mock('@/api/admin/accounts', () => ({
   getAntigravityDefaultModelMapping: vi.fn().mockResolvedValue([]),
 }))
 
+vi.mock('@/api/admin/accountTokenGuardV2', () => ({
+  createTokenGuardV2Account: createCredentialOperationsMock,
+}))
+
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return {
@@ -69,6 +83,7 @@ vi.mock('vue-i18n', async () => {
 })
 
 import CreateAccountModal from '../CreateAccountModal.vue'
+import OpenAITwoFAImport from '../OpenAITwoFAImport.vue'
 
 const legacyPolicyKey = ['rate', 'multiplier', 'policy'].join('_')
 
@@ -160,6 +175,7 @@ async function selectButtonByText(wrapper: ReturnType<typeof mountModal>, text: 
   const button = wrapper.findAll('button').find((candidate) => candidate.text().includes(text))
   expect(button).toBeDefined()
   await button?.trigger('click')
+  await flushPromises()
 }
 
 async function submitApiKeyAccount(
@@ -197,6 +213,19 @@ async function openCodexImportStep(toggleClicks = 0) {
 }
 
 describe('CreateAccountModal OpenAI long-context billing', () => {
+  it('creates an account with a separate cost multiplier and preserves automatic upstream billing rate sync', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await selectButtonByText(wrapper, 'API Key')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="account-cost-multiplier"]').element.value).toBe('0.1')
+    await wrapper.get('[data-testid="account-cost-multiplier"]').setValue(0.35)
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('Cost example')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent'); await flushPromises()
+    expect(createAccountMock).toHaveBeenCalledWith(expect.objectContaining({ upstream_billing_rate_sync_enabled: true, extra: expect.objectContaining({ cost_multiplier: 0.35 }) }))
+    expect(createAccountMock.mock.calls[0]?.[0]).not.toHaveProperty('rate_multiplier')
+  })
+
   beforeEach(() => {
     authIsSimpleMode.value = true
     createAccountMock.mockReset().mockResolvedValue({ id: 42, platform: 'openai', type: 'apikey' })
@@ -210,11 +239,70 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
       failed: 0,
       errors: [],
       warnings: [],
+      items: [{ action: 'created', account_id: 42 }],
     })
+    createCredentialOperationsMock.mockReset().mockResolvedValue({ account_id: 42 })
     createOpenAICodexPATMock.mockReset().mockResolvedValue({})
   })
 
   afterEach(() => vi.useRealTimers())
+
+  it('creates API keys with an independent cache creation billing toggle', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await selectButtonByText(wrapper, 'API Key')
+    const selector = '[data-testid="apikey-cache-creation-as-input"]'
+    expect(wrapper.find(selector).exists()).toBe(true)
+    await wrapper.get(selector).setValue(true)
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('cache input account')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_apikey_cache_creation_as_input).toBe(true)
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_excel_bps).toBeUndefined()
+  })
+
+  it('offers 2FA initial login with optional name and imports through Session deduplication', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await wrapper.get('[data-testid="openai-two-fa"]').trigger('click')
+    expect(wrapper.get('[data-tour="account-form-name"]').attributes('required')).toBeUndefined()
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    const importer = wrapper.getComponent(OpenAITwoFAImport)
+    expect(wrapper.findComponent(OAuthAuthorizationFlowStub).exists()).toBe(false)
+    const credential = { access_token: 'test-access', refresh_token: 'test-refresh', account_id: 'test-workspace' }
+    const login = { email: 'user@example.com', password: 'test-password', mfa_secret: 'test-secret' }
+    await expect(importer.props('importCredential')(credential, login.email, login, 1.25)).resolves.toBe('created')
+    expect(importCodexSessionMock).toHaveBeenCalledWith(expect.objectContaining({
+      content: JSON.stringify(credential), name: 'user@example.com', update_existing: false, skip_existing: true,
+      concurrency: 10, group_ids: [], proxy_id: null, procurement_cost_cny: 1.25,
+    }))
+    expect(wrapper.emitted('created')).toHaveLength(1)
+    expect(wrapper.emitted('close')).toBeUndefined()
+    expect(createCredentialOperationsMock).toHaveBeenCalledWith({
+      account_id: 42, login_email: login.email, password: login.password, totp_secret: login.mfa_secret,
+      credential_mode: 'password_totp', proxy_source: 'account', enabled: true, auto_relogin_enabled: true,
+    })
+  })
+
+  it('retries operations enrollment for an already imported identity without reporting premature success', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await wrapper.get('[data-testid="openai-two-fa"]').trigger('click')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    const importer = wrapper.getComponent(OpenAITwoFAImport)
+    const credential = { access_token: 'test-access', refresh_token: 'test-refresh' }
+    const login = { email: 'user@example.com', password: 'test-password', mfa_secret: 'test-secret' }
+    createCredentialOperationsMock.mockRejectedValueOnce(new Error('encryption unavailable'))
+    await expect(importer.props('importCredential')(credential, login.email, login)).rejects.toThrow()
+    expect(wrapper.emitted('created')).toBeUndefined()
+    importCodexSessionMock.mockResolvedValue({ created: 0, updated: 0, skipped: 1, failed: 0, items: [{ action: 'skipped', account_id: 42 }] })
+    await expect(importer.props('importCredential')(credential, login.email, login)).resolves.toBe('skipped')
+    expect(createCredentialOperationsMock).toHaveBeenCalledTimes(2)
+    expect(createCredentialOperationsMock.mock.calls[1]?.[0]).toMatchObject({
+      account_id: 42, password: login.password, totp_secret: login.mfa_secret, enabled: true, auto_relogin_enabled: true,
+    })
+  })
 
   it('sets month and year expiry presets without submitting the account form', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
@@ -284,6 +372,18 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
 
     expect(wrapper.find('[data-testid="openai-long-context-billing-toggle"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="create-openai-ws-mode"]').exists()).toBe(true)
+  })
+
+  it('persists Copilot SDK mode for an API key account', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await selectButtonByText(wrapper, 'API Key')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('copilot sidecar')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('sidecar-key')
+    await wrapper.get('[data-testid="copilot-sdk-toggle"]').setValue(true)
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_copilot_sdk).toBe(true)
   })
 
   it('sends false explicitly for normal OpenAI account creation by default', async () => {
@@ -489,6 +589,65 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
 
     expect(createAccountMock.mock.calls[0]?.[0]?.upstream_billing_probe_enabled).toBe(false)
     expect(probeUpstreamBillingMock).not.toHaveBeenCalled()
+  })
+
+  it('submits OpenCode Zen default protocol rules with adaptive endpoints', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenCode')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('oc')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-opencode-zen')
+
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
+      account_mode: 'zen',
+      api_protocol: 'adaptive',
+      base_url: 'https://opencode.ai/zen/v1',
+      api_base_urls: {
+        chat_completions: 'https://opencode.ai/zen/v1',
+        anthropic: 'https://opencode.ai/zen',
+        responses: 'https://opencode.ai/zen/v1'
+      },
+      protocol_rules: [
+        { pattern: 'grok-*', protocol: 'responses' },
+        { pattern: 'gpt-*', protocol: 'responses' },
+        { pattern: 'muse-spark-*', protocol: 'responses' },
+        { pattern: 'claude-*', protocol: 'anthropic' },
+        { pattern: 'qwen*', protocol: 'anthropic' }
+      ]
+    })
+  })
+
+  it('submits OpenCode GO endpoints after switching account type', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenCode')
+    await selectButtonByText(wrapper, 'admin.accounts.opencodeGo.accountMode.go')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('oc-go')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-opencode-go')
+
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
+      account_mode: 'go',
+      api_protocol: 'adaptive',
+      base_url: 'https://opencode.ai/zen/go/v1',
+      api_base_urls: {
+        chat_completions: 'https://opencode.ai/zen/go/v1',
+        anthropic: 'https://opencode.ai/zen/go',
+        responses: 'https://opencode.ai/zen/go/v1'
+      },
+      protocol_rules: [
+        { pattern: 'grok-*', protocol: 'responses' },
+        { pattern: 'gpt-*', protocol: 'responses' },
+        { pattern: 'muse-spark-*', protocol: 'responses' },
+        { pattern: 'minimax-*', protocol: 'anthropic' },
+        { pattern: 'qwen*', protocol: 'anthropic' }
+      ]
+    })
   })
 
   it('submits adaptive Kimi protocol endpoints', async () => {

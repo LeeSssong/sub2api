@@ -7,13 +7,17 @@
     @close="handleClose"
   >
     <form id="import-data-form" class="space-y-4" @submit.prevent="handleImport">
+      <div v-if="authStore.isObserver" class="space-y-2">
+        <GroupSelector v-model="groupIDs" :groups="observerGroups" />
+        <p class="input-hint">{{ t('admin.users.observerImportHint') }}</p>
+      </div>
       <div class="text-sm text-gray-600 dark:text-dark-300">
         {{ t('admin.accounts.dataImportHint') }}
       </div>
       <div
         class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-600 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
       >
-        {{ t('admin.accounts.dataImportWarning') }}
+        {{ t(admissionEnabled ? 'admin.accounts.admission.importWarning' : 'admin.accounts.dataImportWarning') }}
       </div>
 
       <div>
@@ -48,6 +52,57 @@
           accept="application/json,.json"
           multiple
           @change="handleFileChange"
+        />
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-2 md:items-end">
+        <label class="flex min-h-10 cursor-pointer items-center gap-2">
+          <input
+            v-model="admissionEnabled"
+            type="checkbox"
+            data-testid="data-admission-enabled"
+            :disabled="importing"
+            class="h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
+          />
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.accounts.admission.enabled') }}</span>
+        </label>
+        <div>
+          <label for="data-import-total-cost" class="input-label">{{ t('admin.accounts.purchaseCost.batchLabel') }}</label>
+          <div class="relative">
+            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-gray-500">¥</span>
+            <input
+              id="data-import-total-cost"
+              v-model="totalProcurementCostCNY"
+              data-testid="data-import-total-cost"
+              type="number"
+              min="0"
+              step="0.01"
+              inputmode="decimal"
+              class="input pl-7"
+              :placeholder="t('admin.accounts.purchaseCost.optionalPlaceholder')"
+              :disabled="importing"
+            />
+          </div>
+          <p class="input-hint">{{ t('admin.accounts.purchaseCost.batchHint') }}</p>
+        </div>
+      </div>
+      <div v-if="admissionEnabled" class="space-y-4">
+        <div>
+          <label for="data-admission-test-group" class="input-label">{{ t('admin.accounts.admission.testGroup') }}</label>
+          <Select
+            id="data-admission-test-group"
+            v-model="admissionTestGroupId"
+            data-testid="data-admission-test-group"
+            :options="admissionTestGroupOptions"
+            :aria-label="t('admin.accounts.admission.testGroup')"
+            :disabled="importing"
+            searchable
+          />
+        </div>
+        <GroupSelector
+          v-model="targetGroupIds"
+          :groups="activeGroups"
+          :label="t('admin.accounts.admission.targetGroups')"
         />
       </div>
 
@@ -99,12 +154,18 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import Select from '@/components/common/Select.vue'
+import GroupSelector from '@/components/common/GroupSelector.vue'
+import { buildAccountAdmission, getAccountAdmissionError, getAdmissionGroups } from '@/components/account/accountAdmission'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { AdminDataImportResult, AdminDataPayload } from '@/types'
+import { useAuthStore } from '@/stores/auth'
+import type { Group } from '@/types'
+import type { AdminDataImportResult, AdminDataPayload, AdminGroup, AccountPlatform } from '@/types'
 
 interface Props {
   show: boolean
+  groups?: AdminGroup[]
 }
 
 interface Emits {
@@ -112,11 +173,32 @@ interface Emits {
   (e: 'imported'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { groups: () => [] })
 const emit = defineEmits<Emits>()
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const authStore = useAuthStore()
+const groupIDs = ref<number[]>([])
+const observerGroups = ref<Group[]>([])
+watch(() => props.show, async (show) => {
+  if (show && authStore.isObserver) {
+    observerGroups.value = await adminAPI.groups.getAllIncludingInactive().catch(() => [])
+    groupIDs.value = groupIDs.value.filter(id => observerGroups.value.some(group => group.id === id))
+  }
+})
+
+const admissionEnabled = ref(false)
+const totalProcurementCostCNY = ref('')
+const admissionTestGroupId = ref<number | null>(null)
+const targetGroupIds = ref<number[]>([])
+const filePlatforms = ref<AccountPlatform[]>([])
+let selectedFilesVersion = 0
+const activeGroups = computed(() => getAdmissionGroups(props.groups, filePlatforms.value))
+const admissionTestGroupOptions = computed(() => [
+  { value: null, label: t('admin.accounts.admission.unassigned') },
+  ...activeGroups.value.map(group => ({ value: group.id, label: group.name }))
+])
 
 const importing = ref(false)
 const files = ref<File[]>([])
@@ -139,7 +221,13 @@ watch(
   () => props.show,
   (open) => {
     if (open) {
+      admissionEnabled.value = false
+      totalProcurementCostCNY.value = ''
+      admissionTestGroupId.value = null
+      targetGroupIds.value = []
       files.value = []
+      filePlatforms.value = []
+      selectedFilesVersion += 1
       dragDepth.value = 0
       hasCreatedData.value = false
       result.value = null
@@ -189,6 +277,21 @@ const setSelectedFiles = (sourceFiles: FileList | File[] | null | undefined) => 
   }
   files.value = picked
   result.value = null
+  filePlatforms.value = []
+  const version = ++selectedFilesVersion
+  // Preview platforms only; the existing import handler still owns file validation/errors.
+  void Promise.all(picked.map(async sourceFile => {
+    try {
+      const payload: unknown = JSON.parse(await readFileAsText(sourceFile))
+      return isValidDataPayload(payload)
+        ? payload.accounts.map(account => account?.platform).filter(Boolean)
+        : []
+    } catch {
+      return []
+    }
+  })).then(platforms => {
+    if (version === selectedFilesVersion) filePlatforms.value = [...new Set(platforms.flat())]
+  })
 }
 
 const handleDragEnter = () => {
@@ -272,6 +375,10 @@ const handleImport = async () => {
     return
   }
 
+  if (authStore.isObserver && !groupIDs.value.length) {
+    appStore.showError(t('admin.users.observerImportHint'))
+    return
+  }
   importing.value = true
   try {
     const dataPayloads: AdminDataPayload[] = []
@@ -292,10 +399,31 @@ const handleImport = async () => {
       dataPayloads.push(parsed)
     }
     const dataPayload = mergeDataPayloads(dataPayloads)
+    const trimmedCost = String(totalProcurementCostCNY.value).trim()
+    const totalCost = trimmedCost === '' ? undefined : Number(trimmedCost)
+    if (totalCost !== undefined && (!Number.isFinite(totalCost) || totalCost < 0)) {
+      appStore.showError(t('admin.accounts.purchaseCost.invalid'))
+      return
+    }
+    const admissionError = getAccountAdmissionError({
+      enabled: admissionEnabled.value,
+      testGroupId: admissionTestGroupId.value,
+      targetGroupIds: targetGroupIds.value,
+      groups: props.groups,
+      platforms: admissionEnabled.value ? dataPayload.accounts.map(account => account?.platform) : []
+    })
+    if (admissionError) {
+      appStore.showError(t(admissionError))
+      return
+    }
+    const admission = buildAccountAdmission(admissionEnabled.value, admissionTestGroupId.value)
 
     const res = await adminAPI.accounts.importData({
       data: dataPayload,
-      skip_default_group_bind: true
+      group_ids: admission ? targetGroupIds.value : authStore.isObserver ? groupIDs.value : undefined,
+      skip_default_group_bind: true,
+      ...(admission ? { admission } : {}),
+      ...(totalCost !== undefined ? { total_procurement_cost_cny: totalCost } : {})
     })
 
     result.value = res

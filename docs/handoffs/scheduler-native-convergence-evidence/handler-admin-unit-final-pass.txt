@@ -1,0 +1,2 @@
+ok      github.com/Wei-Shaw/sub2api/internal/handler    82.103s
+ok      github.com/Wei-Shaw/sub2api/internal/handler/admin  9.825s

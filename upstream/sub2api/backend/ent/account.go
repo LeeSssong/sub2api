@@ -55,6 +55,8 @@ type Account struct {
 	EstimatedUsableQuotaUsd *float64 `json:"estimated_usable_quota_usd,omitempty"`
 	// ProcurementCostEffectiveAt holds the value of the "procurement_cost_effective_at" field.
 	ProcurementCostEffectiveAt *time.Time `json:"procurement_cost_effective_at,omitempty"`
+	// GroupRateMultiplier holds the value of the "group_rate_multiplier" field.
+	GroupRateMultiplier float64 `json:"group_rate_multiplier,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
 	// ErrorMessage holds the value of the "error_message" field.
@@ -179,7 +181,7 @@ func (*Account) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case account.FieldAutoPauseOnExpired, account.FieldSchedulable:
 			values[i] = new(sql.NullBool)
-		case account.FieldRateMultiplier, account.FieldProcurementCostCny, account.FieldEstimatedUsableQuotaUsd:
+		case account.FieldRateMultiplier, account.FieldProcurementCostCny, account.FieldEstimatedUsableQuotaUsd, account.FieldGroupRateMultiplier:
 			values[i] = new(sql.NullFloat64)
 		case account.FieldID, account.FieldProxyID, account.FieldProxyFallbackOriginID, account.FieldConcurrency, account.FieldLoadFactor, account.FieldPriority, account.FieldParentAccountID:
 			values[i] = new(sql.NullInt64)
@@ -327,6 +329,12 @@ func (_m *Account) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.ProcurementCostEffectiveAt = new(time.Time)
 				*_m.ProcurementCostEffectiveAt = value.Time
+			}
+		case account.FieldGroupRateMultiplier:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field group_rate_multiplier", values[i])
+			} else if value.Valid {
+				_m.GroupRateMultiplier = value.Float64
 			}
 		case account.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -571,6 +579,9 @@ func (_m *Account) String() string {
 		builder.WriteString("procurement_cost_effective_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("group_rate_multiplier=")
+	builder.WriteString(fmt.Sprintf("%v", _m.GroupRateMultiplier))
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)

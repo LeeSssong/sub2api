@@ -1,5 +1,13 @@
 export default {
     ops: {
+      balanceError: {
+        user: '用户余额不足',
+        userHint: '本站用户余额未达到请求要求。请充值该用户余额后重试。',
+        upstream: '上游账户余额不足',
+        upstreamHint: '上游服务报告账户余额不足。请管理员检查并充值或更换上游账户。',
+        unknown: '余额不足（来源未确认）',
+        unknownHint: '这条日志缺少足够的来源信息，请结合原始错误和上游响应确认余额归属。',
+      },
       title: '运维监控',
       description: '运维监控与排障',
       // Dashboard
@@ -41,8 +49,14 @@ export default {
         stacktraceThreshold: '堆栈阈值',
         samplingInitial: '采样初始条数',
         samplingThereafter: '后续采样间隔',
-        retentionDays: '保留天数',
-        retentionDaysHint: '由定时数据清理任务执行。',
+        retentionDays: '运维日志保留天数',
+        requestRetentionDays: '请求日志保留天数',
+        requestRetentionDaysHint: '请求使用明细每 6 小时滚动清理一次，保存后在下次清理生效。永久保留会持续占用存储空间。',
+        retentionDaysInvalid: '运维日志须保留 1–3650 天；请求日志须保留 1–3650 天或选择永久保留。',
+        retentionDaysOption: '{days} 天',
+        retentionDaysCustom: '自定义天数',
+        retentionForever: '永久保留',
+        retentionDaysHint: '按运维设置中启用的数据清理计划执行。',
         caller: '调用方',
         sampling: '采样',
         persistAccessLogs: '将访问日志写入数据库',
@@ -69,6 +83,7 @@ export default {
         logDetails: '日志详情',
         loadFailed: '加载系统日志失败',
         runtimeConfigActive: '运行时日志配置已生效',
+        runtimeConfigLoadFailed: '日志配置加载失败，请刷新后重试。',
         runtimeConfigSaveFailed: '保存日志配置失败',
         resetRuntimeConfigConfirm: '确定要重置为启动配置（env/yaml）并立即应用吗？',
         runtimeConfigReset: '已重置为启动日志配置',
@@ -153,15 +168,15 @@ export default {
         custom: '自定义'
       },
       openaiTokenStats: {
-        title: 'OpenAI Token 请求统计',
+        title: 'Token 请求统计',
         viewModeTopN: 'TopN',
         viewModePagination: '分页',
         prevPage: '上一页',
         nextPage: '下一页',
         pageInfo: '第 {page}/{total} 页',
         totalModels: '模型总数：{total}',
-        failedToLoad: '加载 OpenAI Token 统计失败',
-        empty: '当前筛选条件下暂无 OpenAI Token 请求统计数据',
+        failedToLoad: '加载 Token 请求统计失败',
+        empty: '当前筛选条件下暂无 Token 请求统计数据',
         table: {
           model: '模型',
           requestCount: '请求数',
@@ -170,31 +185,6 @@ export default {
           totalOutputTokens: '输出 Token 总数',
           avgDurationMs: '平均时长(ms)',
           requestsWithFirstToken: '首 Token 样本数'
-        }
-      },
-      openaiSchedulerExperience: {
-        title: 'OpenAI 调度体验',
-        failedToLoad: '加载 OpenAI 调度体验指标失败',
-        retry: '重试',
-        empty: '当前筛选条件下暂无 OpenAI 调度运行记录',
-        ratio: '{numerator} / {denominator}',
-        sampleSize: '样本 {count}',
-        p95: 'P95 {value}',
-        latestEvent: '最近事件：',
-        runtimeWindow: '运行窗口：',
-        status: {
-          insufficientData: '样本不足',
-          noData: '暂无数据'
-        },
-        metrics: {
-          autoRecoveryRate: '自动恢复率',
-          averageAttempts: '平均尝试次数',
-          repeatedBadAccountRate: '重复命中坏账号率',
-          retryBudgetExhaustedRate: '重试预算耗尽率',
-          stickyKeptRate: '粘性保留率',
-          stickyEscapeRate: '粘性逃逸率',
-          topKFilteredRate: 'Top-K 过滤率',
-          ttftReportEligibleRate: 'TTFT 报告合格率'
         }
       },
       customTimeRange: {
@@ -343,6 +333,7 @@ export default {
         originalUpstreamStatus: '原始上游状态',
         originalUpstreamMessage: '原始上游消息',
         originalUpstreamDetail: '原始上游详情',
+        originalUpstreamTruncated: '上游原文超过存储上限，以下仅展示已保留的原始内容。',
         noErrorSelected: '未选择错误。',
         backToList: '返回列表',
         resolution: '已解决：',
@@ -794,8 +785,8 @@ export default {
         dashboardCards: '仪表盘卡片',
         displayAlertEvents: '展示告警事件',
         displayAlertEventsHint: '控制运维监控仪表盘中告警事件卡片是否显示，默认开启。',
-        displayOpenAITokenStats: '展示 OpenAI Token 请求统计',
-        displayOpenAITokenStatsHint: '控制运维监控仪表盘中 OpenAI Token 请求统计卡片是否显示，默认关闭。',
+        displayOpenAITokenStats: '展示 Token 请求统计',
+        displayOpenAITokenStatsHint: '按模型统计所有平台的 Token 请求，支持平台和分组筛选，默认关闭。',
         autoRefreshCountdown: '自动刷新：{seconds}s',
         validation: {
           title: '请先修正以下问题',

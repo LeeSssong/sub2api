@@ -18,16 +18,17 @@ describe('performance monitor route', () => {
     expect(route?.components?.default ?? route?.component).toBeDefined()
   })
 
-  it('registers scheduler decision logs as an administrator-only route', async () => {
+  it('redirects the retired channel-status path to group performance monitoring', async () => {
+    const { default: router } = await import('@/router')
+    const route = router.getRoutes().find((candidate) => candidate.path === '/monitor')
+    expect(route?.redirect).toBe('/custom/performance-monitor')
+    expect(route?.name).toBeUndefined()
+    expect(route?.components?.default ?? route?.component).toBeUndefined()
+  })
+
+  it('does not register the retired scheduler decision log route', async () => {
     const { default: router } = await import('@/router')
     const route = router.getRoutes().find((candidate) => candidate.name === 'AdminSchedulerLogs')
-
-    expect(route?.path).toBe('/admin/scheduler-logs')
-    expect(route?.meta).toMatchObject({
-      requiresAuth: true,
-      requiresAdmin: true,
-      titleKey: 'admin.schedulerLogs.title',
-    })
-    expect(route?.components?.default ?? route?.component).toBeDefined()
+    expect(route).toBeUndefined()
   })
 })

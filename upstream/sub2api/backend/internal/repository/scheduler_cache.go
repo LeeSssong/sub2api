@@ -20,7 +20,6 @@ const (
 	schedulerAccountPrefix         = "sched:acc:"
 	schedulerAccountMetaPrefix     = "sched:meta:"
 	schedulerAccountLastUsedPrefix = "sched:acc:last_used:"
-	schedulerAccountVersionPrefix  = "sched:acc:version:"
 	schedulerActivePrefix          = "sched:active:"
 	schedulerReadyPrefix           = "sched:ready:"
 	schedulerVersionPrefix         = "sched:ver:"
@@ -36,8 +35,6 @@ const (
 	// snapshotGraceTTLSeconds 旧快照过期的宽限期（秒）。
 	// 替代立即 DEL，让正在读取旧版本的 reader 有足够时间完成 ZRANGE。
 	snapshotGraceTTLSeconds = 60
-
-	schedulerAccountVersionLayout = "2006-01-02T15:04:05.000000000Z"
 )
 
 const (
@@ -62,61 +59,6 @@ for index = 1, #ARGV do
     end
 end
 return updated
-`)
-
-// writeSchedulerAccountScript atomically keeps the full and metadata payloads
-// at the newest accounts.updated_at version. A deletion tombstone at the same
-// version wins over a delayed writer, while equal live versions remain
-// rewritable for callers that build equivalent snapshots independently.
-var writeSchedulerAccountScript = redis.NewScript(`
-local current = redis.call('GET', KEYS[3])
-if current ~= false then
-    local current_version = string.sub(current, 1, 30)
-    local current_state = string.sub(current, 32, 32)
-    if ARGV[3] < current_version or (ARGV[3] == current_version and current_state == 'D') then
-        return 0
-    end
-end
-
-redis.call('MSET', KEYS[1], ARGV[1], KEYS[2], ARGV[2], KEYS[3], ARGV[3] .. '|L')
-return 1
-`)
-
-// deleteSchedulerAccountScript deletes all readable account state and leaves
-// a monotonic tombstone so delayed SetAccount or snapshot writes cannot
-// resurrect an account that has already been removed.
-var deleteSchedulerAccountScript = redis.NewScript(`
-local tombstone_version = ARGV[1]
-local current = redis.call('GET', KEYS[4])
-if current ~= false then
-    local current_version = string.sub(current, 1, 30)
-    if current_version > tombstone_version then
-        tombstone_version = current_version
-    end
-end
-
-redis.call('DEL', KEYS[1], KEYS[2], KEYS[3])
-redis.call('SET', KEYS[4], tombstone_version .. '|D')
-return 1
-`)
-
-// clearSchedulerAccountPayloadScript removes an unencodable live payload only
-// when it is not older than the currently cached version. It deliberately
-// leaves a live (not deleted) version marker so a corrected payload from the
-// same database row version can restore the cache.
-var clearSchedulerAccountPayloadScript = redis.NewScript(`
-local current = redis.call('GET', KEYS[4])
-if current ~= false then
-    local current_version = string.sub(current, 1, 30)
-    local current_state = string.sub(current, 32, 32)
-    if ARGV[1] < current_version or (ARGV[1] == current_version and current_state == 'D') then
-        return 0
-    end
-end
-
-redis.call('DEL', KEYS[1], KEYS[2], KEYS[3])
-redis.call('SET', KEYS[4], ARGV[1] .. '|L')
-return 1
 `)
 
 var (
@@ -643,30 +585,60 @@ func (c *schedulerCache) GetAccount(ctx context.Context, accountID int64) (*serv
 	return account, nil
 }
 
+// GetAccounts hydrates candidate IDs from complete account snapshots. Never
+// expand sched:meta with OAuth credentials or ticket blobs to support a gate.
+func (c *schedulerCache) GetAccounts(ctx context.Context, accountIDs []int64) (map[int64]*service.Account, error) {
+	ids := make([]int64, 0, len(accountIDs))
+	seen := make(map[int64]struct{}, len(accountIDs))
+	keys := make([]string, 0, 2*len(accountIDs))
+	for _, accountID := range accountIDs {
+		if accountID <= 0 {
+			continue
+		}
+		if _, exists := seen[accountID]; exists {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		ids = append(ids, accountID)
+		id := strconv.FormatInt(accountID, 10)
+		keys = append(keys, schedulerAccountKey(id), schedulerLastUsedKey(id))
+	}
+	values, err := c.mgetChunked(ctx, keys)
+	if err != nil {
+		return nil, err
+	}
+	accounts := make(map[int64]*service.Account, len(ids))
+	for i, id := range ids {
+		if values[2*i] == nil {
+			continue
+		}
+		account, err := decodeCachedAccount(values[2*i])
+		if err != nil {
+			return nil, err
+		}
+		if account == nil || account.ID != id {
+			return nil, fmt.Errorf("scheduler account snapshot ID mismatch")
+		}
+		if err := applySchedulerLastUsed(account, values[2*i+1]); err != nil {
+			return nil, err
+		}
+		accounts[id] = account
+	}
+	return accounts, nil
+}
+
 func (c *schedulerCache) SetAccount(ctx context.Context, account *service.Account) error {
 	if account == nil || account.ID <= 0 {
 		return nil
 	}
-	fullPayload, metaPayload, err := marshalSchedulerCacheAccount(*account)
+	accountIDs, err := c.writeAccountIDs(ctx, []service.Account{*account})
 	if err != nil {
-		slog.Warn("scheduler cache clears account with unencodable payload",
-			"account_id", account.ID,
-			"error", err,
-		)
-		id := strconv.FormatInt(account.ID, 10)
-		return clearSchedulerAccountPayloadScript.Run(ctx, c.rdb, []string{
-			schedulerAccountKey(id),
-			schedulerAccountMetaKey(id),
-			schedulerLastUsedKey(id),
-			schedulerAccountVersionKey(id),
-		}, schedulerAccountVersion(account.UpdatedAt)).Err()
+		return err
 	}
-	id := strconv.FormatInt(account.ID, 10)
-	return writeSchedulerAccountScript.Run(ctx, c.rdb, []string{
-		schedulerAccountKey(id),
-		schedulerAccountMetaKey(id),
-		schedulerAccountVersionKey(id),
-	}, fullPayload, metaPayload, schedulerAccountVersion(account.UpdatedAt)).Err()
+	if len(accountIDs) == 0 {
+		return c.DeleteAccount(ctx, account.ID)
+	}
+	return nil
 }
 
 func (c *schedulerCache) DeleteAccount(ctx context.Context, accountID int64) error {
@@ -674,12 +646,7 @@ func (c *schedulerCache) DeleteAccount(ctx context.Context, accountID int64) err
 		return nil
 	}
 	id := strconv.FormatInt(accountID, 10)
-	return deleteSchedulerAccountScript.Run(ctx, c.rdb, []string{
-		schedulerAccountKey(id),
-		schedulerAccountMetaKey(id),
-		schedulerLastUsedKey(id),
-		schedulerAccountVersionKey(id),
-	}, schedulerAccountVersion(time.Now())).Err()
+	return c.rdb.Del(ctx, schedulerAccountKey(id), schedulerAccountMetaKey(id), schedulerLastUsedKey(id)).Err()
 }
 
 func (c *schedulerCache) UpdateLastUsed(ctx context.Context, updates map[int64]time.Time) error {
@@ -799,14 +766,6 @@ func schedulerLastUsedKey(id string) string {
 	return schedulerAccountLastUsedPrefix + id
 }
 
-func schedulerAccountVersionKey(id string) string {
-	return schedulerAccountVersionPrefix + id
-}
-
-func schedulerAccountVersion(updatedAt time.Time) string {
-	return updatedAt.UTC().Format(schedulerAccountVersionLayout)
-}
-
 func ptrTime(t time.Time) *time.Time {
 	return &t
 }
@@ -890,11 +849,8 @@ func (c *schedulerCache) writeAccountIDs(ctx context.Context, accounts []service
 		}
 
 		id := strconv.FormatInt(account.ID, 10)
-		writeSchedulerAccountScript.Eval(ctx, pipe, []string{
-			schedulerAccountKey(id),
-			schedulerAccountMetaKey(id),
-			schedulerAccountVersionKey(id),
-		}, fullPayload, metaPayload, schedulerAccountVersion(account.UpdatedAt))
+		pipe.Set(ctx, schedulerAccountKey(id), fullPayload, 0)
+		pipe.Set(ctx, schedulerAccountMetaKey(id), metaPayload, 0)
 		// Keep the hot LastUsedAt side key untouched: a lagging snapshot rebuild
 		// must not overwrite a newer scheduler update.
 		accountIDs = append(accountIDs, account.ID)
@@ -958,6 +914,7 @@ func buildSchedulerMetadataAccount(account service.Account) service.Account {
 		LoadFactor:              account.LoadFactor,
 		Priority:                account.Priority,
 		RateMultiplier:          account.RateMultiplier,
+		GroupRateMultiplier:     account.GroupRateMultiplier,
 		Status:                  account.Status,
 		LastUsedAt:              account.LastUsedAt,
 		ExpiresAt:               account.ExpiresAt,
@@ -990,11 +947,13 @@ func filterSchedulerAccountGroups(accountGroups []service.AccountGroup) []servic
 		if ag.GroupID <= 0 {
 			continue
 		}
+		// 候选过滤读的是本投影：裁掉 AllowedModels，分组内的模型限制在选号阶段就会失效。
 		filtered = append(filtered, service.AccountGroup{
-			AccountID: ag.AccountID,
-			GroupID:   ag.GroupID,
-			Priority:  ag.Priority,
-			CreatedAt: ag.CreatedAt,
+			AccountID:     ag.AccountID,
+			GroupID:       ag.GroupID,
+			Priority:      ag.Priority,
+			AllowedModels: ag.AllowedModels,
+			CreatedAt:     ag.CreatedAt,
 		})
 	}
 	if len(filtered) == 0 {
@@ -1040,7 +999,9 @@ func filterSchedulerCredentials(credentials map[string]any) map[string]any {
 	if len(credentials) == 0 {
 		return nil
 	}
-	keys := []string{"model_mapping", "compact_model_mapping", "api_key", "project_id", "oauth_type", "plan_type"}
+	// Candidate-list admission evaluates the account override before hydrating
+	// the full account. Dropping it silently falls back to the platform threshold.
+	keys := []string{"model_mapping", "model_mapping_mode", "compact_model_mapping", "api_key", "project_id", "oauth_type", "plan_type", "account_scheduling_threshold"}
 	filtered := make(map[string]any)
 	for _, key := range keys {
 		if value, ok := credentials[key]; ok && value != nil {
@@ -1058,6 +1019,16 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		return nil
 	}
 	keys := []string{
+		// Priority scoring runs on candidate metadata before full hydration.
+		// Dropping saved procurement cost silently substitutes the 0.1 default.
+		service.AccountCostMultiplierExtraKey,
+		// Anthropic shared-window and Fable-only threshold checks run on this
+		// projection. UpdateExtra refreshes both payloads without a bucket rebuild.
+		"session_window_utilization",
+		"passive_usage_7d_utilization",
+		"passive_usage_7d_reset",
+		"passive_usage_7d_oi_utilization",
+		"passive_usage_7d_oi_reset",
 		"quota_limit",
 		"quota_used",
 		"quota_daily_limit",
@@ -1075,6 +1046,11 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"mixed_scheduling",
 		"window_cost_limit",
 		"window_cost_sticky_reserve",
+		// RPM 门与窗口费用门一样跑在本投影上：isAccountSchedulableForRPM 读 base_rpm，
+		// 缺失时 GetBaseRPM() 返回 0 并直接放行，已配置限流的账号会被超额调度。
+		"base_rpm",
+		"rpm_strategy",
+		"rpm_sticky_buffer",
 		"max_sessions",
 		"session_idle_timeout_minutes",
 		"openai_oauth_responses_websockets_v2_enabled",
@@ -1093,8 +1069,17 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		// 走网关报 no available accounts"。
 		"openai_passthrough",
 		"openai_oauth_passthrough",
+		"openai_excel_bps",
+		"openai_excel_bps_auto_disable_on_403",
+		service.ExcelBPSAutoRecoverOn403Key,
+		service.ExcelBPS403RecoveryIntervalMinutesKey,
+		service.ExcelBPSAutoMoveOn403Key,
+		service.ExcelBPS403TargetGroupIDKey,
+		"openai_excel_bps_mihomo",
+		"openai_excel_bps_models",
 		"codex_fingerprint_mode",
 		"codex_fingerprint_seed",
+		service.OpenAICodexSkipHarvestExtraKey,
 		"codex_5h_used_percent",
 		"codex_7d_used_percent",
 		"codex_5h_reset_at",
@@ -1106,6 +1091,13 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"auto_pause_7d_threshold",
 		"auto_pause_5h_disabled",
 		"auto_pause_7d_disabled",
+		// 自动用卡：卡可用的 OpenAI 号在暂停阈值与用卡阈值之间继续调度。
+		// 候选过滤读的是本投影，缺这几个键时放行分支永远不会生效，
+		// 账号会在暂停阈值处被一刀切停调，直到窗口自然重置。
+		service.OpenAIAutoResetCreditEnabledExtraKey,
+		service.OpenAIAutoResetCredit5hThresholdExtraKey,
+		service.OpenAIAutoResetCredit7dThresholdExtraKey,
+		service.OpenAIAutoResetCreditStateExtraKey,
 		"model_rate_limits",
 		service.UpstreamBillingProbeExtraKey,
 		service.GrokMediaEligibleExtraKey,
@@ -1113,7 +1105,7 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 	}
 	filtered := make(map[string]any)
 	for _, key := range keys {
-		if value, ok := extra[key]; ok && value != nil {
+		if value, ok := extra[key]; ok && (value != nil || key == "openai_excel_bps_models") {
 			if key == service.UpstreamBillingProbeExtraKey {
 				filteredProbe := filterSchedulerUpstreamBillingProbe(value)
 				if filteredProbe == nil {

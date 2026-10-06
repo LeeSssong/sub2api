@@ -14,10 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// issue #6171：v0.1.181 起，/v1/images/generations 只要上游"回文字没回图"，账号就被
-// 写 30 分钟 openai:image_generation 模型级冷却。该判据是**请求级**的（这个 prompt
-// 这一轮模型选择了说话），却被当成**账号级**能力失效；又因为同一个错误被判为
-// 可重试（502）并驱动 failover，一次闲聊回复会沿着号池逐个把账号冷却掉。
+// Historical #6171 draft tests arrived in 61fd6c626b without the proposed
+// synthesized-error field or policy. Exercise the current upstream contract:
+// unavailable responses cool image scope and still allow failover.
 
 // countingModelRateLimitRepo 记录 SetModelRateLimit 调用，用于断言"没写账号状态"。
 type countingModelRateLimitRepo struct {
@@ -45,47 +44,8 @@ func imagesCooldownAccount() *Account {
 	return &Account{ID: 77, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Name: "img-oauth"}
 }
 
-func TestShouldCoolOpenAIImagesToolForError(t *testing.T) {
-	cases := []struct {
-		name string
-		err  *OpenAIImagesUpstreamError
-		want bool
-	}{
-		{
-			name: "nil_error",
-			err:  nil,
-			want: false,
-		},
-		{
-			// 网关从模型文字里推断出来的判据：只说明这一轮没出图。
-			name: "synthesized_from_model_text",
-			err: &OpenAIImagesUpstreamError{
-				StatusCode:               http.StatusBadGateway,
-				Code:                     "image_generation_unavailable",
-				SynthesizedFromModelText: true,
-			},
-			want: false,
-		},
-		{
-			// 上游自己在 error 帧里点名该状态：这才是账号级证据，保持冷却。
-			name: "structured_upstream_error_frame",
-			err: &OpenAIImagesUpstreamError{
-				StatusCode: http.StatusBadGateway,
-				Code:       "image_generation_unavailable",
-			},
-			want: true,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, shouldCoolOpenAIImagesToolForError(tc.err))
-		})
-	}
-}
-
-// 主复现：文字兜底判据不得写账号级冷却。
-func TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolAccount(t *testing.T) {
+// Official policy retries text-only responses without parking the account.
+func TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolImageScope(t *testing.T) {
 	c, _ := newImagesCooldownContext(t)
 	repo := &countingModelRateLimitRepo{}
 	svc := &OpenAIGatewayService{accountRepo: repo}
@@ -101,9 +61,10 @@ func TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolAccount(t *
 		OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), upstreamErr,
 	)
 
-	require.Zero(t, repo.calls, "模型闲聊不构成账号级证据，不得写 30 分钟冷却")
+	require.Zero(t, repo.calls)
+	require.Empty(t, repo.scopes)
 
-	// 换号行为必须原样保留：本 PR 只撤销账号状态写入，不动 failover。
+	// Cooldown still permits the handler to fail over to another account.
 	var failover *UpstreamFailoverError
 	require.True(t, errors.As(err, &failover), "仍应触发换号，got %T", err)
 }
@@ -132,24 +93,22 @@ func TestHandleOpenAIImagesOAuthResponseError_StructuredUnavailableStillCoolsAcc
 	require.Equal(t, []string{openAIImageGenerationRateLimitKey}, repo.scopes)
 }
 
-// 标记必须打在文字兜底的两个入口上，且不影响违规拦截分支的判定。
-func TestOpenAIImagesTextFallback_MarksSynthesizedVerdicts(t *testing.T) {
-	t.Run("plain_text_reply_is_synthesized", func(t *testing.T) {
+// Both text entry points retain retryability; policy refusal stays a client error.
+func TestOpenAIImagesTextFallback_ClassifiesResponseText(t *testing.T) {
+	t.Run("plain_text_reply_is_unavailable", func(t *testing.T) {
 		err := openAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
 		require.NotNil(t, err)
-		require.True(t, err.SynthesizedFromModelText)
 		require.Equal(t, "image_generation_unavailable", err.Code)
 		require.Equal(t, http.StatusBadGateway, err.StatusCode)
 	})
 
-	t.Run("body_entrypoint_is_synthesized", func(t *testing.T) {
+	t.Run("body_entrypoint_is_unavailable", func(t *testing.T) {
 		body := []byte("event: response.completed\n" +
 			`data: {"type":"response.completed","response":{"id":"r","status":"completed",` +
 			`"output":[{"type":"message","content":[{"type":"output_text","text":"I drafted a prompt for you."}]}]}}` +
 			"\n\n")
 		err := openAIImagesTextFallbackError(body)
 		require.NotNil(t, err)
-		require.True(t, err.SynthesizedFromModelText)
 	})
 
 	t.Run("content_policy_branch_unchanged", func(t *testing.T) {
@@ -157,9 +116,6 @@ func TestOpenAIImagesTextFallback_MarksSynthesizedVerdicts(t *testing.T) {
 		require.NotNil(t, err)
 		require.Equal(t, "content_policy_violation", err.Code)
 		require.Equal(t, http.StatusBadRequest, err.StatusCode)
-		// 该分支本来就不走冷却（Code 不匹配），标记与否都不改变行为；
-		// 断言它没有被顺手打标，避免语义漂移。
-		require.False(t, err.SynthesizedFromModelText)
 	})
 
 	t.Run("empty_text_yields_no_error", func(t *testing.T) {

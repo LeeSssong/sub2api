@@ -72,6 +72,9 @@ type AdminService interface {
 	BatchSetGroupRateMultipliers(ctx context.Context, groupID int64, entries []GroupRateMultiplierInput) error
 	ClearGroupRPMOverrides(ctx context.Context, groupID int64) error
 	BatchSetGroupRPMOverrides(ctx context.Context, groupID int64, entries []GroupRPMOverrideInput) error
+	// ClearGroupUserDeniedModels / BatchSetGroupUserDeniedModels 管理分组内各用户的禁用模型。
+	ClearGroupUserDeniedModels(ctx context.Context, groupID int64) error
+	BatchSetGroupUserDeniedModels(ctx context.Context, groupID int64, entries []GroupUserDeniedModelsInput) error
 	UpdateGroupSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
 
 	// API Key management (admin)
@@ -140,6 +143,8 @@ type AdminService interface {
 	CheckProxyExists(ctx context.Context, host string, port int, username, password string) (bool, error)
 	TestProxy(ctx context.Context, id int64) (*ProxyTestResult, error)
 	CheckProxyQuality(ctx context.Context, id int64) (*ProxyQualityCheckResult, error)
+	TestMihomoNode(ctx context.Context, kernel MihomoNodeProber, name string) (*ProxyTestResult, error)
+	CheckMihomoNodeQuality(ctx context.Context, kernel MihomoNodeProber, name string) (*ProxyQualityCheckResult, error)
 
 	// Redeem code management
 	ListRedeemCodes(ctx context.Context, page, pageSize int, codeType, status, search string, sortBy, sortOrder string) ([]RedeemCode, int64, error)
@@ -159,6 +164,7 @@ const (
 	AdminGroupOperationCompositeRoute AdminGroupOperation = "composite_route"
 	AdminGroupOperationMultiplier     AdminGroupOperation = "multiplier"
 	AdminGroupOperationRPMOverride    AdminGroupOperation = "rpm_override"
+	AdminGroupOperationDeniedModels   AdminGroupOperation = "user_denied_models"
 	AdminGroupOperationSort           AdminGroupOperation = "sort"
 )
 
@@ -180,22 +186,25 @@ type CreateUserInput struct {
 	Concurrency          int
 	RPMLimit             int
 	AllowedGroups        []int64
+	ObserverGroupIDs     []int64
 	RestrictPublicGroups bool
 	// ActorAdminID 执行本次操作的管理员ID(来自JWT)，仅用于权限敏感操作的审计日志。
 	ActorAdminID int64
 }
 
 type UpdateUserInput struct {
-	Email         string
-	Password      string
-	Username      *string
-	Notes         *string
-	Role          string   // 空字符串表示"未提供"(不修改);合法值 admin/user
-	Balance       *float64 // 使用指针区分"未提供"和"设置为0"
-	Concurrency   *int     // 使用指针区分"未提供"和"设置为0"
-	RPMLimit      *int     // 使用指针区分"未提供"和"设置为0"
-	Status        string
-	AllowedGroups *[]int64 // 使用指针区分"未提供"和"设置为空数组"
+	Email            string
+	Password         string
+	Username         *string
+	Notes            *string
+	Role             string   // 空字符串表示"未提供"(不修改);合法值 admin/user
+	Balance          *float64 // 使用指针区分"未提供"和"设置为0"
+	Concurrency      *int     // 使用指针区分"未提供"和"设置为0"
+	RPMLimit         *int     // 使用指针区分"未提供"和"设置为0"
+	Status           string
+	ObserverGroupIDs *[]int64
+	ObserverSetup    *ObserverSetupOptions
+	AllowedGroups    *[]int64 // 使用指针区分"未提供"和"设置为空数组"
 	// RestrictPublicGroups 指针区分"未提供"和"显式开关"。
 	RestrictPublicGroups *bool
 	// GroupRates 用户专属分组倍率配置
@@ -203,6 +212,17 @@ type UpdateUserInput struct {
 	GroupRates map[int64]*float64
 	// ActorAdminID 执行本次操作的管理员ID(来自JWT)，仅用于权限敏感操作的审计日志。
 	ActorAdminID int64
+}
+
+// ObserverSetupOptions are explicit, one-time actions for an observer promotion.
+type ObserverSetupOptions struct {
+	CreateDedicatedGroup bool `json:"create_dedicated_group"`
+	RevokePublicGroups   bool `json:"revoke_public_groups"`
+	GrantResources       bool `json:"grant_resources"`
+}
+
+func (o *ObserverSetupOptions) enabled() bool {
+	return o != nil && (o.CreateDedicatedGroup || o.RevokePublicGroups || o.GrantResources)
 }
 
 type AdminBindAuthIdentityInput struct {
@@ -290,6 +310,7 @@ type CreateGroupInput struct {
 	FallbackGroupID              *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	StreamOnly                      bool // 仅允许流式请求
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64
 	ModelRoutingEnabled bool // 是否启用模型路由
@@ -308,6 +329,7 @@ type CreateGroupInput struct {
 	ModelAllowlist              GroupModelAllowlist
 	// CodexModelsManifestConfig 固定账号 manifest 配置；创建路径禁止开启，仅编辑可配置。
 	CodexModelsManifestConfig GroupCodexModelsManifestConfig
+	TurnStateInjectEnabled    bool
 	// RPMLimit 分组 RPM 上限（0 = 不限制）
 	RPMLimit int
 	// MaxReasoningEffort Anthropic/OpenAI 请求的推理强度上限，空字符串表示不限制。
@@ -372,6 +394,7 @@ type UpdateGroupInput struct {
 	FallbackGroupID              *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	StreamOnly                      *bool // 仅允许流式请求
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64
 	ModelRoutingEnabled *bool // 是否启用模型路由
@@ -390,6 +413,7 @@ type UpdateGroupInput struct {
 	ModelAllowlist              *GroupModelAllowlist
 	// CodexModelsManifestConfig nil 表示不修改；非 openai 平台会被归一化为关闭。
 	CodexModelsManifestConfig *GroupCodexModelsManifestConfig
+	TurnStateInjectEnabled    *bool
 	// RPMLimit 分组 RPM 上限（0 = 不限制），nil 表示未提供不改动。
 	RPMLimit *int
 	// MaxReasoningEffort 空字符串表示清除上限；nil 表示未提供不改动。
@@ -407,28 +431,33 @@ type UpdateGroupInput struct {
 }
 
 type CreateAccountInput struct {
-	Name                  string
-	Notes                 *string
-	Platform              string
-	Type                  string
-	Credentials           map[string]any
-	Extra                 map[string]any
-	ProxyID               *int64
-	Concurrency           int
-	Priority              int
-	RateMultiplier        *float64 // 账号计费倍率（>=0，允许 0）
-	EffectiveCostModel    string
-	UpstreamActualCost    *float64
-	UpstreamObtainedQuota *float64
-	LoadFactor            *int
-	GroupIDs              []int64
-	ExpiresAt             *int64
-	AutoPauseOnExpired    *bool
-	ProbeEnabled          *bool
-	RateSyncEnabled       *bool
+	Admission *AccountAdmissionInput
+	// AdmissionAllowUngrouped is set only by JSON import handlers.
+	AdmissionAllowUngrouped bool
+	Name                    string
+	Notes                   *string
+	Platform                string
+	Type                    string
+	Credentials             map[string]any
+	Extra                   map[string]any
+	ProxyID                 *int64
+	Concurrency             int
+	Priority                int
+	RateMultiplier          *float64 // 账号计费倍率（>=0，允许 0）
+	ProcurementCostCNY      *float64 // 一次性购买成本（人民币，>=0）
+	EffectiveCostModel      string
+	UpstreamActualCost      *float64
+	UpstreamObtainedQuota   *float64
+	LoadFactor              *int
+	GroupIDs                []int64
+	ExpiresAt               *int64
+	AutoPauseOnExpired      *bool
+	ProbeEnabled            *bool
+	RateSyncEnabled         *bool
 	// ActiveProbeEnabled controls automatic connection probes and scheduled model detection.
 	// Nil preserves the backward-compatible enabled default.
-	ActiveProbeEnabled *bool
+	ActiveProbeEnabled  *bool
+	GroupRateMultiplier *float64 // 账号级分组计费倍率（>=0，默认 1）
 	// SkipDefaultGroupBind prevents auto-binding to platform default group when GroupIDs is empty.
 	SkipDefaultGroupBind bool
 	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
@@ -471,6 +500,8 @@ type UpdateAccountInput struct {
 	// ActiveProbeEnabled controls automatic connection probes and scheduled model detection.
 	ActiveProbeEnabled    *bool
 	ModelDetectionEnabled *bool
+	GroupRateMultiplier   *float64 // 账号级分组计费倍率（>=0，默认 1）
+	GroupAllowedModels    map[int64][]string
 	SkipMixedChannelCheck bool // 跳过混合渠道检查（用户已确认风险）
 }
 
@@ -483,21 +514,22 @@ type ProcurementCostUpdate struct {
 
 // BulkUpdateAccountsInput describes the payload for bulk updating accounts.
 type BulkUpdateAccountsInput struct {
-	AccountIDs         []int64
-	Filters            *BulkUpdateAccountFilters
-	Name               string
-	ProxyID            *int64
-	Concurrency        *int
-	Priority           *int
-	RateMultiplier     *float64 // 账号计费倍率（>=0，允许 0）
-	LoadFactor         *int
-	Status             string
-	Schedulable        *bool
-	GroupIDs           *[]int64
-	Credentials        map[string]any
-	Extra              map[string]any
-	ProbeEnabled       *bool
-	ActiveProbeEnabled *bool
+	AccountIDs          []int64
+	Filters             *BulkUpdateAccountFilters
+	Name                string
+	ProxyID             *int64
+	Concurrency         *int
+	Priority            *int
+	RateMultiplier      *float64 // 账号计费倍率（>=0，允许 0）
+	LoadFactor          *int
+	Status              string
+	Schedulable         *bool
+	GroupIDs            *[]int64
+	Credentials         map[string]any
+	Extra               map[string]any
+	ProbeEnabled        *bool
+	ActiveProbeEnabled  *bool
+	GroupRateMultiplier *float64 // 账号级分组计费倍率（>=0，默认 1）
 	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
 	// This should only be set when the caller has explicitly confirmed the risk.
 	SkipMixedChannelCheck bool
@@ -578,8 +610,8 @@ type UpdateProxyInput struct {
 	Protocol       string
 	Host           string
 	Port           int
-	Username       string
-	Password       string
+	Username       *string
+	Password       *string
 	Status         string
 	ExpiresAt      *time.Time
 	ClearExpiresAt bool

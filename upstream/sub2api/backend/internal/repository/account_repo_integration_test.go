@@ -327,14 +327,16 @@ func (s *AccountRepoSuite) TestListOAuthRefreshCandidatePage_GrokCursorAndExclus
 			"expires_at":    now.Add(30 * time.Minute).Format(time.RFC3339),
 		},
 	})
-	unschedulable := mustCreateAccount(s.T(), s.client, &service.Account{
-		Name:        "grok-oauth-unschedulable-excluded",
+	// Paused but active OAuth accounts (schedulable=false) must remain refresh
+	// candidates so their stored access_token does not silently expire.
+	paused := mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:        "grok-oauth-paused-included",
 		Platform:    service.PlatformGrok,
 		Type:        service.AccountTypeOAuth,
 		Status:      service.StatusActive,
-		Credentials: map[string]any{"refresh_token": "refresh-unschedulable"},
+		Credentials: map[string]any{"refresh_token": "refresh-paused"},
 	})
-	s.Require().NoError(s.client.Account.UpdateOneID(unschedulable.ID).SetSchedulable(false).Exec(s.ctx))
+	s.Require().NoError(s.client.Account.UpdateOneID(paused.ID).SetSchedulable(false).Exec(s.ctx))
 	mustCreateAccount(s.T(), s.client, &service.Account{
 		Name:     "grok-api-key-excluded",
 		Platform: service.PlatformGrok,
@@ -393,15 +395,14 @@ func (s *AccountRepoSuite) TestListOAuthRefreshCandidatePage_GrokCursorAndExclus
 	s.Require().NoError(err)
 	first := firstPage.Accounts
 	s.Require().Len(first, 2)
-	s.Require().Equal([]int64{valid1.ID, valid2.ID}, []int64{first[0].ID, first[1].ID})
-	s.Require().NotContains([]int64{first[0].ID, first[1].ID}, unschedulable.ID)
+	s.Require().Equal([]int64{valid1.ID, paused.ID}, []int64{first[0].ID, first[1].ID})
 
 	options.AfterID = first[len(first)-1].ID
 	secondPage, err := s.repo.ListOAuthRefreshCandidatePage(s.ctx, options)
 	s.Require().NoError(err)
 	second := secondPage.Accounts
-	s.Require().Len(second, 1)
-	s.Require().Equal(valid3.ID, second[0].ID)
+	s.Require().Len(second, 2)
+	s.Require().Equal([]int64{valid2.ID, valid3.ID}, []int64{second[0].ID, second[1].ID})
 	s.Require().NotContains([]int64{first[0].ID, first[1].ID}, second[0].ID)
 }
 
@@ -506,6 +507,30 @@ func (s *AccountRepoSuite) TestListWithFilters() {
 			wantCount: 1,
 			validate: func(accounts []service.Account) {
 				s.Require().Equal("active-unsched", accounts[0].Name)
+			},
+		},
+		{
+			// 质量运维按「正常+限流中」一起筛：逗号分隔的多个状态任一命中即可。
+			name: "filter_by_status_comma_matches_any_of_active_and_rate_limited",
+			setup: func(client *dbent.Client) {
+				mustCreateAccount(s.T(), client, &service.Account{Name: "active-normal", Status: service.StatusActive})
+				rateLimited := mustCreateAccount(s.T(), client, &service.Account{Name: "active-rate-limited", Status: service.StatusActive})
+				err := client.Account.UpdateOneID(rateLimited.ID).
+					SetRateLimitResetAt(time.Now().Add(10 * time.Minute)).
+					Exec(context.Background())
+				s.Require().NoError(err)
+				tempUnsched := mustCreateAccount(s.T(), client, &service.Account{Name: "active-temp-unsched", Status: service.StatusActive})
+				err = client.Account.UpdateOneID(tempUnsched.ID).
+					SetTempUnschedulableUntil(time.Now().Add(15 * time.Minute)).
+					Exec(context.Background())
+				s.Require().NoError(err)
+				mustCreateAccount(s.T(), client, &service.Account{Name: "s2", Status: service.StatusDisabled})
+			},
+			status:    "active, rate_limited",
+			wantCount: 2,
+			validate: func(accounts []service.Account) {
+				names := []string{accounts[0].Name, accounts[1].Name}
+				s.Require().ElementsMatch([]string{"active-normal", "active-rate-limited"}, names)
 			},
 		},
 		{
@@ -1540,6 +1565,41 @@ func (s *AccountRepoSuite) TestUpdateExtra_SchedulerNeutralSkipsOutboxAndSyncsFr
 	s.Require().Equal("2026-03-11T10:00:00Z", cacheRecorder.accounts[account.ID].Extra["codex_usage_updated_at"])
 }
 
+// Exercise the complete UpdateExtra -> PostgreSQL -> Redis metadata -> admission
+// path. A recorder-only cache would miss fields discarded by the slim projection.
+func (s *AccountRepoSuite) TestUpdateExtra_AnthropicThresholdRefreshesCandidateSnapshot() {
+	now := time.Now().UTC().Truncate(time.Second)
+	end := now.Add(time.Hour)
+	account := mustCreateAccount(s.T(), s.client, &service.Account{
+		Name: "threshold-refresh", Platform: service.PlatformAnthropic, Type: service.AccountTypeOAuth,
+		Credentials: map[string]any{"account_scheduling_threshold": 60},
+		Extra:       map[string]any{"passive_usage_7d_utilization": .59, "passive_usage_7d_reset": end.Unix()},
+	})
+	cache := NewSchedulerCache(testRedis(s.T()))
+	s.repo.schedulerCache = cache
+	bucket := service.SchedulerBucket{GroupID: account.ID, Platform: service.PlatformAnthropic, Mode: service.SchedulerModeSingle}
+	token, err := cache.CaptureBucketWriteToken(s.ctx, bucket)
+	s.Require().NoError(err)
+	s.Require().NoError(cache.SetSnapshot(s.ctx, bucket, token, []service.Account{*account}))
+	for _, step := range []struct {
+		used   float64
+		reset  time.Time
+		paused bool
+	}{
+		{.59, end, false}, {.66, end, true}, {.66, now.Add(-time.Hour), false}, {.10, end, false},
+	} {
+		s.Require().NoError(s.repo.UpdateExtra(s.ctx, account.ID, map[string]any{
+			"passive_usage_7d_utilization": step.used, "passive_usage_7d_reset": step.reset.Unix(),
+		}))
+		candidates, hit, err := cache.GetSnapshot(s.ctx, bucket)
+		s.Require().NoError(err)
+		s.Require().True(hit)
+		s.Require().Len(candidates, 1)
+		decision := service.EvaluateAccountSchedulingThreshold(candidates[0], map[string]int{service.PlatformAnthropic: 100}, now)
+		s.Require().Equal(step.paused, decision.ShouldPause)
+	}
+}
+
 func (s *AccountRepoSuite) TestUpdateExtra_ExhaustedCodexSnapshotSyncsSchedulerCache() {
 	account := mustCreateAccount(s.T(), s.client, &service.Account{
 		Name:     "acc-extra-codex-exhausted",
@@ -1703,6 +1763,56 @@ func (s *AccountRepoSuite) TestBulkUpdate_MergeExtra() {
 	got, _ := s.repo.GetByID(s.ctx, a1.ID)
 	s.Require().Equal("val", got.Extra["existing"])
 	s.Require().Equal("new_val", got.Extra["new_key"])
+}
+
+func (s *AccountRepoSuite) TestBulkUpdate_ExcelBPSModelScope() {
+	ids := make([]int64, 0, 2)
+	for _, name := range []string{"bulk-bps-one", "bulk-bps-two"} {
+		account := mustCreateAccount(s.T(), s.client, &service.Account{
+			Name: name, Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth,
+			Credentials: map[string]any{"model_mapping": map[string]any{"alias": "gpt-6-astra"}},
+			Extra: map[string]any{
+				"openai_excel_bps":                          true,
+				"openai_excel_bps_models":                   []string{"gpt-6-astra"},
+				"openai_excel_bps_cache_creation_as_input":  true,
+				"openai_passthrough":                        true,
+				"openai_oauth_responses_websockets_v2_mode": "context_pool",
+			},
+		})
+		ids = append(ids, account.ID)
+	}
+	steps := []struct {
+		extra               map[string]any
+		astra, sol, billing bool
+		scopePresent        bool
+	}{
+		{map[string]any{"openai_excel_bps_models": nil, "openai_excel_bps_cache_creation_as_input": false}, true, true, false, false},
+		{map[string]any{"openai_excel_bps_models": []string{}}, false, false, false, true},
+		{map[string]any{"openai_excel_bps_models": []string{"gpt-6-astra"}, "openai_excel_bps_cache_creation_as_input": true}, true, false, true, true},
+		{map[string]any{"unrelated": "preserved"}, true, false, true, true},
+		{map[string]any{"openai_excel_bps": false}, false, false, false, false},
+	}
+	for _, step := range steps {
+		affected, err := s.repo.BulkUpdate(s.ctx, ids, service.AccountBulkUpdate{Extra: step.extra})
+		s.Require().NoError(err)
+		s.Require().Equal(int64(2), affected)
+		for _, id := range ids {
+			got, err := s.repo.GetByID(s.ctx, id)
+			s.Require().NoError(err)
+			s.Require().Equal(step.astra, got.IsExcelBPSEnabledForModel("alias"))
+			s.Require().Equal(step.sol, got.IsExcelBPSEnabledForModel("gpt-6-sol"))
+			s.Require().Equal(step.billing, got.IsExcelBPSCacheCreationAsInputEnabled())
+			_, scopePresent := got.Extra["openai_excel_bps_models"]
+			s.Require().Equal(step.scopePresent, scopePresent)
+			s.Require().Equal(true, got.Extra["openai_passthrough"])
+			s.Require().Equal("context_pool", got.Extra["openai_oauth_responses_websockets_v2_mode"])
+			s.Require().Equal("gpt-6-astra", got.GetMappedModel("alias"))
+			if !got.IsExcelBPSEnabled() {
+				s.Require().NotContains(got.Extra, "openai_excel_bps")
+				s.Require().NotContains(got.Extra, "openai_excel_bps_cache_creation_as_input")
+			}
+		}
+	}
 }
 
 func (s *AccountRepoSuite) TestBulkUpdate_EmptyIDs() {

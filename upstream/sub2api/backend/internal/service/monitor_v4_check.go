@@ -219,7 +219,7 @@ func (s *AccountMonitorService) CheckMonitorGroup(ctx context.Context, groupID i
 		if len(models) == 0 {
 			continue
 		}
-		candidates = append(candidates, probeCandidate{account: account, models: models, priority: accountSchedulingPriorityForGroup(&account, &groupID)})
+		candidates = append(candidates, probeCandidate{account: account, models: models, priority: openAIAccountSchedulingPriority(&account)})
 		accountIDs = append(accountIDs, account.ID)
 	}
 	if len(candidates) == 0 {

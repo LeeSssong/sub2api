@@ -1,0 +1,10 @@
+[Unit]
+Description=Resource budget for all Sub2API Prism adapters
+
+[Slice]
+CPUQuota=100%
+CPUWeight=10
+MemoryHigh=750M
+MemoryMax=900M
+MemorySwapMax=0
+TasksMax=256

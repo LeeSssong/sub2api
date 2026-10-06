@@ -1,0 +1,86 @@
+=== RUN   TestResponsesGrok429FailoverIsBounded
+=== RUN   TestResponsesGrok429FailoverIsBounded/first_rate_limited_account_selects_healthy_account
+=== RUN   TestResponsesGrok429FailoverIsBounded/two_rate_limited_accounts_stop_without_sweeping_the_pool
+--- PASS: TestResponsesGrok429FailoverIsBounded (0.00s)
+    --- PASS: TestResponsesGrok429FailoverIsBounded/first_rate_limited_account_selects_healthy_account (0.00s)
+    --- PASS: TestResponsesGrok429FailoverIsBounded/two_rate_limited_accounts_stop_without_sweeping_the_pool (0.00s)
+=== RUN   TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed
+=== RUN   TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed/pure_response.failed_is_replayable
+=== RUN   TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed/usage_blocks_replay
+=== RUN   TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed/semantic_output_blocks_replay
+=== RUN   TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed/unsafe_replay_marker_blocks_replay
+=== RUN   TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed/non_response.failed_terminal_blocks_replay
+--- PASS: TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed (0.00s)
+    --- PASS: TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed/pure_response.failed_is_replayable (0.00s)
+    --- PASS: TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed/usage_blocks_replay (0.00s)
+    --- PASS: TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed/semantic_output_blocks_replay (0.00s)
+    --- PASS: TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed/unsafe_replay_marker_blocks_replay (0.00s)
+    --- PASS: TestOpenAIResponsesFailoverAllowed_RequiresPureResponseFailed/non_response.failed_terminal_blocks_replay (0.00s)
+=== RUN   TestBuildFailedOpenAIUsageRecordInput_RecordsPartialUnsafeAttempt
+--- PASS: TestBuildFailedOpenAIUsageRecordInput_RecordsPartialUnsafeAttempt (0.00s)
+=== RUN   TestBuildSuccessfulOpenAIUsageRecordInput_PersistsSideEffectSafety
+--- PASS: TestBuildSuccessfulOpenAIUsageRecordInput_PersistsSideEffectSafety (0.00s)
+=== RUN   TestOpenAIDecideRetry_CachePreservationModes
+=== RUN   TestOpenAIDecideRetry_CachePreservationModes/first_safe_failure_retries_the_sticky_account_once
+=== RUN   TestOpenAIDecideRetry_CachePreservationModes/second_failure_excludes_the_account_and_fails_over
+=== RUN   TestOpenAIDecideRetry_CachePreservationModes/post_output_failure_never_replays
+=== RUN   TestOpenAIDecideRetry_CachePreservationModes/unsafe_tool_request_requires_explicit_continuation
+=== RUN   TestOpenAIDecideRetry_CachePreservationModes/half_open_probe_is_labeled_for_cache_observability
+--- PASS: TestOpenAIDecideRetry_CachePreservationModes (0.00s)
+    --- PASS: TestOpenAIDecideRetry_CachePreservationModes/first_safe_failure_retries_the_sticky_account_once (0.00s)
+    --- PASS: TestOpenAIDecideRetry_CachePreservationModes/second_failure_excludes_the_account_and_fails_over (0.00s)
+    --- PASS: TestOpenAIDecideRetry_CachePreservationModes/post_output_failure_never_replays (0.00s)
+    --- PASS: TestOpenAIDecideRetry_CachePreservationModes/unsafe_tool_request_requires_explicit_continuation (0.00s)
+    --- PASS: TestOpenAIDecideRetry_CachePreservationModes/half_open_probe_is_labeled_for_cache_observability (0.00s)
+=== RUN   TestOpenAIResponses_PostOutputFailureNeverReplays
+--- PASS: TestOpenAIResponses_PostOutputFailureNeverReplays (0.00s)
+=== RUN   TestOpenAIResponses_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry
+=== RUN   TestOpenAIResponses_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/non_pool_401
+=== RUN   TestOpenAIResponses_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/non_pool_403
+=== RUN   TestOpenAIResponses_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/pool_override_excludes_auth_401
+=== RUN   TestOpenAIResponses_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/pool_override_excludes_auth_403
+--- PASS: TestOpenAIResponses_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry (0.00s)
+    --- PASS: TestOpenAIResponses_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/non_pool_401 (0.00s)
+    --- PASS: TestOpenAIResponses_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/non_pool_403 (0.00s)
+    --- PASS: TestOpenAIResponses_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/pool_override_excludes_auth_401 (0.00s)
+    --- PASS: TestOpenAIResponses_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/pool_override_excludes_auth_403 (0.00s)
+=== RUN   TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays
+=== RUN   TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays/401
+=== RUN   TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays/403
+--- PASS: TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays (0.00s)
+    --- PASS: TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays/401 (0.00s)
+    --- PASS: TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays/403 (0.00s)
+=== RUN   TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithFunctionCallOutputNeverReplays
+=== RUN   TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithFunctionCallOutputNeverReplays/401
+=== RUN   TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithFunctionCallOutputNeverReplays/403
+--- PASS: TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithFunctionCallOutputNeverReplays (0.00s)
+    --- PASS: TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithFunctionCallOutputNeverReplays/401 (0.00s)
+    --- PASS: TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureWithFunctionCallOutputNeverReplays/403 (0.00s)
+=== RUN   TestOpenAIMessages_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry
+=== RUN   TestOpenAIMessages_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/non_pool_401
+=== RUN   TestOpenAIMessages_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/non_pool_403
+=== RUN   TestOpenAIMessages_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/pool_override_excludes_auth_401
+=== RUN   TestOpenAIMessages_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/pool_override_excludes_auth_403
+--- PASS: TestOpenAIMessages_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry (0.00s)
+    --- PASS: TestOpenAIMessages_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/non_pool_401 (0.00s)
+    --- PASS: TestOpenAIMessages_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/non_pool_403 (0.00s)
+    --- PASS: TestOpenAIMessages_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/pool_override_excludes_auth_401 (0.00s)
+    --- PASS: TestOpenAIMessages_SafeAuthFailureSwitchesWithoutSameAccountPoolRetry/pool_override_excludes_auth_403 (0.00s)
+=== RUN   TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays
+=== RUN   TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays/401
+=== RUN   TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays/403
+--- PASS: TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays (0.00s)
+    --- PASS: TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays/401 (0.00s)
+    --- PASS: TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolsNeverReplays/403 (0.00s)
+=== RUN   TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolResultNeverReplays
+=== RUN   TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolResultNeverReplays/401
+=== RUN   TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolResultNeverReplays/403
+--- PASS: TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolResultNeverReplays (0.00s)
+    --- PASS: TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolResultNeverReplays/401 (0.00s)
+    --- PASS: TestOpenAIMessages_APIKeyPassthroughPoolAuthFailureWithToolResultNeverReplays/403 (0.00s)
+=== RUN   TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry
+--- PASS: TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry (0.50s)
+=== RUN   TestNativeConvergenceWaitSuccessReleasesSlot
+--- PASS: TestNativeConvergenceWaitSuccessReleasesSlot (0.00s)
+PASS
+ok      github.com/Wei-Shaw/sub2api/internal/handler    2.519s

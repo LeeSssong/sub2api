@@ -44,7 +44,7 @@ func (h *GatewayHandler) userGroupModels(c *gin.Context, authorizer userGroupMod
 		models := make([]string, 0)
 		if g.Status == service.StatusActive {
 			if g.Platform == service.PlatformComposite {
-				models = h.compositeAvailableModels(c.Request.Context(), &g.ID)
+				models = h.compositeAvailableModels(c.Request.Context(), &g.ID, true)
 			} else if _, exists := h.gatewayService.GetSchedulablePlatforms(c.Request.Context(), &g.ID)[g.Platform]; exists {
 				configured := h.gatewayService.GetAvailableModels(c.Request.Context(), &g.ID, g.Platform)
 				// Same fallback as the native model listing, only for a group with accounts.

@@ -101,7 +101,11 @@ func writeOpenAICompactSSEFailure(c *gin.Context, statusCode int, errorBody []by
 	if message == "" {
 		message = "Upstream compact request failed with HTTP " + strconv.Itoa(statusCode)
 	}
-	writeOpenAICompactSSEFailureMessage(c, statusCode, "upstream_error", message)
+	errType := extractUpstreamErrorType(errorBody)
+	if errType == "" {
+		errType = "upstream_error"
+	}
+	writeOpenAICompactSSEFailureMessageIdentified(c, statusCode, errType, extractUpstreamErrorCode(errorBody), message)
 }
 
 // writeOpenAICompactSSEFailureMessage 写出 response.failed 终止事件。Codex 对
@@ -109,12 +113,30 @@ func writeOpenAICompactSSEFailure(c *gin.Context, statusCode int, errorBody []by
 // 不被识别，会退化为 "stream closed before response.completed" 盲重连）。
 // 同时标记流内错误，保证挂在 200 流上的失败仍进入 ops 错误看板。
 func writeOpenAICompactSSEFailureMessage(c *gin.Context, statusCode int, errType, message string) {
+	writeOpenAICompactSSEFailureMessageIdentified(c, statusCode, errType, "", message)
+}
+
+func writeOpenAICompactSSEFailureMessageIdentified(c *gin.Context, statusCode int, errType, code, message string) {
+	writeOpenAICompactSSEFailureMessageDetails(c, statusCode, errType, code, message, "")
+}
+
+func writeOpenAICompactSSEFailureMessageParam(c *gin.Context, statusCode int, errType, message, param string) {
+	writeOpenAICompactSSEFailureMessageDetails(c, statusCode, errType, "", message, param)
+}
+
+func writeOpenAICompactSSEFailureMessageDetails(c *gin.Context, statusCode int, errType, code, message, param string) {
 	if c == nil {
 		return
 	}
 	MarkOpsStreamError(c, errType, message, statusCode)
+	projected := projectSelectedAccountUserError(c, statusCode, errType, code, message)
+	if projected.Type != "" {
+		errType = projected.Type
+	}
+	message = projected.Message
 	payload, err := json.Marshal(map[string]any{
-		"type": "response.failed",
+		"type":            "response.failed",
+		"sequence_number": 0,
 		"response": map[string]any{
 			"id":     "resp_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
 			"object": "response",
@@ -123,10 +145,16 @@ func writeOpenAICompactSSEFailureMessage(c *gin.Context, statusCode int, errType
 			"created_at": time.Now().Unix(),
 			"status":     "failed",
 			"output":     []any{},
-			"error": map[string]any{
-				"code":    errType,
-				"message": message,
-			},
+			"error": func() map[string]any {
+				errorBody := map[string]any{
+					"code":    errType,
+					"message": message,
+				}
+				if param != "" {
+					errorBody["param"] = param
+				}
+				return errorBody
+			}(),
 		},
 	})
 	if err != nil {
@@ -143,8 +171,17 @@ func writeOpenAICompactSSEFailureMessage(c *gin.Context, statusCode int, errType
 // 携带完整 response 对象。Codex 的 SSE 解析只从 output_item.done 收集 item，
 // 并要求 response.completed 的 response.id 必填、usage（若存在）必须携带
 // input_tokens/output_tokens/total_tokens 整数字段，否则整条 completed 事件
-// 解析失败，故此处做兜底修补。
+// 解析失败，故此处做兜底修补。每帧还要带单调的 sequence_number：grok-build
+// 把它当必填，缺了整轮反序列化失败。
 func buildOpenAICompactSSEPayload(finalResponse []byte) ([]byte, bool) {
+	return buildOpenAICompactSSEPayloadWithLifecycle(finalResponse, false)
+}
+
+func buildDeepSeekCompactSSEPayload(finalResponse []byte) ([]byte, bool) {
+	return buildOpenAICompactSSEPayloadWithLifecycle(finalResponse, true)
+}
+
+func buildOpenAICompactSSEPayloadWithLifecycle(finalResponse []byte, lifecycle bool) ([]byte, bool) {
 	if len(finalResponse) == 0 || !gjson.ValidBytes(finalResponse) {
 		return nil, false
 	}
@@ -176,16 +213,74 @@ func buildOpenAICompactSSEPayload(finalResponse []byte) ([]byte, bool) {
 
 	var buf bytes.Buffer
 	outputIndex := 0
-	appendEvent := func(eventType string, data []byte) {
+	sequenceNumber := 0
+	appendEvent := func(eventType string, data []byte) bool {
+		numbered, err := sjson.SetBytes(data, "sequence_number", sequenceNumber)
+		if err != nil {
+			return false
+		}
+		sequenceNumber++
 		_, _ = buf.WriteString("event: ")
 		_, _ = buf.WriteString(eventType)
 		_, _ = buf.WriteString("\ndata: ")
-		_, _ = buf.Write(data)
+		_, _ = buf.Write(numbered)
 		_, _ = buf.WriteString("\n\n")
+		return true
+	}
+	if lifecycle {
+		// A Responses stream establishes the response before opening output
+		// items. Codex ignores output events that arrive without these lifecycle
+		// frames, which surfaces as "0 compaction output items".
+		progressResponse, err := sjson.SetBytes(response, "status", "in_progress")
+		if err != nil {
+			return nil, false
+		}
+		progressResponse, err = sjson.SetRawBytes(progressResponse, "output", []byte("[]"))
+		if err != nil {
+			return nil, false
+		}
+		created, err := sjson.SetRawBytes([]byte("{\"type\":\"response.created\"}"), "response", progressResponse)
+		if err != nil {
+			return nil, false
+		}
+		if !appendEvent("response.created", created) {
+			return nil, false
+		}
+		inProgress, err := sjson.SetRawBytes([]byte("{\"type\":\"response.in_progress\"}"), "response", progressResponse)
+		if err != nil {
+			return nil, false
+		}
+		if !appendEvent("response.in_progress", inProgress) {
+			return nil, false
+		}
 	}
 	for _, item := range gjson.GetBytes(response, "output").Array() {
 		if !item.IsObject() {
 			continue
+		}
+		if lifecycle {
+			// Codex tracks output items from the normal Responses lifecycle. A
+			// done-only compact item is ignored by the remote compaction parser,
+			// which then reports zero output items even though the terminal response
+			// contains the synthesized compaction object.
+			addedItem := []byte(item.Raw)
+			if status := gjson.GetBytes(addedItem, "status"); !status.Exists() || status.String() != "in_progress" {
+				if next, setErr := sjson.SetBytes(addedItem, "status", "in_progress"); setErr == nil {
+					addedItem = next
+				}
+			}
+			added, err := sjson.SetBytes([]byte(`{"type":"response.output_item.added"}`), "output_index", outputIndex)
+			if err != nil {
+				return nil, false
+			}
+			added, err = sjson.SetRawBytes(added, "item", addedItem)
+			if err != nil {
+				return nil, false
+			}
+			if !appendEvent("response.output_item.added", added) {
+				return nil, false
+			}
+
 		}
 		event, err := sjson.SetBytes([]byte(`{"type":"response.output_item.done"}`), "output_index", outputIndex)
 		if err != nil {
@@ -195,7 +290,9 @@ func buildOpenAICompactSSEPayload(finalResponse []byte) ([]byte, bool) {
 		if err != nil {
 			return nil, false
 		}
-		appendEvent("response.output_item.done", event)
+		if !appendEvent("response.output_item.done", event) {
+			return nil, false
+		}
 		outputIndex++
 	}
 
@@ -203,7 +300,9 @@ func buildOpenAICompactSSEPayload(finalResponse []byte) ([]byte, bool) {
 	if err != nil {
 		return nil, false
 	}
-	appendEvent("response.completed", completed)
+	if !appendEvent("response.completed", completed) {
+		return nil, false
+	}
 	return buf.Bytes(), true
 }
 

@@ -30,7 +30,9 @@ var (
 const (
 	updateCacheKey = "update_check_cache"
 	updateCacheTTL = 1200 // 20 minutes
-	githubRepo     = "Wei-Shaw/sub2api"
+	// Fusion releases remain governed by Xingqiao's qualified local release chain.
+	// Do not redirect native update checks to a fork binary that omits our customizations.
+	githubRepo = "Wei-Shaw/sub2api"
 
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"

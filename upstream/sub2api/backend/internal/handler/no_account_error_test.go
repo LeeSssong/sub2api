@@ -174,7 +174,7 @@ func TestLunaUnavailableProtocolContract_ResponsesReturnsStableCodeAndGuidance(t
 	(&GatewayHandler{}).responsesErrorResponse(c, cls.Status, cls.ErrType, cls.Message)
 
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
-	require.JSONEq(t, `{"error":{"code":"local_capacity_exhausted","message":"本站暂不支持gpt-5.6-luna，请切换模型重试"}}`, w.Body.String())
+	require.JSONEq(t, `{"error":{"code":"local_capacity_exhausted","message":"`+service.AppendNativeUserErrorHelp(lunaUnavailableMessage, "")+`"}}`, w.Body.String())
 }
 
 func TestUnsupportedModelResponseIncludesCorrelationMetadata(t *testing.T) {
@@ -186,7 +186,7 @@ func TestUnsupportedModelResponseIncludesCorrelationMetadata(t *testing.T) {
 	(&GatewayHandler{}).responsesErrorResponse(c, http.StatusBadRequest, "unsupported_model", "当前分组不支持模型 gpt-5.5")
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
-	require.JSONEq(t, `{"error":{"code":"unsupported_model","message":"当前分组不支持模型 gpt-5.5","model":"gpt-5.5","request_id":"req-server-123","client_request_id":"req-client-456"}}`, w.Body.String())
+	require.JSONEq(t, `{"error":{"code":"unsupported_model","message":"`+service.AppendNativeUserErrorHelp("当前分组不支持模型 gpt-5.5", "req-server-123")+`","model":"gpt-5.5","request_id":"req-server-123","client_request_id":"req-client-456"}}`, w.Body.String())
 }
 
 func TestClassifyOpenAICompatibleNoAccountError_GrokUsesGrokPlatform(t *testing.T) {
@@ -285,28 +285,28 @@ func TestLocalCapacityExhaustedProtocolContract(t *testing.T) {
 		c, w := newGinContextForEndpoint(t, EndpointResponses)
 		(&GatewayHandler{}).responsesErrorResponse(c, cls.Status, cls.ErrType, cls.Message)
 		require.Equal(t, http.StatusServiceUnavailable, w.Code)
-		require.JSONEq(t, `{"error":{"code":"local_capacity_exhausted","message":"当前服务资源暂时不可用，请稍后重试"}}`, w.Body.String())
+		require.JSONEq(t, `{"error":{"code":"local_capacity_exhausted","message":"`+service.AppendNativeUserErrorHelp(localCapacityExhaustedMessage, "")+`"}}`, w.Body.String())
 	})
 
 	t.Run("openai responses json", func(t *testing.T) {
 		c, w := newGinContextForEndpoint(t, EndpointResponses)
 		(&OpenAIGatewayHandler{}).handleStreamingAwareError(c, cls.Status, cls.ErrType, cls.Message, false)
 		require.Equal(t, http.StatusServiceUnavailable, w.Code)
-		require.JSONEq(t, `{"error":{"code":"local_capacity_exhausted","message":"当前服务资源暂时不可用，请稍后重试"}}`, w.Body.String())
+		require.JSONEq(t, `{"error":{"code":"local_capacity_exhausted","message":"`+service.AppendNativeUserErrorHelp(localCapacityExhaustedMessage, "")+`"}}`, w.Body.String())
 	})
 
 	t.Run("chat completions json", func(t *testing.T) {
 		c, w := newGinContextForEndpoint(t, EndpointChatCompletions)
 		(&GatewayHandler{}).chatCompletionsErrorResponse(c, cls.Status, cls.ErrType, cls.Message)
 		require.Equal(t, http.StatusServiceUnavailable, w.Code)
-		require.JSONEq(t, `{"error":{"type":"local_capacity_exhausted","message":"当前服务资源暂时不可用，请稍后重试"}}`, w.Body.String())
+		require.JSONEq(t, `{"error":{"type":"local_capacity_exhausted","message":"`+service.AppendNativeUserErrorHelp(localCapacityExhaustedMessage, "")+`"}}`, w.Body.String())
 	})
 
 	t.Run("openai chat completions json", func(t *testing.T) {
 		c, w := newGinContextForEndpoint(t, EndpointChatCompletions)
 		(&OpenAIGatewayHandler{}).handleStreamingAwareError(c, cls.Status, cls.ErrType, cls.Message, false)
 		require.Equal(t, http.StatusServiceUnavailable, w.Code)
-		require.JSONEq(t, `{"error":{"type":"local_capacity_exhausted","code":"local_capacity_exhausted","message":"当前服务资源暂时不可用，请稍后重试"}}`, w.Body.String())
+		require.JSONEq(t, `{"error":{"type":"local_capacity_exhausted","code":"local_capacity_exhausted","message":"`+service.AppendNativeUserErrorHelp(localCapacityExhaustedMessage, "")+`"}}`, w.Body.String())
 	})
 
 	t.Run("responses started stream", func(t *testing.T) {
@@ -314,14 +314,14 @@ func TestLocalCapacityExhaustedProtocolContract(t *testing.T) {
 		(&OpenAIGatewayHandler{}).handleStreamingAwareError(c, cls.Status, cls.ErrType, cls.Message, true)
 		_, errObj := parseResponsesFailedSSE(t, w.Body.String())
 		require.Equal(t, "local_capacity_exhausted", errObj["code"])
-		require.Equal(t, "当前服务资源暂时不可用，请稍后重试", errObj["message"])
+		require.Equal(t, service.AppendNativeUserErrorHelp(localCapacityExhaustedMessage, ""), errObj["message"])
 	})
 
 	t.Run("chat completions started stream", func(t *testing.T) {
 		c, w := newGinContextForEndpoint(t, EndpointChatCompletions)
 		(&OpenAIGatewayHandler{}).handleStreamingAwareError(c, cls.Status, cls.ErrType, cls.Message, true)
 		require.Contains(t, w.Body.String(), `"type":"local_capacity_exhausted"`)
-		require.Contains(t, w.Body.String(), `"message":"当前服务资源暂时不可用，请稍后重试"`)
+		require.Contains(t, w.Body.String(), `"message":"`+service.AppendNativeUserErrorHelp(localCapacityExhaustedMessage, "")+`"`)
 	})
 }
 

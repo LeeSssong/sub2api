@@ -50,6 +50,7 @@ export default {
       accountCost: 'Cost',
       noDataAvailable: 'No data available',
       recentUsage: 'Recent Usage',
+      actualSpending: 'Actual spending ($)',
       viewModelDistribution: 'Model Distribution',
       viewSpendingRanking: 'User Spending Ranking',
       spendingRankingTitle: 'User Spending Ranking',
@@ -122,10 +123,42 @@ export default {
         cronExpr: 'Cron Expression',
         cronHint: 'e.g. "0 2 * * *" means every day at 2:00 AM',
         retainDays: 'Backup Expire Days',
-        retainDaysHint: 'Backup files auto-delete after this many days, 0 = never expire',
+        retainDaysHint: 'Ordinary backups are deleted after this many days; 0 = no age limit',
         retainCount: 'Max Retain Count',
-        retainCountHint: 'Maximum number of backups to keep, 0 = unlimited',
+        retainCountHint: 'Maximum ordinary backups to keep; 0 = no count limit',
+        ordinaryRetention: 'Ordinary backup retention',
+        ordinaryHint: 'Clean up the oldest ordinary backups when either limit is reached. Monthly archives are retained separately.',
+        preview: 'Retention preview',
+        previewBoth: 'Keep up to {count} ordinary backups from the last {days} days.',
+        previewDays: 'Keep ordinary backups from the last {days} days, with no count limit.',
+        previewCount: 'Keep the latest {count} ordinary backups, with no age limit.',
+        previewUnlimited: 'Ordinary backups are not automatically deleted.',
         saved: 'Schedule configuration saved'
+      },
+      archive: {
+        title: 'Monthly archives',
+        enabled: 'Enable',
+        dates: 'Archive dates (select multiple)',
+        selectDates: 'Select at least one archive date',
+        selectedDates: '{count} dates selected',
+        day: 'Day {day}',
+        monthEnd: 'Month end',
+        done: 'Done',
+        datesHint: 'Archive the first successful scheduled backup for each selected date, using its start date and the schedule time zone.',
+        retention: 'Archive retention',
+        count: 'Number of archives to keep',
+        copies: 'copies',
+        forever: 'Keep forever',
+        foreverHint: 'Keep all new archives permanently. Existing permanent archives remain protected after settings change.',
+        countHint: 'Count non-permanent archives across all selected dates together; delete the oldest when the limit is exceeded.',
+        fallbackHint: 'If no backup succeeds on a selected date, use the next successful backup in that month. Missing dates use month end. Count each backup only once.',
+        independentHint: 'Archives reuse scheduled backups and do not count toward ordinary retention. No archive is created if the month has no later successful backup.',
+        disabledHint: 'Disabling stops new archives. Existing archives keep their previous retention policy.',
+        invalidRetention: 'Retention days and counts must be non-negative integers. Non-permanent archives require at least 1 copy.',
+        preview: 'Archive one backup on {dates} each month: {retention}.',
+        retainLatest: 'keep the latest {count} archives in total',
+        badge: 'Monthly archive',
+        deleteConfirm: 'This is a monthly archive. Remove archive protection and permanently delete this backup? This cannot be undone.',
       },
       operations: {
         title: 'Backup Records',
@@ -390,10 +423,12 @@ export default {
 
     affiliates: {
       invitesDescription: 'View site-wide inviter and invitee relationships',
-      rebatesDescription: 'View recharge orders that generated affiliate rebates',
-      transfersDescription: 'View affiliate quota transfers into account balance',
+      rebatesDescription: 'View every affiliate rebate accrual from recharge orders, redeem codes, and admin recharges',
+      transfersDescription: 'View affiliate quota transfers into balance and offline withdrawals',
       errors: {
-        loadFailed: 'Failed to load affiliate records'
+        loadFailed: 'Failed to load affiliate records',
+        AFFILIATE_QUOTA_INSUFFICIENT: 'Insufficient available affiliate quota',
+        AFFILIATE_WITHDRAW_AMOUNT_INVALID: 'Invalid withdrawal amount'
       },
       records: {
         search: 'Search',
@@ -418,7 +453,33 @@ export default {
         historyQuotaAfter: 'Historical Rebate After',
         invitedAt: 'Invited At',
         rebatedAt: 'Rebated At',
-        transferredAt: 'Transferred At'
+        transferredAt: 'Transferred At',
+        outflowType: 'Type'
+      },
+      outflowTypes: {
+        transfer: 'To Balance',
+        withdraw: 'Offline Withdrawal'
+      },
+      withdraw: {
+        button: 'Record Offline Withdrawal',
+        title: 'Record Offline Withdrawal',
+        user: 'User',
+        userPlaceholder: 'Search by email or username',
+        noUserFound: 'No matching users',
+        changeUser: 'Change user',
+        availableQuota: 'Available quota',
+        frozenHint: 'Rebates still in the freeze period are not included in the available quota',
+        amount: 'Withdrawal amount (USD)',
+        amountHint: 'Enter the amount already paid to this user outside the site',
+        fillAll: 'All',
+        warning: 'Recording deducts this amount from the user\'s available affiliate quota and cannot be undone. Make sure the off-site payment is complete.',
+        submit: 'Confirm',
+        submitting: 'Recording...',
+        success: 'Recorded offline withdrawal of {amount}; {remaining} still available',
+        replayed: 'This offline withdrawal of {amount} was already recorded and was not deducted again; {remaining} was left available after it',
+        uncertainHint: 'The last submission returned no result and may already be recorded. The user and amount are locked; submitting again retries the same registration and never deducts twice.',
+        amountRequired: 'Enter an amount greater than 0',
+        amountExceeds: 'Amount cannot exceed the available quota'
       },
       overview: {
         title: 'Affiliate User Overview',
@@ -436,6 +497,13 @@ export default {
       title: 'User Management',
       description: 'Manage users and their permissions',
       createUser: 'Create User',
+      bulkDelete: {
+        action: 'Delete selected ({count})',
+        title: 'Delete selected users',
+        confirm: 'Delete the {count} selected users? This action cannot be undone. Administrator accounts cannot be deleted.',
+        success: 'Deleted {count} users',
+        failed: 'Failed to delete {count} users. They remain selected for retry.'
+      },
       bulkLimits: {
         action: 'Set limits ({count})',
         title: 'Set user limits',
@@ -694,7 +762,23 @@ export default {
       failedToLoadBalanceHistory: 'Failed to load balance history',
       createdAt: 'Created',
       totalRecharged: 'Total Recharged',
+      observerGroups: 'Managed account groups',
+      observerSetup: {
+        title: 'Actions when changing to observer',
+        createGroup: 'Create an exclusive group named after this user',
+        createGroupHint: 'Uses OpenAI with a 1x multiplier. Grants account management and API access to the group. An existing group with the same name causes the update to fail.',
+        simpleModeHint: 'Exclusive groups are unavailable in simple mode.',
+        revokePublic: 'Revoke access to other public groups',
+        revokePublicHint: 'Restricts public standard groups and existing API keys using them. Keeps exclusive-group access and purchased subscriptions. Managed account groups are unchanged.',
+        grantResources: 'Add 99999 balance and 1000 concurrency',
+        grantResourcesHint: 'Adds 99999 to the balance and 1000 to the concurrency entered in this form. Zero remains unlimited. Changes appear in balance/concurrency history.',
+        onceHint: 'Unchecked by default. Runs only when changing a non-observer user to observer; later edits do not repeat these actions.',
+        usernameRequired: 'Enter a username before creating an exclusive group'
+      },
+      observerGroupsHint: 'Account management only; independent of API consumption groups. No groups means no account access. Credentials can be viewed and exported. Changes to shared accounts also affect other groups.',
+      observerImportHint: 'Select destination groups. Observer imports exclude proxy configurations; use an export without proxies.',
       roles: {
+        observer: 'Observer',
         admin: 'Admin',
         user: 'User'
       },
@@ -780,6 +864,7 @@ export default {
         clearAllConfirm: 'Clear daily / weekly / monthly limits for ALL platforms? All platforms will become "unlimited" with no local undo — you must manually re-enter values before saving.',
         reset: {
           button: 'Reset window',
+          unavailable: 'No limit configured for this platform, so there is no usage window to reset',
           confirm: 'Reset the {window} usage for {platform} for this user? This is effective immediately.',
           success: 'Reset {platform} {window} usage',
           failed: 'Reset failed',
@@ -829,6 +914,7 @@ export default {
         rateMultiplier: 'Rate Multiplier',
         rpmOverride: 'RPM Override',
         rpmOverrideHint: 'Per-user RPM cap in this group; empty = group default; 0 = unlimited',
+        deniedModels: 'Denied models',
         rateDefault: 'default',
         rpmDefault: 'default',
         exclusive: 'Exclusive',
@@ -882,6 +968,9 @@ export default {
         rpmLimit: 'Requests Per Minute (RPM)',
         rpmLimitPlaceholder: '0 = unlimited',
         rpmLimitHint: 'Max requests per minute for each user in this group; 0 = unlimited. Once set, it takes over per-user rate limiting in this group (overrides the user-level rpm_limit fallback).',
+        streamOnly: 'Streaming requests only',
+        streamOnlyHint: 'When on, this group only accepts streaming chat requests: Messages, Chat Completions and Responses requests without "stream": true, and Gemini generateContent, are rejected with 400. Token counting, model lists, embeddings, images and videos are not affected. Note: some clients check connectivity with non-streaming requests, and those checks will fail.',
+        streamOnlyBadge: 'Stream only',
         maxReasoningEffort: 'Max reasoning effort',
         maxReasoningEffortUnlimited: 'Unlimited (follow request)',
         maxReasoningEffortHint: 'Limits explicit Anthropic and OpenAI reasoning effort requests. For Composite groups, it applies to the resolved target platform. Omitted effort stays omitted. The ceiling takes precedence over reasoning effort mappings.',
@@ -971,6 +1060,13 @@ export default {
       noRpmOverrides: 'No users have an RPM override yet',
       rpmSaved: 'RPM overrides saved',
       groupRpmDefault: 'Group default RPM',
+      userDeniedModels: 'Model Limits',
+      userDeniedModelsTitle: 'Per-user Model Limits',
+      userDeniedModelsHint: 'Block specific users from using some models in this group; other models are unaffected. Case-insensitive; a trailing * matches a prefix (e.g. gpt-6-*).',
+      addUserDeniedModels: 'Add a user limit',
+      deniedModelsPlaceholder: 'Type a model and press Enter',
+      noUserDeniedModels: 'No user has model limits yet',
+      userDeniedModelsSaved: 'User model limits saved',
       searchUserPlaceholder: 'Search user email...',
       noRateMultipliers: 'No user rate multipliers configured',
       rateUpdated: 'Rate multiplier updated',
@@ -999,6 +1095,8 @@ export default {
         zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
         minimax: 'MiniMax',
+        opencode_go: 'OpenCode',
+        typesafe: 'TypeSafe / Jev',
         composite: 'Composite',
       },
       deleteConfirm:
@@ -1077,6 +1175,10 @@ export default {
           'Leave empty to use the default $0.01 per call (official pricing: $10 per 1,000 calls); 0 means free. The group rate multiplier is applied on top.',
         finalPricePreview: 'Per-call price after current multiplier: {price}'
       },
+      turnStateReuse: {
+        title: 'Enable Turn-State ticket injection',
+        description: 'OpenAI OAuth accounts in this group become eligible for Astra ticket harvesting and outbound injection when the global feature is enabled.'
+      },
       peakRate: {
         enable: 'Enable peak rate multiplier',
         peakStart: 'Peak start',
@@ -1098,19 +1200,18 @@ export default {
       },
       modelAllowlist: {
         title: 'Model Allowlist',
-        hint: 'When enabled, models outside the allowlist are rejected with 404 model_not_found, and model listing endpoints only show allowlisted models. Entries support exact model IDs and trailing * wildcards. Note: Claude Code probes with haiku-family models for titles/summaries and /messages/count_tokens is also allowlist-controlled, so make sure the small models you need are selected too.',
+        hint: 'When enabled, models outside the allowlist are rejected with 404 model_not_found, and model listing endpoints only show allowlisted models. Entries support exact model IDs and * wildcards anywhere (e.g., gpt-*-codex). Note: Claude Code probes with haiku-family models for titles/summaries and /messages/count_tokens is also allowlist-controlled, so make sure the small models you need are selected too.',
         loading: 'Loading candidate models...',
         empty: 'No candidate models; add custom entries below',
         selectedSummary: 'Selected {selected} / {total}',
         selectAll: 'Select all',
         invertSelection: 'Invert',
         wildcardTag: 'wildcard',
-        customPlaceholder: 'Custom entry, e.g. claude-* or gpt-5.5-codex',
+        customPlaceholder: 'Custom entry, e.g. gpt-*-codex or claude-*',
         addCustom: 'Add',
         emptySelectionError: 'The model allowlist is enabled; select or add at least one model entry',
         errors: {
           empty: 'Please enter a model entry',
-          invalidWildcard: 'Wildcard * is only allowed at the end of an entry',
           duplicate: 'This entry already exists'
         }
       },

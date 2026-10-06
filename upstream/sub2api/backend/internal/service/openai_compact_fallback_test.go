@@ -460,7 +460,8 @@ func TestOpenAIGatewayForwardDoesNotRecurseWhenCompactFallbackAlsoFails(t *testi
 	var compactSignal *openAICompactFallbackSignal
 	require.False(t, errors.As(err, &compactSignal))
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
-	require.Contains(t, recorder.Body.String(), "model not found")
+	require.Contains(t, recorder.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""))
+	require.NotContains(t, recorder.Body.String(), "model not found")
 	rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
 	require.True(t, ok)
 	events, ok := rawEvents.([]*OpsUpstreamErrorEvent)
@@ -506,7 +507,8 @@ func TestOpenAIPassthroughCompactFallbackSecondStreamFailureUsesStandardErrorPat
 	var compactSignal *openAICompactFallbackSignal
 	require.False(t, errors.As(err, &compactSignal))
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
-	require.Contains(t, recorder.Body.String(), "context window exceeded")
+	require.Contains(t, recorder.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""))
+	require.NotContains(t, recorder.Body.String(), "context window exceeded")
 	rawEvents, ok := c.Get(OpsUpstreamErrorsKey)
 	require.True(t, ok)
 	events, ok := rawEvents.([]*OpsUpstreamErrorEvent)

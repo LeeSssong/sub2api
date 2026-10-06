@@ -81,48 +81,8 @@ type forceCacheBillingKeyType struct{}
 
 // accountWithLoad 账号与负载信息的组合，用于负载感知调度
 type accountWithLoad struct {
-	account     *Account
-	loadInfo    *AccountLoadInfo
-	priority    int
-	prioritySet bool
-}
-
-func newAccountWithLoad(account *Account, loadInfo *AccountLoadInfo, groupID *int64) accountWithLoad {
-	return accountWithLoad{
-		account:     account,
-		loadInfo:    loadInfo,
-		priority:    accountSchedulingPriorityForGroup(account, groupID),
-		prioritySet: true,
-	}
-}
-
-func accountWithLoadPriority(candidate accountWithLoad) int {
-	if candidate.prioritySet {
-		return candidate.priority
-	}
-	return accountSchedulingPriorityForGroup(candidate.account, nil)
-}
-
-// accountSchedulingPriorityForGroup returns the priority captured for one
-// group-scoped scheduling snapshot, falling back to Account.Priority when the
-// account has no matching group row.
-func accountSchedulingPriorityForGroup(account *Account, groupID *int64) int {
-	priority, _ := accountSchedulingPriorityForGroupWithPresence(account, groupID)
-	return priority
-}
-
-func accountSchedulingPriorityForGroupWithPresence(account *Account, groupID *int64) (int, bool) {
-	if account == nil {
-		return 0, false
-	}
-	if groupID != nil && *groupID > 0 {
-		for _, accountGroup := range account.AccountGroups {
-			if accountGroup.GroupID == *groupID {
-				return accountGroup.Priority, true
-			}
-		}
-	}
-	return account.Priority, false
+	account  *Account
+	loadInfo *AccountLoadInfo
 }
 
 var ForceCacheBillingContextKey = forceCacheBillingKeyType{}
@@ -611,12 +571,13 @@ type AccountWaitPlan struct {
 }
 
 type AccountSelectionResult struct {
-	Account       *Account
-	Acquired      bool
-	ReleaseFunc   func()
-	HalfOpenProbe bool
-	WaitPlan      *AccountWaitPlan // nil means no wait allowed
-	halfOpenLease *openAIAccountModelHalfOpenLease
+	Account          *Account
+	Acquired         bool
+	ReleaseFunc      func()
+	HalfOpenProbe    bool
+	WaitPlan         *AccountWaitPlan // nil means no wait allowed
+	AccountRequestID string
+	stickySessionHit bool
 	// profitGate 携带本次选号真实生效的利润门（无门为 nil）。门安装在调度栈的
 	// 局部 ctx 上，handler 必须经 ContextWithSelectionProfitGate 重放后才能在
 	// 调度栈之外做抢槽后终检与准入后粘性绑定。
@@ -628,15 +589,6 @@ type AccountSelectionResult struct {
 	// unifiedQuality lets the handler distinguish retry-next slot outcomes from
 	// legacy terminal slot errors without exposing scheduler internals publicly.
 	unifiedQuality bool
-}
-
-// CompleteHalfOpenProbe records the outcome of the one upstream call admitted
-// by this selection. ReleaseFunc remains the safety net for every path that
-// abandons the selection before Forward.
-func (r *AccountSelectionResult) CompleteHalfOpenProbe(success bool) {
-	if r != nil && r.halfOpenLease != nil {
-		r.halfOpenLease.complete(success)
-	}
 }
 
 // ProfitGateActive 报告本次选号是否处于利润门之下。
@@ -810,9 +762,10 @@ func (e *UpstreamFailoverError) IsCredentialFailure() bool {
 
 // ShouldReportAccountScheduleFailure prevents provider- and request-scoped
 // credential failures from being misattributed to the selected account. Legacy
-// and inference failures retain their existing scheduler-health behavior.
+// and inference failures retain their existing scheduler-health behavior,
+// except an Excel BPS 429: it only cools the account's BPS route.
 func (e *UpstreamFailoverError) ShouldReportAccountScheduleFailure() bool {
-	if e == nil {
+	if e == nil || e.Reason == ExcelBPSRateLimitedReason {
 		return false
 	}
 	return !e.IsCredentialFailure() || e.Scope == GatewayFailureScopeAccount
@@ -1460,6 +1413,7 @@ func (s *GatewayService) DoGrokNativeResponsesJSON(ctx context.Context, account 
 		proxyURL = account.Proxy.URL()
 	}
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	s.rateLimitService.observeQualityResponse(upstreamReq.Context(), account, resp, err)
 	if err != nil {
 		return nil, &UpstreamFailoverError{StatusCode: http.StatusBadGateway, Reason: GatewayFailureReason("grok_search_transport")}
 	}
@@ -1525,22 +1479,37 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	hasAnyMapping := false
 
 	for _, acc := range accounts {
-		// Passthrough routing accepts models independently of model_mapping. A stale
-		// mapping on any eligible passthrough account therefore cannot define the
-		// public whitelist; return nil so the handler uses its default model set.
-		if platform == PlatformOpenAI && acc.IsOpenAIPassthroughEnabled() {
-			if s.modelsListCache != nil {
-				s.modelsListCache.Set(cacheKey, []string(nil), s.modelsListCacheTTL)
-				modelsListCacheStoreTotal.Add(1)
-			}
-			return nil
-		}
-
+		// Passthrough routing accepts models independently of model_mapping, so a
+		// stale mapping on a passthrough account must not narrow the public list.
+		// Treat it like an unmapped account: skip its mapping here and let
+		// supplementUnmappedOpenAIModels contribute the default set. Mappings on
+		// the ordinary accounts in the same group still count.
 		mapping := acc.GetModelMapping()
-		if len(mapping) > 0 {
+		if platform == PlatformOpenAI && acc.IsOpenAIPassthroughEnabled() {
+			mapping = nil
+		}
+		for model := range mapping {
+			// Accounts pulled in through mixed scheduling only contribute the
+			// models that belong to the listing platform (e.g. an antigravity
+			// account's claude-* mappings must not surface on a gemini group).
+			if platform != "" && acc.Platform != platform && !mixedListingModelAllowed(platform, model) {
+				continue
+			}
+			// 账号在本分组里被限制了可用模型时，只公布允许的那部分。
+			if !acc.IsModelAllowedInGroup(groupID, model) {
+				continue
+			}
+			modelSet[model] = struct{}{}
 			hasAnyMapping = true
-			for model := range mapping {
+		}
+		// 没有映射的账号默认支持全部模型；在本分组被限制时改为公布限制清单里的具体模型名。
+		if len(mapping) == 0 {
+			for _, model := range groupAllowedConcreteModels(&acc, groupID) {
+				if platform != "" && acc.Platform != platform && !mixedListingModelAllowed(platform, model) {
+					continue
+				}
 				modelSet[model] = struct{}{}
+				hasAnyMapping = true
 			}
 		}
 	}
@@ -1562,7 +1531,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	sort.Strings(models)
 
 	if platform == PlatformOpenAI {
-		models = supplementUnmappedOpenAIModels(accounts, models)
+		models = supplementUnmappedOpenAIModels(accounts, groupID, models)
 	}
 
 	if s.modelsListCache != nil {
@@ -1786,4 +1755,8 @@ func (s *GatewayService) debugLogGatewaySnapshot(tag string, headers http.Header
 
 	// 写入文件（调试用，并发写入可能交错但不影响可读性）
 	_, _ = f.WriteString(buf.String())
+}
+
+func mixedListingModelAllowed(groupPlatform, model string) bool {
+	return groupPlatform == PlatformGemini && isAntigravityGeminiModel(model)
 }

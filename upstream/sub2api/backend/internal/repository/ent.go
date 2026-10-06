@@ -134,14 +134,29 @@ func initEntStartup(ctx context.Context, cfg *config.Config, db *sql.DB, client 
 	if cfg.Server.ProcessRole.RunsMigrations() && cfg.RunMode == config.RunModeSimple {
 		seedCtx, seedCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer seedCancel()
-		if err := hooks.seedDefaultGroups(seedCtx, client); err != nil {
-			return err
+		if cfg.SimpleMode.AutoCreateDefaultGroups {
+			if err := hooks.seedDefaultGroups(seedCtx, client); err != nil {
+				return err
+			}
 		}
 		if err := hooks.seedAdminConcurrency(seedCtx, client); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// ensureSimpleModeStartup keeps admin concurrency setup independent of group seeding.
+func ensureSimpleModeStartup(ctx context.Context, client *ent.Client, cfg *config.Config) error {
+	if cfg.RunMode != config.RunModeSimple {
+		return nil
+	}
+	if cfg.SimpleMode.AutoCreateDefaultGroups {
+		if err := ensureSimpleModeDefaultGroups(ctx, client); err != nil {
+			return err
+		}
+	}
+	return ensureSimpleModeAdminConcurrency(ctx, client)
 }
 
 // InitEnt 初始化 Ent ORM 客户端并返回客户端实例和底层的 *sql.DB。

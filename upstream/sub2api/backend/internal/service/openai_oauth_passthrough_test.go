@@ -841,7 +841,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_CompactUsesJSONAndKeepsNonStreami
 	require.Contains(t, rec.Body.String(), `"id":"cmp_123"`)
 }
 
-func TestOpenAIGatewayService_OAuthPassthrough_UpstreamRequestIgnoresClientCancel(t *testing.T) {
+func TestOpenAIGatewayService_OAuthPassthrough_CanceledBeforeAdmissionDoesNotSend(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
@@ -881,10 +881,9 @@ func TestOpenAIGatewayService_OAuthPassthrough_UpstreamRequestIgnoresClientCance
 	}
 
 	result, err := svc.Forward(reqCtx, c, account, originalBody)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.NotNil(t, upstream.lastReq)
-	require.NoError(t, upstream.lastReq.Context().Err())
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, result)
+	require.Nil(t, upstream.lastReq, "canceled before admission must not start billable work")
 }
 
 func TestOpenAIGatewayService_OAuthPassthrough_CodexMissingInstructionsGetsDefault(t *testing.T) {
@@ -1086,7 +1085,7 @@ func TestOpenAIGatewayService_OAuthLegacy_GroupForceStillHonorsGlobalFilter(t *t
 	require.Nil(t, result.ServiceTier)
 }
 
-func TestOpenAIGatewayService_OAuthLegacy_UpstreamRequestIgnoresClientCancel(t *testing.T) {
+func TestOpenAIGatewayService_OAuthLegacy_CanceledBeforeAdmissionDoesNotSend(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
@@ -1126,10 +1125,9 @@ func TestOpenAIGatewayService_OAuthLegacy_UpstreamRequestIgnoresClientCancel(t *
 	}
 
 	result, err := svc.Forward(reqCtx, c, account, originalBody)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.NotNil(t, upstream.lastReq)
-	require.NoError(t, upstream.lastReq.Context().Err())
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, result)
+	require.Nil(t, upstream.lastReq, "canceled before admission must not start billable work")
 }
 
 func TestOpenAIGatewayService_OAuthLegacy_CompositeCodexUAUsesCodexOriginator(t *testing.T) {
@@ -1306,7 +1304,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_RebuildsUpstreamErrors(t *testin
 			responseBody:   `<!DOCTYPE html><title>secret-upstream.example denied the request</title>`,
 			retryAfter:     "17",
 			wantStatus:     http.StatusBadGateway,
-			wantMessage:    "服务暂时异常，请稍后重试。",
+			wantMessage:    AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""),
 			wantRetryAfter: "17",
 		},
 		{
@@ -1315,7 +1313,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_RebuildsUpstreamErrors(t *testin
 			contentType:  "application/json",
 			responseBody: `{"error":{"message":"invalid secret-upstream.example token","type":"authentication_error","code":"invalid_api_key","param":"api_key"},"rate_limit":{"remaining":0}}`,
 			wantStatus:   http.StatusBadGateway,
-			wantMessage:  "服务暂时异常，请稍后重试。",
+			wantMessage:  AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""),
 		},
 		// 瞬时 5xx（500/502/503/504/520-524）对 API-key 账号已改走多账号
 		// failover（见 APIKeyPassthrough_Transient5xxTriggersFailover），此处
@@ -1326,7 +1324,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_RebuildsUpstreamErrors(t *testin
 			contentType:  "text/html; charset=UTF-8",
 			responseBody: `<!DOCTYPE html><title>secret-upstream.example | 530: Origin DNS error</title>`,
 			wantStatus:   530,
-			wantMessage:  "服务暂时异常，请稍后重试。",
+			wantMessage:  AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""),
 		},
 		{
 			name:         "structured 5xx",
@@ -1334,7 +1332,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_RebuildsUpstreamErrors(t *testin
 			contentType:  "application/json",
 			responseBody: `{"error":{"message":"secret-upstream.example internal failure"}}`,
 			wantStatus:   http.StatusNotImplemented,
-			wantMessage:  "服务暂时异常，请稍后重试。",
+			wantMessage:  AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""),
 		},
 		{
 			name:         "unstructured 4xx",
@@ -1342,7 +1340,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_RebuildsUpstreamErrors(t *testin
 			contentType:  "text/plain",
 			responseBody: `proxy secret-upstream.example rejected the request`,
 			wantStatus:   http.StatusBadRequest,
-			wantMessage:  "服务暂时异常，请稍后重试。",
+			wantMessage:  AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""),
 		},
 		{
 			name:         "malicious valid json 4xx",
@@ -1351,7 +1349,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_RebuildsUpstreamErrors(t *testin
 			responseBody: `{"error":{"message":"secret-upstream.example invalid parameter","type":"invalid_request_error","code":"upstream_secret_code","param":"private_field","internal_token":"sk-upstream-secret"},"rate_limit":{"remaining":0,"reset":"internal-window"},"debug":{"admin":"root"},"redirect":"https://secret-upstream.example/admin"}`,
 			retryAfter:   "not-a-valid-delay",
 			wantStatus:   http.StatusBadRequest,
-			wantMessage:  "服务暂时异常，请稍后重试。",
+			wantMessage:  AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""),
 		},
 	}
 
@@ -1531,7 +1529,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_CompactErrorAfterKeepaliveIsFail
 	require.Equal(t, "response.failed", events[0][0])
 	require.Equal(t, "failed", gjson.Get(events[0][1], "response.status").String())
 	require.Equal(t, "upstream_error", gjson.Get(events[0][1], "response.error.code").String())
-	require.Equal(t, "服务暂时异常，请稍后重试。", gjson.Get(events[0][1], "response.error.message").String())
+	require.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""), gjson.Get(events[0][1], "response.error.message").String())
 	require.NotContains(t, rec.Body.String(), "secret-upstream.example")
 }
 
@@ -1820,7 +1818,8 @@ func TestOpenAIGatewayService_APIKeyPassthrough_ContextWindow502DoesNotFailover(
 	require.False(t, errors.As(err, &failoverErr), "context-window errors are deterministic request failures")
 	require.True(t, c.Writer.Written())
 	require.Equal(t, http.StatusBadGateway, rec.Code)
-	require.Contains(t, rec.Body.String(), "exceeds the context window")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""))
+	require.NotContains(t, rec.Body.String(), "exceeds the context window")
 	require.True(t, body.closed)
 }
 

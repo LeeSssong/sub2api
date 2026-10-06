@@ -3,10 +3,394 @@ set -euo pipefail
 
 umask 077
 
+# User-authorized v2.9.7 online transition; additive order column and platform superset.
+readonly OCTOBER_03_OLD_MIGRATIONS_HASH=600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea
+readonly OCTOBER_03_NEW_MIGRATIONS_HASH=406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b
+
+# October 2: additive API key limit and OAuth observations; this release only.
+readonly OCTOBER_02_OLD_MIGRATIONS_HASH=6019a46ac500e6a669c8d6b26cc001f3cc96a093f199fece56405df926cb6768
+readonly OCTOBER_02_NEW_MIGRATIONS_HASH=600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea
+
+# October 1: additive engine column; user-authorized online transition.
+readonly OCTOBER_01_OLD_MIGRATIONS_HASH=d5339ae8cc23d83fcb14727a248cd0e2e077d21741ed597f81edbec76bfafffe
+readonly OCTOBER_01_NEW_MIGRATIONS_HASH=6019a46ac500e6a669c8d6b26cc001f3cc96a093f199fece56405df926cb6768
+
+# September 30: additive official migrations 259-261; bounded online execution.
+readonly SEPTEMBER_30_OLD_MIGRATIONS_HASH=a3be3a718ef8c6a3980b71d4c3367c20776cebed128d206fdbf54cb35dff1477
+readonly SEPTEMBER_30_NEW_MIGRATIONS_HASH=d5339ae8cc23d83fcb14727a248cd0e2e077d21741ed597f81edbec76bfafffe
+
+# Exact September 28 transition; replace target only after integrated SQL review.
+# September 29: official observation-scope index; bounded online migration.
+readonly SEPTEMBER_29_OLD_MIGRATIONS_HASH=611d464f9a31d60236cf065883d82966c3df2436683e899044c931ffb48743de
+readonly SEPTEMBER_29_NEW_MIGRATIONS_HASH=a3be3a718ef8c6a3980b71d4c3367c20776cebed128d206fdbf54cb35dff1477
+
+readonly SEPTEMBER_28_OLD_MIGRATIONS_HASH=aa5034f8164b58fec94947353be441991f7b0baeac48b9f7ba62f55013aed5c9
+readonly SEPTEMBER_28_NEW_MIGRATIONS_HASH=611d464f9a31d60236cf065883d82966c3df2436683e899044c931ffb48743de
+
+# v2.8.18 adds only users.observer_group_ids; old application accepts the additive schema.
+readonly BPS_OBSERVER_OLD_MIGRATIONS_HASH=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+readonly BPS_OBSERVER_NEW_MIGRATIONS_HASH=aa5034f8164b58fec94947353be441991f7b0baeac48b9f7ba62f55013aed5c9
+readonly FUSION_2813_OLD_MIGRATIONS_HASH=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b
+readonly FUSION_2813_NEW_MIGRATIONS_HASH=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
+readonly SEPTEMBER_26_OLD_MIGRATIONS_HASH=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
+readonly SEPTEMBER_26_NEW_MIGRATIONS_HASH=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
+
 fail() {
   printf 'blue-green deploy failed: %s\n' "$1" >&2
   exit 1
 }
+
+reauth_lifecycle() {
+  local action=$1
+  [[ -f /opt/sub2api/production/reauth-worker/worker.env ]] || return 0
+  [[ ! -L /usr/local/libexec/sub2api-reauth-worker.sh && -x /usr/local/libexec/sub2api-reauth-worker.sh ]] || return 1
+  /usr/local/libexec/sub2api-reauth-worker.sh "$action" >/dev/null
+}
+
+stop_worker_after_schedule_drain() {
+  reauth_lifecycle pause || return 1
+  python3 - "$1" "$2" "$3" "$record_root/.$attempt_id.worker-stop" <<'PY_WORKER_DRAIN'
+import selectors
+import subprocess
+import sys
+import time
+
+postgres, worker, wait_seconds, marker = sys.argv[1:]
+deadline = time.monotonic() + float(wait_seconds)
+command = ["docker", "exec", "-i", postgres, "sh", "-c",
+           'exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+sql = """BEGIN;
+SET LOCAL lock_timeout='2s';
+SET LOCAL idle_in_transaction_session_timeout='75s';
+LOCK TABLE scheduled_test_plans IN SHARE MODE;
+SELECT 'worker_guard|' || count(*) FILTER (WHERE pelican_config IS NULL)
+  || '|' || count(*) FILTER (WHERE running_until IS NOT NULL)
+FROM scheduled_test_plans;
+"""
+while True:
+    holder = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, text=True, bufsize=1)
+    try:
+        holder.stdin.write(sql)
+        holder.stdin.flush()
+        with selectors.DefaultSelector() as selector:
+            selector.register(holder.stdout, selectors.EVENT_READ)
+            line = holder.stdout.readline().strip() if selector.select(5) else ""
+        if line.startswith("worker_guard|"):
+            _, ordinary, running = line.split("|")
+            if int(ordinary):
+                raise RuntimeError("ordinary scheduled plans lack drain leases; worker left running")
+            if int(running) == 0:
+                if holder.poll() is not None:
+                    raise RuntimeError("worker drain lock was lost")
+                open(marker, "a").close()
+                subprocess.run(["docker", "stop", "--time", "60", worker],
+                               check=True, timeout=65, stdout=subprocess.DEVNULL)
+                observed = subprocess.check_output(
+                    ["docker", "inspect", worker, "--format", "{{.State.Running}}"],
+                    text=True, timeout=5).strip()
+                if observed != "false":
+                    raise RuntimeError("old worker did not stop")
+                print("worker_schedule_drain=completed", file=sys.stderr, flush=True)
+                break
+        if time.monotonic() >= deadline:
+            raise RuntimeError("worker schedule drain timed out; active API retained")
+    finally:
+        try:
+            holder.communicate("ROLLBACK;\n", timeout=5)
+        except (subprocess.TimeoutExpired, BrokenPipeError):
+            holder.kill()
+            holder.communicate()
+    time.sleep(min(1, max(0, deadline - time.monotonic())))
+PY_WORKER_DRAIN
+}
+
+# Called only after traffic is restored to the old API. Stop the candidate
+# before inspecting new action data so in-flight admin writes cannot race the probe.
+september28_drain_candidate() {
+  docker stop --time 300 "$1" >/dev/null || return 1
+  [[ "$(docker inspect "$1" --format '{{.State.Running}}')" == false ]]
+}
+
+september28_old_worker_compatible() {
+  local result action=enable_bps
+  # Additive schema remains on rollback; previous worker supports retained actions.
+  if [[ "${migrations_hash:-${current_hash:-}}" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" ]]; then return 0; fi
+  if [[ "${migrations_hash:-${current_hash:-}}" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" ]]; then return 0; fi
+  if [[ "${migrations_hash:-${current_hash:-}}" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" ]]; then return 0; fi
+  if [[ "${migrations_hash:-${current_hash:-}}" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ]]; then
+    result=$(docker exec "$1" sh -c \
+      'exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' september28-compat \
+      "SELECT NOT EXISTS (SELECT 1 FROM accounts WHERE deleted_at IS NULL AND platform='typesafe') AND NOT EXISTS (SELECT 1 FROM groups WHERE deleted_at IS NULL AND platform='typesafe') AND NOT EXISTS (SELECT 1 FROM settings WHERE key='RECHARGE_BONUS_TIERS' AND value NOT IN ('','[]','null')) AND NOT EXISTS (SELECT 1 FROM payment_orders WHERE bonus_amount > 0 AND status IN ('pending','paid','fulfilling'))") || return 1
+    [[ "$result" == t ]]
+    return
+  fi
+  if [[ "${migrations_hash:-${current_hash:-}}" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" ]]; then action=observe_only; fi
+  result=$(docker exec "$1" sh -c \
+    'exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' september28-compat \
+    "SELECT NOT EXISTS (SELECT 1 FROM scheduled_test_plans WHERE pelican_config->'quality'->>'action'='$action') AND NOT EXISTS (SELECT 1 FROM account_quality_states WHERE state->>'action'='$action')") || return 1
+  [[ "$result" == t ]]
+}
+
+rollback_committed_release() {
+  [[ $# == 3 && "$1" == --rollback && "$2" == --record ]] || fail 'rollback requires --record <successful-release-record>'
+  local record=$3 root=${RELEASE_RECORD_ROOT:?RELEASE_RECORD_ROOT is required}
+  local state=${RELEASE_STATE:?RELEASE_STATE is required} release_env=${RELEASE_ENV:?RELEASE_ENV is required}
+  local secret_env=${SECRET_ENV:?SECRET_ENV is required} compose_file=${BASE_COMPOSE:?BASE_COMPOSE is required}
+  local deploy_root=${DEPLOY_ROOT:?DEPLOY_ROOT is required} base_url=${BASE_URL:?BASE_URL is required}
+  local previous_slot current_slot previous_upstream current_upstream old_image old_id expected_id image_key
+  local current_worker old_worker worker_id postgres_id redis_id caddy_id previous_hash current_hash
+  local compose=() restore_compose=() temp_env='' header='' switched=false worker_changed=false committed=false
+  local september28_compatibility_blocked=false september28_candidate_stopped=false
+  local original_env='' original_state='' persist_started=false
+  local lock_dir="$root/.blue-green.lock" lock_owned=false
+
+  [[ "$root" == /* && -d "$root" && ! -L "$root" && "$record" == "$root/"*.json ]] || fail 'rollback record path is invalid'
+  for path in "$record" "$state" "$release_env" "$secret_env" "$compose_file" "$deploy_root/Caddyfile"; do
+    [[ -f "$path" && ! -L "$path" ]] || fail 'rollback input is missing or a symlink'
+  done
+  [[ "$(stat -c '%a' "$record" 2>/dev/null || stat -f '%Lp' "$record")" == 600 \
+      && "$(stat -c '%a' "$state" 2>/dev/null || stat -f '%Lp' "$state")" == 600 \
+      && "$(stat -c '%a' "$release_env" 2>/dev/null || stat -f '%Lp' "$release_env")" == 600 \
+      && "$(stat -c '%a' "$secret_env" 2>/dev/null || stat -f '%Lp' "$secret_env")" == 600 ]] \
+    || fail 'rollback state and record must be 0600'
+  [[ "$base_url" == https://* && "$(uname -s)" == Linux && -z "${DOCKER_HOST:-}" ]] \
+    || fail 'rollback requires the production Docker host and HTTPS acceptance URL'
+  [[ "$(docker context show)" == default ]] || fail 'rollback Docker context is not default'
+  [[ -d "$deploy_root" && ! -L "$deploy_root" ]] || fail 'rollback deploy root is invalid'
+  jq -e --slurpfile current "$state" '
+    .schema_version == 1 and .mode == "production" and .result == "succeeded" and
+    .state == "promoted" and .rolled_back == false and
+    (.previous | type == "object") and
+    .requested.source_commit == $current[0].source_commit and
+    .requested.source_tree == $current[0].source_tree and
+    .requested.migrations_hash == $current[0].migrations_hash and
+    .previous.active_slot != $current[0].active_slot and
+    .previous.active_upstream == ("sub2api-" + .previous.active_slot + ":8080") and
+    $current[0].active_upstream == ("sub2api-" + $current[0].active_slot + ":8080") and
+    (.previous.source_commit | test("^[a-f0-9]{40}$")) and
+    (.previous.source_tree | test("^[a-f0-9]{40}$")) and
+    (.previous.migrations_hash | test("^[a-f0-9]{64}$"))
+  ' "$record" >/dev/null || fail 'rollback record does not match the current promoted release'
+  previous_hash=$(jq -r '.previous.migrations_hash' "$record")
+  current_hash=$(jq -r '.migrations_hash' "$state")
+  if [[ "$previous_hash" != "$current_hash" ]]; then
+    if [[ ( "$previous_hash" == "$FUSION_2813_OLD_MIGRATIONS_HASH" && "$current_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ) \
+        || ( "$previous_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ) \
+        || ( "$previous_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" && "$current_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ) \
+        || ( "$previous_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ]]; then
+      # Reviewed additive transitions keep old readers compatible with new schema.
+      :
+    else
+    [[ "$previous_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 \
+        && "$current_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b ]] \
+      || fail 'database migration set changed; rollback compatibility has not been reviewed'
+    local migration_probe
+    migration_probe=$(docker compose --project-name sub2api --project-directory "$deploy_root" \
+      --env-file "$secret_env" --env-file "$release_env" -f "$compose_file" exec -T postgres sh -c \
+      'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE filename = '\''241_reasoning_pricing_rollback_compat.sql'\'' AND checksum = '\''8d191edefda98710e0626131fae301a85ad072705130c77e753044654daeeff6'\'') AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = '\''channel_model_pricing'\''::regclass AND tgname = '\''channel_reasoning_pricing_compat'\'' AND tgenabled = '\''O'\'') AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = '\''groups'\''::regclass AND tgname = '\''group_reasoning_pricing_compat'\'' AND tgenabled = '\''O'\'')"') \
+      || fail 'rollback schema compatibility probe failed'
+    [[ "$migration_probe" == t ]] || fail 'rollback schema compatibility is not installed'
+    fi
+  fi
+
+  previous_slot=$(jq -r '.previous.active_slot' "$record")
+  case "$previous_slot" in blue) image_key=SUB2API_BLUE_IMAGE ;; green) image_key=SUB2API_GREEN_IMAGE ;; *) fail 'previous slot is invalid' ;; esac
+  current_slot=$(jq -r '.active_slot' "$state")
+  previous_upstream="sub2api-$previous_slot:8080"
+  current_upstream="sub2api-$current_slot:8080"
+  old_image=$(jq -r --arg slot "$previous_slot" '.previous[$slot + "_image"]' "$record")
+  expected_id=$(jq -r --arg slot "$previous_slot" '.previous[$slot + "_image_id"] // empty' "$record")
+  old_worker=$(jq -r '.previous.worker_image' "$record")
+  current_worker=$(jq -r '.worker_image' "$state")
+  [[ "$old_image" =~ ^[^[:space:]@]+(@sha256:[a-f0-9]{64}|:release-[a-f0-9]{40}(-[a-f0-9]{64})?)$ ]] \
+    || fail 'rollback image reference is invalid'
+  old_id=$(docker image inspect --format '{{.Id}}' "$old_image") || fail 'previous API image is missing'
+  [[ "$old_id" =~ ^sha256:[a-f0-9]{64}$ && ( -z "$expected_id" || "$old_id" == "$expected_id" ) ]] \
+    || fail 'previous API image ID differs from its release record'
+  [[ "$(docker image inspect --format '{{.Id}}' "$old_worker")" == "$(jq -r '.previous.worker_image_id // empty' "$record")" \
+      || "$(jq -r '.previous.worker_image_id // empty' "$record")" == '' ]] \
+    || fail 'previous worker image ID differs from its release record'
+
+  compose=(docker compose --project-name sub2api --project-directory "$deploy_root" --env-file "$secret_env" --env-file "$release_env" -f "$compose_file")
+  [[ "$(awk -F= -v key="$image_key" '$1 == key {print $2}' "$release_env")" == "$old_image" ]] \
+    || fail 'previous slot image differs from release env'
+  [[ "$(awk -F= '$1 == "SUB2API_ACTIVE_UPSTREAM" {print $2}' "$release_env")" == "$current_upstream" ]] \
+    || fail 'release env does not match the live state'
+  [[ "$(awk -F= '$1 == "SUB2API_WORKER_IMAGE" {print $2}' "$release_env")" == "$current_worker" ]] \
+    || fail 'worker image differs from release env'
+  postgres_id=$("${compose[@]}" ps -q postgres)
+  redis_id=$("${compose[@]}" ps -q redis)
+  caddy_id=$("${compose[@]}" ps -q caddy)
+  [[ "$postgres_id" == "$(jq -r '.postgres_id' "$state")" && "$redis_id" == "$(jq -r '.redis_id' "$state")" \
+      && "$caddy_id" == "$(jq -r '.caddy_id' "$state")" ]] || fail 'shared runtime identity changed'
+  [[ "$("${compose[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ | jq -er 'walk(if type == "object" and (.match == [{"path":["/api/bps-images/blue/*"]}] or .match == [{"path":["/api/bps-images/green/*"]}]) then {} else . end) | [.. | objects | .dial? // empty | select(. == "sub2api-blue:8080" or . == "sub2api-green:8080")] | unique | if length == 1 then .[0] else error("ambiguous route") end')" == "$current_upstream" ]] \
+    || fail 'live Caddy upstream does not match release state'
+  expected_id=$(jq -r --arg slot "$current_slot" '.[$slot + "_image_id"] // empty' "$state")
+  [[ -z "$expected_id" || "$(docker inspect "$("${compose[@]}" ps -q "sub2api-$current_slot")" --format '{{.Image}}')" == "$expected_id" ]] \
+    || fail 'current API image ID differs from release state'
+  expected_id=$(jq -r '.worker_image_id // empty' "$state")
+  [[ -z "$expected_id" || "$(docker inspect "$("${compose[@]}" ps -q sub2api-worker)" --format '{{.Image}}')" == "$expected_id" ]] \
+    || fail 'current worker image ID differs from release state'
+  mkdir "$lock_dir" 2>/dev/null || fail 'another release or rollback is in progress'
+  lock_owned=true
+  printf '%s\n' "$$" >"$lock_dir/owner.pid"
+  chmod 0600 "$lock_dir/owner.pid"
+
+  rollback_exit() {
+    local status=$? recovery_ok=true restored_id restored_status live_route restore_env_tmp restore_state_tmp
+    trap - EXIT
+    if [[ "$september28_compatibility_blocked" == true ]]; then
+      printf 'September 28 rollback incomplete: old API route restored; compatible new worker and data retained; lock retained for recovery\n' >&2
+      exit 1
+    fi
+    if [[ "$committed" == false && "$persist_started" == true ]]; then
+      [[ -n "$original_env" && -n "$original_state" ]] || recovery_ok=false
+      if [[ "$recovery_ok" == true ]]; then
+        restore_env_tmp=$(mktemp "$root/.rollback-restore-env.XXXXXX") || recovery_ok=false
+        restore_state_tmp=$(mktemp "$root/.rollback-restore-state.XXXXXX") || recovery_ok=false
+        if [[ "$recovery_ok" == true ]]; then
+          cp "$original_env" "$restore_env_tmp" && cp "$original_state" "$restore_state_tmp" \
+            && chmod 0600 "$restore_env_tmp" "$restore_state_tmp" \
+            && mv -f -- "$restore_env_tmp" "$release_env" \
+            && mv -f -- "$restore_state_tmp" "$state" \
+            && cmp -s "$release_env" "$original_env" \
+            && cmp -s "$state" "$original_state" || recovery_ok=false
+        fi
+        [[ -z "${restore_env_tmp:-}" ]] || rm -f -- "$restore_env_tmp"
+        [[ -z "${restore_state_tmp:-}" ]] || rm -f -- "$restore_state_tmp"
+      fi
+    fi
+    if [[ "$committed" == false && "$september28_candidate_stopped" == true ]]; then
+      # A failed rollback must ready the new API before routing back to it.
+      "${compose[@]}" up --no-deps -d "sub2api-$current_slot" >/dev/null 2>&1 || recovery_ok=false
+      local recovery_deadline=$(( $(date -u +%s) + 90 )) recovery_health=''
+      while [[ "$recovery_ok" == true ]]; do
+        recovery_health=$(docker inspect "$("${compose[@]}" ps -q "sub2api-$current_slot")" --format '{{.State.Health.Status}}') || recovery_ok=false
+        [[ "$recovery_health" != healthy ]] || break
+        [[ "$recovery_health" != unhealthy && "$(date -u +%s)" -lt "$recovery_deadline" ]] || { recovery_ok=false; break; }
+        sleep 1
+      done
+    fi
+    if [[ "$committed" == false && "$switched" == true && "$recovery_ok" == true ]]; then
+      if ! "${compose[@]}" exec -T -e "SUB2API_ACTIVE_UPSTREAM=$current_upstream" caddy \
+        caddy reload --config - --adapter caddyfile <"$deploy_root/Caddyfile" >/dev/null 2>&1; then
+        recovery_ok=false
+      else
+        live_route=$("${compose[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ | jq -er 'walk(if type == "object" and (.match == [{"path":["/api/bps-images/blue/*"]}] or .match == [{"path":["/api/bps-images/green/*"]}]) then {} else . end) | [.. | objects | .dial? // empty | select(. == "sub2api-blue:8080" or . == "sub2api-green:8080")] | unique | if length == 1 then .[0] else error("ambiguous route") end') || recovery_ok=false
+        [[ "$live_route" == "$current_upstream" ]] || recovery_ok=false
+      fi
+    fi
+    if [[ "$committed" == false && "$worker_changed" == true ]]; then
+      if ! reauth_lifecycle pause || ! "${compose[@]}" up --no-deps -d --force-recreate sub2api-worker >/dev/null 2>&1; then
+        recovery_ok=false
+      else
+        restored_id=$("${compose[@]}" ps -q sub2api-worker) || recovery_ok=false
+        local reauth_recovery_deadline=$(( $(date -u +%s) + 90 ))
+        while [[ "$recovery_ok" == true ]]; do
+          restored_status=$(docker inspect "$restored_id" --format '{{.State.Health.Status}}') || { recovery_ok=false; break; }
+          [[ "$restored_status" != healthy ]] || break
+          [[ "$restored_status" != unhealthy && "$(date -u +%s)" -lt "$reauth_recovery_deadline" ]] || { recovery_ok=false; break; }
+          sleep 1
+        done
+        [[ "$restored_status" == healthy && "$(docker inspect "$restored_id" --format '{{.Image}}')" == "$(docker image inspect --format '{{.Id}}' "$current_worker")" ]] || recovery_ok=false
+      fi
+    fi
+    reauth_lifecycle resume || recovery_ok=false
+    if [[ "$recovery_ok" != true ]]; then
+      printf 'blue-green rollback recovery failed; lock retained for manual intervention: %s\n' "$lock_dir" >&2
+      exit 1
+    fi
+    [[ -z "$temp_env" ]] || rm -f -- "$temp_env"
+    [[ -z "$original_env" ]] || rm -f -- "$original_env"
+    [[ -z "$original_state" ]] || rm -f -- "$original_state"
+    [[ -z "$header" ]] || rm -f -- "$header"
+    if [[ "$lock_owned" == true ]]; then rm -f -- "$lock_dir/owner.pid"; rmdir "$lock_dir"; fi
+    exit "$status"
+  }
+  trap rollback_exit EXIT
+  trap 'exit 130' HUP INT TERM
+
+  original_env=$(mktemp "$root/.rollback-original-env.XXXXXX")
+  original_state=$(mktemp "$root/.rollback-original-state.XXXXXX")
+  cp "$release_env" "$original_env"
+  cp "$state" "$original_state"
+  chmod 0600 "$original_env" "$original_state"
+
+  "${compose[@]}" up --no-deps -d "sub2api-$previous_slot" >/dev/null
+  local deadline=$(( $(date -u +%s) + 90 )) status=''
+  while true; do
+    status=$(docker inspect "$("${compose[@]}" ps -q "sub2api-$previous_slot")" --format '{{.State.Health.Status}}')
+    [[ "$status" == healthy ]] && break
+    [[ "$status" != unhealthy && "$(date -u +%s)" -lt "$deadline" ]] || fail 'previous API did not become healthy'
+    sleep 1
+  done
+  [[ "$(docker inspect "$("${compose[@]}" ps -q "sub2api-$previous_slot")" --format '{{.Image}}')" == "$old_id" ]] \
+    || fail 'previous API runtime is not the expected image'
+  "${compose[@]}" exec -T -e "SUB2API_ACTIVE_UPSTREAM=$previous_upstream" caddy \
+    caddy validate --config - --adapter caddyfile <"$deploy_root/Caddyfile" >/dev/null
+  switched=true
+  "${compose[@]}" exec -T -e "SUB2API_ACTIVE_UPSTREAM=$previous_upstream" caddy \
+    caddy reload --config - --adapter caddyfile <"$deploy_root/Caddyfile" >/dev/null
+  curl -fsS --connect-timeout 5 --max-time 15 "$base_url/health" | jq -e '.status == "ok"' >/dev/null \
+    || fail 'previous API did not pass public health acceptance'
+
+  temp_env=$(mktemp "$root/.rollback.env.XXXXXX")
+  awk -v worker="$old_worker" -v slot="$previous_slot" -v upstream="$previous_upstream" '
+    /^SUB2API_WORKER_IMAGE=/ { print "SUB2API_WORKER_IMAGE=" worker; next }
+    /^SUB2API_ACTIVE_SLOT=/ { print "SUB2API_ACTIVE_SLOT=" slot; next }
+    /^SUB2API_ACTIVE_UPSTREAM=/ { print "SUB2API_ACTIVE_UPSTREAM=" upstream; next }
+    /^SUB2API_PREVIOUS_SLOT=/ { print "SUB2API_PREVIOUS_SLOT=" (slot == "blue" ? "green" : "blue"); next }
+    { print }
+  ' "$release_env" >"$temp_env"
+  chmod 0600 "$temp_env"
+  restore_compose=(docker compose --project-name sub2api --project-directory "$deploy_root" --env-file "$secret_env" --env-file "$temp_env" -f "$compose_file")
+  if [[ ( "$previous_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ]]; then
+    september28_compatibility_blocked=true
+    september28_drain_candidate "$("${compose[@]}" ps -q "sub2api-$current_slot")" \
+      || fail 'candidate API could not drain during rollback'
+    september28_candidate_stopped=true
+    september28_old_worker_compatible "$postgres_id" \
+      || fail 'new BPS rules or ownership require compatible recovery; new worker retained'
+    september28_compatibility_blocked=false
+    worker_changed=true
+    # New API is stopped and old API cannot create enable_bps rules.
+    record_root=$root attempt_id=explicit-september28-rollback
+    stop_worker_after_schedule_drain "$postgres_id" "$("${compose[@]}" ps -q sub2api-worker)" 90 \
+      || fail 'new worker could not safely drain during rollback'
+    september28_compatibility_blocked=false
+  fi
+  reauth_lifecycle pause || fail 'reauth could not drain before rollback'
+  worker_changed=true
+  "${restore_compose[@]}" up --no-deps -d --force-recreate sub2api-worker >/dev/null
+  deadline=$(( $(date -u +%s) + 90 ))
+  while true; do
+    status=$(docker inspect "$("${restore_compose[@]}" ps -q sub2api-worker)" --format '{{.State.Health.Status}}')
+    [[ "$status" == healthy ]] && break
+    [[ "$status" != unhealthy && "$(date -u +%s)" -lt "$deadline" ]] || fail 'previous worker did not become healthy'
+    sleep 1
+  done
+  [[ "$(docker inspect "$("${restore_compose[@]}" ps -q sub2api-worker)" --format '{{.Image}}')" == "$(docker image inspect --format '{{.Id}}' "$old_worker")" ]] \
+    || fail 'previous worker runtime image mismatch'
+  reauth_lifecycle resume || fail 'reauth could not resume after rollback'
+  local state_tmp env_tmp
+  state_tmp=$(mktemp "$root/.rollback-state.XXXXXX")
+  env_tmp=$(mktemp "$root/.rollback-release.XXXXXX")
+  jq --arg hash "$current_hash" '.previous | .migrations_hash = $hash' "$record" >"$state_tmp"
+  cp "$temp_env" "$env_tmp"
+  chmod 0600 "$state_tmp" "$env_tmp"
+  persist_started=true
+  mv "$env_tmp" "$release_env"
+  mv "$state_tmp" "$state"
+  committed=true
+  printf '{"result":"rolled_back","active_slot":"%s","record":"%s"}\n' "$previous_slot" "$record"
+  rollback_exit
+}
+
+if [[ "${1:-}" == --rollback ]]; then
+  rollback_committed_release "$@"
+  exit
+fi
 
 monotonic_millis() {
   perl -MTime::HiRes=clock_gettime,CLOCK_MONOTONIC -e \
@@ -31,6 +415,8 @@ migrations_hash=''
 deadline_epoch=''
 maintenance_authorized=false
 maintenance_from_hash=''
+online_migrations_from_hash=''
+drain_mode=force
 preloaded_archive=''
 preloaded_archive_sha256=''
 preloaded_image_id=''
@@ -94,6 +480,17 @@ readonly MAINTENANCE_27_OLD_MIGRATIONS_HASH=a01097cc0beb4376aca6982f0c993b5e2dd3
 readonly MAINTENANCE_27_NEW_MIGRATIONS_HASH=3c0db678804b93bac883f096d21fc3944852e8ccbde2d66c70b56f0c610b5b83
 readonly MAINTENANCE_28_OLD_MIGRATIONS_HASH=3c0db678804b93bac883f096d21fc3944852e8ccbde2d66c70b56f0c610b5b83
 readonly MAINTENANCE_28_NEW_MIGRATIONS_HASH=6dfcbaf9f6c451cdd2c28c43c807b9e3cd15e9e4708a6ad25b509df331545757
+readonly MAINTENANCE_29_OLD_MIGRATIONS_HASH=6dfcbaf9f6c451cdd2c28c43c807b9e3cd15e9e4708a6ad25b509df331545757
+readonly MAINTENANCE_29_NEW_MIGRATIONS_HASH=fe924d3c21c3dc4a5f41e26ba444c08c074cfed04de52042e37f57a2e9a811bb
+readonly MAINTENANCE_30_OLD_MIGRATIONS_HASH=fe924d3c21c3dc4a5f41e26ba444c08c074cfed04de52042e37f57a2e9a811bb
+readonly MAINTENANCE_30_NEW_MIGRATIONS_HASH=fca9ca2b278404dc6d2dd08e4486ac1c5ac57440b4e6fa20f2de9dfee2c86330
+readonly MAINTENANCE_31_OLD_MIGRATIONS_HASH=fca9ca2b278404dc6d2dd08e4486ac1c5ac57440b4e6fa20f2de9dfee2c86330
+readonly MAINTENANCE_31_NEW_MIGRATIONS_HASH=dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54
+readonly MAINTENANCE_32_OLD_MIGRATIONS_HASH=dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54
+readonly MAINTENANCE_32_NEW_MIGRATIONS_HASH=9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b
+readonly PELICAN_REPORT_OLD_MIGRATIONS_HASH=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
+readonly PELICAN_REPORT_NEW_MIGRATIONS_HASH=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+
 
 while (($#)); do
   case "$1" in
@@ -109,13 +506,19 @@ while (($#)); do
 		--preloaded-image-id) (($# >= 2)) || fail '--preloaded-image-id requires a value'; [[ -z "$preloaded_image_id" ]] || fail '--preloaded-image-id may be supplied once'; preloaded_image_id=$2; shift 2 ;;
 		--maintenance-authorized) [[ "$maintenance_authorized" == false ]] || fail '--maintenance-authorized may be supplied once'; maintenance_authorized=true; shift ;;
 		--maintenance-from-hash) (($# >= 2)) || fail '--maintenance-from-hash requires a value'; [[ -z "$maintenance_from_hash" ]] || fail '--maintenance-from-hash may be supplied once'; maintenance_from_hash=$2; shift 2 ;;
+		--online-migrations-from-hash) (($# >= 2)) || fail '--online-migrations-from-hash requires a value'; [[ -z "$online_migrations_from_hash" ]] || fail '--online-migrations-from-hash may be supplied once'; online_migrations_from_hash=$2; shift 2 ;;
+    --drain-mode) (($# >= 2)) || fail '--drain-mode requires a value'; drain_mode=$2; shift 2 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
 
+[[ "$drain_mode" == force || "$drain_mode" == retain ]] || fail '--drain-mode must be force or retain'
 [[ "$mode" == rehearsal || "$mode" == production ]] || fail '--mode must be rehearsal or production'
 [[ "$maintenance_authorized" == false || "$mode" == production ]] || fail '--maintenance-authorized is only valid in production mode'
 [[ -z "$maintenance_from_hash" || "$maintenance_from_hash" =~ ^[a-f0-9]{64}$ ]] || fail '--maintenance-from-hash must be 64 lowercase hex'
+[[ -z "$online_migrations_from_hash" || "$online_migrations_from_hash" =~ ^[a-f0-9]{64}$ ]] || fail '--online-migrations-from-hash must be 64 lowercase hex'
+[[ -z "$online_migrations_from_hash" || ( "$mode" == production && "$maintenance_authorized" == false ) ]] \
+  || fail 'online migration preparation requires production mode without maintenance'
 if [[ "$maintenance_authorized" == true ]]; then
   [[ "$maintenance_from_hash" =~ ^[a-f0-9]{64}$ ]] \
     || fail '--maintenance-from-hash must identify an approved active migration set'
@@ -123,7 +526,8 @@ fi
 
 approved_maintenance_transition() {
   local from_hash=$1 to_hash=$2
-  [[ "$from_hash" == "$MAINTENANCE_1_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_1_NEW_MIGRATIONS_HASH" \
+  [[ "$from_hash" == 600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea && "$to_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b \
+    || "$from_hash" == "$MAINTENANCE_1_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_1_NEW_MIGRATIONS_HASH" \
     || "$from_hash" == "$MAINTENANCE_2_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_2_NEW_MIGRATIONS_HASH" \
     || "$from_hash" == "$MAINTENANCE_3_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_3_NEW_MIGRATIONS_HASH" \
     || "$from_hash" == "$MAINTENANCE_4_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_4_NEW_MIGRATIONS_HASH" \
@@ -150,7 +554,13 @@ approved_maintenance_transition() {
     || "$from_hash" == "$MAINTENANCE_25_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_25_NEW_MIGRATIONS_HASH" \
     || "$from_hash" == "$MAINTENANCE_26_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_26_NEW_MIGRATIONS_HASH" \
     || "$from_hash" == "$MAINTENANCE_27_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_27_NEW_MIGRATIONS_HASH" \
-    || "$from_hash" == "$MAINTENANCE_28_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_28_NEW_MIGRATIONS_HASH" ]]
+    || "$from_hash" == "$MAINTENANCE_28_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_28_NEW_MIGRATIONS_HASH" \
+    || "$from_hash" == "$MAINTENANCE_29_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_29_NEW_MIGRATIONS_HASH" \
+    || "$from_hash" == "$MAINTENANCE_30_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_30_NEW_MIGRATIONS_HASH" \
+    || "$from_hash" == "$MAINTENANCE_31_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_31_NEW_MIGRATIONS_HASH" \
+    || "$from_hash" == "$MAINTENANCE_32_OLD_MIGRATIONS_HASH" && "$to_hash" == "$MAINTENANCE_32_NEW_MIGRATIONS_HASH" \
+    || "$from_hash" == "$PELICAN_REPORT_OLD_MIGRATIONS_HASH" && "$to_hash" == "$PELICAN_REPORT_NEW_MIGRATIONS_HASH" \
+    || "$from_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" && "$to_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ]]
 }
 preloaded_image=${RELEASE_PRELOADED_IMAGE:-false}
 [[ "$preloaded_image" == true || "$preloaded_image" == false ]] \
@@ -437,6 +847,9 @@ if [[ "$preloaded_image" == true ]]; then
   network_probe_pull_args=(--pull never)
 fi
 
+preserve_detector=${PRESERVE_DETECTOR:-false}
+[[ "$preserve_detector" == true || "$preserve_detector" == false ]] || fail 'PRESERVE_DETECTOR must be true or false'
+
 lock_dir="$record_root/.blue-green.lock"
 lock_owner_path="$lock_dir/owner.pid"
 lock_owned=false
@@ -444,7 +857,11 @@ lock_owned=false
 cleanup_lock() {
 	stop_deadline_watchdog
   if [[ "${lock_owned:-false}" == true ]]; then
-    if run_post_stop_operation 'rm -f -- "$1" && rmdir "$2"' "$lock_owner_path" "$lock_dir" 2>/dev/null; then
+    if [[ "${record_finalized:-false}" == true ]]; then
+      rm -f -- "$lock_owner_path"
+      rmdir "$lock_dir"
+      lock_owned=false
+    elif run_post_stop_operation 'rm -f -- "$1" && rmdir "$2"' "$lock_owner_path" "$lock_dir" 2>/dev/null; then
       lock_owned=false
     fi
   fi
@@ -484,6 +901,10 @@ acquire_lock() {
 }
 
 acquire_lock
+if compgen -G "$record_root/.drain-*.pending" >/dev/null; then
+  cleanup_lock
+  fail 'previous release is still draining; only rollback is allowed'
+fi
 partial_path=''
 record_finalized=false
 cutover_attempted=false
@@ -492,8 +913,15 @@ state_persisted=false
 persistence_started=false
 worker_update_started=false
 maintenance_transition=false
+online_migration_transition=false
 maintenance_stopped=false
+additive_migration_started=false
+official297_restore_needed=false
+official297_detector_stopped=false
 maintenance_identity_refresh=false
+preserve_worker=${PRESERVE_WORKER:-false}
+[[ "$preserve_worker" == true || "$preserve_worker" == false ]] || fail 'PRESERVE_WORKER must be true or false'
+[[ "$preserve_worker" == false || "$maintenance_authorized" == false ]] || fail 'worker must participate in maintenance'
 maintenance_deadline_epoch=''
 maintenance_window_seconds=''
 maintenance_started_millis=''
@@ -528,6 +956,7 @@ rollback_env=''
 admin_header=''
 gateway_header=''
 attempt_id="$(date -u +%Y%m%dT%H%M%SZ)-$mode-$$"
+drain_marker="$record_root/.drain-$attempt_id.pending"
 started_epoch=$(date -u +%s)
 record_path="$record_root/$attempt_id.json"
 
@@ -553,6 +982,9 @@ restore_detector_topology() {
 
 configure_detector_topology() {
   [[ "$mode" == production ]] || return 0
+  # API-only promotion keeps the existing worker and detector topology intact.
+  [[ "$preserve_worker" == false ]] || return 0
+  [[ "$preserve_detector" == false ]] || return 0
   if ! jq -e 'type == "object" and (.services | type == "object")' "$base_compose" >/dev/null 2>&1; then
     grep -Eq '^[[:space:]]+model-detector:' "$base_compose" && detector_enabled=true
     return 0
@@ -664,10 +1096,12 @@ write_final_record() {
     --arg state "$state" \
     --arg reason "$reason" \
     --argjson rolled_back "$rollback_completed" \
+    --argjson previous "${previous_state_json:-null}" \
     '{schema_version:1, attempt_id:$attempt_id, mode:$mode,
       requested:{image:$image, source_commit:$source_commit, source_tree:$source_tree,
         tested_tree:$tested_tree, migrations_hash:$migrations_hash},
-      result:$result, state:$state, reason:$reason, rolled_back:$rolled_back}'
+      result:$result, state:$state, reason:$reason, rolled_back:$rolled_back} |
+     if $result == "succeeded" then . + {previous:$previous} else . end'
   record_finalized=true
 }
 
@@ -855,7 +1289,7 @@ wait_for_worker_healthy() {
   max_attempts=$((timeout / poll + 1))
   while true; do
     worker_status=$(run_post_stop_command docker inspect "$(resolve_container_id sub2api-worker)" --format '{{.State.Health.Status}}') || return 1
-    [[ "$worker_status" == healthy ]] && return 0
+    [[ "$worker_status" == healthy ]] && { reauth_lifecycle resume; return $?; }
     attempts=$((attempts + 1))
     [[ "$attempts" -lt "$max_attempts" ]] || return 1
     now=$(date -u +%s)
@@ -934,9 +1368,64 @@ container_role() {
 	' "$container_id"
 }
 
+verify_fusion_callback_routes() {
+  # Prove both callback prefixes reach their exact slot for every suffix. Unknown
+  # matchers/handlers which could intercept the prefix fail closed; merely
+  # finding a proxy somewhere in the JSON does not establish reachability.
+  jq -e --arg origin "$1" '
+    def disjoint($prefix):
+      if contains("*") then
+        if endswith("*") and (rtrimstr("*") | contains("*") | not) then
+          rtrimstr("*") as $p | (($prefix | startswith($p)) or ($p | startswith($prefix))) | not
+        else false end
+      else startswith($prefix) | not end;
+    def covers($prefix):
+      endswith("*") and (rtrimstr("*") | contains("*") | not) and
+      (rtrimstr("*") as $p | $prefix | startswith($p));
+    def set_covers($prefix; $host):
+      (keys - ["host","path"] | length == 0) and
+      ((.host // [$host]) | index($host) != null) and
+      (if has("path") then any(.path[]; covers($prefix)) else true end);
+    def set_disjoint($prefix; $host):
+      (has("host") and all(.host[]; . != $host and (contains("*") | not))) or
+      (has("path") and all(.path[]; disjoint($prefix))) or
+      any(.not[]?; set_covers($prefix; $host));
+    def prove($routes; $prefix; $target; $host; $exact):
+      reduce $routes[] as $r ("continue";
+        if . != "continue" then .
+        elif (($r.match // [] | length) > 0 and all($r.match[]; set_disjoint($prefix; $host))) then .
+        elif $r.group != null then "unsafe"
+        else
+          (($r.match // [] | length) == 0 or any($r.match[]; set_covers($prefix; $host))) as $certain |
+          ($exact or $r.match == [{path:[$prefix + "*"]}]) as $bound |
+          (reduce ($r.handle // [])[] as $h ("continue";
+            if . != "continue" then .
+            elif (["headers","encode","log_append"] | index($h.handler)) != null then .
+            elif $h.handler == "subroute" then prove($h.routes // []; $prefix; $target; $host; $bound)
+            elif $h.handler == "reverse_proxy" and $bound and
+                 $h.upstreams == [{dial:$target}] and $h.rewrite == null and
+                 $h.handle_response == null and $h.dynamic_upstreams == null then "found"
+            else "unsafe" end)) as $result |
+          if $result == "found" and ($certain | not) then "unsafe"
+          elif $result == "continue" and $r.terminal == true then "unsafe"
+          else $result end
+        end);
+    ($origin | capture("^https://(?<host>[^/:]+)(:(?<port>[0-9]+))?/?$")) as $address |
+    (.apps.http.servers | to_entries | map(.value)) as $servers |
+    def server_ok($port):
+      [$servers[] | select(any(.listen[]?; endswith(":" + $port)))] as $matching |
+      ($matching | length) == 1 and
+      all(["blue","green"][]; . as $slot |
+        prove($matching[0].routes; "/api/bps-images/" + $slot + "/";
+          "sub2api-" + $slot + ":8080"; $address.host; false) == "found");
+    server_ok($address.port // "443") and server_ok("8081")
+  ' >/dev/null
+}
+
 live_caddy_upstream() {
   local jq_filter
   jq_filter='
+        walk(if type == "object" and (.match == [{"path":["/api/bps-images/blue/*"]}] or .match == [{"path":["/api/bps-images/green/*"]}]) then {} else . end) |
 		[.. | objects | .dial? // empty |
 		 select(. == "sub2api-blue:8080" or . == "sub2api-green:8080")] |
 		unique | if length == 1 then .[0] else error("active upstream is not unique") end
@@ -974,6 +1463,9 @@ public_acceptance() {
   ' "$base_url" "$gateway_header" || return 1
 }
 
+# Keep the current API serving while retiring the singleton worker. The table
+# lock closes the race between an idle check and the old worker's next claim.
+
 worker_logs_are_acceptable() {
   # Compose prefixes each line with the container name; avoid treating an
   # unrelated "Request failed" message as a worker startup failure.
@@ -986,14 +1478,41 @@ worker_logs_are_acceptable() {
 }
 
 restore_previous() {
+  [[ "${migration_receipts_unknown:-false}" != true ]] || return 1
   local rollback_ok=true current_blue current_green previous_previous
   rollback_in_progress=true
+  if [[ "$official297_restore_needed" == true ]]; then
+    run_post_stop_command docker exec -i "$rollback_postgres_id" sh -c \
+      'exec pg_restore --clean --if-exists --exit-on-error -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+      <"$maintenance_backup" || return 1
+    official297_restore_needed=false
+  fi
+  if [[ -e "$record_root/.$attempt_id.worker-stop" ]]; then
+    worker_update_started=true
+  fi
+  if [[ "$additive_migration_started" == true ]]; then
+    # A failed candidate may have already committed the additive migration.
+    # Keep the release checkpoint aligned with the real schema on rollback.
+    rollback_migrations_hash=$(run_post_stop_command docker exec "$rollback_postgres_id" sh -c \
+      'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' report-receipts \
+      "$schema_receipt_sql") || return 1
+    [[ "$rollback_migrations_hash" == "$state_migrations_hash" \
+        || "$rollback_migrations_hash" == "$migrations_hash" ]] || return 1
+  fi
   if [[ "$cutover_attempted" == true ]]; then
     if validate_upstream "$previous_upstream"; then
       run_caddy_config_command "$previous_upstream" validate >/dev/null 2>&1 || rollback_ok=false
       run_caddy_config_command "$previous_upstream" reload >/dev/null 2>&1 || rollback_ok=false
     else
       rollback_ok=false
+    fi
+  fi
+  if [[ "$rollback_ok" == true && "$online_migration_transition" == true && ( "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ) ) && "$cutover_attempted" == true ]]; then
+    september28_drain_candidate "$(resolve_container_id "sub2api-$candidate_slot")" || return 1
+    if ! september28_old_worker_compatible "$rollback_postgres_id"; then
+      failure_reason=september28_bps_compatibility_recovery_required
+      printf 'Old API route restored; new BPS rules/ownership or unavailable probe require compatible recovery; new worker retained\n' >&2
+      return 1
     fi
   fi
   if [[ "$rollback_ok" == true && ( "$maintenance_stopped" == true || "$worker_update_started" == true ) ]]; then
@@ -1006,6 +1525,21 @@ restore_previous() {
       if [[ "$maintenance_stopped" == true ]]; then
         run_post_stop_command "${compose_rollback[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" "sub2api-$previous_slot" >/dev/null 2>&1 || rollback_ok=false
       fi
+      if [[ "$maintenance_stopped" == false && ( "$online_migration_transition" == false || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
+        local rollback_worker_id rollback_worker_running
+        rollback_worker_id=$("${compose_rollback[@]}" ps -a -q sub2api-worker) || return 1
+        rollback_worker_running=false
+        if [[ -n "$rollback_worker_id" ]]; then
+          [[ "$rollback_worker_id" != *$'\n'* && "$rollback_worker_id" != *' '* ]] || return 1
+          rollback_worker_running=$(docker inspect "$rollback_worker_id" --format '{{.State.Running}}') || return 1
+        fi
+        if [[ "$rollback_worker_running" == true ]]; then
+          stop_worker_after_schedule_drain "$rollback_postgres_id" "$rollback_worker_id" 90 || return 1
+        elif [[ "$rollback_worker_running" != false ]]; then
+          return 1
+        fi
+      fi
+      reauth_lifecycle pause || return 1
       run_post_stop_command "${compose_rollback[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" --force-recreate sub2api-worker >/dev/null 2>&1 || rollback_ok=false
     fi
   fi
@@ -1027,7 +1561,7 @@ restore_previous() {
 		[[ "$rollback_ok" == false || "$(resolve_container_id redis)" == "$rollback_redis_id" ]] || rollback_ok=false
 		[[ "$rollback_ok" == false || "$(resolve_container_id caddy)" == "$rollback_caddy_id" ]] || rollback_ok=false
 	fi
-  if [[ "$rollback_ok" == true && ( "$persistence_started" == true || "$state_persisted" == true || "$worker_update_started" == true ) ]]; then
+  if [[ "$rollback_ok" == true && ( "$persistence_started" == true || "$state_persisted" == true || "$worker_update_started" == true || ( "$online_migration_transition" == true && "$rollback_migrations_hash" != "$state_migrations_hash" ) ) ]]; then
     current_blue=$rollback_blue_image
     current_green=$rollback_green_image
     previous_previous=$candidate_slot
@@ -1047,12 +1581,7 @@ on_exit() {
   local status=$?
   trap - EXIT HUP INT TERM
   set +e
-  run_post_stop_operation '
-    for path in "$@"; do
-      [[ -z "$path" ]] || rm -f -- "$path" || exit $?
-    done
-  ' "$candidate_env" "$rollback_env" "$admin_header" "$gateway_header" || true
-  if [[ "$status" -ne 0 ]]; then
+  if [[ "$status" -ne 0 && "$record_finalized" == false ]]; then
     restore_detector_topology || true
   fi
   if [[ "$status" -ne 0 && "$record_finalized" == false && -n "$partial_path" && -e "$partial_path" ]]; then
@@ -1077,10 +1606,26 @@ on_exit() {
       run_post_stop_command rm -f -- "$partial_path" || true
     fi
   fi
+  run_post_stop_operation '
+    for path in "$@"; do
+      [[ -z "$path" ]] || rm -f -- "$path" || exit $?
+    done
+  ' "$candidate_env" "$rollback_env" "$admin_header" "$gateway_header" || true
   if [[ "$status" -eq 0 && "$record_finalized" == true ]]; then
     rm -f -- "$detector_compose_backup" "$detector_secret_backup"
   elif [[ "$status" -ne 0 && "$record_finalized" == true && "$rollback_completed" == true ]]; then
     rm -f -- "$detector_compose_backup" "$detector_secret_backup"
+  fi
+  if [[ "$status" -ne 0 && "$record_finalized" == true && "${drain_status:-}" == pending ]]; then
+    jq '.drain = ((.drain // {}) + {status:"failed"})' "$record_path" >"$record_path.drain.tmp" &&
+      chmod 0600 "$record_path.drain.tmp" && mv "$record_path.drain.tmp" "$record_path"
+  fi
+  if ! reauth_lifecycle resume; then
+    printf 'Reauth resume failed; inspect dedicated worker before next release\n' >&2
+    status=1
+  fi
+  if [[ "$official297_detector_stopped" == true && ( "$record_finalized" == true && ( "$status" == 0 || "$rollback_completed" == true ) ) ]]; then
+    "${compose_current[@]}" start model-detector >/dev/null || status=1
   fi
   cleanup_lock
   exit "$status"
@@ -1154,6 +1699,12 @@ partial_rollback_image_ids_match_local_images() {
 recover_partial() {
   local existing=$1 now age recovery_cutover_attempted recovery_cutover recovery_worker
   partial_record_is_valid "$existing" || fail 'stale or invalid partial release record is present'
+  # Expanded September 28 schema needs action-aware recovery, never the generic
+  # interrupted-release worker restore (which predates the scope migration).
+  [[ "$(jq -r '.previous.migrations_hash' "$existing")" != "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" ]] \
+    || fail 'September 28 checkpoint requires action-aware recovery; preserve current worker and data'
+  [[ "$(jq -r '.phase' "$existing")" != migration_started ]] \
+    || fail 'interrupted migrator has uncertain receipts; inspect applied schema before recovery'
   partial_rollback_image_ids_match_local_images "$existing" \
     || fail 'partial release image ID does not match its local image reference'
   now=$(date -u +%s)
@@ -1203,6 +1754,12 @@ recover_partial() {
   state_persisted=$recovery_cutover
   persistence_started=$recovery_cutover
   worker_update_started=$recovery_worker
+  local recovery_attempt
+  recovery_attempt=$(jq -r .attempt_id "$existing")
+  [[ "$recovery_attempt" =~ ^[A-Za-z0-9._-]+$ ]] || fail 'invalid recovery attempt ID'
+  if [[ -e "$record_root/.$recovery_attempt.worker-stop" ]]; then
+    worker_update_started=true
+  fi
   failure_reason=interrupted_release_recovered
   partial_path=$existing
   if restore_previous; then
@@ -1273,6 +1830,7 @@ jq -e '
   (.migrations_hash | type == "string" and test("^[a-f0-9]{64}$")) and
   ([.postgres_id,.redis_id,.caddy_id] | all(type == "string" and length > 0))
 ' "$release_state" >/dev/null 2>&1 || fail 'RELEASE_STATE schema is invalid'
+previous_state_json=$(jq -c . "$release_state") || fail 'RELEASE_STATE could not be captured for rollback'
 
 state_active_slot=$(jq -r '.active_slot' "$release_state")
 state_active_upstream=$(jq -r '.active_upstream' "$release_state")
@@ -1407,7 +1965,15 @@ state_previous_slot=green
 [[ "$(managed_env_value SUB2API_PREVIOUS_SLOT)" == "$state_previous_slot" ]] || fail 'RELEASE_ENV previous slot does not match state'
 
 if [[ "$migrations_hash" != "$state_migrations_hash" ]]; then
-  if [[ "$maintenance_authorized" == true \
+  if [[ -n "$online_migrations_from_hash" \
+      && "$online_migrations_from_hash" == "$state_migrations_hash" \
+      && ( ( "$state_migrations_hash" == "$MAINTENANCE_32_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$MAINTENANCE_32_NEW_MIGRATIONS_HASH" ) ||
+           ( "$state_migrations_hash" == "$FUSION_2813_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ) ||
+           ( "$state_migrations_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ) ||
+           ( "$state_migrations_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ) ||
+           ( "$state_migrations_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" ) || ( "$state_migrations_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" ) || ( "$state_migrations_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" ) || ( "$state_migrations_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" ) || ( "$state_migrations_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" ) || ( "$state_migrations_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ) ]]; then
+    online_migration_transition=true
+  elif [[ "$maintenance_authorized" == true \
       && "$maintenance_from_hash" == "$state_migrations_hash" ]] \
       && approved_maintenance_transition "$state_migrations_hash" "$migrations_hash"; then
     maintenance_transition=true
@@ -1423,20 +1989,44 @@ elif [[ "$maintenance_authorized" == true \
   # verifies PostgreSQL/Redis continuity and the expected Caddy image.
   maintenance_transition=true
 fi
+[[ -z "$online_migrations_from_hash" || "$online_migration_transition" == true ]] \
+  || gate migration_set_changed 'online migration transition is not a reviewed migration pair' 300
 
+if [[ "$online_migration_transition" == true && "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" && "$drain_mode" != retain ]]; then
+  gate fusion_requires_retain 'fusion requires --drain-mode retain to preserve long requests' 300
+fi
+if [[ "$online_migration_transition" == true && "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ]]; then
+  [[ "$drain_mode" == retain && "$preserve_worker" == false && "$preserve_detector" == true ]] \
+    || gate september26_online_contract 'September 26 requires retain drain, new worker, and preserved detector' 300
+fi
+if [[ "$online_migration_transition" == true && "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ]]; then
+  [[ "$preserve_worker" == false && "$preserve_detector" == true ]] \
+    || gate bps_observer_online_contract 'BPS observer requires new worker and preserved detector' 300
+fi
+if [[ "$online_migration_transition" == true && "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" ]]; then
+  [[ "$preserve_worker" == false && "$preserve_detector" == true ]] \
+    || gate september28_online_contract 'September 28 requires new worker and preserved detector' 300
+fi
+if [[ "$online_migration_transition" == true && ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ) ]]; then
+  [[ "$preserve_worker" == false && "$preserve_detector" == true ]] \
+    || gate september29_online_contract 'September 29 requires new worker and preserved detector' 300
+fi
 postgres_id=$(resolve_container_id postgres) || gate legacy_topology_bootstrap 'PostgreSQL container identity is not uniquely resolvable' 600
 redis_id=$(resolve_container_id redis) || gate legacy_topology_bootstrap 'Redis container identity is not uniquely resolvable' 600
 caddy_id=$(resolve_container_id caddy) || gate legacy_topology_bootstrap 'Caddy container identity is not uniquely resolvable' 600
 if [[ "$postgres_id" != "$state_postgres_id" || "$redis_id" != "$state_redis_id" || "$caddy_id" != "$state_caddy_id" ]]; then
-  if [[ "$maintenance_transition" == true && "$postgres_id" == "$state_postgres_id" && "$redis_id" == "$state_redis_id" ]]; then
-    expected_caddy_image=$("${compose_current[@]}" config --format json | jq -er '.services.caddy.image') \
-      || gate shared_container_identity_changed 'current Caddy image could not be proved during authorized maintenance' 600
-    [[ "$(docker inspect "$caddy_id" --format '{{.Config.Image}}')" == "$expected_caddy_image" ]] \
-      || gate shared_container_identity_changed 'Caddy identity changed to an unexpected image' 600
-    maintenance_identity_refresh=true
-  else
-    gate shared_container_identity_changed 'PostgreSQL, Redis, or Caddy identity differs from the active release state' 600
+  if [[ "$postgres_id" != "$state_postgres_id" || "$redis_id" != "$state_redis_id" ]]; then
+    gate shared_container_identity_changed 'PostgreSQL or Redis identity differs from the active release state' 600
   fi
+  expected_caddy_image=$("${compose_current[@]}" config --format json | jq -er '.services.caddy.image') \
+    || gate shared_container_identity_changed 'current Caddy image could not be proved' 600
+  [[ "$(docker inspect "$caddy_id" --format '{{.Config.Image}}')" == "$expected_caddy_image" ]] \
+    || gate shared_container_identity_changed 'Caddy identity changed to an unexpected image' 600
+  # Caddy is a shared, independently reloadable edge component. If only its
+  # container identity drifted while its image remains the exact Compose image,
+  # refresh the checkpoint in-place and continue with the API blue-green cutover.
+  maintenance_identity_refresh=true
+  rollback_caddy_id=$caddy_id
 fi
 
 active_service="sub2api-$state_active_slot"
@@ -1504,19 +2094,34 @@ db_headroom=$(printf '%s' "$db_headroom" | tr -d '[:space:]')
 [[ "$db_headroom" =~ ^[0-9]+$ && "$db_headroom" -ge "${MIN_DB_CONNECTION_HEADROOM:-10}" ]] \
   || gate insufficient_db_connection_headroom 'fewer than 10 PostgreSQL connections remain available' 300
 
+if [[ "$online_migration_transition" == true && "$state_migrations_hash" == "$MAINTENANCE_32_OLD_MIGRATIONS_HASH" ]]; then
+  retired_artifacts=$("${compose_current[@]}" exec -T postgres sh -c \
+    'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT (SELECT count(*) FROM settings WHERE key IN ('"'"'openai_advanced_scheduler_candidate_pool_mode'"'"','"'"'openai_advanced_scheduler_exploration_ratio'"'"','"'"'openai_advanced_scheduler_starvation_threshold_seconds'"'"','"'"'openai_advanced_scheduler_fairness_weight'"'"','"'"'openai_advanced_scheduler_group_overrides'"'"','"'"'openai_advanced_scheduler_group_policies'"'"','"'"'openai_advanced_scheduler_custom_presets'"'"')) + CASE WHEN to_regclass('"'"'public.openai_scheduler_logs'"'"') IS NULL THEN 0 ELSE 1 END"') \
+    || gate retired_scheduler_artifacts 'retired scheduler artifact check failed' 300
+  [[ "$retired_artifacts" == 0 ]] \
+    || gate retired_scheduler_artifacts 'retired scheduler data requires a separate reviewed backup or maintenance plan' 300
+fi
+
 configure_detector_topology
 candidate_env="$record_root/.$attempt_id.candidate.env"
 cp "$release_env" "$candidate_env"
 chmod 0600 "$candidate_env"
 candidate_blue=$state_blue_image
 candidate_green=$state_green_image
-candidate_worker=$state_worker_image
+candidate_worker=$requested_image
+[[ "$preserve_worker" == true ]] && candidate_worker=$state_worker_image
 candidate_blue_image_id=$state_blue_image_id
 candidate_green_image_id=$state_green_image_id
 candidate_worker_image_id=$requested_image_id
+promoted_worker=$requested_image
+if [[ "$preserve_worker" == true ]]; then
+  candidate_worker_image_id=$state_worker_image_id
+  promoted_worker=$state_worker_image
+fi
 if [[ "$candidate_slot" == blue ]]; then candidate_blue=$requested_image; else candidate_green=$requested_image; fi
 if [[ "$candidate_slot" == blue ]]; then candidate_blue_image_id=$requested_image_id; else candidate_green_image_id=$requested_image_id; fi
 if [[ "$maintenance_transition" == true ]]; then candidate_worker=$requested_image; candidate_worker_image_id=$requested_image_id; fi
+if [[ "$online_migration_transition" == true ]]; then candidate_worker=$requested_image; candidate_worker_image_id=$requested_image_id; fi
 awk \
   -v blue="$candidate_blue" -v green="$candidate_green" -v worker="$candidate_worker" '
   /^SUB2API_BLUE_IMAGE=/ { print "SUB2API_BLUE_IMAGE=" blue; next }
@@ -1545,10 +2150,78 @@ jq -e --arg service "sub2api-$candidate_slot" --arg active_service "sub2api-$sta
 partial_path="$record_root/$attempt_id.partial"
 write_partial preflight_complete
 
+if [[ "$online_migration_transition" == true && ( "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
+  # Existing upgraded streams use the OLD proxy handler's cleanup policy.
+  # Merely putting a delay in the incoming file cannot preserve them.
+  "${compose_current[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ |
+    jq -e '[.. | objects | select(.upstreams? | type == "array") | select(any(.upstreams[]; .dial == "sub2api-blue:8080" or .dial == "sub2api-green:8080"))] | length > 0 and all(.[]; (.stream_close_delay // 0) >= 86400000000000)' >/dev/null \
+    || gate stream_retention_not_ready 'live Caddy must already preserve upgraded streams across reload (24h); stage and verify separately before this release' 300
+  "${compose_current[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ |
+    verify_fusion_callback_routes "$base_url" \
+    || gate callback_affinity_not_ready 'live public/internal Caddy routes must preserve both callback slot prefixes without rewrite or interception' 300
+  jq -e '.services["sub2api-worker"].stop_grace_period == "1m0s" or .services["sub2api-worker"].stop_grace_period == "60s"' <<<"$candidate_config" >/dev/null \
+    || gate worker_shutdown_not_ready 'worker requires a verified 60s graceful stop budget' 300
+  # Inspect the actual Caddyfile used for cutover too, before any migrations.
+  "${compose_current[@]}" exec -T -e "SUB2API_ACTIVE_UPSTREAM=$candidate_upstream" caddy caddy adapt --config - --adapter caddyfile <"$deploy_root/Caddyfile" |
+    jq -e '[.. | objects | select(.upstreams? | type == "array") | select(any(.upstreams[]; .dial == "sub2api-blue:8080" or .dial == "sub2api-green:8080"))] | length > 0 and all(.[]; (.stream_close_delay // 0) >= 86400000000000)' >/dev/null \
+    || gate stream_retention_not_ready 'candidate Caddyfile must retain upgraded streams too' 300
+  "${compose_current[@]}" exec -T -e "SUB2API_ACTIVE_UPSTREAM=$candidate_upstream" caddy caddy adapt --config - --adapter caddyfile <"$deploy_root/Caddyfile" |
+    verify_fusion_callback_routes "$base_url" \
+    || gate callback_affinity_not_ready 'actual cutover Caddyfile lacks reachable public/internal callback slot routes' 300
+fi
+
+if [[ "$online_migration_transition" == true ]]; then
+  if [[ "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ]]; then
+    failure_reason=online_backup_failed
+    maintenance_backup="$record_root/$attempt_id.pre-migration.dump"
+    run_post_stop_operation '
+      backup=$1 postgres=$2
+      docker exec "$postgres" sh -c '\''exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -Z 1'\'' >"$backup.tmp" &&
+        test -s "$backup.tmp" &&
+        docker exec -i "$postgres" pg_restore -l <"$backup.tmp" >/dev/null &&
+        chmod 0600 "$backup.tmp" && mv "$backup.tmp" "$backup"
+    ' "$maintenance_backup" "$postgres_id" || fail 'online database backup or archive validation failed'
+    maintenance_backup_sha256=$(run_post_stop_operation \
+      'sha256sum "$1" | awk '\''{print $1}'\''' "$maintenance_backup") \
+      || fail 'database backup checksum failed'
+    [[ "$maintenance_backup_sha256" =~ ^[a-f0-9]{64}$ ]] || fail 'database backup checksum is invalid'
+    trace_event 'online backup verified'
+  fi
+  failure_reason=online_migration_failed
+  if [[ "$preloaded_image" == false ]]; then
+    run_post_stop_command "${compose_candidate[@]}" pull sub2api-worker >/dev/null
+  fi
+  # This one-shot process runs only the embedded migrations. The old API and
+  # singleton worker remain live; a lock/statement timeout aborts before cutover.
+  migration_receipts_unknown=true
+  write_partial migration_started
+  migration_ok=false
+  if run_post_stop_command "${compose_candidate[@]}" run --rm --no-deps --user 1000:1000 \
+    --entrypoint /app/sub2api sub2api-worker -migrate-only >/dev/null; then migration_ok=true; fi
+  # Applied receipts describe the shared DB even after a partially failed run.
+  # PostgreSQL bytea concatenation preserves the hash format's NUL separator.
+  schema_receipt_sql="SELECT encode(sha256(string_agg(convert_to(filename,'UTF8') || decode('00','hex') || convert_to(checksum || chr(10),'UTF8'), ''::bytea ORDER BY filename)), 'hex') FROM schema_migrations"
+  observed_schema_hash=$("${compose_current[@]}" exec -T postgres sh -c \
+    'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' fusion-receipts "$schema_receipt_sql") \
+    || fail 'migration receipts unavailable; preserve checkpoint and inspect schema before retry'
+  [[ "$observed_schema_hash" =~ ^[a-f0-9]{64}$ ]] || fail 'invalid applied migration receipt hash'
+  migration_receipts_unknown=false
+  rollback_migrations_hash=$observed_schema_hash
+  write_partial migration_observed
+  [[ "$migration_ok" == true && "$observed_schema_hash" == "$migrations_hash" ]] \
+    || fail 'online migration incomplete; old readers retained with actual applied schema hash'
+  write_partial migration_prepared
+fi
+
 failure_reason=candidate_pull_failed
 if [[ "$maintenance_transition" == true ]]; then
   maintenance_requested_window_seconds=${MAINTENANCE_UNAVAILABLE_SECONDS:-300}
-  [[ "$maintenance_requested_window_seconds" =~ ^[1-9][0-9]*$ && "$maintenance_requested_window_seconds" -le 300 ]] \
+  maintenance_maximum_seconds=300
+  if [[ "$migrations_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b ]]; then
+    maintenance_requested_window_seconds=600
+    maintenance_maximum_seconds=600
+  fi
+  [[ "$maintenance_requested_window_seconds" =~ ^[1-9][0-9]*$ && "$maintenance_requested_window_seconds" -le "$maintenance_maximum_seconds" ]] \
     || fail 'MAINTENANCE_UNAVAILABLE_SECONDS must be an integer between 1 and 300'
   maintenance_started_epoch=$(date -u +%s) || fail 'maintenance deadline clock failed'
   maintenance_end_to_end_remaining=$((deadline_epoch - maintenance_started_epoch))
@@ -1576,6 +2249,9 @@ if [[ "$maintenance_transition" == true ]]; then
     maintenance_recovery_reserve_seconds=4
   fi
   (( maintenance_recovery_reserve_seconds > 60 )) && maintenance_recovery_reserve_seconds=60
+  if [[ "$migrations_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b ]]; then
+    maintenance_recovery_reserve_seconds=240
+  fi
   maintenance_finalization_reserve_seconds=$(((maintenance_recovery_reserve_seconds + 11) / 12))
   # A one-second finalization budget races the hard watchdog after a bounded
   # rollback command is terminated. Keep two seconds for the final record and
@@ -1606,9 +2282,14 @@ if [[ "$maintenance_transition" == true ]]; then
   # Stop forward work at its partitioned deadline so EXIT can still spend the
   # reserved rollback/finalization budget before the overall hard deadline.
   arm_deadline_watchdog "$maintenance_forward_window_seconds"
+  reauth_lifecycle pause || fail 'reauth could not drain before maintenance'
   trace_event 'maintenance stop api-worker'
   maintenance_stopped=true
   run_post_stop_command "${compose_current[@]}" stop sub2api-blue sub2api-green sub2api-worker >/dev/null
+  if [[ "$migrations_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b ]]; then
+    official297_detector_stopped=true
+    run_post_stop_command "${compose_current[@]}" stop model-detector >/dev/null
+  fi
   # Rebase the process watchdog after the stop command so its duration tracks
   # the remaining absolute forward budget rather than double-counting setup.
   now=$(date -u +%s)
@@ -1616,6 +2297,36 @@ if [[ "$maintenance_transition" == true ]]; then
   (( forward_remaining > 0 )) || fail 'maintenance forward budget expired while stopping API and worker'
   arm_deadline_watchdog "$forward_remaining"
   [[ "$(date -u +%s)" -lt "$maintenance_deadline_epoch" ]] || fail 'maintenance unavailable window expired after stopping API and worker'
+  if [[ "$state_migrations_hash" == "$PELICAN_REPORT_OLD_MIGRATIONS_HASH" \
+      && "$migrations_hash" == "$PELICAN_REPORT_NEW_MIGRATIONS_HASH" \
+      || "$state_migrations_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" \
+      && "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" \
+      || "$state_migrations_hash" == 600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea \
+      && "$migrations_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b ]]; then
+    failure_reason=maintenance_backup_failed
+    maintenance_backup="$record_root/$attempt_id.pre-migration.dump"
+    run_post_stop_operation '
+      backup=$1 postgres=$2
+      docker exec "$postgres" sh -c '\''exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -Z 1'\'' >"$backup.tmp" &&
+        test -s "$backup.tmp" &&
+        docker exec -i "$postgres" pg_restore -l <"$backup.tmp" >/dev/null &&
+        chmod 0600 "$backup.tmp" && mv "$backup.tmp" "$backup"
+    ' "$maintenance_backup" "$postgres_id" || fail 'post-stop database backup or archive validation failed'
+    maintenance_backup_sha256=$(run_post_stop_operation \
+      'sha256sum "$1" | awk '\''{print $1}'\''' "$maintenance_backup") \
+      || fail 'database backup checksum failed'
+    [[ "$maintenance_backup_sha256" =~ ^[a-f0-9]{64}$ ]] || fail 'database backup checksum is invalid'
+    trace_event 'maintenance backup verified'
+    schema_receipt_sql="SELECT encode(sha256(string_agg(convert_to(filename,'UTF8') || decode('00','hex') || convert_to(checksum || chr(10),'UTF8'), ''::bytea ORDER BY filename)), 'hex') FROM schema_migrations"
+    additive_migration_started=true
+  fi
+  if [[ "$migrations_hash" == 406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b ]]; then
+    official297_restore_needed=true
+    run_post_stop_command "${compose_candidate[@]}" run --rm --no-deps "${compose_pull_args[@]+${compose_pull_args[@]}}" \
+      --entrypoint /app/sub2api sub2api-worker -migrate-only >/dev/null \
+      || fail 'official v2.9.7 migration failed; restoring pre-migration database'
+    official297_restore_needed=false
+  fi
   trace_event 'maintenance start worker for migrations'
   if [[ "$preloaded_image" == false ]]; then
     run_post_stop_command "${compose_candidate[@]}" pull sub2api-worker >/dev/null
@@ -1625,6 +2336,13 @@ if [[ "$maintenance_transition" == true ]]; then
   wait_for_worker_healthy || fail 'maintenance worker did not become healthy before timeout'
   [[ "$(run_post_stop_command docker inspect "$(resolve_container_id sub2api-worker)" --format '{{.Image}}')" == "$candidate_worker_image_id" ]] \
     || fail 'maintenance worker image ID differs from candidate'
+  if [[ "$additive_migration_started" == true ]]; then
+    observed_schema_hash=$(run_post_stop_command docker exec "$postgres_id" sh -c \
+      'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "$1"' report-receipts \
+      "$schema_receipt_sql") || fail 'post-migration receipts unavailable'
+    [[ "$observed_schema_hash" == "$migrations_hash" ]] || fail 'post-migration receipts do not match candidate'
+    rollback_migrations_hash=$observed_schema_hash
+  fi
   [[ "$(date -u +%s)" -lt "$maintenance_deadline_epoch" ]] || fail 'maintenance unavailable window expired while applying migrations'
 fi
 candidate_env="$record_root/.$attempt_id.candidate.env"
@@ -1695,11 +2413,27 @@ failure_reason=caddy_validate_failed
 run_caddy_config_command "$candidate_upstream" validate >/dev/null
 write_partial caddy_validated
 
+if [[ "$preserve_worker" == false && "$maintenance_transition" == false && ( "$online_migration_transition" == false || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
+  failure_reason=worker_drain_failed
+  write_partial worker_updating
+  stop_worker_after_schedule_drain "$postgres_id" "$(resolve_container_id sub2api-worker)" 90 \
+    || fail 'worker could not be safely drained; API cutover canceled'
+  worker_update_started=true
+  failure_reason=worker_update_failed
+  run_post_stop_command "${compose_candidate[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" --force-recreate sub2api-worker >/dev/null
+  wait_for_worker_healthy || fail 'worker did not become healthy before timeout'
+  worker_logs_are_acceptable || fail 'worker logs contain a startup failure'
+  worker_runtime_image_id=$(run_post_stop_command docker inspect "$(resolve_container_id sub2api-worker)" --format '{{.Image}}')
+  [[ "$worker_runtime_image_id" == "$candidate_worker_image_id" ]] || fail 'updated worker image ID differs from candidate'
+  write_partial worker_accepted
+fi
+
 failure_reason=caddy_reload_failed
 cutover_attempted=true
 write_partial cutover_attempted
 run_caddy_config_command "$candidate_upstream" reload >/dev/null
 cutover_applied=true
+cutover_epoch=$(date -u +%s)
 write_partial cutover_applied
 
 failure_reason=public_acceptance_failed
@@ -1710,11 +2444,11 @@ check_maintenance_deadline
 failure_reason=state_persist_failed
 persistence_started=true
 write_partial state_persisting
-write_release_env_values "$candidate_blue" "$candidate_green" "$requested_image" \
+write_release_env_values "$candidate_blue" "$candidate_green" "$promoted_worker" \
   "$candidate_upstream" "$candidate_slot" "$previous_slot"
 trace_event 'persist release-env'
 write_state_values "$candidate_slot" "$candidate_upstream" "$candidate_blue" "$candidate_green" \
-  "$requested_image" "$source_commit" "$source_tree" "$migrations_hash" \
+  "$promoted_worker" "$source_commit" "$source_tree" "$migrations_hash" \
   "$postgres_id" "$redis_id" "$caddy_id" \
   "$candidate_blue_image_id" "$candidate_green_image_id" "$candidate_worker_image_id"
 trace_event 'persist release-state'
@@ -1723,14 +2457,21 @@ write_partial state_persisted
 [[ "$(live_caddy_upstream)" == "$candidate_upstream" ]] || fail 'persisted route does not match live Caddy upstream'
 
 failure_reason=worker_update_failed
-worker_update_started=true
-write_partial worker_updating
-run_post_stop_command "${compose_current[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" --force-recreate sub2api-worker >/dev/null
-wait_for_worker_healthy || fail 'worker did not become healthy before timeout'
-worker_logs_are_acceptable || fail 'worker logs contain a startup failure'
-worker_runtime_image_id=$(run_post_stop_command docker inspect "$(resolve_container_id sub2api-worker)" --format '{{.Image}}') || fail 'updated worker image ID could not be inspected'
-[[ "$worker_runtime_image_id" == "$candidate_worker_image_id" ]] || fail 'updated worker image ID differs from candidate'
-write_partial worker_accepted
+if [[ "$preserve_worker" == false && ( "$maintenance_transition" == true || ( "$online_migration_transition" == true && "$migrations_hash" != "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_01_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_02_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ) ]]; then
+  reauth_lifecycle pause || fail 'reauth could not drain before worker replacement'
+  worker_update_started=true
+  write_partial worker_updating
+  if [[ "$online_migration_transition" == true ]]; then
+    run_post_stop_command "${compose_candidate[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" --force-recreate sub2api-worker >/dev/null
+  else
+    run_post_stop_command "${compose_current[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" --force-recreate sub2api-worker >/dev/null
+  fi
+  wait_for_worker_healthy || fail 'worker did not become healthy before timeout'
+  worker_logs_are_acceptable || fail 'worker logs contain a startup failure'
+  worker_runtime_image_id=$(run_post_stop_command docker inspect "$(resolve_container_id sub2api-worker)" --format '{{.Image}}') || fail 'updated worker image ID could not be inspected'
+  [[ "$worker_runtime_image_id" == "$candidate_worker_image_id" ]] || fail 'updated worker image ID differs from candidate'
+  write_partial worker_accepted
+fi
 
 failure_reason=final_identity_check_failed
 [[ "$(resolve_container_id postgres)" == "$postgres_id" ]] || fail 'PostgreSQL identity changed during release'
@@ -1740,9 +2481,72 @@ failure_reason=final_identity_check_failed
 write_final_record succeeded promoted ''
 trace_event 'persist success-record'
 record_finalized=true
-run_post_stop_command rm -f -- "$partial_path" "$candidate_env" "$admin_header" "$gateway_header"
+rm -f "$record_root/.$attempt_id.worker-stop"
+run_post_stop_command rm -f -- "$partial_path"
 partial_path=''
+# Promotion is committed. Release the lock while old requests drain so an
+# operator can roll back without waiting for a long-lived SSE connection.
+if [[ "$mode" == production && "$maintenance_transition" == false ]]; then
+  printf '%s\n' "$record_path" >"$drain_marker"
+  chmod 0600 "$drain_marker"
+fi
+run_post_stop_command rm -f -- "$candidate_env" "$admin_header" "$gateway_header"
 candidate_env=''
 cleanup_lock
+# A later release or rollback may change the route while we wait. Reacquire
+# the lock and check the promoted identity before retiring the old slot.
+if [[ "$mode" == production && "$maintenance_transition" == false ]]; then
+  drain_status=pending
+  drain_started=$(date -u +%s)
+  drain_forced=false
+  while true; do
+    if ! jq -e --arg slot "$candidate_slot" --arg upstream "$candidate_upstream" \
+      '.active_slot == $slot and .active_upstream == $upstream' "$release_state" >/dev/null; then
+      drain_status=skipped
+      break
+    fi
+    connections=$(docker exec "$active_container_id" sh -c 'awk '\''FNR > 1 && $2 ~ /:1F90$/ && ($4 == "01" || $4 == "08") {n++} END {print n+0}'\'' /proc/net/tcp /proc/net/tcp6') || fail 'promoted, but old-slot connection inspection failed'
+    [[ "$connections" =~ ^[0-9]+$ ]] || fail 'invalid old-slot connection count'
+    [[ "$connections" -gt 0 ]] || break
+    drain_now=$(date -u +%s)
+    if (( drain_now - cutover_epoch >= 300 )); then
+      if [[ "$drain_mode" == retain ]]; then drain_status=retained; else drain_forced=true; fi
+      break
+    fi
+    sleep 2
+  done
+  if [[ "$drain_status" == pending ]]; then
+    if mkdir "$lock_dir" 2>/dev/null; then
+      lock_owned=true
+      persist_lock_owner
+      if jq -e --arg slot "$candidate_slot" --arg upstream "$candidate_upstream" \
+        '.active_slot == $slot and .active_upstream == $upstream' "$release_state" >/dev/null; then
+        stop_budget=$((300 - $(date -u +%s) + cutover_epoch))
+        (( stop_budget > 0 )) || stop_budget=0
+        if [[ "$drain_mode" == retain ]]; then
+          # No SIGKILL in retain mode: SIGTERM runs application queue cleanup;
+          # leave the marker if cleanup has not completed within this turn.
+          docker kill --signal TERM "$active_container_id" >/dev/null || fail 'promoted, but graceful stop signal failed'
+          drain_status=retained
+          if [[ "$(docker inspect "$active_container_id" --format '{{.State.Running}}')" == false ]]; then drain_status=completed; fi
+        else
+          docker stop --time "$stop_budget" "$active_container_id" >/dev/null || fail 'promoted, but old-slot stop failed'
+          drain_status=completed
+        fi
+      else
+        drain_status=skipped
+      fi
+      cleanup_lock
+    else
+      drain_status=skipped
+    fi
+  fi
+  drain_finished=$(date -u +%s)
+  jq --arg status "$drain_status" --argjson seconds "$((drain_finished - drain_started))" --argjson forced "$drain_forced" \
+    '. + {drain:{status:$status,seconds:$seconds,forced:$forced}}' "$record_path" >"$record_path.drain.tmp"
+  chmod 0600 "$record_path.drain.tmp"
+  mv "$record_path.drain.tmp" "$record_path"
+  [[ "$drain_status" == retained ]] || rm -f -- "$drain_marker"
+fi
 printf '{"schema_version":1,"downtime_required":false,"result":"succeeded","active_slot":"%s","active_upstream":"%s","image":"%s"}\n' \
   "$candidate_slot" "$candidate_upstream" "$requested_image"

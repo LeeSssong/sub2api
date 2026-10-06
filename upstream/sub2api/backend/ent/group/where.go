@@ -120,6 +120,11 @@ func ActiveProbeEnabled(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldActiveProbeEnabled, v))
 }
 
+// TurnStateInjectEnabled applies equality check predicate on the "turn_state_inject_enabled" field. It's identical to TurnStateInjectEnabledEQ.
+func TurnStateInjectEnabled(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldTurnStateInjectEnabled, v))
+}
+
 // DuplicateOperationID applies equality check predicate on the "duplicate_operation_id" field. It's identical to DuplicateOperationIDEQ.
 func DuplicateOperationID(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldDuplicateOperationID, v))
@@ -268,6 +273,11 @@ func FallbackGroupID(v int64) predicate.Group {
 // FallbackGroupIDOnInvalidRequest applies equality check predicate on the "fallback_group_id_on_invalid_request" field. It's identical to FallbackGroupIDOnInvalidRequestEQ.
 func FallbackGroupIDOnInvalidRequest(v int64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldFallbackGroupIDOnInvalidRequest, v))
+}
+
+// StreamOnly applies equality check predicate on the "stream_only" field. It's identical to StreamOnlyEQ.
+func StreamOnly(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldStreamOnly, v))
 }
 
 // ModelRoutingEnabled applies equality check predicate on the "model_routing_enabled" field. It's identical to ModelRoutingEnabledEQ.
@@ -923,6 +933,16 @@ func ActiveProbeEnabledEQ(v bool) predicate.Group {
 // ActiveProbeEnabledNEQ applies the NEQ predicate on the "active_probe_enabled" field.
 func ActiveProbeEnabledNEQ(v bool) predicate.Group {
 	return predicate.Group(sql.FieldNEQ(FieldActiveProbeEnabled, v))
+}
+
+// TurnStateInjectEnabledEQ applies the EQ predicate on the "turn_state_inject_enabled" field.
+func TurnStateInjectEnabledEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldTurnStateInjectEnabled, v))
+}
+
+// TurnStateInjectEnabledNEQ applies the NEQ predicate on the "turn_state_inject_enabled" field.
+func TurnStateInjectEnabledNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldTurnStateInjectEnabled, v))
 }
 
 // DuplicateOperationIDEQ applies the EQ predicate on the "duplicate_operation_id" field.
@@ -2208,6 +2228,16 @@ func FallbackGroupIDOnInvalidRequestIsNil() predicate.Group {
 // FallbackGroupIDOnInvalidRequestNotNil applies the NotNil predicate on the "fallback_group_id_on_invalid_request" field.
 func FallbackGroupIDOnInvalidRequestNotNil() predicate.Group {
 	return predicate.Group(sql.FieldNotNull(FieldFallbackGroupIDOnInvalidRequest))
+}
+
+// StreamOnlyEQ applies the EQ predicate on the "stream_only" field.
+func StreamOnlyEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldStreamOnly, v))
+}
+
+// StreamOnlyNEQ applies the NEQ predicate on the "stream_only" field.
+func StreamOnlyNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldStreamOnly, v))
 }
 
 // ModelRoutingIsNil applies the IsNil predicate on the "model_routing" field.

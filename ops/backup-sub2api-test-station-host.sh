@@ -123,7 +123,7 @@ redis_container=$("${compose[@]}" ps -q test-station-redis)
   sh -c 'redis-check-rdb /tmp/sub2api-test-station-redis.rdb >/dev/null 2>&1; rc=$?; rm -f /tmp/sub2api-test-station-redis.rdb; exit $rc' \
   || fail 'Redis snapshot validation failed'
 
-api_container=$("${compose[@]}" ps -q test-station-api)
+api_container=$("${compose[@]}" ps -aq test-station-api)
 [[ -n "$api_container" ]] || fail 'API container is missing'
 mkdir "$partial/app-data"
 "$docker_bin" cp "$api_container:/app/data/." "$partial/app-data" >/dev/null \

@@ -1,5 +1,13 @@
 export default {
     ops: {
+      balanceError: {
+        user: 'Insufficient user balance',
+        userHint: 'The local user balance does not meet the request requirement. Top up this user’s balance before retrying.',
+        upstream: 'Insufficient upstream account balance',
+        upstreamHint: 'The upstream service reports insufficient account balance. Ask an administrator to top up or replace the upstream account.',
+        unknown: 'Insufficient balance (source unconfirmed)',
+        unknownHint: 'This log has insufficient source information. Check the original error and upstream response to identify whose balance is insufficient.',
+      },
       title: 'Ops Monitoring',
       description: 'Operational monitoring and troubleshooting',
       // Dashboard
@@ -41,8 +49,14 @@ export default {
         stacktraceThreshold: 'Stacktrace threshold',
         samplingInitial: 'Sampling initial',
         samplingThereafter: 'Sampling thereafter',
-        retentionDays: 'Retention days',
-        retentionDaysHint: 'Applied by the scheduled data-cleanup job.',
+        retentionDays: 'Operations log retention days',
+        requestRetentionDays: 'Request log retention days',
+        requestRetentionDaysHint: 'Request usage records are pruned every 6 hours. Changes apply on the next cleanup. Keeping records forever uses increasing storage.',
+        retentionDaysInvalid: 'Keep operations logs for 1–3650 days; keep request logs for 1–3650 days or choose Forever.',
+        retentionDaysOption: '{days} days',
+        retentionDaysCustom: 'Custom days',
+        retentionForever: 'Forever',
+        retentionDaysHint: 'Applied on the data-cleanup schedule when cleanup is enabled in Operations Settings.',
         caller: 'caller',
         sampling: 'sampling',
         persistAccessLogs: 'Store access logs in database',
@@ -69,6 +83,7 @@ export default {
         logDetails: 'Log Details',
         loadFailed: 'Failed to load system logs',
         runtimeConfigActive: 'Runtime log configuration is active',
+        runtimeConfigLoadFailed: 'Failed to load log configuration. Refresh and try again.',
         runtimeConfigSaveFailed: 'Failed to save log configuration',
         resetRuntimeConfigConfirm: 'Reset to startup configuration (env/yaml) and apply immediately?',
         runtimeConfigReset: 'Reset to startup log configuration',
@@ -157,15 +172,15 @@ export default {
         endTime: 'End Time'
       },
       openaiTokenStats: {
-        title: 'OpenAI Token Request Stats',
+        title: 'Token Request Stats',
         viewModeTopN: 'TopN',
         viewModePagination: 'Pagination',
         prevPage: 'Previous',
         nextPage: 'Next',
         pageInfo: 'Page {page}/{total}',
         totalModels: 'Total models: {total}',
-        failedToLoad: 'Failed to load OpenAI token stats',
-        empty: 'No OpenAI token stats for the current filters',
+        failedToLoad: 'Failed to load token request stats',
+        empty: 'No token request stats for the current filters',
         table: {
           model: 'Model',
           requestCount: 'Requests',
@@ -174,31 +189,6 @@ export default {
           totalOutputTokens: 'Total Output Tokens',
           avgDurationMs: 'Avg Duration (ms)',
           requestsWithFirstToken: 'Requests With First Token'
-        }
-      },
-      openaiSchedulerExperience: {
-        title: 'OpenAI Scheduler Experience',
-        failedToLoad: 'Failed to load OpenAI scheduler experience metrics',
-        retry: 'Retry',
-        empty: 'No OpenAI scheduler runtime records for the current filters',
-        ratio: '{numerator} / {denominator}',
-        sampleSize: '{count} samples',
-        p95: 'P95 {value}',
-        latestEvent: 'Latest event:',
-        runtimeWindow: 'Runtime window:',
-        status: {
-          insufficientData: 'Insufficient data',
-          noData: 'No data'
-        },
-        metrics: {
-          autoRecoveryRate: 'Auto-recovery rate',
-          averageAttempts: 'Average attempts',
-          repeatedBadAccountRate: 'Repeated bad-account rate',
-          retryBudgetExhaustedRate: 'Retry-budget exhausted rate',
-          stickyKeptRate: 'Sticky kept rate',
-          stickyEscapeRate: 'Sticky escape rate',
-          topKFilteredRate: 'Top-K filtered rate',
-          ttftReportEligibleRate: 'TTFT report-eligible rate'
         }
       },
       fullscreen: {
@@ -343,6 +333,7 @@ export default {
         originalUpstreamStatus: 'Original upstream status',
         originalUpstreamMessage: 'Original upstream message',
         originalUpstreamDetail: 'Original upstream detail',
+        originalUpstreamTruncated: 'The upstream payload exceeded the storage limit. Only the retained original content is shown.',
         noErrorSelected: 'No error selected.',
         backToList: 'Back to List',
         resolution: 'Resolved:',
@@ -793,8 +784,8 @@ export default {
         dashboardCards: 'Dashboard Cards',
         displayAlertEvents: 'Display alert events',
         displayAlertEventsHint: 'Show or hide the recent alert events card on the ops dashboard. Enabled by default.',
-        displayOpenAITokenStats: 'Display OpenAI token request stats',
-        displayOpenAITokenStatsHint: 'Show or hide the OpenAI token request stats card on the ops dashboard. Hidden by default.',
+        displayOpenAITokenStats: 'Display token request stats',
+        displayOpenAITokenStatsHint: 'Show token request stats by model across all platforms, with platform and group filters. Hidden by default.',
         autoRefreshCountdown: 'Auto refresh: {seconds}s',
         validation: {
           title: 'Please fix the following issues',

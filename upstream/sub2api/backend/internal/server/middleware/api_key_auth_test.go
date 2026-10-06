@@ -921,7 +921,7 @@ func TestAPIKeyAuthIPRestrictionUsesTrustedPathWhenSwitchDisabled(t *testing.T) 
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusForbidden, w.Code)
-	requireAPIKeyAuthError(t, w, "ACCESS_DENIED", "Access denied. Your IP is 9.9.9.9")
+	requireAPIKeyAuthError(t, w, "ACCESS_DENIED", service.AppendNativeUserErrorHelp(service.NativeUserCopyPermission, ""))
 	require.True(t, markedBusinessLimited)
 	require.Equal(t, service.OpsClientBusinessLimitedReasonIPRestriction, businessLimitedReason)
 }
@@ -971,7 +971,7 @@ func TestAPIKeyAuthIPRestrictionIncludesClientIPForBlacklistDenial(t *testing.T)
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusForbidden, w.Code)
-	requireAPIKeyAuthError(t, w, "ACCESS_DENIED", "Access denied. Your IP is 9.9.9.9")
+	requireAPIKeyAuthError(t, w, "ACCESS_DENIED", service.AppendNativeUserErrorHelp(service.NativeUserCopyPermission, ""))
 }
 
 func TestAPIKeyAuthIPRestrictionUsesConfiguredTrustedProxy(t *testing.T) {
@@ -1074,7 +1074,7 @@ func TestAPIKeyAuthIPRestrictionUsesForwardedClientIPInDenialWhenTrusted(t *test
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusForbidden, w.Code)
-	requireAPIKeyAuthError(t, w, "ACCESS_DENIED", "Access denied. Your IP is 1.2.3.4")
+	requireAPIKeyAuthError(t, w, "ACCESS_DENIED", service.AppendNativeUserErrorHelp(service.NativeUserCopyPermission, ""))
 }
 
 func TestAPIKeyAuthTouchesLastUsedOnSuccess(t *testing.T) {
@@ -1424,7 +1424,7 @@ func TestAPIKeyAuthRejectsExhaustedBalance(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusForbidden, w.Code)
-	requireAPIKeyAuthError(t, w, "INSUFFICIENT_BALANCE", "余额不足，请充值后重试。")
+	requireAPIKeyAuthError(t, w, "INSUFFICIENT_BALANCE", service.InsufficientUserBalanceMessage)
 }
 
 func TestAPIKeyAuthOpenAIQuotaErrorFormat(t *testing.T) {
@@ -1463,7 +1463,7 @@ func TestAPIKeyAuthOpenAIQuotaErrorFormat(t *testing.T) {
 		} `json:"error"`
 	}
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-	require.Equal(t, "API key 额度已用完", response.Error.Message)
+	require.Equal(t, service.AppendNativeUserErrorHelp("API key 额度已用完", ""), response.Error.Message)
 	require.Equal(t, "insufficient_quota", response.Error.Type)
 	require.Nil(t, response.Error.Param)
 	require.Equal(t, "insufficient_quota", response.Error.Code)
@@ -1496,7 +1496,7 @@ func TestAPIKeyAuthQuotaErrorKeepsLegacyFormatOutsideResponses(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusTooManyRequests, w.Code)
-	requireAPIKeyAuthError(t, w, "API_KEY_QUOTA_EXHAUSTED", "API key 额度已用完")
+	requireAPIKeyAuthError(t, w, "API_KEY_QUOTA_EXHAUSTED", service.AppendNativeUserErrorHelp("API key 额度已用完", ""))
 }
 
 func newAuthTestRouter(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) *gin.Engine {

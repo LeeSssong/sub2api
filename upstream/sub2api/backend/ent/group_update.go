@@ -223,6 +223,20 @@ func (_u *GroupUpdate) SetNillableActiveProbeEnabled(v *bool) *GroupUpdate {
 	return _u
 }
 
+// SetTurnStateInjectEnabled sets the "turn_state_inject_enabled" field.
+func (_u *GroupUpdate) SetTurnStateInjectEnabled(v bool) *GroupUpdate {
+	_u.mutation.SetTurnStateInjectEnabled(v)
+	return _u
+}
+
+// SetNillableTurnStateInjectEnabled sets the "turn_state_inject_enabled" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableTurnStateInjectEnabled(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetTurnStateInjectEnabled(*v)
+	}
+	return _u
+}
+
 // SetPlatform sets the "platform" field.
 func (_u *GroupUpdate) SetPlatform(v string) *GroupUpdate {
 	_u.mutation.SetPlatform(v)
@@ -899,6 +913,20 @@ func (_u *GroupUpdate) AddFallbackGroupIDOnInvalidRequest(v int64) *GroupUpdate 
 // ClearFallbackGroupIDOnInvalidRequest clears the value of the "fallback_group_id_on_invalid_request" field.
 func (_u *GroupUpdate) ClearFallbackGroupIDOnInvalidRequest() *GroupUpdate {
 	_u.mutation.ClearFallbackGroupIDOnInvalidRequest()
+	return _u
+}
+
+// SetStreamOnly sets the "stream_only" field.
+func (_u *GroupUpdate) SetStreamOnly(v bool) *GroupUpdate {
+	_u.mutation.SetStreamOnly(v)
+	return _u
+}
+
+// SetNillableStreamOnly sets the "stream_only" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableStreamOnly(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetStreamOnly(*v)
+	}
 	return _u
 }
 
@@ -1625,6 +1653,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.ActiveProbeEnabled(); ok {
 		_spec.SetField(group.FieldActiveProbeEnabled, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.TurnStateInjectEnabled(); ok {
+		_spec.SetField(group.FieldTurnStateInjectEnabled, field.TypeBool, value)
+	}
 	if _u.mutation.DuplicateOperationIDCleared() {
 		_spec.ClearField(group.FieldDuplicateOperationID, field.TypeString)
 	}
@@ -1842,6 +1873,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.FallbackGroupIDOnInvalidRequestCleared() {
 		_spec.ClearField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.StreamOnly(); ok {
+		_spec.SetField(group.FieldStreamOnly, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.ModelRouting(); ok {
 		_spec.SetField(group.FieldModelRouting, field.TypeJSON, value)
@@ -2430,6 +2464,20 @@ func (_u *GroupUpdateOne) SetActiveProbeEnabled(v bool) *GroupUpdateOne {
 func (_u *GroupUpdateOne) SetNillableActiveProbeEnabled(v *bool) *GroupUpdateOne {
 	if v != nil {
 		_u.SetActiveProbeEnabled(*v)
+	}
+	return _u
+}
+
+// SetTurnStateInjectEnabled sets the "turn_state_inject_enabled" field.
+func (_u *GroupUpdateOne) SetTurnStateInjectEnabled(v bool) *GroupUpdateOne {
+	_u.mutation.SetTurnStateInjectEnabled(v)
+	return _u
+}
+
+// SetNillableTurnStateInjectEnabled sets the "turn_state_inject_enabled" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableTurnStateInjectEnabled(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetTurnStateInjectEnabled(*v)
 	}
 	return _u
 }
@@ -3110,6 +3158,20 @@ func (_u *GroupUpdateOne) AddFallbackGroupIDOnInvalidRequest(v int64) *GroupUpda
 // ClearFallbackGroupIDOnInvalidRequest clears the value of the "fallback_group_id_on_invalid_request" field.
 func (_u *GroupUpdateOne) ClearFallbackGroupIDOnInvalidRequest() *GroupUpdateOne {
 	_u.mutation.ClearFallbackGroupIDOnInvalidRequest()
+	return _u
+}
+
+// SetStreamOnly sets the "stream_only" field.
+func (_u *GroupUpdateOne) SetStreamOnly(v bool) *GroupUpdateOne {
+	_u.mutation.SetStreamOnly(v)
+	return _u
+}
+
+// SetNillableStreamOnly sets the "stream_only" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableStreamOnly(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetStreamOnly(*v)
+	}
 	return _u
 }
 
@@ -3866,6 +3928,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if value, ok := _u.mutation.ActiveProbeEnabled(); ok {
 		_spec.SetField(group.FieldActiveProbeEnabled, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.TurnStateInjectEnabled(); ok {
+		_spec.SetField(group.FieldTurnStateInjectEnabled, field.TypeBool, value)
+	}
 	if _u.mutation.DuplicateOperationIDCleared() {
 		_spec.ClearField(group.FieldDuplicateOperationID, field.TypeString)
 	}
@@ -4083,6 +4148,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if _u.mutation.FallbackGroupIDOnInvalidRequestCleared() {
 		_spec.ClearField(group.FieldFallbackGroupIDOnInvalidRequest, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.StreamOnly(); ok {
+		_spec.SetField(group.FieldStreamOnly, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.ModelRouting(); ok {
 		_spec.SetField(group.FieldModelRouting, field.TypeJSON, value)

@@ -17,6 +17,7 @@ vi.mock('vue-i18n', async () => ({
   useI18n: () => ({ t: (key: string) => key, locale: { value: 'en' } }),
 }))
 vi.mock('@/stores', () => ({ useAppStore: () => appStore }))
+vi.mock('@/stores/app', () => ({ useAppStore: () => appStore }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ isAdmin: false, user: { id: 7 }, token: 'test-token' }) }))
 vi.mock('@/stores/adminSettings', () => ({ useAdminSettingsStore: () => ({ customMenuItems: [] }) }))
 vi.mock('@/composables/useClipboard', () => ({ useClipboard: () => ({ copyToClipboard: vi.fn() }) }))
@@ -81,6 +82,20 @@ describe('custom page open button', () => {
   afterEach(() => {
     wrappers.splice(0).forEach(wrapper => wrapper.unmount())
     vi.unstubAllGlobals()
+  })
+
+  it('embeds the existing storefront URL for a regular user', () => {
+    appStore.cachedPublicSettings.custom_menu_items = [{ id: 'docs', url: 'https://catfk.com/shop/DLK8SNUJ' }]
+    const wrapper = mountPage()
+    const embedded = new URL(wrapper.get('iframe').attributes('src'))
+    expect(embedded.origin + embedded.pathname).toBe('https://catfk.com/shop/DLK8SNUJ')
+  })
+
+  it.each([undefined, false, true])('honors the per-menu hide button setting %s while keeping the iframe', (hidden) => {
+    Object.assign(appStore.cachedPublicSettings.custom_menu_items[0], { hide_open_button: hidden })
+    const wrapper = mountPage()
+    expect(wrapper.find('.custom-open-fab').exists()).toBe(hidden !== true)
+    expect(wrapper.get('iframe').attributes('src')).toContain('https://example.com/docs')
   })
 
   it('preserves the embedded URL, secure link attributes, and normal clicks with small pointer movements', async () => {

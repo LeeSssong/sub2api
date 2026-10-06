@@ -546,10 +546,10 @@ func TestVisibleMethodEnabledSettingControlsCheckoutAndOrderRouting(t *testing.T
 		wantVisible    bool
 		wantResolved   bool
 	}{
-		{name: "explicit false disables method without current selection", enabledSetting: ptr("false"), wantVisible: false, wantResolved: false},
-		{name: "current alipay selection overrides stale hidden false", enabledSetting: ptr("false"), enabledTypes: "alipay", wantVisible: true, wantResolved: true},
-		{name: "other current selection does not override false", enabledSetting: ptr("false"), enabledTypes: "wxpay", wantVisible: false, wantResolved: false},
-		{name: "explicit true enables method", enabledSetting: ptr("true"), wantVisible: true, wantResolved: true},
+		{name: "explicit false disables method without current selection", enabledSetting: paymentLimitPtr("false"), wantVisible: false, wantResolved: false},
+		{name: "current alipay selection overrides stale hidden false", enabledSetting: paymentLimitPtr("false"), enabledTypes: "alipay", wantVisible: true, wantResolved: true},
+		{name: "other current selection does not override false", enabledSetting: paymentLimitPtr("false"), enabledTypes: "wxpay", wantVisible: false, wantResolved: false},
+		{name: "explicit true enables method", enabledSetting: paymentLimitPtr("true"), wantVisible: true, wantResolved: true},
 		{name: "missing setting preserves legacy behavior", enabledSetting: nil, wantVisible: true, wantResolved: true},
 	}
 
@@ -590,6 +590,6 @@ func TestVisibleMethodEnabledSettingControlsCheckoutAndOrderRouting(t *testing.T
 	}
 }
 
-func ptr(value string) *string {
+func paymentLimitPtr(value string) *string {
 	return &value
 }

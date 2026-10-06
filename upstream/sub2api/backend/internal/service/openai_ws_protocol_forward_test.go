@@ -99,6 +99,9 @@ func TestOpenAIGatewayService_Forward_PreservePreviousResponseIDWhenWSEnabled(t 
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          1,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -158,6 +161,9 @@ func TestOpenAIGatewayService_Forward_HTTPIngressStaysHTTPWhenWSEnabled(t *testi
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          101,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -233,6 +239,9 @@ func TestOpenAIGatewayService_Forward_HTTPIngressRetriesInvalidEncryptedContentO
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          102,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -322,6 +331,9 @@ func TestOpenAIGatewayService_Forward_HTTPIngressRetriesWrappedInvalidEncryptedC
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          103,
 		Name:        "openai-apikey-wrapped",
 		Platform:    PlatformOpenAI,
@@ -391,6 +403,9 @@ func TestOpenAIGatewayService_Forward_APIKeyHTTPPreservesPreviousResponseIDWhenW
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          1,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -451,6 +466,9 @@ func TestOpenAIGatewayService_Forward_WSv2Dial426FallbackHTTP(t *testing.T) {
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          12,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -472,7 +490,8 @@ func TestOpenAIGatewayService_Forward_WSv2Dial426FallbackHTTP(t *testing.T) {
 	require.Contains(t, err.Error(), "upgrade_required")
 	require.Nil(t, upstream.lastReq, "WS 模式下不应再回退 HTTP")
 	require.Equal(t, http.StatusUpgradeRequired, rec.Code)
-	require.Contains(t, rec.Body.String(), "426")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""))
+	require.NotContains(t, rec.Body.String(), "426")
 }
 
 func TestOpenAIGatewayService_Forward_WSv2FallbackCoolingSkipWS(t *testing.T) {
@@ -513,6 +532,9 @@ func TestOpenAIGatewayService_Forward_WSv2FallbackCoolingSkipWS(t *testing.T) {
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          21,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -572,6 +594,9 @@ func TestOpenAIGatewayService_Forward_ReturnErrorWhenOnlyWSv1Enabled(t *testing.
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          31,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -599,6 +624,7 @@ func TestOpenAIGatewayService_Forward_ReturnErrorWhenOnlyWSv1Enabled(t *testing.
 func TestNewOpenAIGatewayService_InitializesOpenAIWSResolver(t *testing.T) {
 	cfg := &config.Config{}
 	svc := NewOpenAIGatewayService(
+		nil,
 		nil,
 		nil,
 		nil,
@@ -666,6 +692,9 @@ func TestOpenAIGatewayService_Forward_WSv2FallbackWhenResponseAlreadyWrittenRetu
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          41,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -759,6 +788,9 @@ func TestOpenAIGatewayService_Forward_WSv2StreamEarlyCloseFallbackHTTP(t *testin
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          88,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -841,6 +873,9 @@ func TestOpenAIGatewayService_Forward_WSv2RetryFiveTimesThenFallbackHTTP(t *test
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          89,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -922,6 +957,9 @@ func TestOpenAIGatewayService_Forward_WSv2PolicyViolationFastFallbackHTTP(t *tes
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          8901,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1006,6 +1044,9 @@ func TestOpenAIGatewayService_Forward_WSv2ConnectionLimitReachedRetryThenFallbac
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          90,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1113,6 +1154,9 @@ func TestOpenAIGatewayService_Forward_WSv2PreviousResponseNotFoundRecoversByDrop
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          91,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1213,6 +1257,9 @@ func TestOpenAIGatewayService_Forward_WSv2PreviousResponseNotFoundSkipsRecoveryF
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          92,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1234,7 +1281,8 @@ func TestOpenAIGatewayService_Forward_WSv2PreviousResponseNotFoundSkipsRecoveryF
 	require.Nil(t, upstream.lastReq, "previous_response_not_found 不应回退 HTTP")
 	require.Equal(t, int32(1), wsAttempts.Load(), "function_call_output 场景应跳过 previous_response_not_found 自动恢复")
 	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.Contains(t, strings.ToLower(rec.Body.String()), "previous response not found")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""))
+	require.NotContains(t, strings.ToLower(rec.Body.String()), "previous response not found")
 
 	wsRequestMu.Lock()
 	requests := append([][]byte(nil), wsRequestPayloads...)
@@ -1311,6 +1359,9 @@ func TestOpenAIGatewayService_Forward_WSv2PreviousResponseNotFoundSkipsRecoveryW
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          93,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1408,6 +1459,9 @@ func TestOpenAIGatewayService_Forward_WSv2PreviousResponseNotFoundOnlyRecoversOn
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          94,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1523,6 +1577,9 @@ func TestOpenAIGatewayService_Forward_WSv2InvalidEncryptedContentRecoversOnce(t 
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          95,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1627,6 +1684,9 @@ func TestOpenAIGatewayService_Forward_WSv2InvalidEncryptedContentSkipsRecoveryWi
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          96,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1648,7 +1708,8 @@ func TestOpenAIGatewayService_Forward_WSv2InvalidEncryptedContentSkipsRecoveryWi
 	require.Nil(t, upstream.lastReq, "invalid_encrypted_content 不应回退 HTTP")
 	require.Equal(t, int32(1), wsAttempts.Load(), "缺少 reasoning encrypted item 时应跳过自动恢复重试")
 	require.Equal(t, http.StatusBadRequest, rec.Code)
-	require.Contains(t, strings.ToLower(rec.Body.String()), "encrypted content")
+	require.Contains(t, rec.Body.String(), AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""))
+	require.NotContains(t, strings.ToLower(rec.Body.String()), "encrypted content")
 
 	wsRequestMu.Lock()
 	requests := append([][]byte(nil), wsRequestPayloads...)
@@ -1743,6 +1804,9 @@ func TestOpenAIGatewayService_Forward_WSv2InvalidEncryptedContentRecoversSingleO
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          97,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -1861,6 +1925,9 @@ func TestOpenAIGatewayService_Forward_WSv2InvalidEncryptedContentKeepsPreviousRe
 	}
 
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          98,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,

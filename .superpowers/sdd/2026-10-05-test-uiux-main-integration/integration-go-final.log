@@ -1,0 +1,9 @@
+ok  	github.com/Wei-Shaw/sub2api/internal/service	21.502s
+ok  	github.com/Wei-Shaw/sub2api/internal/handler	4.238s
+ok  	github.com/Wei-Shaw/sub2api/internal/handler/admin	4.797s
+ok  	github.com/Wei-Shaw/sub2api/internal/handler/dto	9.205s [no tests to run]
+ok  	github.com/Wei-Shaw/sub2api/internal/handler/quotaview	10.644s [no tests to run]
+ok  	github.com/Wei-Shaw/sub2api/internal/server	10.696s
+ok  	github.com/Wei-Shaw/sub2api/internal/server/middleware	6.227s [no tests to run]
+ok  	github.com/Wei-Shaw/sub2api/internal/server/routes	7.357s
+ok  	github.com/Wei-Shaw/sub2api/migrations	9.702s

@@ -10,6 +10,7 @@ import type {
   LoginAgreementDocument,
   NotifyEmailEntry,
 } from "@/types";
+import type { RechargeBonusTier } from "@/utils/rechargeBonus";
 
 export interface DefaultSubscriptionSetting {
   group_id: number;
@@ -80,7 +81,7 @@ export interface OpenAISchedulerCustomPreset {
 }
 
 // ── 平台限额类型 ──────────────────────────────────────────────────
-export type PlatformType = "anthropic" | "openai" | "gemini" | "antigravity" | "grok"
+export type PlatformType = "anthropic" | "openai" | "gemini" | "antigravity" | "grok" | "typesafe"
 export type QuotaWindowType = "daily" | "weekly" | "monthly"
 
 /** 单平台三档限额；null = 不限制，undefined = 未填（等价 null） */
@@ -93,7 +94,7 @@ export interface PlatformQuotaLimits {
 /** 全平台默认限额 map（key = PlatformType） */
 export type DefaultPlatformQuotasMap = Partial<Record<PlatformType, PlatformQuotaLimits>>
 
-const PLATFORMS: PlatformType[] = ["anthropic", "openai", "gemini", "antigravity", "grok"]
+const PLATFORMS: PlatformType[] = ["anthropic", "openai", "gemini", "antigravity", "grok", "typesafe"]
 
 export type SchedulingThresholdPlatformType =
   | "openai"
@@ -102,11 +103,12 @@ export type SchedulingThresholdPlatformType =
   | "kimi"
   | "zhipu"
   | "minimax"
+  | "opencode_go"
 
 export type AccountSchedulingThresholdsMap = Record<SchedulingThresholdPlatformType, number>
 
 // 与后端 AllowedSchedulingThresholdPlatforms 保持一致（deepseek 为余额型，
-// 走余额检测而非用量阈值；minimax Coding/Token Plan 有 5h/weekly 窗口）。
+// 走余额检测而非用量阈值；minimax Coding/Token Plan 与 OpenCode GO 有滚动窗口）。
 export const SCHEDULING_THRESHOLD_PLATFORMS: SchedulingThresholdPlatformType[] = [
   "openai",
   "anthropic",
@@ -114,6 +116,7 @@ export const SCHEDULING_THRESHOLD_PLATFORMS: SchedulingThresholdPlatformType[] =
   "kimi",
   "zhipu",
   "minimax",
+  "opencode_go",
 ]
 
 export function normalizeAccountSchedulingThresholdsMap(
@@ -700,6 +703,18 @@ export interface SystemSettings {
   openai_codex_client_version: string;
   openai_codex_client_version_synced: string;
   openai_codex_version_auto_sync_enabled: boolean;
+  openai_codex_ticket_enabled: boolean;
+  openai_codex_ticket_fail_closed: boolean;
+  openai_codex_ticket_strategy?: 'fixed' | 'standby';
+  openai_codex_ticket_harvest_scope?: { mode: 'all' | 'selected'; group_ids: number[]; account_policy: 'schedulable_only' | 'prioritize_schedulable' };
+  openai_codex_ticket_strict_response?: boolean;
+  openai_codex_ticket_harvest_proxy_url: string;
+  openai_codex_ticket_static_proxy_url?: string;
+  openai_codex_ticket_harvest_proxy_configured: boolean;
+  openai_codex_ticket_models: string[];
+  claude_code_client_version: string;
+  claude_code_client_version_synced: string;
+  claude_code_version_auto_sync_enabled: boolean;
   // codex_cli_only 加固
   min_codex_version: string;
   max_codex_version: string;
@@ -714,8 +729,10 @@ export interface SystemSettings {
   risk_control_enabled: boolean;
 
   // Cyber session block
+  cyber_policy_user_allowlist: string;
   cyber_session_block_enabled: boolean;
   cyber_session_block_ttl_seconds: number;
+  cyber_session_identity_strict_enabled: boolean;
 
   payment_min_amount: number;
   payment_max_amount: number;
@@ -727,6 +744,9 @@ export interface SystemSettings {
   payment_balance_recharge_multiplier: number;
   payment_subscription_usd_to_cny_rate: number;
   payment_recharge_fee_rate: number;
+  payment_recharge_bonus_tiers?: RechargeBonusTier[];
+  payment_recharge_bonus_mode?: string;
+  payment_recharge_bonus_notice?: string;
   payment_load_balance_strategy: string;
   payment_product_name_prefix: string;
   payment_product_name_suffix: string;
@@ -744,7 +764,8 @@ export interface SystemSettings {
   payment_visible_method_alipay_enabled?: boolean;
   payment_visible_method_wxpay_enabled?: boolean;
   openai_low_upstream_rate_priority_enabled?: boolean;
-  openai_oauth_scheduling_rate_multiplier?: number;
+  /** null means OAuth accounts use their individual account rates. */
+  openai_oauth_scheduling_rate_multiplier?: number | null;
   openai_advanced_scheduler_enabled?: boolean;
   openai_advanced_scheduler_sticky_weighted_enabled?: boolean;
   openai_advanced_scheduler_subscription_priority_enabled?: boolean;
@@ -759,14 +780,6 @@ export interface SystemSettings {
   openai_advanced_scheduler_weight_upstream_cost?: string;
   openai_advanced_scheduler_weight_previous_response?: string;
   openai_advanced_scheduler_weight_session_sticky?: string;
-  openai_advanced_scheduler_candidate_pool_mode?: string;
-  openai_advanced_scheduler_exploration_ratio?: number;
-  openai_advanced_scheduler_starvation_threshold_seconds?: number;
-  openai_advanced_scheduler_fairness_weight?: number;
-  openai_advanced_scheduler_group_overrides?: Record<string, unknown>;
-  openai_advanced_scheduler_group_policies?: Record<string, OpenAISchedulerGroupPolicy>;
-  openai_advanced_scheduler_custom_presets?: Record<string, OpenAISchedulerCustomPreset>;
-  openai_advanced_scheduler_available_presets?: OpenAISchedulerPresetDefinition[];
   openai_advanced_scheduler_effective_lb_top_k?: string;
   openai_advanced_scheduler_effective_weight_priority?: string;
   openai_advanced_scheduler_effective_weight_load?: string;
@@ -799,6 +812,11 @@ export interface SystemSettings {
   // Available Channels feature switch
   available_channels_enabled: boolean;
 
+  // The Pelican showcase settings are edited on the Smart Ops page (api/admin/pelicanTests).
+
+  // Subscription feature switch (user sidebar "My Subscriptions" entry)
+  subscription_enabled: boolean;
+
   // Model Plaza feature switches + description
   model_plaza_enabled: boolean;
   model_plaza_require_auth: boolean;
@@ -813,6 +831,26 @@ export interface SystemSettings {
 
   // Allow user view error requests
   allow_user_view_error_requests: boolean;
+  usage_show_long_context_badge: boolean;
+  request_capture_enabled: boolean;
+  request_capture_quota_mib: number;
+  request_capture_retention_days: number;
+  excel_bps_image_mode: 'relay' | 'native';
+  excel_bps_image_relay_enabled: boolean;
+  excel_bps_image_base_url: string;
+  excel_bps_image_body_limit_mib: number;
+  excel_bps_image_budget_mib: number;
+  excel_bps_image_max_requests: number;
+  excel_bps_image_max_image_mib: number;
+  excel_bps_image_max_images: number;
+  excel_bps_image_limit_policy: "off" | "auto_compact" | "warn";
+  excel_bps_image_warning_remaining: number;
+  excel_bps_image_compact_reserve: number;
+
+  excel_bps_image_max_total_mib: number;
+  excel_bps_image_storage_mib: number;
+  excel_bps_image_storage_entries: number;
+  excel_bps_image_ttl_minutes: number;
 }
 
 export interface UpdateSettingsRequest {
@@ -1025,6 +1063,16 @@ export interface UpdateSettingsRequest {
   openai_codex_user_agent?: string;
   openai_codex_client_version?: string;
   openai_codex_version_auto_sync_enabled?: boolean;
+  openai_codex_ticket_enabled?: boolean;
+  openai_codex_ticket_fail_closed?: boolean;
+  openai_codex_ticket_strategy?: 'fixed' | 'standby';
+  openai_codex_ticket_harvest_scope?: { mode: 'all' | 'selected'; group_ids: number[]; account_policy: 'schedulable_only' | 'prioritize_schedulable' };
+  openai_codex_ticket_harvest_proxy_url?: string;
+  openai_codex_ticket_use_saved_static_proxy?: boolean;
+  openai_codex_ticket_strict_response?: boolean;
+  openai_codex_ticket_models?: string[];
+  claude_code_client_version?: string;
+  claude_code_version_auto_sync_enabled?: boolean;
   // codex_cli_only 加固
   min_codex_version?: string;
   max_codex_version?: string;
@@ -1037,8 +1085,10 @@ export interface UpdateSettingsRequest {
   risk_control_enabled?: boolean;
 
   // Cyber session block
+  cyber_policy_user_allowlist?: string;
   cyber_session_block_enabled?: boolean;
   cyber_session_block_ttl_seconds?: number;
+  cyber_session_identity_strict_enabled?: boolean;
 
   payment_min_amount?: number;
   payment_max_amount?: number;
@@ -1050,6 +1100,9 @@ export interface UpdateSettingsRequest {
   payment_balance_recharge_multiplier?: number;
   payment_subscription_usd_to_cny_rate?: number;
   payment_recharge_fee_rate?: number;
+  payment_recharge_bonus_tiers?: RechargeBonusTier[];
+  payment_recharge_bonus_mode?: string;
+  payment_recharge_bonus_notice?: string;
   payment_load_balance_strategy?: string;
   payment_product_name_prefix?: string;
   payment_product_name_suffix?: string;
@@ -1067,7 +1120,8 @@ export interface UpdateSettingsRequest {
   payment_visible_method_alipay_enabled?: boolean;
   payment_visible_method_wxpay_enabled?: boolean;
   openai_low_upstream_rate_priority_enabled?: boolean;
-  openai_oauth_scheduling_rate_multiplier?: number;
+  /** Omit to preserve the override; null clears it; zero is an explicit rate. */
+  openai_oauth_scheduling_rate_multiplier?: number | null;
   openai_advanced_scheduler_enabled?: boolean;
   openai_advanced_scheduler_sticky_weighted_enabled?: boolean;
   openai_advanced_scheduler_subscription_priority_enabled?: boolean;
@@ -1082,13 +1136,6 @@ export interface UpdateSettingsRequest {
   openai_advanced_scheduler_weight_upstream_cost?: string;
   openai_advanced_scheduler_weight_previous_response?: string;
   openai_advanced_scheduler_weight_session_sticky?: string;
-  openai_advanced_scheduler_candidate_pool_mode?: string;
-  openai_advanced_scheduler_exploration_ratio?: number;
-  openai_advanced_scheduler_starvation_threshold_seconds?: number;
-  openai_advanced_scheduler_fairness_weight?: number;
-  openai_advanced_scheduler_group_overrides?: Record<string, unknown>;
-  openai_advanced_scheduler_group_policies?: Record<string, OpenAISchedulerGroupPolicy>;
-  openai_advanced_scheduler_custom_presets?: Record<string, OpenAISchedulerCustomPreset>;
   // 余额、订阅到期与账号限额通知
   balance_low_notify_enabled?: boolean;
   balance_low_notify_threshold?: number;
@@ -1109,6 +1156,9 @@ export interface UpdateSettingsRequest {
   // Available Channels feature switch
   available_channels_enabled?: boolean;
 
+  // Subscription feature switch
+  subscription_enabled?: boolean;
+
   // Model Plaza feature switches + description
   model_plaza_enabled?: boolean;
   model_plaza_require_auth?: boolean;
@@ -1122,6 +1172,26 @@ export interface UpdateSettingsRequest {
   openai_fast_policy_settings?: OpenAIFastPolicySettings;
 
   allow_user_view_error_requests?: boolean;
+  usage_show_long_context_badge?: boolean;
+  request_capture_enabled?: boolean;
+  request_capture_quota_mib?: number;
+  request_capture_retention_days?: number;
+  excel_bps_image_mode?: 'relay' | 'native';
+  excel_bps_image_relay_enabled?: boolean;
+  excel_bps_image_base_url?: string;
+  excel_bps_image_body_limit_mib?: number;
+  excel_bps_image_budget_mib?: number;
+  excel_bps_image_max_requests?: number;
+  excel_bps_image_max_image_mib?: number;
+  excel_bps_image_max_images?: number;
+  excel_bps_image_limit_policy?: "off" | "auto_compact" | "warn";
+  excel_bps_image_warning_remaining?: number;
+  excel_bps_image_compact_reserve?: number;
+
+  excel_bps_image_max_total_mib?: number;
+  excel_bps_image_storage_mib?: number;
+  excel_bps_image_storage_entries?: number;
+  excel_bps_image_ttl_minutes?: number;
 }
 
 /**
@@ -1513,7 +1583,7 @@ export async function updateRectifierSettings(
  * Matches backend dto.OpenAIFastPolicyRule.
  */
 export interface OpenAIFastPolicyRule {
-  service_tier: "all" | "priority" | "flex" | "ultrafast";
+  service_tier: "all" | "priority" | "flex" | "ultrafast" | "missing";
   action: "pass" | "filter" | "block" | "force_priority";
   scope: "all" | "oauth" | "apikey" | "bedrock";
   user_ids?: number[];
@@ -1528,6 +1598,51 @@ export interface OpenAIFastPolicyRule {
  */
 export interface OpenAIFastPolicySettings {
   rules: OpenAIFastPolicyRule[];
+}
+
+export type OpenAITurnStateMissAction = "none" | "rebind_group" | "unbind_groups" | "unschedulable"
+export type OpenAITurnStateRecoveredAction = "none" | "rebind_group" | "restore_schedulable"
+
+export interface OpenAITurnStateReuseSettings {
+  enabled: boolean
+  harvest_model: "gpt-6-astra"
+  harvest_proxy_urls: string[]
+  harvest_use_proxy_pool: boolean
+  miss_action: OpenAITurnStateMissAction
+  miss_target_group_id?: number | null
+  recovered_action: OpenAITurnStateRecoveredAction
+  recovered_target_group_id?: number | null
+  inject_compact: false
+}
+
+export interface OpenAITurnStateAccountStatus {
+  account_id: number
+  account_name: string
+  status: "missing" | "fresh" | "renew_due" | "paused_auth" | "paused_429"
+  encoded_length?: number
+  decoded_length?: number
+  issued_at?: string
+  expires_at?: string
+  remaining_seconds?: number
+  last_http_status?: number
+  last_error?: string
+  last_route?: string
+  turn_state_miss_suspended: boolean
+}
+
+export async function getOpenAITurnStateReuseSettings(): Promise<OpenAITurnStateReuseSettings> {
+  const { data } = await apiClient.get<OpenAITurnStateReuseSettings>("/admin/settings/openai-turn-state-reuse")
+  return data
+}
+
+export async function updateOpenAITurnStateReuseSettings(settings: OpenAITurnStateReuseSettings): Promise<OpenAITurnStateReuseSettings> {
+  const { data } = await apiClient.put<OpenAITurnStateReuseSettings>("/admin/settings/openai-turn-state-reuse", settings)
+  return data
+}
+
+export async function getOpenAITurnStateReuseStatus(): Promise<OpenAITurnStateAccountStatus[]> {
+  const { data } = await apiClient.get<OpenAITurnStateAccountStatus[]>("/admin/settings/openai-turn-state-reuse/status")
+  return data
 }
 
 // ==================== Beta Policy Settings ====================
@@ -1663,6 +1778,9 @@ export const settingsAPI = {
   updateRectifierSettings,
   getBetaPolicySettings,
   updateBetaPolicySettings,
+  getOpenAITurnStateReuseSettings,
+  updateOpenAITurnStateReuseSettings,
+  getOpenAITurnStateReuseStatus,
   getWebSearchEmulationConfig,
   updateWebSearchEmulationConfig,
   testWebSearchEmulation,

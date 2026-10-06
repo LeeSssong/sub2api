@@ -1,0 +1,109 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.overrides". See https://pnpm.io/settings for the new home of each setting.
+
+ RUN  v2.1.9 /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/upstream/sub2api/frontend
+
+(node:20115) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20113) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:20114) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Browserslist: browsers data (caniuse-lite) is 10 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+ ✓ src/components/account/__tests__/UpstreamBillingRateCell.spec.ts (14 tests) 99ms
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > keeps a successful balance redemption when profile refresh fails
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > keeps a successful concurrency redemption when profile refresh fails
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > keeps a successful subscription redemption when profile refresh fails
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > pages on the server, changes size, and resets page and total after redeeming
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > restores the loaded size and keeps rows and navigation usable after a size request fails
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > ignores a stale history success after a newer size request succeeds
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > ignores a stale history failure after a newer size request succeeds
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > disables both paging buttons for empty history
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > finishes normally without a warning when profile refresh succeeds
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > preserves the existing subscription refresh warning after successful redemption
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/views/user/__tests__/RedeemView.spec.ts > RedeemView refresh after redemption > keeps the code and reports failure when the redemption request itself fails
+[Vue warn]: Failed to resolve component: router-link
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.
+  at <UserRechargeNav active="redeem" payment-enabled=true balance=10  ... >
+  at <Anonymous>
+  at <RedeemView ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+ ✓ src/views/user/__tests__/RedeemView.spec.ts (11 tests) 105ms
+ ✓ src/components/account/__tests__/CreateAccountModal.spec.ts (45 tests) 487ms
+
+ Test Files  3 passed (3)
+      Tests  70 passed (70)
+   Start at  18:47:40
+   Duration  1.96s (transform 1.20s, setup 140ms, collect 2.11s, tests 691ms, environment 754ms, prepare 142ms)

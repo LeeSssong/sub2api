@@ -26,6 +26,12 @@ func RegisterUserRoutes(
 	authenticated.Use(gin.HandlerFunc(auditLog))
 	{
 		// 用户接口
+		if h.Admin != nil && h.Admin.PelicanGroupTest != nil {
+			authenticated.GET("/intelligence-tests", h.Admin.PelicanGroupTest.IntelligenceDashboard)
+			authenticated.GET("/intelligence-tests/results/:id", h.Admin.PelicanGroupTest.IntelligenceResult)
+		}
+		authenticated.GET("/pelican-showcase", h.PelicanShowcase.List)
+		authenticated.GET("/pelican-showcase/items/:id", h.PelicanShowcase.GetItem)
 		user := authenticated.Group("/user")
 		{
 			user.GET("/profile", h.User.GetProfile)
@@ -76,6 +82,8 @@ func RegisterUserRoutes(
 		keys := authenticated.Group("/keys")
 		{
 			keys.GET("", h.APIKey.List)
+			// 必须在动态 /:id 路由之前注册，避免被参数路由吞掉。
+			keys.GET("/concurrency", h.APIKey.GetConcurrencyQueue)
 			keys.GET("/:id", h.APIKey.GetByID)
 			keys.POST("", h.APIKey.Create)
 			keys.PUT("/:id", h.APIKey.Update)
@@ -104,6 +112,8 @@ func RegisterUserRoutes(
 			usage.GET("/errors", h.Usage.ListErrors)
 			usage.GET("/errors/:id", h.Usage.GetErrorDetail)
 			usage.GET("/:id", h.Usage.GetByID)
+			usage.GET("/:id/timing", h.Usage.ObserverTiming)
+			usage.GET("/filter-options", h.Usage.ObserverFilterOptions)
 			usage.GET("/stats", h.Usage.Stats)
 			// User dashboard endpoints
 			usage.GET("/dashboard/stats", h.Usage.DashboardStats)

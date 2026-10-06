@@ -7,6 +7,10 @@ import (
 
 // AdminHandlers contains all admin-related HTTP handlers
 type AdminHandlers struct {
+	RequestCapture         *admin.RequestCaptureHandler
+	AccountOps             *admin.AccountOpsHandler
+	AccountTokenGuard      *admin.AccountTokenGuardHandler
+	AccountTokenGuardV2    *admin.AccountTokenGuardV2Handler
 	Dashboard              *admin.DashboardHandler
 	User                   *admin.UserHandler
 	Group                  *admin.GroupHandler
@@ -16,6 +20,7 @@ type AdminHandlers struct {
 	Backup                 *admin.BackupHandler
 	OAuth                  *admin.OAuthHandler
 	OpenAIOAuth            *admin.OpenAIOAuthHandler
+	OpenAIOAuthReauth      *admin.OpenAIOAuthReauthHandler
 	GeminiOAuth            *admin.GeminiOAuthHandler
 	AntigravityOAuth       *admin.AntigravityOAuthHandler
 	GrokOAuth              *admin.GrokOAuthHandler
@@ -34,6 +39,7 @@ type AdminHandlers struct {
 	Plugin                 *admin.PluginHandler
 	APIKey                 *admin.AdminAPIKeyHandler
 	ScheduledTest          *admin.ScheduledTestHandler
+	PelicanGroupTest       *admin.PelicanGroupTestHandler
 	Channel                *admin.ChannelHandler
 	ChannelMonitor         *admin.ChannelMonitorHandler
 	ChannelMonitorTemplate *admin.ChannelMonitorRequestTemplateHandler
@@ -45,11 +51,11 @@ type AdminHandlers struct {
 	Compliance             *admin.ComplianceHandler
 	AuditLog               *admin.AuditLogHandler
 	AccountFinancial       *admin.AccountFinancialHandler
-	SchedulerLog           *admin.SchedulerLogHandler
 }
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
+	PelicanShowcase       *PelicanShowcaseHandler
 	Auth                  *AuthHandler
 	User                  *UserHandler
 	APIKey                *APIKeyHandler

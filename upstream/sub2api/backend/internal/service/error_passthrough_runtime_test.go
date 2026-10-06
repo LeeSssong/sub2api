@@ -60,7 +60,7 @@ func TestGatewayHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, "Upstream request failed", errField["message"])
+	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBusy, ""), errField["message"])
 }
 
 func TestOpenAIHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
@@ -86,7 +86,7 @@ func TestOpenAIHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, "Upstream request failed", errField["message"])
+	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBusy, ""), errField["message"])
 }
 
 func TestOpenAIHandleErrorResponse_ContextWindow502KeepsMessageWithoutFailover(t *testing.T) {
@@ -114,8 +114,9 @@ func TestOpenAIHandleErrorResponse_ContextWindow502KeepsMessageWithoutFailover(t
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, "Your input exceeds the context window of this model. Please adjust your input and try again.", errField["message"])
+	assert.Equal(t, "invalid_request_error", errField["type"])
+	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyTooLarge, ""), errField["message"])
+	assert.NotContains(t, errField["message"], "context window")
 }
 
 func TestGeminiWriteGeminiMappedError_NoRuleKeepsDefault(t *testing.T) {
@@ -136,7 +137,7 @@ func TestGeminiWriteGeminiMappedError_NoRuleKeepsDefault(t *testing.T) {
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "invalid_request_error", errField["type"])
-	assert.Equal(t, "Upstream request failed", errField["message"])
+	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyBadRequest, ""), errField["message"])
 }
 
 func TestGatewayHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
@@ -166,7 +167,7 @@ func TestGatewayHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, "上游请求失败", errField["message"])
+	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), errField["message"])
 }
 
 func TestOpenAIHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
@@ -196,7 +197,7 @@ func TestOpenAIHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, "OpenAI上游失败", errField["message"])
+	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), errField["message"])
 }
 
 func TestGeminiWriteGeminiMappedError_AppliesRuleFor422(t *testing.T) {
@@ -221,7 +222,7 @@ func TestGeminiWriteGeminiMappedError_AppliesRuleFor422(t *testing.T) {
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream_error", errField["type"])
-	assert.Equal(t, "Gemini上游失败", errField["message"])
+	assert.Equal(t, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, ""), errField["message"])
 }
 
 func TestApplyErrorPassthroughRule_SkipMonitoringSetsContextKey(t *testing.T) {
@@ -330,7 +331,7 @@ func TestHandleErrorResponse_PassthroughRuleSetsCommitted(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 	errField, ok := payload["error"].(map[string]any)
 	require.True(t, ok, "payload[\"error\"] should be map[string]any")
-	assert.Equal(t, "参数错误", errField["message"])
+	assert.Equal(t, AppendNativeUserErrorHelp("参数错误", ""), errField["message"])
 }
 
 func TestOpenAIHandleErrorResponse_SetsResponseCommitted(t *testing.T) {

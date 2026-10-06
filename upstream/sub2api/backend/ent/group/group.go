@@ -42,6 +42,8 @@ const (
 	FieldStatus = "status"
 	// FieldActiveProbeEnabled holds the string denoting the active_probe_enabled field in the database.
 	FieldActiveProbeEnabled = "active_probe_enabled"
+	// FieldTurnStateInjectEnabled holds the string denoting the turn_state_inject_enabled field in the database.
+	FieldTurnStateInjectEnabled = "turn_state_inject_enabled"
 	// FieldDuplicateOperationID holds the string denoting the duplicate_operation_id field in the database.
 	FieldDuplicateOperationID = "duplicate_operation_id"
 	// FieldPlatform holds the string denoting the platform field in the database.
@@ -106,6 +108,8 @@ const (
 	FieldFallbackGroupID = "fallback_group_id"
 	// FieldFallbackGroupIDOnInvalidRequest holds the string denoting the fallback_group_id_on_invalid_request field in the database.
 	FieldFallbackGroupIDOnInvalidRequest = "fallback_group_id_on_invalid_request"
+	// FieldStreamOnly holds the string denoting the stream_only field in the database.
+	FieldStreamOnly = "stream_only"
 	// FieldModelRouting holds the string denoting the model_routing field in the database.
 	FieldModelRouting = "model_routing"
 	// FieldModelRoutingEnabled holds the string denoting the model_routing_enabled field in the database.
@@ -238,6 +242,7 @@ var Columns = []string{
 	FieldIsExclusive,
 	FieldStatus,
 	FieldActiveProbeEnabled,
+	FieldTurnStateInjectEnabled,
 	FieldDuplicateOperationID,
 	FieldPlatform,
 	FieldSubscriptionType,
@@ -270,6 +275,7 @@ var Columns = []string{
 	FieldClaudeCodeOnly,
 	FieldFallbackGroupID,
 	FieldFallbackGroupIDOnInvalidRequest,
+	FieldStreamOnly,
 	FieldModelRouting,
 	FieldModelRoutingEnabled,
 	FieldMcpXMLInject,
@@ -351,6 +357,8 @@ var (
 	StatusValidator func(string) error
 	// DefaultActiveProbeEnabled holds the default value on creation for the "active_probe_enabled" field.
 	DefaultActiveProbeEnabled bool
+	// DefaultTurnStateInjectEnabled holds the default value on creation for the "turn_state_inject_enabled" field.
+	DefaultTurnStateInjectEnabled bool
 	// DuplicateOperationIDValidator is a validator for the "duplicate_operation_id" field. It is called by the builders before save.
 	DuplicateOperationIDValidator func(string) error
 	// DefaultPlatform holds the default value on creation for the "platform" field.
@@ -391,6 +399,8 @@ var (
 	DefaultLongContextPricingEnabled bool
 	// DefaultClaudeCodeOnly holds the default value on creation for the "claude_code_only" field.
 	DefaultClaudeCodeOnly bool
+	// DefaultStreamOnly holds the default value on creation for the "stream_only" field.
+	DefaultStreamOnly bool
 	// DefaultModelRoutingEnabled holds the default value on creation for the "model_routing_enabled" field.
 	DefaultModelRoutingEnabled bool
 	// DefaultMcpXMLInject holds the default value on creation for the "mcp_xml_inject" field.
@@ -512,6 +522,11 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByActiveProbeEnabled orders the results by the active_probe_enabled field.
 func ByActiveProbeEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldActiveProbeEnabled, opts...).ToFunc()
+}
+
+// ByTurnStateInjectEnabled orders the results by the turn_state_inject_enabled field.
+func ByTurnStateInjectEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTurnStateInjectEnabled, opts...).ToFunc()
 }
 
 // ByDuplicateOperationID orders the results by the duplicate_operation_id field.
@@ -662,6 +677,11 @@ func ByFallbackGroupID(opts ...sql.OrderTermOption) OrderOption {
 // ByFallbackGroupIDOnInvalidRequest orders the results by the fallback_group_id_on_invalid_request field.
 func ByFallbackGroupIDOnInvalidRequest(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFallbackGroupIDOnInvalidRequest, opts...).ToFunc()
+}
+
+// ByStreamOnly orders the results by the stream_only field.
+func ByStreamOnly(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldStreamOnly, opts...).ToFunc()
 }
 
 // ByModelRoutingEnabled orders the results by the model_routing_enabled field.

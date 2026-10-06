@@ -10,8 +10,23 @@
 	}
 }
 
+# Callback URLs carry the originating slot: relay keys and files are process-local.
+(bps_image_slot_routes) {
+    @bps_images_blue path /api/bps-images/blue/*
+    reverse_proxy @bps_images_blue sub2api-blue:8080 {
+        stream_close_delay 24h
+    }
+    @bps_images_green path /api/bps-images/green/*
+    reverse_proxy @bps_images_green sub2api-green:8080 {
+        stream_close_delay 24h
+    }
+}
+
 :8081 {
+	import bps_image_slot_routes
 	reverse_proxy {$SUB2API_ACTIVE_UPSTREAM:sub2api-blue:8080} {
+		# Keep upgraded streams alive across config reload; fusion retains busy old slots.
+		stream_close_delay 24h
 		# relay-ops already receives these values from the public Caddy hop.
 		# Preserve them so Sub2API validates the browser-bound admin session.
 		header_up X-Forwarded-For {http.request.header.X-Forwarded-For}
@@ -20,6 +35,7 @@
 }
 
 {$SITE_ADDRESS} {
+	import bps_image_slot_routes
 	tls {
 		key_type rsa2048
 		protocols tls1.2 tls1.3
@@ -95,6 +111,11 @@
 		file_server
 	}
 
+	@storefront_purchase path /purchase /purchase/
+	handle @storefront_purchase {
+		redir * /custom/xingqiao-storefront 302
+	}
+
 	@sub2api_update_js path /xingqiao-update-ui.js
 	handle @sub2api_update_js {
 		root * /srv/sub2api-update-ui
@@ -120,7 +141,9 @@
 	@sub2api_official_index path /__sub2api-official-index
 	handle @sub2api_official_index {
 		rewrite * /
-		reverse_proxy {$SUB2API_ACTIVE_UPSTREAM:sub2api-blue:8080}
+		reverse_proxy {$SUB2API_ACTIVE_UPSTREAM:sub2api-blue:8080} {
+            stream_close_delay 24h
+        }
 	}
 
 	@legacy_ops path /ops /ops/*
@@ -177,7 +200,9 @@
 		method GET
 		path /api/v1/admin/system/check-updates
 	}
-	reverse_proxy @sub2api_version_check {$SUB2API_ACTIVE_UPSTREAM:sub2api-blue:8080}
+	reverse_proxy @sub2api_version_check {$SUB2API_ACTIVE_UPSTREAM:sub2api-blue:8080} {
+        stream_close_delay 24h
+    }
 
 	@sub2api_update {
 		method POST
@@ -231,6 +256,8 @@
 	}
 
 	reverse_proxy {$SUB2API_ACTIVE_UPSTREAM:sub2api-blue:8080} {
+		# Keep upgraded streams alive across config reload; fusion retains busy old slots.
+		stream_close_delay 24h
 		flush_interval -1
 		header_down Content-Security-Policy "frame-src " "frame-src 'self' https://shop.xingqiaolab.top https://catfk.com "
 		transport http {
@@ -285,5 +312,27 @@
 		X-Content-Type-Options nosniff
 		Referrer-Policy no-referrer
 		Content-Security-Policy "default-src 'none'; frame-ancestors https://api.xingqiaolab.top; base-uri 'none'; form-action 'none'"
+	}
+}
+
+# Independent codex2api HTTPS entry. Keep the nip.io hostname as a recovery
+# path and suppress HTTP/3 advertisement because this host does not publish
+# UDP/443 for this service.
+codex.xingqiaolab.top, 64-83-10-67.nip.io {
+	encode zstd gzip
+	header {
+		Alt-Svc "clear"
+		-Server
+	}
+	reverse_proxy 172.18.0.1:18080 {
+		flush_interval -1
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		header_down Alt-Svc "clear"
+		transport http {
+			dial_timeout 3s
+			response_header_timeout 15m
+			keepalive 2m
+		}
 	}
 }

@@ -10,16 +10,26 @@ fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 
 mkdir -p "$FIXTURE/upstream/sub2api/backend/internal/service" "$FIXTURE/upstream/sub2api/backend/internal/handler"
 printf 'module example.invalid/sub2api\n' >"$FIXTURE/upstream/sub2api/backend/go.mod"
-cp "$ROOT/upstream/sub2api/backend/internal/service/openai_shared_health.go" \
-  "$FIXTURE/upstream/sub2api/backend/internal/service/openai_shared_health.go"
+legacy_noop() {
+  printf '%s\n' \
+    'func (s *OpenAIGatewayService) AcquireOpenAIAdmission(_ int64, _ OpenAIAdmissionRequestShape) (func(), OpenAISharedAdmissionDecision) {' \
+    '  return func() {}, OpenAISharedAdmissionDecision{Allowed: true, Reason: "disabled"}' \
+    '}' \
+    'func (s *OpenAIGatewayService) RecordOpenAISlowSessionGuard(_ int64, _ *OpenAIForwardResult, _ bool) {' \
+    '}' >"$FIXTURE/upstream/sub2api/backend/internal/service/openai_shared_health.go"
+}
 cp "$ROOT/upstream/sub2api/backend/internal/handler/openai_chat_completions.go" \
   "$FIXTURE/upstream/sub2api/backend/internal/handler/openai_chat_completions.go"
 cp "$ROOT/upstream/sub2api/backend/internal/handler/openai_gateway_handler.go" \
   "$FIXTURE/upstream/sub2api/backend/internal/handler/openai_gateway_handler.go"
 cp "$ROOT/upstream/sub2api/backend/internal/handler/gateway_handler.go" \
   "$FIXTURE/upstream/sub2api/backend/internal/handler/gateway_handler.go"
+cp "$ROOT/upstream/sub2api/backend/internal/handler/gateway_helper.go" \
+  "$FIXTURE/upstream/sub2api/backend/internal/handler/gateway_helper.go"
 
 "$GUARD" --worktree "$FIXTURE" >/dev/null || fail 'current native-only source was rejected'
+legacy_noop
+"$GUARD" --worktree "$FIXTURE" >/dev/null || fail 'legacy permanent no-op source was rejected'
 
 sed -i.bak 's/h\.acquireResponsesAccountSlot(/h.service.AcquireOpenAIAdmission(/' \
   "$FIXTURE/upstream/sub2api/backend/internal/handler/openai_chat_completions.go"
@@ -37,8 +47,7 @@ if "$GUARD" --worktree "$FIXTURE" >/dev/null 2>&1; then
   fail 'restored admission rejection was accepted'
 fi
 
-cp "$ROOT/upstream/sub2api/backend/internal/service/openai_shared_health.go" \
-  "$FIXTURE/upstream/sub2api/backend/internal/service/openai_shared_health.go"
+legacy_noop
 printf '\nfunc forbiddenAdmissionForTest(svc interface{ AcquireOpenAIAdmissionV2() }) { svc.AcquireOpenAIAdmissionV2() }\n' \
   >>"$FIXTURE/upstream/sub2api/backend/internal/handler/gateway_handler.go"
 if "$GUARD" --worktree "$FIXTURE" >/dev/null 2>&1; then

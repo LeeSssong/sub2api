@@ -133,27 +133,56 @@ deploy/docker-compose.override.yml
 .gocache/
 vite.config.js
 docs/*
+!docs/openai-ws-sse-acceleration.md
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
 !docs/ASYNC_IMAGE_TASKS.md
+!docs/PRISM_BRIDGE_RESEARCH_CN.md
 !docs/BATCH_IMAGE_MVP.md
 !docs/COMPOSITE_GROUPS.md
 !docs/PLUGIN_DEVELOPMENT.md
 !docs/channel-monitor-v2-safe-defaults.md
+!docs/quality-bps-observation.md
+!docs/cyber-session-blocking.md
+!docs/request-capture.md
+!docs/codex-credits.md
+!docs/account-token-guard.md
+!docs/priority-scheduling.md
+
 !docs/legal/
 !docs/legal/*.md
 !docs/screenshots/
 docs/screenshots/*
+!docs/screenshots/ws-sse-acceleration/
 !docs/screenshots/mobile-account-actions-menu.png
+!docs/screenshots/codex-referral-dialog.png
+!docs/screenshots/codex-referral-success.png
+!docs/screenshots/bps403-recovery/
+!docs/screenshots/account-cost-multiplier/
 .serena/
 .codex/
 frontend/coverage/
 aicodex
 output/
 .codegraph/
+issues/
 
 # Vitest / Vite cache at repo root
 .vite/
 # 本地闭源插件开发目录及构建产物不进入 Sub2API 仓库
 /plugins/
+
+!docs/codex-ticket-pinning.md
+
+!docs/account-auto-config.md
+!docs/screenshots/auto-config/
+
+# Runtime credential encryption keys must never enter source control.
+**/credential-operations.key
+**/.credential-key-*
+!docs/credential-encryption.md
+!docs/screenshots/credential-encryption/
+!docs/screenshots/pelican-showcase-api-ui/
+
+!docs/typesafe-jev.md

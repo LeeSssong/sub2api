@@ -3,6 +3,35 @@ set -euo pipefail
 
 umask 077
 
+# User-authorized v2.9.7 online transition; additive order column and platform superset.
+readonly OCTOBER_03_OLD_MIGRATIONS_HASH=600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea
+readonly OCTOBER_03_NEW_MIGRATIONS_HASH=406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b
+
+# October 2: additive API key limit and OAuth observations; this release only.
+readonly OCTOBER_02_OLD_MIGRATIONS_HASH=6019a46ac500e6a669c8d6b26cc001f3cc96a093f199fece56405df926cb6768
+readonly OCTOBER_02_NEW_MIGRATIONS_HASH=600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea
+
+# October 1: additive engine column; user-authorized online transition.
+readonly OCTOBER_01_OLD_MIGRATIONS_HASH=d5339ae8cc23d83fcb14727a248cd0e2e077d21741ed597f81edbec76bfafffe
+readonly OCTOBER_01_NEW_MIGRATIONS_HASH=6019a46ac500e6a669c8d6b26cc001f3cc96a093f199fece56405df926cb6768
+
+# September 30: additive official migrations 259-261; bounded online execution.
+readonly SEPTEMBER_30_OLD_MIGRATIONS_HASH=a3be3a718ef8c6a3980b71d4c3367c20776cebed128d206fdbf54cb35dff1477
+readonly SEPTEMBER_30_NEW_MIGRATIONS_HASH=d5339ae8cc23d83fcb14727a248cd0e2e077d21741ed597f81edbec76bfafffe
+
+# Exact September 28 transition; replace target only after integrated SQL review.
+# September 29: official observation-scope index; bounded online migration.
+readonly SEPTEMBER_29_OLD_MIGRATIONS_HASH=611d464f9a31d60236cf065883d82966c3df2436683e899044c931ffb48743de
+readonly SEPTEMBER_29_NEW_MIGRATIONS_HASH=a3be3a718ef8c6a3980b71d4c3367c20776cebed128d206fdbf54cb35dff1477
+
+readonly SEPTEMBER_28_OLD_MIGRATIONS_HASH=aa5034f8164b58fec94947353be441991f7b0baeac48b9f7ba62f55013aed5c9
+readonly SEPTEMBER_28_NEW_MIGRATIONS_HASH=611d464f9a31d60236cf065883d82966c3df2436683e899044c931ffb48743de
+
+readonly BPS_OBSERVER_OLD_MIGRATIONS_HASH=3786e09e70dc3ac994cb66d398378f830b69d6c02b1974f2d1cad322ceb22e43
+readonly BPS_OBSERVER_NEW_MIGRATIONS_HASH=aa5034f8164b58fec94947353be441991f7b0baeac48b9f7ba62f55013aed5c9
+readonly SEPTEMBER_26_OLD_MIGRATIONS_HASH=5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df
+readonly SEPTEMBER_26_NEW_MIGRATIONS_HASH=6f4742b1309a7b155fce80f7f835f7527ab8caea370e5f90632cb7422d9e971e
+
 fail() {
   printf 'sub2api_blue_green_release status=failed: %s\n' "$1" >&2
   exit 1
@@ -11,6 +40,8 @@ fail() {
 mode=''
 evidence=''
 maintenance_authorized=false
+online_migrations_from_hash=''
+drain_mode=force
 while (($#)); do
   case "$1" in
     --mode)
@@ -30,12 +61,24 @@ while (($#)); do
 			maintenance_authorized=true
 			shift
 			;;
+		--online-migrations-from-hash)
+			(($# >= 2)) || fail '--online-migrations-from-hash requires a value'
+			[[ -z "$online_migrations_from_hash" ]] || fail '--online-migrations-from-hash may be supplied once'
+			online_migrations_from_hash=$2
+			shift 2
+			;;
+    --drain-mode) (($# >= 2)) || fail '--drain-mode requires a value'; drain_mode=$2; shift 2 ;;
     *) fail "unknown argument: $1" ;;
   esac
 done
 
+[[ "$drain_mode" == force || "$drain_mode" == retain ]] || fail '--drain-mode must be force or retain'
 [[ "$mode" == rehearsal || "$mode" == production ]] || fail '--mode must be rehearsal or production'
 [[ "$maintenance_authorized" == false || "$mode" == production ]] || fail '--maintenance-authorized is only valid in production mode'
+[[ -z "$online_migrations_from_hash" || ( "$mode" == production && "$maintenance_authorized" == false ) ]] \
+  || fail 'online migrations require production mode without maintenance'
+[[ -z "$online_migrations_from_hash" || "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 || "$online_migrations_from_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b || "$online_migrations_from_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" || "$online_migrations_from_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" ]] \
+  || fail 'online migration source hash is not a reviewed predecessor'
 maintenance_from_hash=${RELEASE_MAINTENANCE_FROM_HASH:-}
 if [[ "$maintenance_authorized" == true ]]; then
   [[ "$maintenance_from_hash" =~ ^[a-f0-9]{64}$ ]] \
@@ -83,6 +126,52 @@ migrations_hash=$(ruby -rdigest -e '
   print digest.hexdigest
 ' "$migrations_dir") || fail 'could not compute migration hash'
 [[ "$migrations_hash" =~ ^[a-f0-9]{64}$ ]] || fail 'migration hash is invalid'
+if [[ "$online_migrations_from_hash" == dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54 ]]; then
+  [[ "$migrations_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b ]] || fail 'legacy online migration target is not reviewed'
+fi
+if [[ "$online_migrations_from_hash" == 9bdf03d2fe484a6cb2ff8a1cc9fb690cc523d3c17f6a142a9775daa7c8503f6b ]]; then
+  [[ "$migrations_hash" == 5b011a1ade72118f5a69c1afaa728f5aa5060b27444b199362483a27a03a08df && "$drain_mode" == retain ]] || fail 'fusion requires reviewed target migrations and --drain-mode retain'
+fi
+if [[ "$online_migrations_from_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" ]]; then
+  [[ "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" && "$drain_mode" == retain \
+      && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
+    || fail 'September 26 online release requires reviewed migrations, retain drain, new worker, and preserved detector'
+fi
+
+if [[ "$online_migrations_from_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" ]]; then
+  [[ "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
+    || fail 'BPS observer online release requires exact additive migrations, new worker, and preserved detector'
+fi
+
+if [[ "$online_migrations_from_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" ]]; then
+  [[ "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
+    || fail 'September 28 requires exact reviewed migrations, new worker, and preserved detector'
+fi
+
+if [[ "$online_migrations_from_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" ]]; then
+  [[ "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
+    || fail 'September 29 requires exact reviewed migrations, new worker, and preserved detector'
+fi
+
+if [[ "$online_migrations_from_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" ]]; then
+  [[ "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
+    || fail 'September 30 requires exact reviewed migrations, new worker, and preserved detector'
+fi
+
+if [[ "$online_migrations_from_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" ]]; then
+  [[ "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
+    || fail 'October 1 requires exact reviewed migrations, new worker, and preserved detector'
+fi
+
+if [[ "$online_migrations_from_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" ]]; then
+  [[ "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
+    || fail 'v2.9.7 requires exact reviewed migrations, new worker, and preserved detector'
+fi
+
+if [[ "$online_migrations_from_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" ]]; then
+  [[ "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" && "${RELEASE_PRESERVE_WORKER:-false}" == false && "${RELEASE_PRESERVE_DETECTOR:-false}" == true ]] \
+    || fail 'October 2 requires exact reviewed migrations, new worker, and preserved detector'
+fi
 
 ruby -rjson -rtime -e '
   path, commit, tree, migrations = ARGV
@@ -435,6 +524,8 @@ host_environment=(
   "RELEASE_ENV=${RELEASE_RELEASE_ENV:-/opt/sub2api/production/release.env}"
   "RELEASE_STATE=${RELEASE_STATE_PATH:-/var/lib/sub2api/release-state}"
   "RELEASE_RECORD_ROOT=${RELEASE_RECORD_ROOT_PATH:-/var/lib/sub2api/release-records}"
+  "PRESERVE_WORKER=${RELEASE_PRESERVE_WORKER:-false}"
+  "PRESERVE_DETECTOR=${RELEASE_PRESERVE_DETECTOR:-false}"
   "WORKER_HEALTH_TIMEOUT_SECONDS=${RELEASE_WORKER_HEALTH_TIMEOUT_SECONDS:-240}"
   "ADMIN_API_KEY_FILE=${RELEASE_ADMIN_API_KEY_FILE:-/opt/sub2api/production/secrets/sub2api-admin-api-key}"
   "GATEWAY_API_KEY_FILE=${RELEASE_GATEWAY_API_KEY_FILE:-/opt/sub2api/production/secrets/sub2api-gateway-api-key}"
@@ -470,6 +561,10 @@ if [[ "$maintenance_authorized" == true ]]; then
   host_args+=(--maintenance-authorized --maintenance-from-hash \
     "$maintenance_from_hash")
 fi
+if [[ -n "$online_migrations_from_hash" ]]; then
+  host_args+=(--online-migrations-from-hash "$online_migrations_from_hash")
+fi
+host_args+=(--drain-mode "$drain_mode")
 host_output=$(perl -e 'alarm shift @ARGV; exec @ARGV' "$host_timeout" "$ssh_bin" \
   -T -i "$ssh_key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
   -o "UserKnownHostsFile=$ssh_known_hosts" -p "$ssh_port" "$ssh_target" \

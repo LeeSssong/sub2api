@@ -28,6 +28,7 @@ x-sub2api-environment: &sub2api-environment
   ADMIN_PASSWORD: ${ADMIN_PASSWORD:?required}
   JWT_SECRET: ${JWT_SECRET:?required}
   TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?required}
+  OPENAI_REAUTH_WORKER_TOKEN: ${OPENAI_REAUTH_WORKER_TOKEN:-}
   TZ: ${TZ:-Asia/Shanghai}
   SUB2API_ENVIRONMENT: ${SUB2API_ENVIRONMENT:-production}
   SUB2API_DEPLOYMENT_COMMIT: ${SUB2API_DEPLOYMENT_COMMIT:-unknown}
@@ -133,6 +134,7 @@ services:
     logging: *logging
 
   sub2api-worker:
+    stop_grace_period: 60s
     image: ${SUB2API_WORKER_IMAGE:?SUB2API_WORKER_IMAGE is required}
     restart: unless-stopped
     expose: ["8080"]

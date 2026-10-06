@@ -122,6 +122,7 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 		Kind:               "failover",
 		Message:            upstreamMsg,
 		Detail:             upstreamDetail,
+		OriginalError:      newOpsOriginalUpstreamError(respBody),
 	})
 	shouldDisable := tempUnscheduled
 	if account.Platform != PlatformGrok && !tempUnscheduled {
@@ -182,6 +183,11 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	userAgent string,
 	grokCacheIdentity string,
 ) (*http.Response, error) {
+	// DeepSeek thinking mode 要求历史 assistant 回传 reasoning_content。
+	// Responses→CC 回退在加密-only / 缺 reasoning item 且缓存未命中时会漏掉该
+	// 字段，上游 400 "The `reasoning_content` in the thinking mode must be
+	// passed back to the API"。在共用出站点补空格占位，真实明文不覆盖。
+	body = ensureDeepSeekChatReasoningPlaceholders(account, body)
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	upstreamReq, err := http.NewRequestWithContext(upstreamCtx, http.MethodPost, targetURL, bytes.NewReader(body))
 	releaseUpstreamCtx()
@@ -220,10 +226,14 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 		}
 		applyGrokCacheHeaders(upstreamReq.Header, grokCacheIdentity)
 	}
+	// 官方 OpenCode / Command Code 上游收敛为规范客户端 UA：客户端透传的编程库
+	// UA 会命中其前置 Cloudflare bot 拦截（CF 1010/403），并被计入账号 403 strike。
+	applyOpenCodeUpstreamUserAgent(account, targetURL, upstreamReq.Header)
+
 	// 账号级请求头覆写：放在所有内置默认头（含 Grok CLI 身份头）之后应用，
 	// 使配置值获得除共享传输层强制头之外的最高优先级。
 	account.ApplyHeaderOverrides(upstreamReq.Header)
-	applyOpenCodeSessionHeader(c, account, targetURL, upstreamReq.Header)
+	applyOpenCodeSessionHeader(c, account, targetURL, upstreamReq.Header, body)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -369,10 +379,14 @@ func (s *OpenAIGatewayService) readCCUpstreamJSONResponse(
 // writeOpenAIResponsesFallbackError 以 /v1/responses 回退路径的既有错误格式回写
 // （裸 error 对象；不调用 MarkResponseCommitted，与原内联写法保持一致）。
 func writeOpenAIResponsesFallbackError(c *gin.Context, statusCode int, errType, message string) {
+	projected := projectSelectedAccountUserError(c, statusCode, errType, "", message)
+	if projected.Type != "" {
+		errType = projected.Type
+	}
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{
 			"type":    errType,
-			"message": message,
+			"message": projected.Message,
 		},
 	})
 }

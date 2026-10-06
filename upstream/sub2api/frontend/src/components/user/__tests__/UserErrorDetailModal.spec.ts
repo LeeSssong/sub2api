@@ -46,11 +46,11 @@ const detail = {
   request_id: 'req-user-error-7',
   status_code: 500,
   error_class: 'upstream_failed',
-  meaning: '上游请求失败',
-  suggestion: '请稍后重试；持续失败请联系管理员并提供请求 ID',
+  meaning: '服务暂时异常，请稍后重试。',
+  suggestion: '如需协助请联系管理员并提供 Request ID',
   category: 'upstream_error',
   model: 'gpt-5.4',
-  message: '上游请求失败',
+  message: '服务暂时异常，请稍后重试。',
   created_at: '2026-07-25T12:00:00Z',
   client_ip: '203.0.113.7',
   inbound_endpoint: '/v1/responses',
@@ -106,7 +106,8 @@ describe('UserErrorDetailModal', () => {
     await wrapper.setProps({ show: true })
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="user-error-meaning"]').text()).toBe('上游请求失败')
+    expect(wrapper.get('[data-testid="user-error-meaning"]').text()).toBe('服务暂时异常，请稍后重试。')
+    expect(wrapper.get('[data-testid="user-error-meaning"]').text()).not.toContain('上游')
     expect(wrapper.get('[data-testid="user-error-suggestion"]').text()).toContain('提供请求 ID')
     expect(wrapper.text()).not.toContain('RAW provider message')
     expect(wrapper.text()).not.toContain('sk-secret')

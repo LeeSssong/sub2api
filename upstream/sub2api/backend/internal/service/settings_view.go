@@ -60,30 +60,6 @@ type OpenAISchedulerOperations struct {
 	SessionContinuity string `json:"session_continuity"`
 }
 
-// OpenAISchedulerQualityGatePolicy controls the generic, group-scoped short
-// window gate. A nil policy preserves legacy scheduler behavior.
-type OpenAISchedulerQualityGatePolicy struct {
-	Enabled            bool    `json:"enabled,omitempty"`
-	MinSamples         int     `json:"min_samples,omitempty"`
-	ErrorRateThreshold float64 `json:"error_rate_threshold,omitempty"`
-	TTFTThresholdMs    int     `json:"ttft_threshold_ms,omitempty"`
-	EnterConsecutive   int     `json:"enter_consecutive,omitempty"`
-	RecoverConsecutive int     `json:"recover_consecutive,omitempty"`
-	CooldownSeconds    int     `json:"cooldown_seconds,omitempty"`
-}
-
-// OpenAISchedulerSessionEscapePolicy reuses the same evidence/state seam for
-// temporarily bypassing a bad sticky choice without deleting its binding.
-type OpenAISchedulerSessionEscapePolicy struct {
-	Enabled            bool    `json:"enabled,omitempty"`
-	MinSamples         int     `json:"min_samples,omitempty"`
-	ErrorRateThreshold float64 `json:"error_rate_threshold,omitempty"`
-	TTFTThresholdMs    int     `json:"ttft_threshold_ms,omitempty"`
-	EnterConsecutive   int     `json:"enter_consecutive,omitempty"`
-	RecoverConsecutive int     `json:"recover_consecutive,omitempty"`
-	TTLSeconds         int     `json:"ttl_seconds,omitempty"`
-}
-
 type OpenAISchedulerBusinessGroupPolicy struct {
 	Priority         OpenAISchedulerBusinessPriority `json:"priority"`
 	Operations       OpenAISchedulerOperations       `json:"operations"`
@@ -209,24 +185,20 @@ type OpenAISchedulerCustomPreset struct {
 }
 
 type OpenAISchedulerGroupPolicy struct {
-	Mode                               OpenAISchedulerGroupPolicyMode      `json:"mode,omitempty"`
-	Preset                             OpenAISchedulerPreset               `json:"preset,omitempty"`
-	PresetID                           string                              `json:"preset_id,omitempty"`
-	ExtraRetryCount                    *int                                `json:"extra_retry_count,omitempty"`
-	Priority                           OpenAISchedulerBusinessPriority     `json:"priority,omitempty"`
-	Operations                         OpenAISchedulerOperations           `json:"operations,omitempty"`
-	CompiledSnapshot                   OpenAISchedulerPolicyValues         `json:"compiled_snapshot,omitempty"`
-	TopK                               *int                                `json:"top_k,omitempty"`
-	WeightOverrides                    map[string]float64                  `json:"weight_overrides,omitempty"`
-	LegacyWeightOverrideIgnored        bool                                `json:"legacy_weight_override_ignored,omitempty"`
-	IgnoredWeightOverrideKeys          []string                            `json:"ignored_weight_override_keys,omitempty"`
-	Fairness                           *OpenAISchedulerFairnessOverride    `json:"fairness,omitempty"`
-	QualityGate                        *OpenAISchedulerQualityGatePolicy   `json:"quality_gate,omitempty"`
-	SessionEscape                      *OpenAISchedulerSessionEscapePolicy `json:"session_escape,omitempty"`
-	UnifiedQualityPriorityColdStartMax *float64                            `json:"unified_quality_priority_cold_start_max,omitempty"`
-	UnifiedQualityPriorityDailyMax     *float64                            `json:"unified_quality_priority_daily_max,omitempty"`
-	Values                             OpenAISchedulerPolicyValues         `json:"-"`
-	LegacyFairness                     OpenAISchedulerFairnessOverride     `json:"-"`
+	Mode                        OpenAISchedulerGroupPolicyMode   `json:"mode,omitempty"`
+	Preset                      OpenAISchedulerPreset            `json:"preset,omitempty"`
+	PresetID                    string                           `json:"preset_id,omitempty"`
+	ExtraRetryCount             *int                             `json:"extra_retry_count,omitempty"`
+	Priority                    OpenAISchedulerBusinessPriority  `json:"priority,omitempty"`
+	Operations                  OpenAISchedulerOperations        `json:"operations,omitempty"`
+	CompiledSnapshot            OpenAISchedulerPolicyValues      `json:"compiled_snapshot,omitempty"`
+	TopK                        *int                             `json:"top_k,omitempty"`
+	WeightOverrides             map[string]float64               `json:"weight_overrides,omitempty"`
+	LegacyWeightOverrideIgnored bool                             `json:"legacy_weight_override_ignored,omitempty"`
+	IgnoredWeightOverrideKeys   []string                         `json:"ignored_weight_override_keys,omitempty"`
+	Fairness                    *OpenAISchedulerFairnessOverride `json:"fairness,omitempty"`
+	Values                      OpenAISchedulerPolicyValues      `json:"-"`
+	LegacyFairness              OpenAISchedulerFairnessOverride  `json:"-"`
 }
 
 func (p OpenAISchedulerGroupPolicy) MarshalJSON() ([]byte, error) {
@@ -285,6 +257,10 @@ func firstNonEmpty(values ...string) string {
 }
 
 type SystemSettings struct {
+	OpenAICodexTicketHarvestScope       CodexTicketHarvestScope
+	OpenAICodexTicketStrictResponse     bool
+	OpenAICodexTicketFailClosed         bool
+	OpenAICodexTicketStrategy           string
 	RegistrationEnabled                 bool
 	EmailVerifyEnabled                  bool
 	RegistrationEmailSuffixWhitelist    []string
@@ -451,7 +427,9 @@ type SystemSettings struct {
 	AdminRechargeRebateEnabled        bool
 	DefaultUserRPMLimit               int
 	DefaultSubscriptions              []DefaultSubscriptionSetting
+	CyberPolicyUserAllowlist          string
 	MonitorPageRefreshIntervalSeconds int
+	CyberSessionIdentityStrictEnabled bool
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -486,6 +464,16 @@ type SystemSettings struct {
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 
+	// Pelican showcase (user-facing gallery of scheduled Pelican HTML results)
+	PelicanShowcaseEnabled bool                  `json:"pelican_showcase_enabled"`
+	PelicanShowcase        PelicanShowcaseConfig `json:"pelican_showcase_config"`
+
+	// Subscription feature switch: gates the whole user-facing subscription surface
+	// (sidebar entries, purchase-page subscription tab, header progress badge,
+	// usage billing-type filter, /subscriptions route). Pairs with PaymentBalanceDisabled
+	// to form the admin-facing "site billing mode" selector.
+	SubscriptionEnabled bool `json:"subscription_enabled"`
+
 	// Model Plaza feature (public group/model pricing showcase)
 	ModelPlazaEnabled       bool   `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth   bool   `json:"model_plaza_require_auth"`
@@ -518,12 +506,19 @@ type SystemSettings struct {
 	OpenAICodexClientVersion               string // 出站声明的 Codex 客户端版本号（管理员覆写）；空值跟随自动同步值
 	OpenAICodexClientVersionSynced         string // 自动同步到的官方最新稳定版版本号（只读展示）
 	OpenAICodexVersionAutoSyncEnabled      bool   // 是否启用 Codex 客户端版本号自动同步（默认 true）
-	MinCodexVersion                        string // codex_cli_only 最低 Codex 引擎版本；空=不检查
-	MaxCodexVersion                        string // codex_cli_only 最高 Codex 引擎版本；空=不检查
-	CodexCLIOnlyBlacklist                  string // codex_cli_only 全局黑名单 JSON（[]AllowedClientEntry，OR deny）
-	CodexCLIOnlyWhitelist                  string // codex_cli_only 全局白名单 JSON（[]AllowedClientEntry，AND allow）
-	CodexCLIOnlyAllowAppServerClients      bool   // codex_cli_only App Server 开关：对未列名客户端开闸（默认 false）
-	CodexCLIOnlyEngineFingerprintSignals   string // codex_cli_only 引擎指纹门信号列表 JSON（[]EngineFingerprintSignal）
+	OpenAICodexTicketEnabled               bool   // Codex 292 打票总开关；关闭则不打票不注入
+	OpenAICodexTicketHarvestProxyURL       string // Codex 292 打票代理 URL；空则回退 yaml/env
+	OpenAICodexTicketStaticProxyURL        string
+	OpenAICodexTicketModels                []string // Codex 292 打票模型列表；缺失时回退 yaml/env
+	MinCodexVersion                        string   // codex_cli_only 最低 Codex 引擎版本；空=不检查
+	MaxCodexVersion                        string   // codex_cli_only 最高 Codex 引擎版本；空=不检查
+	CodexCLIOnlyBlacklist                  string   // codex_cli_only 全局黑名单 JSON（[]AllowedClientEntry，OR deny）
+	CodexCLIOnlyWhitelist                  string   // codex_cli_only 全局白名单 JSON（[]AllowedClientEntry，AND allow）
+	CodexCLIOnlyAllowAppServerClients      bool     // codex_cli_only App Server 开关：对未列名客户端开闸（默认 false）
+	CodexCLIOnlyEngineFingerprintSignals   string   // codex_cli_only 引擎指纹门信号列表 JSON（[]EngineFingerprintSignal）
+	ClaudeCodeClientVersion                string   // 出站声明的 Claude Code CLI 客户端版本号（管理员覆写）；空值跟随自动同步值
+	ClaudeCodeClientVersionSynced          string   // 自动同步到的官方最新版本号（只读展示）
+	ClaudeCodeVersionAutoSyncEnabled       bool     // 是否启用 Claude Code 客户端版本号自动同步（默认 true）
 
 	// Web Search Emulation
 	WebSearchEmulationEnabled bool // 是否启用 web search 模拟
@@ -536,7 +531,7 @@ type SystemSettings struct {
 
 	// OpenAI 账号调度
 	OpenAILowUpstreamRatePriorityEnabled                   bool
-	OpenAIOAuthSchedulingRateMultiplier                    float64
+	OpenAIOAuthSchedulingRateMultiplier                    *float64
 	OpenAIAdvancedSchedulerEnabled                         bool
 	OpenAIAdvancedSchedulerStickyWeightedEnabled           bool
 	OpenAIAdvancedSchedulerSubscriptionPriorityEnabled     bool
@@ -551,14 +546,6 @@ type SystemSettings struct {
 	OpenAIAdvancedSchedulerWeightUpstreamCost              string
 	OpenAIAdvancedSchedulerWeightPreviousResponse          string
 	OpenAIAdvancedSchedulerWeightSessionSticky             string
-	OpenAIAdvancedSchedulerCandidatePoolMode               string
-	OpenAIAdvancedSchedulerExplorationRatio                int
-	OpenAIAdvancedSchedulerStarvationThresholdSeconds      int
-	OpenAIAdvancedSchedulerFairnessWeight                  float64
-	OpenAIAdvancedSchedulerGroupOverrides                  map[int64]OpenAISchedulerFairnessOverride
-	OpenAIAdvancedSchedulerGroupPolicies                   map[int64]OpenAISchedulerGroupPolicy
-	OpenAIAdvancedSchedulerCustomPresets                   map[string]OpenAISchedulerCustomPreset
-	OpenAIAdvancedSchedulerAvailablePresets                []OpenAISchedulerPresetDefinition
 	OpenAIAdvancedSchedulerEffectiveLBTopK                 string
 	OpenAIAdvancedSchedulerEffectiveWeightPriority         string
 	OpenAIAdvancedSchedulerEffectiveWeightLoad             string
@@ -590,7 +577,27 @@ type SystemSettings struct {
 	AccountSchedulingThresholds map[string]int `json:"account_scheduling_thresholds"`
 
 	// 允许终端用户在用量页查看自己的失败请求
-	AllowUserViewErrorRequests bool
+	AllowUserViewErrorRequests  bool
+	RequestCaptureEnabled       bool
+	RequestCaptureQuotaMiB      int64
+	RequestCaptureRetentionDays int
+	// 使用详情中长上下文计费 x2 徽标的展示开关（默认开启）
+	ExcelBPSImageMode             string
+	UsageShowLongContextBadge     bool
+	ExcelBPSImageRelayEnabled     bool
+	ExcelBPSImageBaseURL          string
+	ExcelBPSImageBodyLimitMiB     int
+	ExcelBPSImageBudgetMiB        int
+	ExcelBPSImageMaxRequests      int
+	ExcelBPSImageMaxImageMiB      int
+	ExcelBPSImageMaxImages        int
+	ExcelBPSImageLimitPolicy      string
+	ExcelBPSImageWarningRemaining int
+	ExcelBPSImageCompactReserve   int
+	ExcelBPSImageMaxTotalMiB      int
+	ExcelBPSImageStorageMiB       int
+	ExcelBPSImageStorageEntries   int
+	ExcelBPSImageTTLMinutes       int
 }
 
 type DefaultSubscriptionSetting struct {
@@ -648,6 +655,7 @@ type PublicSettings struct {
 	WeChatOAuthMobileEnabled bool
 	BackendModeEnabled       bool
 	PaymentEnabled           bool
+	PaymentBalanceDisabled   bool
 	OIDCOAuthEnabled         bool
 	OIDCOAuthProviderName    string
 	GitHubOAuthEnabled       bool
@@ -675,6 +683,12 @@ type PublicSettings struct {
 	// Available Channels feature (user-facing aggregate view)
 	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 
+	// Pelican showcase feature (user-facing gallery; limits stay admin-only)
+	PelicanShowcaseEnabled bool `json:"pelican_showcase_enabled"`
+
+	// Subscription feature switch (see SystemSettings.SubscriptionEnabled)
+	SubscriptionEnabled bool `json:"subscription_enabled"`
+
 	// Model Plaza feature (public group/model pricing showcase)
 	ModelPlazaEnabled       bool `json:"model_plaza_enabled"`
 	ModelPlazaRequireAuth   bool `json:"model_plaza_require_auth"`
@@ -688,6 +702,7 @@ type PublicSettings struct {
 
 	// 允许终端用户在用量页查看自己的失败请求
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
+	UsageShowLongContextBadge  bool `json:"usage_show_long_context_badge"`
 }
 
 type LoginAgreementDocument struct {
@@ -955,7 +970,7 @@ func DefaultBetaPolicySettings() *BetaPolicySettings {
 //   - "priority"（客户端可传 "fast"，归一化为 "priority"）：fast 模式
 //   - "ultrafast"：Codex/API 的 Ultrafast 档位
 //   - "flex"：低优先级模式
-//   - 省略：normal 默认
+//   - 省略：normal 默认；策略中可用专用 "missing" 条件显式匹配
 //
 // 本策略复用 BetaPolicyAction*/BetaPolicyScope* 常量语义，只是匹配键从
 // anthropic-beta header 换成 body 的 service_tier 字段。
@@ -964,6 +979,7 @@ const (
 	OpenAIFastTierPriority  = "priority"  // 仅匹配 fast（priority）
 	OpenAIFastTierUltrafast = "ultrafast" // 仅匹配 ultrafast
 	OpenAIFastTierFlex      = "flex"      // 仅匹配 flex
+	OpenAIFastTierMissing   = "missing"   // 仅匹配省略 service_tier 的请求
 
 	// OpenAIFastPolicyActionForcePriority 会保留 service_tier 字段并强制写成
 	// priority，用于把 flex/auto/default/scale 等已识别 tier 收敛为 fast。
@@ -972,7 +988,7 @@ const (
 
 // OpenAIFastPolicyRule 单条 OpenAI fast/flex 策略规则
 type OpenAIFastPolicyRule struct {
-	ServiceTier          string   `json:"service_tier"`                     // "priority" | "ultrafast" | "flex" | "auto" | "default" | "scale" | "all"
+	ServiceTier          string   `json:"service_tier"`                     // "priority" | "ultrafast" | "flex" | "missing" | "all"
 	Action               string   `json:"action"`                           // "pass" | "filter" | "block" | "force_priority"
 	Scope                string   `json:"scope"`                            // "all" | "oauth" | "apikey" | "bedrock"
 	UserIDs              []int64  `json:"user_ids,omitempty"`               // 空=所有 Sub2API 用户；非空=仅指定 API Key 所属用户

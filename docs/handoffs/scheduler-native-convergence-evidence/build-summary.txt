@@ -1,0 +1,7 @@
+Local verification only; not a deployable release artifact.
+go build -o /tmp/scheduler-native-convergence-server ./cmd/server: exit 0
+vue-tsc --noEmit: exit 0 (empty output)
+vitest localeKeyCompleteness: 3 passed
+vite build: exit 0, 1115 modules transformed, built in 1m16s
+go build -tags embed -o /tmp/scheduler-native-convergence-embedded ./cmd/server: exit 0
+Build dependencies reused via existing node_modules symlink; no package or lockfile changes.

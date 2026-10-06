@@ -22,5 +22,7 @@ func TestRefundQuotaLimitLeavesLegacyUnknownUnconstrained(t *testing.T) {
 
 func TestValidateRefundAgainstQuotaRejectsOverLimitEvenWhenForced(t *testing.T) {
 	err := validateRefundAgainstQuota(decimal.NewFromInt(60), decimal.NewFromInt(50), true)
-	if err == nil { t.Fatal("force_refund must not bypass paid quota limit") }
+	if err == nil {
+		t.Fatal("force_refund must not bypass paid quota limit")
+	}
 }

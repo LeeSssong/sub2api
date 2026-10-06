@@ -1,0 +1,8 @@
+
+ RUN  v4.1.10 /Users/gongtengxinwen/.codex/worktrees/test-uiux-main-integration/sub2api搭建/homepage
+
+
+ Test Files  3 passed (3)
+      Tests  12 passed (12)
+   Start at  18:30:53
+   Duration  1.19s (transform 160ms, setup 296ms, import 536ms, tests 390ms, environment 1.55s)

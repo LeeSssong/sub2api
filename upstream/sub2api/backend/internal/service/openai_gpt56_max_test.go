@@ -30,6 +30,7 @@ func TestAstraForwardPreservesMaxInPayloadAndUsage(t *testing.T) {
 					Header: http.Header{"Content-Type": []string{contentType}}, Body: io.NopCloser(strings.NewReader(response))}}
 				svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
 				account := rawGPT56ResponsesAPIKeyAccount(requestedModel, "gpt-6-astra")
+				account.Status, account.Schedulable = StatusActive, true
 				body, err := json.Marshal(map[string]any{"model": requestedModel, "stream": stream, "input": "hello", "reasoning": map[string]string{"effort": "max"}})
 				require.NoError(t, err)
 				c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -69,6 +70,7 @@ func TestNormalizeOpenAIReasoningEffortForMaxCapableModels(t *testing.T) {
 		{name: "Terra 保留 max", raw: "max", model: "openai/gpt-5.6-terra", want: "max"},
 		{name: "Luna 后缀保留 max", raw: "max", model: "gpt-5.6-luna-2026-07-09", want: "max"},
 		{name: "DeepSeek V4 保留 max", raw: "max", model: "deepseek-v4-pro", want: "max"},
+		{name: "DeepSeek Flash 保留 max", raw: "max", model: "deepseek-flash", want: "max"},
 		{name: "旧 GPT 模型沿用 xhigh", raw: "max", model: "gpt-5.5", want: "xhigh"},
 	}
 
@@ -103,23 +105,32 @@ func TestNormalizeOpenAICodexCompactReasoningEffortForAccountScopesCompatibility
 		want    string
 	}{
 		{
-			name:    "OpenAI OAuth compact 降级",
-			path:    "/openai/v1/responses/compact",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			name: "OpenAI OAuth compact 降级",
+			path: "/openai/v1/responses/compact",
+			account: &Account{
+				Status:      StatusActive,
+				Schedulable: true,
+				Platform:    PlatformOpenAI, Type: AccountTypeOAuth},
 			changed: true,
 			want:    "xhigh",
 		},
 		{
-			name:    "OpenAI OAuth 普通请求保留",
-			path:    "/openai/v1/responses",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
-			want:    "max",
+			name: "OpenAI OAuth 普通请求保留",
+			path: "/openai/v1/responses",
+			account: &Account{
+				Status:      StatusActive,
+				Schedulable: true,
+				Platform:    PlatformOpenAI, Type: AccountTypeOAuth},
+			want: "max",
 		},
 		{
-			name:    "OpenAI API Key compact 保留",
-			path:    "/openai/v1/responses/compact",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey},
-			want:    "max",
+			name: "OpenAI API Key compact 保留",
+			path: "/openai/v1/responses/compact",
+			account: &Account{
+				Status:      StatusActive,
+				Schedulable: true,
+				Platform:    PlatformOpenAI, Type: AccountTypeAPIKey},
+			want: "max",
 		},
 		{
 			name:    "Grok OAuth compact 保留",
@@ -157,6 +168,9 @@ func TestOpenAIGatewayServiceForwardPreservesGPT56MaxEffort(t *testing.T) {
 	cfg.Security.URLAllowlist.Enabled = false
 	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          7,
 		Name:        "openai-apikey",
 		Platform:    PlatformOpenAI,
@@ -196,6 +210,9 @@ func TestOpenAIGatewayServiceForwardPreservesMappedGPT56MaxEffort(t *testing.T) 
 	cfg.Security.URLAllowlist.Enabled = false
 	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
 	account := &Account{
+		Status:      StatusActive,
+		Schedulable: true,
+
 		ID:          9,
 		Name:        "openai-apikey-mapped",
 		Platform:    PlatformOpenAI,

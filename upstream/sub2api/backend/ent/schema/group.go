@@ -71,6 +71,9 @@ func (Group) Fields() []ent.Field {
 		field.Bool("active_probe_enabled").
 			Default(true).
 			Comment("是否允许该分组内账号执行自动主动探测"),
+		field.Bool("turn_state_inject_enabled").
+			Default(false).
+			Comment("是否为此 OpenAI 分组启用账号级 Codex turn-state 复用"),
 		field.String("duplicate_operation_id").
 			MaxLen(64).
 			Optional().
@@ -210,6 +213,11 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			Comment("无效请求兜底使用的分组 ID"),
+
+		// 仅允许流式请求 (added by migration 246)
+		field.Bool("stream_only").
+			Default(false).
+			Comment("是否仅允许流式请求：开启后非流式的对话生成请求在网关入口直接拒绝"),
 
 		// 模型路由配置 (added by migration 040)
 		field.JSON("model_routing", map[string][]int64{}).

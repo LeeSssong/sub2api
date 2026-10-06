@@ -10,6 +10,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -96,6 +97,7 @@ const DefaultUpstreamResponseReadMaxBytes int64 = 128 * 1024 * 1024
 const DefaultModelsListReadMaxBytes int64 = 8 * 1024 * 1024
 
 type Config struct {
+	Runtime                 RuntimeConfig                 `mapstructure:"runtime"`
 	Server                  ServerConfig                  `mapstructure:"server"`
 	Log                     LogConfig                     `mapstructure:"log"`
 	CORS                    CORSConfig                    `mapstructure:"cors"`
@@ -119,6 +121,7 @@ type Config struct {
 	Pricing                 PricingConfig                 `mapstructure:"pricing"`
 	Gateway                 GatewayConfig                 `mapstructure:"gateway"`
 	APIKeyAuth              APIKeyAuthCacheConfig         `mapstructure:"api_key_auth_cache"`
+	APIKeyCreate            APIKeyCreateConfig            `mapstructure:"api_key_create"`
 	SubscriptionCache       SubscriptionCacheConfig       `mapstructure:"subscription_cache"`
 	SubscriptionMaintenance SubscriptionMaintenanceConfig `mapstructure:"subscription_maintenance"`
 	Dashboard               DashboardCacheConfig          `mapstructure:"dashboard_cache"`
@@ -126,6 +129,7 @@ type Config struct {
 	UsageCleanup            UsageCleanupConfig            `mapstructure:"usage_cleanup"`
 	Concurrency             ConcurrencyConfig             `mapstructure:"concurrency"`
 	TokenRefresh            TokenRefreshConfig            `mapstructure:"token_refresh"`
+	SimpleMode              SimpleModeConfig              `mapstructure:"simple_mode" yaml:"simple_mode"`
 	RunMode                 string                        `mapstructure:"run_mode" yaml:"run_mode"`
 	Timezone                string                        `mapstructure:"timezone"` // e.g. "Asia/Shanghai", "UTC"
 	Gemini                  GeminiConfig                  `mapstructure:"gemini"`
@@ -134,6 +138,14 @@ type Config struct {
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
 	Plugins                 PluginConfig                  `mapstructure:"plugins"`
+
+	// Enforce only API-key spending windows in simple mode.
+	SimpleModeKeyRateLimitEnabled bool `mapstructure:"simple_mode_key_rate_limit_enabled" yaml:"simple_mode_key_rate_limit_enabled"`
+}
+
+// SimpleModeConfig controls startup behavior in simple mode.
+type SimpleModeConfig struct {
+	AutoCreateDefaultGroups bool `mapstructure:"auto_create_default_groups" yaml:"auto_create_default_groups"`
 }
 
 // PluginConfig 控制管理员手动上传的本地进程插件。
@@ -706,10 +718,13 @@ type PricingConfig struct {
 }
 
 type ServerConfig struct {
+	ReadinessTimeoutSeconds  int         `mapstructure:"readiness_timeout_seconds"` // dependency probe budget; 0 preserves the 1s default
+	ProcessRole              ProcessRole `mapstructure:"process_role"`
+	GracefulShutdownTimeout  int         `mapstructure:"graceful_shutdown_timeout"` // seconds; 0 preserves the legacy 5s budget
+	ShutdownDrainDelay       int         `mapstructure:"shutdown_drain_delay"`      // seconds to withdraw from load balancers before closing the listener
 	Host                     string      `mapstructure:"host"`
 	Port                     int         `mapstructure:"port"`
-	Mode                     string      `mapstructure:"mode"` // debug/release
-	ProcessRole              ProcessRole `mapstructure:"process_role"`
+	Mode                     string      `mapstructure:"mode"`                  // debug/release
 	EnableServerTiming       bool        `mapstructure:"enable_server_timing"`  // Admin UI Server-Timing response header
 	FrontendURL              string      `mapstructure:"frontend_url"`          // 前端基础 URL，用于生成邮件中的外部链接
 	ReadHeaderTimeout        int         `mapstructure:"read_header_timeout"`   // 读取请求头超时（秒）
@@ -978,8 +993,108 @@ const (
 	ImageConcurrencyOverflowModeWait   = "wait"
 )
 
+// APIKeyQueueConfig 是 Key 级并发等待队列的全局只读策略。
+//
+// 与逐 Key 的 concurrency_limit 相互独立：Key 上限为 0 时不进入队列；
+// MaxWaiting 为 0 时关闭 Key 排队但保留并发上限。
+type APIKeyQueueConfig struct {
+	// MaxWaiting 是每个受限 Key 允许额外等待的请求数，0 表示关闭 Key 排队。
+	MaxWaiting int `mapstructure:"max_waiting"`
+	// TimeoutSeconds 是单个请求等待 Key 容量的最长秒数，必须为正整数。
+	TimeoutSeconds int `mapstructure:"timeout_seconds"`
+}
+
+// Timeout 返回已校验的等待预算。仅在配置通过校验后调用。
+func (c APIKeyQueueConfig) Timeout() time.Duration {
+	return time.Duration(c.TimeoutSeconds) * time.Second
+}
+
+const (
+	// APIKeyQueueMaxWaitingEnv / APIKeyQueueTimeoutSecondsEnv 是部署环境变量名。
+	APIKeyQueueMaxWaitingEnv     = "GATEWAY_API_KEY_QUEUE_MAX_WAITING"
+	APIKeyQueueTimeoutSecondsEnv = "GATEWAY_API_KEY_QUEUE_TIMEOUT_SECONDS"
+
+	defaultAPIKeyQueueMaxWaiting     = 5
+	defaultAPIKeyQueueTimeoutSeconds = 30
+	// Keep seconds*time.Second and seconds*1000 inside int64/float64 exact range.
+	maxAPIKeyQueueTimeoutSeconds = math.MaxInt64 / int64(time.Second)
+)
+
+// loadAPIKeyQueueConfig 从严解析两个全局参数：拒绝负数、小数、非法字符串和溢出，
+// 即使关闭排队也要求时长为正数。
+func loadAPIKeyQueueConfig() (APIKeyQueueConfig, error) {
+	maxWaiting, err := strictConfigInt(viper.Get("gateway.api_key_queue.max_waiting"))
+	if err != nil {
+		return APIKeyQueueConfig{}, fmt.Errorf("gateway.api_key_queue.max_waiting: %w", err)
+	}
+	if maxWaiting < 0 {
+		return APIKeyQueueConfig{}, fmt.Errorf("gateway.api_key_queue.max_waiting must be non-negative")
+	}
+	timeoutSeconds, err := strictConfigInt(viper.Get("gateway.api_key_queue.timeout_seconds"))
+	if err != nil {
+		return APIKeyQueueConfig{}, fmt.Errorf("gateway.api_key_queue.timeout_seconds: %w", err)
+	}
+	if timeoutSeconds <= 0 {
+		return APIKeyQueueConfig{}, fmt.Errorf("gateway.api_key_queue.timeout_seconds must be a positive integer")
+	}
+	if int64(timeoutSeconds) > maxAPIKeyQueueTimeoutSeconds {
+		return APIKeyQueueConfig{}, fmt.Errorf("gateway.api_key_queue.timeout_seconds exceeds the supported duration range")
+	}
+	return APIKeyQueueConfig{MaxWaiting: maxWaiting, TimeoutSeconds: timeoutSeconds}, nil
+}
+
+// strictConfigInt 只接受整数语义的值：环境变量是字符串，配置文件可能是 int 或 float。
+// 显式拒绝小数，避免 20.9 被静默截断为 20。
+func strictConfigInt(value any) (int, error) {
+	switch v := value.(type) {
+	case int:
+		return v, nil
+	case int32:
+		return int(v), nil
+	case int64:
+		if v < math.MinInt || v > math.MaxInt {
+			return 0, fmt.Errorf("value %d overflows int", v)
+		}
+		return int(v), nil
+	case uint:
+		if uint64(v) > uint64(math.MaxInt) {
+			return 0, fmt.Errorf("value %d overflows int", v)
+		}
+		return int(v), nil
+	case uint64:
+		if v > uint64(math.MaxInt) {
+			return 0, fmt.Errorf("value %d overflows int", v)
+		}
+		return int(v), nil
+	case float64:
+		if math.IsNaN(v) || math.IsInf(v, 0) || v != math.Trunc(v) {
+			return 0, fmt.Errorf("must be a whole number, got %v", v)
+		}
+		if v < float64(math.MinInt) || v > float64(math.MaxInt) {
+			return 0, fmt.Errorf("value %v overflows int", v)
+		}
+		return int(v), nil
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return 0, fmt.Errorf("must be an integer")
+		}
+		n, err := strconv.ParseInt(trimmed, 10, strconv.IntSize)
+		if err != nil {
+			return 0, fmt.Errorf("must be an integer, got %q", v)
+		}
+		return int(n), nil
+	default:
+		return 0, fmt.Errorf("unsupported value type %T", value)
+	}
+}
+
 // GatewayConfig API网关相关配置
 type GatewayConfig struct {
+	// PrismBrowser is the server-managed browser-session adapter for prism.openai.com.
+	// Account settings only select this route; cookies, sandbox state and the adapter
+	// API key remain outside account credentials.
+	PrismBrowser GatewayPrismBrowserConfig `mapstructure:"prism_browser"`
 	// 等待上游响应头的超时时间（秒），0表示无超时
 	// 注意：这不影响流式数据传输，只控制等待响应头的时间
 	ResponseHeaderTimeout int `mapstructure:"response_header_timeout"`
@@ -1038,20 +1153,23 @@ type GatewayConfig struct {
 	// OpenAICompactModel: /responses/compact 上游使用的模型。
 	// compact 端点支持模型滞后于普通 /responses 时，可用该配置降级规避上游错误。
 	OpenAICompactModel string `mapstructure:"openai_compact_model"`
+	// OpenAICodexTicket: ChatGPT OAuth 账号按 (账号, 模型) 捕获 292 长度
+	// x-codex-turn-state，并在住宅 IP 业务请求中注入该头。默认关闭。
+	OpenAICodexTicket OpenAICodexTicketConfig `mapstructure:"openai_codex_ticket"`
 	// OpenAIWS: OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
 	// Live: ChatGPT Frameless Live 会话配置。
 	Live GatewayLiveConfig `mapstructure:"live"`
 	// OpenAIScheduler: OpenAI 高级调度器粘性逃逸配置
 	OpenAIScheduler GatewayOpenAISchedulerConfig `mapstructure:"openai_scheduler"`
-	// OpenAISharedHealth: OpenAI 跨实例共享健康与请求重试硬上限。
-	OpenAISharedHealth GatewayOpenAISharedHealthConfig `mapstructure:"openai_shared_health"`
 	// OpenAIHTTP2: OpenAI HTTP 上游协议策略（默认启用 HTTP/2，可按代理能力回退 HTTP/1.1）
 	OpenAIHTTP2 GatewayOpenAIHTTP2Config `mapstructure:"openai_http2"`
 	// OpenAIProxyStreamCircuit: Responses SSE 代理断流熔断策略。
 	OpenAIProxyStreamCircuit GatewayOpenAIProxyStreamCircuitConfig `mapstructure:"openai_proxy_stream_circuit"`
 	// ImageConcurrency: 图片生成独立并发限制配置（默认关闭）
 	ImageConcurrency ImageConcurrencyConfig `mapstructure:"image_concurrency"`
+	// APIKeyQueue: Key 级并发等待队列的全局策略（仅环境变量/配置文件，无数据库字段）
+	APIKeyQueue APIKeyQueueConfig `mapstructure:"api_key_queue"`
 
 	// HTTP 上游连接池配置（性能优化：支持高并发场景调优）
 	// MaxIdleConns: 所有主机的最大空闲连接总数
@@ -1135,6 +1253,12 @@ type GatewayConfig struct {
 	// CNProviders: 国产 OpenAI 兼容供应商（kimi/zhipu/deepseek）的余额检测配置。
 	// 仅作用于 payg（按量付费）账号：周期探测余额，低于阈值则临时停调。
 	CNProviders GatewayCNProvidersConfig `mapstructure:"cn_providers"`
+}
+
+type GatewayPrismBrowserConfig struct {
+	Enabled bool   `mapstructure:"enabled"`
+	BaseURL string `mapstructure:"base_url"`
+	APIKey  string `mapstructure:"api_key"`
 }
 
 // GatewayGrokConfig holds Grok-specific gateway scheduling knobs.
@@ -1254,6 +1378,23 @@ func (c *UserMessageQueueConfig) GetEffectiveMode() string {
 	return ""
 }
 
+// OpenAICodexTicketConfig 控制 ChatGPT OAuth 的 x-codex-turn-state 门票。
+// 打票走 harvest_proxy_url（SOCKS），业务出站仍用账号住宅 proxy_id，只替换该请求头。
+// 门票默认有效 3600 秒，临近过期前 refresh_before_seconds 重新打票。
+type OpenAICodexTicketConfig struct {
+	Enabled                      bool     `mapstructure:"enabled"`
+	TargetLength                 int      `mapstructure:"target_length"`
+	TTLSeconds                   int      `mapstructure:"ttl_seconds"`
+	RefreshBeforeSeconds         int      `mapstructure:"refresh_before_seconds"`
+	HarvestProxyURL              string   `mapstructure:"harvest_proxy_url"`
+	HarvestProbeIntervalSeconds  int      `mapstructure:"harvest_probe_interval_seconds"`
+	HarvestCooldownSeconds       int      `mapstructure:"harvest_cooldown_seconds"`
+	MaxProbesPerRound            int      `mapstructure:"max_probes_per_round"`
+	HarvestAttemptTimeoutSeconds int      `mapstructure:"harvest_attempt_timeout_seconds"`
+	FailClosed                   bool     `mapstructure:"fail_closed"`
+	Models                       []string `mapstructure:"models"`
+}
+
 // DefaultOpenAIWSClientFirstMessageTimeoutSeconds preserves the legacy ingress deadline.
 const DefaultOpenAIWSClientFirstMessageTimeoutSeconds = 30
 
@@ -1310,11 +1451,15 @@ type GatewayOpenAIWSConfig struct {
 	MaxConnsPerAccount int `mapstructure:"max_conns_per_account"`
 	MinIdlePerAccount  int `mapstructure:"min_idle_per_account"`
 	MaxIdlePerAccount  int `mapstructure:"max_idle_per_account"`
-	// DynamicMaxConnsByAccountConcurrencyEnabled: 是否按账号并发动态计算连接池上限
+	// DynamicMaxConnsByAccountConcurrencyEnabled: 是否按账号并发动态计算连接池上限。
+	// 旧版及 mode_router_v2 的 ctx_pool 共用此开关和类型系数；关闭后使用 max_conns_per_account。
+	// mode_router_v2 下并发数 <= 0 的账号仍不可调度。
 	DynamicMaxConnsByAccountConcurrencyEnabled bool `mapstructure:"dynamic_max_conns_by_account_concurrency_enabled"`
-	// OAuthMaxConnsFactor: OAuth 账号连接池系数（effective=ceil(concurrency*factor)）
+	// OAuthMaxConnsFactor: OAuth 账号连接池系数（effective=ceil(concurrency*factor)，再受 max_conns_per_account 封顶）。
+	// ctx_pool 接入下每个客户端会话在整个生命周期（含轮次之间）持有一条上游连接，此上限限制的是同时持有连接的会话数，
+	// 在飞请求数另由账号并发槽限制；系数 1.0 会让存活会话数一到并发数就返回 1013 busy，默认 5.0。
 	OAuthMaxConnsFactor float64 `mapstructure:"oauth_max_conns_factor"`
-	// APIKeyMaxConnsFactor: API Key 账号连接池系数（effective=ceil(concurrency*factor)）
+	// APIKeyMaxConnsFactor: API Key 账号连接池系数，含义与 OAuthMaxConnsFactor 相同，默认 5.0。
 	APIKeyMaxConnsFactor  float64 `mapstructure:"apikey_max_conns_factor"`
 	DialTimeoutSeconds    int     `mapstructure:"dial_timeout_seconds"`
 	ReadTimeoutSeconds    int     `mapstructure:"read_timeout_seconds"`
@@ -1407,119 +1552,6 @@ type GatewayOpenAISchedulerConfig struct {
 	StickyEscapeTTFTMs int `mapstructure:"sticky_escape_ttft_ms"`
 	// StickyEscapeErrorRate: 错误率 EWMA 超过该阈值时跳过 sticky
 	StickyEscapeErrorRate float64 `mapstructure:"sticky_escape_error_rate"`
-	// AdaptiveTopKEnabled: 是否在健康候选中按最佳分数差动态收窄 Top-K
-	AdaptiveTopKEnabled bool `mapstructure:"adaptive_top_k_enabled"`
-	// AdaptiveTopKMax: 动态候选池的绝对上限
-	AdaptiveTopKMax int `mapstructure:"adaptive_top_k_max"`
-	// AdaptiveTopKScoreGap: 最佳分数与有效候选最低分数的最大差值
-	AdaptiveTopKScoreGap float64 `mapstructure:"adaptive_top_k_score_gap"`
-	// TTFTReportOnlyEnabled: 是否只记录 TTFT 安全竞争资格，不发起第二请求
-	TTFTReportOnlyEnabled bool `mapstructure:"ttft_report_only_enabled"`
-	// UnifiedQualityPriorityColdStartMax bounds the API-key cold-start priority signal.
-	UnifiedQualityPriorityColdStartMax float64 `mapstructure:"unified_quality_priority_cold_start_max"`
-	// UnifiedQualityPriorityDailyMax bounds the daily API-key priority signal.
-	UnifiedQualityPriorityDailyMax float64 `mapstructure:"unified_quality_priority_daily_max"`
-}
-
-type GatewayOpenAISharedHealthConfig struct {
-	Enabled                         bool `mapstructure:"enabled"`
-	RedisTimeoutMS                  int  `mapstructure:"redis_timeout_ms"`
-	StaleAfterSeconds               int  `mapstructure:"stale_after_seconds"`
-	MaxAttempts                     int  `mapstructure:"max_attempts"`
-	MaxAccountSwitches              int  `mapstructure:"max_account_switches"`
-	MaxFailureDomains               int  `mapstructure:"max_failure_domains"`
-	TotalRetryBudgetMS              int  `mapstructure:"total_retry_budget_ms"`
-	BackoffInitialMS                int  `mapstructure:"backoff_initial_ms"`
-	BackoffMaxMS                    int  `mapstructure:"backoff_max_ms"`
-	HalfOpenLeaseSeconds            int  `mapstructure:"half_open_lease_seconds"`
-	AdmissionEnabled                bool `mapstructure:"admission_enabled"`
-	LongRequestBodyThresholdBytes   int  `mapstructure:"long_request_body_threshold_bytes"`
-	MaxPreFirstOutputNormal         int  `mapstructure:"max_pre_first_output_normal"`
-	MaxPreFirstOutputLong           int  `mapstructure:"max_pre_first_output_long"`
-	StalledBeforeFirstOutputSeconds int  `mapstructure:"stalled_before_first_output_seconds"`
-	AdmissionLeaseTTLSeconds        int  `mapstructure:"admission_lease_ttl_seconds"`
-	AdmissionRenewSeconds           int  `mapstructure:"admission_renew_seconds"`
-	SlowTTFTMS                      int  `mapstructure:"slow_ttft_ms"`
-	SlowSessionGuardSeconds         int  `mapstructure:"slow_session_guard_seconds"`
-}
-
-func DefaultGatewayOpenAISharedHealthConfig() GatewayOpenAISharedHealthConfig {
-	return GatewayOpenAISharedHealthConfig{
-		Enabled:                         true,
-		RedisTimeoutMS:                  75,
-		StaleAfterSeconds:               30,
-		MaxAttempts:                     4,
-		MaxAccountSwitches:              3,
-		MaxFailureDomains:               2,
-		TotalRetryBudgetMS:              5000,
-		BackoffInitialMS:                120,
-		BackoffMaxMS:                    2000,
-		HalfOpenLeaseSeconds:            15,
-		AdmissionEnabled:                true,
-		LongRequestBodyThresholdBytes:   65536,
-		MaxPreFirstOutputNormal:         2,
-		MaxPreFirstOutputLong:           1,
-		StalledBeforeFirstOutputSeconds: 30,
-		AdmissionLeaseTTLSeconds:        90,
-		AdmissionRenewSeconds:           25,
-		SlowTTFTMS:                      30000,
-		SlowSessionGuardSeconds:         600,
-	}
-}
-
-func (c GatewayOpenAISharedHealthConfig) Validate() error {
-	if c.RedisTimeoutMS <= 0 {
-		return fmt.Errorf("redis_timeout_ms must be positive")
-	}
-	if c.StaleAfterSeconds <= 0 || c.StaleAfterSeconds > 30 {
-		return fmt.Errorf("stale_after_seconds must be between 1 and 30")
-	}
-	if c.MaxAttempts <= 0 || c.MaxAttempts > 4 {
-		return fmt.Errorf("max_attempts must be between 1 and 4")
-	}
-	if c.MaxAccountSwitches < 0 || c.MaxAccountSwitches > 3 {
-		return fmt.Errorf("max_account_switches must be between 0 and 3")
-	}
-	if c.MaxFailureDomains <= 0 || c.MaxFailureDomains > 2 {
-		return fmt.Errorf("max_failure_domains must be between 1 and 2")
-	}
-	if c.TotalRetryBudgetMS <= 0 || c.TotalRetryBudgetMS > 5000 {
-		return fmt.Errorf("total_retry_budget_ms must be between 1 and 5000")
-	}
-	if c.BackoffInitialMS < 0 {
-		return fmt.Errorf("backoff_initial_ms must be non-negative")
-	}
-	if c.BackoffMaxMS < c.BackoffInitialMS || c.BackoffMaxMS > 2000 {
-		return fmt.Errorf("backoff_max_ms must be between backoff_initial_ms and 2000")
-	}
-	if c.HalfOpenLeaseSeconds <= 0 || c.HalfOpenLeaseSeconds > 15 {
-		return fmt.Errorf("half_open_lease_seconds must be between 1 and 15")
-	}
-	if c.LongRequestBodyThresholdBytes < 4*1024 || c.LongRequestBodyThresholdBytes > 4*1024*1024 {
-		return fmt.Errorf("long_request_body_threshold_bytes must be between 4096 and 4194304")
-	}
-	if c.MaxPreFirstOutputNormal < 1 || c.MaxPreFirstOutputNormal > 8 {
-		return fmt.Errorf("max_pre_first_output_normal must be between 1 and 8")
-	}
-	if c.MaxPreFirstOutputLong < 1 || c.MaxPreFirstOutputLong > 4 {
-		return fmt.Errorf("max_pre_first_output_long must be between 1 and 4")
-	}
-	if c.StalledBeforeFirstOutputSeconds < 5 || c.StalledBeforeFirstOutputSeconds > 120 {
-		return fmt.Errorf("stalled_before_first_output_seconds must be between 5 and 120")
-	}
-	if c.AdmissionLeaseTTLSeconds < 30 || c.AdmissionLeaseTTLSeconds > 300 {
-		return fmt.Errorf("admission_lease_ttl_seconds must be between 30 and 300")
-	}
-	if c.AdmissionRenewSeconds < 5 || c.AdmissionRenewSeconds >= c.AdmissionLeaseTTLSeconds {
-		return fmt.Errorf("admission_renew_seconds must be at least 5 and lower than admission_lease_ttl_seconds")
-	}
-	if c.SlowTTFTMS < 1000 || c.SlowTTFTMS > 120000 {
-		return fmt.Errorf("slow_ttft_ms must be between 1000 and 120000")
-	}
-	if c.SlowSessionGuardSeconds < 30 || c.SlowSessionGuardSeconds > 3600 {
-		return fmt.Errorf("slow_session_guard_seconds must be between 30 and 3600")
-	}
-	return nil
 }
 
 // GatewayUsageRecordConfig 使用量记录异步队列配置
@@ -1833,6 +1865,14 @@ type APIKeyAuthCacheConfig struct {
 	InvalidAbuse       InvalidAuthAbuseConfig `mapstructure:"invalid_abuse"`
 }
 
+// APIKeyCreateConfig 用户创建 API Key 的防滥用限制（0 表示不限制）
+type APIKeyCreateConfig struct {
+	// MaxActivePerUser 单个用户同时存在（未删除）的 API Key 上限
+	MaxActivePerUser int `mapstructure:"max_active_per_user"`
+	// MaxPerUserPerHour 单个用户每小时可创建的 API Key 次数（删除不返还次数）
+	MaxPerUserPerHour int `mapstructure:"max_per_user_per_hour"`
+}
+
 type InvalidAuthAbuseConfig struct {
 	Enabled       bool `mapstructure:"enabled"`
 	Threshold     int  `mapstructure:"threshold"`
@@ -1989,6 +2029,14 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		cfg.Gateway.OpenAIScheduler.StickyEscapeEnabled = true
 	}
 
+	// 从严解析 Key 等待队列参数：环境变量/配置文件的小数、负数、非法字符串
+	// 或溢出必须在启动时失败，不能被 viper 静默截断。
+	apiKeyQueueConfig, err := loadAPIKeyQueueConfig()
+	if err != nil {
+		return nil, fmt.Errorf("validate config error: %w", err)
+	}
+	cfg.Gateway.APIKeyQueue = apiKeyQueueConfig
+
 	cfg.RunMode = NormalizeRunMode(cfg.RunMode)
 	cfg.Server.Mode = strings.ToLower(strings.TrimSpace(cfg.Server.Mode))
 	if cfg.Server.Mode == "" {
@@ -2141,7 +2189,16 @@ func configureConfigSource(setConfigFile, addConfigPath func(string)) {
 }
 
 func setDefaults() {
+	viper.SetDefault("runtime.role", RuntimeRoleFull)
+	viper.SetDefault("runtime.serverless_id", "")
+	viper.SetDefault("runtime.serverless_endpoint", "")
+	viper.SetDefault("runtime.serverless_region", "")
+	viper.SetDefault("runtime.serverless_secret", "")
+	viper.SetDefault("server.graceful_shutdown_timeout", 5)
+	viper.SetDefault("server.shutdown_drain_delay", 0)
 	viper.SetDefault("run_mode", RunModeStandard)
+	viper.SetDefault("simple_mode.auto_create_default_groups", true)
+	viper.SetDefault("simple_mode_key_rate_limit_enabled", false)
 
 	// Server
 	viper.SetDefault("server.host", "0.0.0.0")
@@ -2150,7 +2207,8 @@ func setDefaults() {
 	viper.SetDefault("server.process_role", ProcessRoleAll)
 	viper.SetDefault("server.enable_server_timing", false)
 	viper.SetDefault("server.frontend_url", "")
-	viper.SetDefault("server.read_header_timeout", 10) // 10秒读取请求头
+	viper.SetDefault("server.read_header_timeout", 10)      // 10秒读取请求头
+	viper.SetDefault("server.readiness_timeout_seconds", 0) // 依赖探测超时，0 保持 1 秒默认值
 	viper.SetDefault("server.max_header_bytes", 64*1024)
 	viper.SetDefault("server.idle_timeout", 120) // 120秒空闲超时
 	viper.SetDefault("server.max_request_body_size", int64(256*1024*1024))
@@ -2203,6 +2261,7 @@ func setDefaults() {
 		"open.bigmodel.cn",
 		"api.minimaxi.com", // MiniMax CN quota + inference
 		"api.minimax.io",   // MiniMax intl; frozen allowlists must add this host to use the intl site
+		"opencode.ai",
 		"generativelanguage.googleapis.com",
 		"cloudcode-pa.googleapis.com",
 		"*.openai.azure.com",
@@ -2473,6 +2532,8 @@ func setDefaults() {
 	viper.SetDefault("api_key_auth_cache.invalid_abuse.window_seconds", 60)
 	viper.SetDefault("api_key_auth_cache.invalid_abuse.block_seconds", 60)
 	viper.SetDefault("api_key_auth_cache.invalid_abuse.capacity", 16384)
+	viper.SetDefault("api_key_create.max_active_per_user", 200)
+	viper.SetDefault("api_key_create.max_per_user_per_hour", 60)
 
 	// Subscription auth L1 cache
 	viper.SetDefault("subscription_cache.l1_size", 16384)
@@ -2527,32 +2588,28 @@ func setDefaults() {
 	viper.SetDefault("gateway.failover_on_400", false)
 	viper.SetDefault("gateway.max_account_switches", 10)
 	viper.SetDefault("gateway.max_account_switches_gemini", 3)
+	viper.SetDefault("gateway.api_key_queue.max_waiting", defaultAPIKeyQueueMaxWaiting)
+	viper.SetDefault("gateway.api_key_queue.timeout_seconds", defaultAPIKeyQueueTimeoutSeconds)
 	viper.SetDefault("gateway.force_codex_cli", false)
 	viper.SetDefault("gateway.disable_codex_identity_enforcement", false)
 	viper.SetDefault("gateway.disable_codex_originator_normalization", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)
-	viper.SetDefault("gateway.openai_compact_model", "gpt-5.4")
-	sharedHealthDefaults := DefaultGatewayOpenAISharedHealthConfig()
-	viper.SetDefault("gateway.openai_shared_health.enabled", sharedHealthDefaults.Enabled)
-	viper.SetDefault("gateway.openai_shared_health.redis_timeout_ms", sharedHealthDefaults.RedisTimeoutMS)
-	viper.SetDefault("gateway.openai_shared_health.stale_after_seconds", sharedHealthDefaults.StaleAfterSeconds)
-	viper.SetDefault("gateway.openai_shared_health.max_attempts", sharedHealthDefaults.MaxAttempts)
-	viper.SetDefault("gateway.openai_shared_health.max_account_switches", sharedHealthDefaults.MaxAccountSwitches)
-	viper.SetDefault("gateway.openai_shared_health.max_failure_domains", sharedHealthDefaults.MaxFailureDomains)
-	viper.SetDefault("gateway.openai_shared_health.total_retry_budget_ms", sharedHealthDefaults.TotalRetryBudgetMS)
-	viper.SetDefault("gateway.openai_shared_health.backoff_initial_ms", sharedHealthDefaults.BackoffInitialMS)
-	viper.SetDefault("gateway.openai_shared_health.backoff_max_ms", sharedHealthDefaults.BackoffMaxMS)
-	viper.SetDefault("gateway.openai_shared_health.half_open_lease_seconds", sharedHealthDefaults.HalfOpenLeaseSeconds)
-	viper.SetDefault("gateway.openai_shared_health.admission_enabled", sharedHealthDefaults.AdmissionEnabled)
-	viper.SetDefault("gateway.openai_shared_health.long_request_body_threshold_bytes", sharedHealthDefaults.LongRequestBodyThresholdBytes)
-	viper.SetDefault("gateway.openai_shared_health.max_pre_first_output_normal", sharedHealthDefaults.MaxPreFirstOutputNormal)
-	viper.SetDefault("gateway.openai_shared_health.max_pre_first_output_long", sharedHealthDefaults.MaxPreFirstOutputLong)
-	viper.SetDefault("gateway.openai_shared_health.stalled_before_first_output_seconds", sharedHealthDefaults.StalledBeforeFirstOutputSeconds)
-	viper.SetDefault("gateway.openai_shared_health.admission_lease_ttl_seconds", sharedHealthDefaults.AdmissionLeaseTTLSeconds)
-	viper.SetDefault("gateway.openai_shared_health.admission_renew_seconds", sharedHealthDefaults.AdmissionRenewSeconds)
-	viper.SetDefault("gateway.openai_shared_health.slow_ttft_ms", sharedHealthDefaults.SlowTTFTMS)
-	viper.SetDefault("gateway.openai_shared_health.slow_session_guard_seconds", sharedHealthDefaults.SlowSessionGuardSeconds)
+	viper.SetDefault("gateway.openai_compact_model", "gpt-5.5")
+	viper.SetDefault("gateway.prism_browser.enabled", false)
+	viper.SetDefault("gateway.prism_browser.base_url", "http://127.0.0.1:8319/v1")
+	viper.SetDefault("gateway.prism_browser.api_key", "")
+	viper.SetDefault("gateway.openai_codex_ticket.enabled", false)
+	viper.SetDefault("gateway.openai_codex_ticket.target_length", 780)
+	viper.SetDefault("gateway.openai_codex_ticket.ttl_seconds", 240)
+	viper.SetDefault("gateway.openai_codex_ticket.refresh_before_seconds", 60)
+	viper.SetDefault("gateway.openai_codex_ticket.harvest_proxy_url", "")
+	viper.SetDefault("gateway.openai_codex_ticket.harvest_probe_interval_seconds", 180)
+	viper.SetDefault("gateway.openai_codex_ticket.harvest_cooldown_seconds", 180)
+	viper.SetDefault("gateway.openai_codex_ticket.max_probes_per_round", 6)
+	viper.SetDefault("gateway.openai_codex_ticket.harvest_attempt_timeout_seconds", 25)
+	viper.SetDefault("gateway.openai_codex_ticket.fail_closed", false)
+	viper.SetDefault("gateway.openai_codex_ticket.models", []string{"gpt-6-astra", "gpt-5.6-sol"})
 	viper.SetDefault("gateway.live.max_session_duration_seconds", 3600)
 	// OpenAI Responses WebSocket（默认开启；可通过 force_http 紧急回滚）
 	viper.SetDefault("gateway.openai_ws.enabled", true)
@@ -2578,8 +2635,8 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.min_idle_per_account", 4)
 	viper.SetDefault("gateway.openai_ws.max_idle_per_account", 12)
 	viper.SetDefault("gateway.openai_ws.dynamic_max_conns_by_account_concurrency_enabled", true)
-	viper.SetDefault("gateway.openai_ws.oauth_max_conns_factor", 1.0)
-	viper.SetDefault("gateway.openai_ws.apikey_max_conns_factor", 1.0)
+	viper.SetDefault("gateway.openai_ws.oauth_max_conns_factor", 5.0)
+	viper.SetDefault("gateway.openai_ws.apikey_max_conns_factor", 5.0)
 	viper.SetDefault("gateway.openai_ws.dial_timeout_seconds", 10)
 	viper.SetDefault("gateway.openai_ws.read_timeout_seconds", 900)
 	viper.SetDefault("gateway.openai_ws.write_timeout_seconds", 120)
@@ -2611,8 +2668,6 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.upstream_cost", 0.0)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.previous_response", 5.0)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.session_sticky", 3.0)
-	viper.SetDefault("gateway.openai_scheduler.unified_quality_priority_cold_start_max", 50.0)
-	viper.SetDefault("gateway.openai_scheduler.unified_quality_priority_daily_max", 50.0)
 	// OpenAI HTTP upstream protocol strategy
 	viper.SetDefault("gateway.openai_http2.enabled", true)
 	viper.SetDefault("gateway.openai_http2.allow_proxy_fallback_to_http1", true)
@@ -2774,10 +2829,6 @@ func setEnvReachableDefaults() {
 	viper.SetDefault("gateway.openai_scheduler.sticky_escape_enabled", true)
 	viper.SetDefault("gateway.openai_scheduler.sticky_escape_error_rate", 0.0)
 	viper.SetDefault("gateway.openai_scheduler.sticky_escape_ttft_ms", 0)
-	viper.SetDefault("gateway.openai_scheduler.adaptive_top_k_enabled", true)
-	viper.SetDefault("gateway.openai_scheduler.adaptive_top_k_max", 7)
-	viper.SetDefault("gateway.openai_scheduler.adaptive_top_k_score_gap", 0.15)
-	viper.SetDefault("gateway.openai_scheduler.ttft_report_only_enabled", true)
 
 	// server.trusted_proxies and security.forwarded_client_ip_headers are the
 	// other exception: load() distinguishes explicit configuration from absence
@@ -2834,7 +2885,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	c.Server.ProcessRole = processRole
-
+	if err := c.validateRuntime(); err != nil {
+		return err
+	}
 	forwardedClientIPHeaders, err := NormalizeForwardedClientIPHeaders(c.Security.ForwardedClientIPHeaders)
 	if err != nil {
 		return fmt.Errorf("security.forwarded_client_ip_headers: %w", err)
@@ -2857,6 +2910,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Server.ReadHeaderTimeout < 1 || c.Server.ReadHeaderTimeout > 60 {
 		return fmt.Errorf("server.read_header_timeout must be between 1 and 60 seconds")
+	}
+	if c.Server.ReadinessTimeoutSeconds < 0 || c.Server.ReadinessTimeoutSeconds > 60 {
+		return fmt.Errorf("server.readiness_timeout_seconds must be between 0 and 60 seconds")
 	}
 	if c.Server.MaxHeaderBytes < 8*1024 || c.Server.MaxHeaderBytes > 1024*1024 {
 		return fmt.Errorf("server.max_header_bytes must be between 8192 and 1048576 bytes")
@@ -2883,6 +2939,12 @@ func (c *Config) Validate() error {
 		if c.Server.H2C.MaxUploadBufferPerStream <= 0 {
 			return fmt.Errorf("server.h2c.max_upload_buffer_per_stream must be positive")
 		}
+	}
+	if c.APIKeyCreate.MaxActivePerUser < 0 {
+		return fmt.Errorf("api_key_create.max_active_per_user must be non-negative")
+	}
+	if c.APIKeyCreate.MaxPerUserPerHour < 0 {
+		return fmt.Errorf("api_key_create.max_per_user_per_hour must be non-negative")
 	}
 	if c.APIKeyAuth.InvalidAbuse.Enabled {
 		if c.APIKeyAuth.InvalidAbuse.Threshold < 10 {
@@ -3489,11 +3551,6 @@ func (c *Config) Validate() error {
 		(c.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds > 0 && c.Gateway.OpenAIHighEffortFirstOutputTimeoutSeconds < 30) {
 		return fmt.Errorf("gateway.openai_high_effort_first_output_timeout_seconds must be 0 or between 30-1800 seconds")
 	}
-	if c.Gateway.OpenAISharedHealth.Enabled || c.Gateway.OpenAISharedHealth != (GatewayOpenAISharedHealthConfig{}) {
-		if err := c.Gateway.OpenAISharedHealth.Validate(); err != nil {
-			return fmt.Errorf("gateway.openai_shared_health: %w", err)
-		}
-	}
 	if c.Gateway.Live.MaxSessionDurationSeconds <= 0 {
 		c.Gateway.Live.MaxSessionDurationSeconds = 3600
 	}
@@ -3696,16 +3753,6 @@ func (c *Config) Validate() error {
 	if c.Gateway.OpenAIWS.StickyPreviousResponseTTLSeconds < 0 {
 		return fmt.Errorf("gateway.openai_ws.sticky_previous_response_ttl_seconds must be non-negative")
 	}
-	if c.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax < 0 ||
-		math.IsNaN(c.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax) ||
-		math.IsInf(c.Gateway.OpenAIScheduler.UnifiedQualityPriorityColdStartMax, 0) {
-		return fmt.Errorf("gateway.openai_scheduler.unified_quality_priority_cold_start_max must be non-negative and finite")
-	}
-	if c.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax < 0 ||
-		math.IsNaN(c.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax) ||
-		math.IsInf(c.Gateway.OpenAIScheduler.UnifiedQualityPriorityDailyMax, 0) {
-		return fmt.Errorf("gateway.openai_scheduler.unified_quality_priority_daily_max must be non-negative and finite")
-	}
 	if c.Gateway.OpenAIHTTP2.FallbackErrorThreshold < 0 {
 		return fmt.Errorf("gateway.openai_http2.fallback_error_threshold must be non-negative")
 	}
@@ -3749,12 +3796,6 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.OpenAIScheduler.StickyEscapeErrorRate < 0 || c.Gateway.OpenAIScheduler.StickyEscapeErrorRate > 1 {
 		return fmt.Errorf("gateway.openai_scheduler.sticky_escape_error_rate must be between 0 and 1")
-	}
-	if c.Gateway.OpenAIScheduler.AdaptiveTopKMax <= 0 || c.Gateway.OpenAIScheduler.AdaptiveTopKMax > 32 {
-		return fmt.Errorf("gateway.openai_scheduler.adaptive_top_k_max must be between 1 and 32")
-	}
-	if c.Gateway.OpenAIScheduler.AdaptiveTopKScoreGap < 0 || c.Gateway.OpenAIScheduler.AdaptiveTopKScoreGap > 10 {
-		return fmt.Errorf("gateway.openai_scheduler.adaptive_top_k_score_gap must be between 0 and 10")
 	}
 	if c.Gateway.MaxLineSize < 0 {
 		return fmt.Errorf("gateway.max_line_size must be non-negative")

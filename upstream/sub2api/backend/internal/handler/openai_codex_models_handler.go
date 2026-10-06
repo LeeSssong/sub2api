@@ -33,7 +33,16 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Codex models manifest is only available for OpenAI and Composite groups")
 		return
 	}
-	ifNoneMatch := c.GetHeader("If-None-Match")
+	if apiKey.ConcurrencyLimit > 0 {
+		release, err := h.concurrencyHelper.AcquireAPIKeySlot(c.Request.Context(), apiKey.ID, apiKey.ConcurrencyLimit)
+		if err != nil {
+			h.handleConcurrencyError(c, err, "API key", false)
+			return
+		}
+		defer release()
+	}
+
+	ifNoneMatch := modelsIfNoneMatch(c)
 	// 固定账号分支：开启后只用选定账号拉取 manifest，不经过调度器；
 	// 全部不可用/全部失败时按 FallbackToScheduler 决定回退调度器或返回错误。
 	if apiKey.Group.Platform == service.PlatformOpenAI &&
@@ -52,7 +61,7 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 					h.errorResponse(c, http.StatusServiceUnavailable, "upstream_error", "No available pinned OpenAI accounts")
 					return
 				}
-				h.errorResponse(c, infraerrors.Code(pinnedErr), "upstream_error", infraerrors.Message(pinnedErr))
+				h.errorResponse(c, infraerrors.Code(pinnedErr), "upstream_error", "Failed to load Codex models manifest")
 				return
 			}
 		} else {
@@ -103,7 +112,7 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 				return
 			}
 			if lastUpstreamErr != nil {
-				h.errorResponse(c, infraerrors.Code(lastUpstreamErr), "upstream_error", infraerrors.Message(lastUpstreamErr))
+				h.errorResponse(c, infraerrors.Code(lastUpstreamErr), "upstream_error", "Failed to load Codex models manifest")
 				return
 			}
 			h.errorResponse(c, http.StatusServiceUnavailable, "upstream_error", "No available OpenAI accounts")
@@ -125,7 +134,7 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 				lastUpstreamErr = err
 				continue
 			}
-			h.errorResponse(c, infraerrors.Code(err), "upstream_error", infraerrors.Message(err))
+			h.errorResponse(c, infraerrors.Code(err), "upstream_error", "Failed to load Codex models manifest")
 			return
 		}
 		if err := h.gatewayService.CompleteAPIKeyCodexModelsManifestForClient(manifest, account); err != nil {

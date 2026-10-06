@@ -284,7 +284,7 @@ func TestSettingHandlerSchedulerBusinessPolicyCompilesOnServerAndRejectsInvalidP
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var stored map[string]map[string]any
-	require.NoError(t, json.Unmarshal([]byte(repo.values[service.SettingKeyOpenAIAdvancedSchedulerGroupOverrides]), &stored))
+	require.NoError(t, json.Unmarshal([]byte(repo.values["openai_advanced_scheduler_group_overrides"]), &stored))
 	policy := stored["1"]
 	require.Equal(t, float64(1), policy["priority"].(map[string]any)["profit"])
 	require.NotEqual(t, float64(99), policy["compiled_snapshot"].(map[string]any)["weight_overrides"].(map[string]any)["upstream_cost"])
@@ -344,7 +344,7 @@ func TestSettingHandlerSchedulerExtraRetryCountRoundTripsWithLegacyPolicyFields(
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var stored map[string]map[string]any
-	require.NoError(t, json.Unmarshal([]byte(repo.values[service.SettingKeyOpenAIAdvancedSchedulerGroupOverrides]), &stored))
+	require.NoError(t, json.Unmarshal([]byte(repo.values["openai_advanced_scheduler_group_overrides"]), &stored))
 	policy := stored["11"]
 	require.Equal(t, float64(3), policy["extra_retry_count"])
 	require.Equal(t, float64(1), policy["priority"].(map[string]any)["profit"])
@@ -372,7 +372,7 @@ func TestSettingHandlerSchedulerPresetsRoundTripAndRejectsReferencedPresetDeleti
 	gin.SetMode(gin.TestMode)
 	customID := "custom:550e8400-e29b-41d4-a716-446655440000"
 	customJSON := `{"` + customID + `":{"id":"` + customID + `","name":"Steady","values":{"top_k":7,"priority":1,"load":1,"queue":0.7,"error_rate":0.8,"ttft":0.5,"reset":0,"quota_headroom":0,"upstream_cost":0,"previous_response":5,"session_sticky":3,"candidate_pool_mode":"hybrid","exploration_ratio":25,"starvation_threshold_seconds":21600,"fairness_weight":3}}}`
-	repo := &settingHandlerRepoStub{values: map[string]string{service.SettingKeyOpenAIAdvancedSchedulerCustomPresets: customJSON}}
+	repo := &settingHandlerRepoStub{values: map[string]string{"openai_advanced_scheduler_custom_presets": customJSON}}
 	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
 	h := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
 	rec := httptest.NewRecorder()
@@ -401,7 +401,7 @@ func TestSettingHandlerSchedulerPresetsRoundTripAndRejectsReferencedPresetDeleti
 	h.UpdateSettings(c)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Contains(t, rec.Body.String(), "cannot delete a preset referenced by a group policy")
-	require.Contains(t, repo.values[service.SettingKeyOpenAIAdvancedSchedulerCustomPresets], customID)
+	require.Contains(t, repo.values["openai_advanced_scheduler_custom_presets"], customID)
 }
 
 func TestSettingHandler_UpdateSettings_PreservesLegacyBlankPaymentVisibleMethodSource(t *testing.T) {

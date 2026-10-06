@@ -1,0 +1,4 @@
+name: xingqiao_ops
+desc: 读取星桥公开配置和检测报告、按 request id 查报错；报告默认禁发
+author: xiaoxing
+version: 1.3.2

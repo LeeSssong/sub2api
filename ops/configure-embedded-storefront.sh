@@ -6,7 +6,7 @@ set -euo pipefail
 
 STORE_URL=${STORE_URL:-https://catfk.com/shop/DLK8SNUJ}
 MENU_ID=${MENU_ID:-xingqiao-storefront}
-MENU_LABEL=${MENU_LABEL:-充值/订阅}
+MENU_LABEL=${MENU_LABEL:-云猫兑换码充值}
 MENU_SORT_ORDER=${MENU_SORT_ORDER:-90}
 PAYMENT_ENABLED=${PAYMENT_ENABLED:-false}
 

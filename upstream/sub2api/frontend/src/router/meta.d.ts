@@ -18,6 +18,8 @@ declare module 'vue-router' {
      * @default false
      */
     requiresAdmin?: boolean
+    requiresAccountManagement?: boolean
+    requiresRequestCapture?: boolean
 
     /**
      * Page title for this route
@@ -54,6 +56,12 @@ declare module 'vue-router' {
      * @default false
      */
     requiresRiskControl?: boolean
+
+    /**
+     * 是否要求订阅功能开关（subscription_enabled，opt-out）未被显式关闭
+     * @default false
+     */
+    requiresSubscription?: boolean
 
     /**
      * i18n key for the page title

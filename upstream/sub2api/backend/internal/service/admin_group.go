@@ -17,6 +17,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/typesafe"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
 
@@ -294,6 +295,10 @@ func defaultModelsListCandidateIDs(platform string) []string {
 		return ids
 	case PlatformGrok:
 		return xai.DefaultModelIDs()
+	case PlatformOpenCodeGo:
+		return DefaultOpenCodeGoModelIDs()
+	case PlatformTypeSafe:
+		return []string{typesafe.JevLatestModel}
 	case PlatformComposite:
 		return compositeDefaultModelsListCandidateIDs()
 	default:
@@ -314,7 +319,10 @@ func defaultAllowImageGenerationForPlatform(platform string) bool {
 func compositeDefaultModelsListCandidateIDs() []string {
 	seen := make(map[string]struct{})
 	ids := make([]string, 0)
-	for _, platform := range []string{PlatformAnthropic, PlatformGemini, PlatformOpenAI, PlatformAntigravity, PlatformGrok, PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformMiniMax} {
+	// TypeSafe stays out of the static composite candidates (jev-latest only works
+	// through /v1/systemone); groups with TypeSafe accounts still get it from the
+	// account model mappings collected by GetGroupModelsListCandidates.
+	for _, platform := range []string{PlatformAnthropic, PlatformGemini, PlatformOpenAI, PlatformAntigravity, PlatformGrok, PlatformKimi, PlatformZhipu, PlatformDeepseek, PlatformMiniMax, PlatformOpenCodeGo} {
 		for _, id := range defaultModelsListCandidateIDs(platform) {
 			if _, ok := seen[id]; ok {
 				continue
@@ -469,7 +477,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	// 先归一化（非订阅分组清空高峰配置、清洗停用状态下的脏字段）再校验，与 UpdateGroup 同一收口。
 	peakRateEnabled, peakStart, peakEnd, peakRateMultiplier := NormalizePeakRateConfig(subscriptionType, input.PeakRateEnabled, input.PeakStart, input.PeakEnd, peakRateMultiplier)
 	if err := ValidatePeakRateConfig(subscriptionType, peakRateEnabled, peakStart, peakEnd, peakRateMultiplier); err != nil {
-		return nil, err
+		return nil, infraerrors.BadRequest("INVALID_PEAK_RATE_CONFIG", err.Error())
 	}
 
 	profitMinMargin := 0.0
@@ -596,6 +604,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		AudioTTSPricePerMillionChars:    audioTTSPricePerMillionChars,
 		AudioSTTPricePerHour:            audioSTTPricePerHour,
 		ClaudeCodeOnly:                  input.ClaudeCodeOnly,
+		StreamOnly:                      input.StreamOnly,
 		FallbackGroupID:                 input.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: fallbackOnInvalidRequest,
 		ModelRouting:                    input.ModelRouting,
@@ -613,6 +622,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		// 固定账号 manifest 配置：账号绑定发生在分组创建之后，创建路径禁止开启，
 		// 成员关系无从校验（前端创建对话框也不展示）。
 		CodexModelsManifestConfig:   normalizeCodexModelsManifestConfig(platform, input.CodexModelsManifestConfig),
+		TurnStateInjectEnabled:      input.TurnStateInjectEnabled && platform == PlatformOpenAI,
 		RPMLimit:                    input.RPMLimit,
 		MaxReasoningEffort:          maxReasoningEffort,
 		MaxReasoningEffortOverLimit: maxReasoningEffortOverLimit,
@@ -875,7 +885,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	// 防止单独修改 start/end 导致最终 start>=end 等非法配置入库。与 CreateGroup 同一收口。
 	group.PeakRateEnabled, group.PeakStart, group.PeakEnd, group.PeakRateMultiplier = NormalizePeakRateConfig(group.SubscriptionType, group.PeakRateEnabled, group.PeakStart, group.PeakEnd, group.PeakRateMultiplier)
 	if err := ValidatePeakRateConfig(group.SubscriptionType, group.PeakRateEnabled, group.PeakStart, group.PeakEnd, group.PeakRateMultiplier); err != nil {
-		return nil, err
+		return nil, infraerrors.BadRequest("INVALID_PEAK_RATE_CONFIG", err.Error())
 	}
 	if input.ProfitControlEnabled != nil {
 		group.ProfitControlEnabled = *input.ProfitControlEnabled
@@ -933,6 +943,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	// Claude Code 客户端限制
 	if input.ClaudeCodeOnly != nil {
 		group.ClaudeCodeOnly = *input.ClaudeCodeOnly
+	}
+	if input.StreamOnly != nil {
+		group.StreamOnly = *input.StreamOnly
 	}
 	if input.FallbackGroupID != nil {
 		// 校验降级分组
@@ -1012,6 +1025,12 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.CodexModelsManifestConfig != nil {
 		group.CodexModelsManifestConfig = *input.CodexModelsManifestConfig
 	}
+	if input.TurnStateInjectEnabled != nil {
+		if *input.TurnStateInjectEnabled && group.Platform != PlatformOpenAI {
+			return nil, infraerrors.BadRequest("TURN_STATE_GROUP_PLATFORM_INVALID", "turn-state reuse is only supported for openai groups")
+		}
+		group.TurnStateInjectEnabled = *input.TurnStateInjectEnabled
+	}
 	if input.RPMLimit != nil {
 		group.RPMLimit = *input.RPMLimit
 	}
@@ -1046,6 +1065,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	// 与 ForceOpenAIFast 同一收口）；校验仅在本次显式携带配置时进行，
 	// 避免脏 ID 阻塞无关字段更新。
 	group.CodexModelsManifestConfig = normalizeCodexModelsManifestConfig(group.Platform, group.CodexModelsManifestConfig)
+	if group.Platform != PlatformOpenAI {
+		group.TurnStateInjectEnabled = false
+	}
 	if input.CodexModelsManifestConfig != nil {
 		if err := s.validateCodexModelsManifestConfig(ctx, id, group.CodexModelsManifestConfig); err != nil {
 			return nil, err
@@ -1307,6 +1329,58 @@ func (s *adminServiceImpl) BatchSetGroupRPMOverrides(ctx context.Context, groupI
 		return err
 	}
 	// RPM override 已嵌入 auth cache snapshot (v7)，变更后必须失效相关缓存。
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByGroupID(ctx, groupID)
+	}
+	return nil
+}
+
+// ClearGroupUserDeniedModels 清空分组内所有用户的禁用模型。
+func (s *adminServiceImpl) ClearGroupUserDeniedModels(ctx context.Context, groupID int64) error {
+	if err := s.ValidateSimpleModeGroupOperation(AdminGroupOperationDeniedModels); err != nil {
+		return err
+	}
+	if s.userGroupRateRepo == nil {
+		return nil
+	}
+	if err := s.userGroupRateRepo.ClearGroupDeniedModels(ctx, groupID); err != nil {
+		return err
+	}
+	// 禁用模型嵌入 auth cache snapshot (v25)，变更后必须失效相关缓存。
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByGroupID(ctx, groupID)
+	}
+	return nil
+}
+
+// BatchSetGroupUserDeniedModels 整组覆盖用户的禁用模型：未列出的用户、清单为空的条目都恢复为不限制。
+func (s *adminServiceImpl) BatchSetGroupUserDeniedModels(ctx context.Context, groupID int64, entries []GroupUserDeniedModelsInput) error {
+	if err := s.ValidateSimpleModeGroupOperation(AdminGroupOperationDeniedModels); err != nil {
+		return err
+	}
+	if s.userGroupRateRepo == nil {
+		return nil
+	}
+	normalized := make([]GroupUserDeniedModelsInput, 0, len(entries))
+	seen := make(map[int64]struct{}, len(entries))
+	for _, e := range entries {
+		if e.UserID <= 0 {
+			return infraerrors.BadRequest("INVALID_USER_GROUP_DENIED_MODELS", "user_id must be positive")
+		}
+		if _, dup := seen[e.UserID]; dup {
+			return infraerrors.BadRequest("INVALID_USER_GROUP_DENIED_MODELS", fmt.Sprintf("duplicate user_id %d", e.UserID))
+		}
+		seen[e.UserID] = struct{}{}
+		models, err := NormalizeUserGroupDeniedModels(e.DeniedModels)
+		if err != nil {
+			return err
+		}
+		normalized = append(normalized, GroupUserDeniedModelsInput{UserID: e.UserID, DeniedModels: models})
+	}
+	if err := s.userGroupRateRepo.SyncGroupDeniedModels(ctx, groupID, normalized); err != nil {
+		return err
+	}
+	// 禁用模型嵌入 auth cache snapshot (v25)，变更后必须失效相关缓存。
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByGroupID(ctx, groupID)
 	}

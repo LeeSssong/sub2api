@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"math"
 	"strings"
 	"time"
 
@@ -45,25 +46,6 @@ func (r *NewAPIRateMultiplierRegistrar) RegisterUsage(ctx context.Context, usage
 	if r == nil || r.accountRepo == nil || r.lookup == nil || !newAPIRateRegistrationUsageCandidate(usage) {
 		return nil, false, "", nil
 	}
-	now := time.Now()
-	if r.now != nil {
-		now = r.now()
-	}
-	refreshDate, err := beijingRefreshDate(now)
-	if err != nil {
-		return nil, false, "", err
-	}
-	claimToken := uuid.NewString()
-	claimed, err := r.accountRepo.ClaimNewAPIRateRefresh(ctx, usage.Account.ID, refreshDate, claimToken, now.Add(newAPIRateRefreshLease))
-	if err != nil || !claimed {
-		return nil, false, "", err
-	}
-	release := true
-	defer func() {
-		if release {
-			_ = r.accountRepo.ReleaseNewAPIRateRefresh(context.WithoutCancel(ctx), usage.Account.ID, claimToken)
-		}
-	}()
 	baseURL, apiKey, ok := subCredentials(usage.Account)
 	if !ok {
 		return nil, true, "credentials_unavailable", nil
@@ -76,6 +58,28 @@ func (r *NewAPIRateMultiplierRegistrar) RegisterUsage(ctx context.Context, usage
 	if reason != "" || !newAPIRateMultiplierRegistrationEligible(usage, record) {
 		return record, true, reason, nil
 	}
+	if roundedNewAPIRateMultiplier(usage.Account.BillingRateMultiplier()) == roundedNewAPIRateMultiplier(*record.GroupRatio) {
+		return record, true, "", nil
+	}
+	now := time.Now()
+	if r.now != nil {
+		now = r.now()
+	}
+	refreshDate, err := beijingRefreshDate(now)
+	if err != nil {
+		return record, true, "", err
+	}
+	claimToken := uuid.NewString()
+	claimed, err := r.accountRepo.ClaimNewAPIRateRefresh(ctx, usage.Account.ID, *record.GroupRatio, refreshDate, claimToken, now.Add(newAPIRateRefreshLease))
+	if err != nil || !claimed {
+		return record, true, "", err
+	}
+	release := true
+	defer func() {
+		if release {
+			_ = r.accountRepo.ReleaseNewAPIRateRefresh(context.WithoutCancel(ctx), usage.Account.ID, claimToken)
+		}
+	}()
 	if err := r.accountRepo.CompleteNewAPIRateRefresh(ctx, NewAPIRateRefreshCompletion{
 		AccountID: usage.Account.ID, ClaimToken: claimToken, RefreshDate: refreshDate,
 		GroupRatio: *record.GroupRatio, ObservedAt: now, UsageLogID: usage.ID,
@@ -84,6 +88,10 @@ func (r *NewAPIRateMultiplierRegistrar) RegisterUsage(ctx context.Context, usage
 	}
 	release = false
 	return record, true, "", nil
+}
+
+func roundedNewAPIRateMultiplier(value float64) float64 {
+	return math.Round(value*upstreamBillingProbeAccountRateScale) / upstreamBillingProbeAccountRateScale
 }
 
 func beijingRefreshDate(now time.Time) (string, error) {

@@ -313,8 +313,26 @@ func extractUpstreamErrorMessage(body []byte) string {
 	return gjson.GetBytes(body, "message").String()
 }
 
+func extractUpstreamErrorType(body []byte) string {
+	if errType := strings.TrimSpace(gjson.GetBytes(body, "error.type").String()); errType != "" {
+		return errType
+	}
+	if errType := strings.TrimSpace(gjson.GetBytes(body, "response.error.type").String()); errType != "" {
+		return errType
+	}
+
+	inner := strings.TrimSpace(gjson.GetBytes(body, "error.message").String())
+	if !strings.HasPrefix(inner, "{") {
+		return ""
+	}
+	return strings.TrimSpace(gjson.Get(inner, "error.type").String())
+}
+
 func extractUpstreamErrorCode(body []byte) string {
 	if code := strings.TrimSpace(gjson.GetBytes(body, "error.code").String()); code != "" {
+		return code
+	}
+	if code := strings.TrimSpace(gjson.GetBytes(body, "response.error.code").String()); code != "" {
 		return code
 	}
 
@@ -362,8 +380,9 @@ func (s *GatewayService) readUpstreamErrorBody(resp *http.Response) ([]byte, err
 }
 
 func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, requestedModel ...string) (*ForwardResult, error) {
-	// Upstream returned a non-success HTTP status; count Ollama Cloud activity.
+	// Upstream returned a non-success HTTP status; count Ollama Cloud / OpenCode Go activity.
 	scheduleOllamaCloudUsageActivity(s.deferredService, account)
+	scheduleOpenCodeGoUsageActivity(s.deferredService, account)
 	body, readErr := s.readUpstreamErrorBody(resp)
 	if readErr != nil {
 		// 读取失败时 body 可能被截断，错误分类会基于不完整数据；记录日志以便排查，
@@ -452,13 +471,7 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 		"upstream_error",
 		"Upstream request failed",
 	); matched {
-		c.JSON(status, gin.H{
-			"type": "error",
-			"error": gin.H{
-				"type":    errType,
-				"message": errMsg,
-			},
-		})
+		writeProjectedAnthropicUserError(c, status, errType, errMsg)
 
 		summary := upstreamMsg
 		if summary == "" {
@@ -476,15 +489,9 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 
 	switch resp.StatusCode {
 	case 400:
-		c.Data(http.StatusBadRequest, "application/json", body)
-		summary := upstreamMsg
-		if summary == "" {
-			summary = truncateForLog(body, 512)
-		}
-		if summary == "" {
-			return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("upstream error: %d message=%s", resp.StatusCode, summary)
+		statusCode = http.StatusBadRequest
+		errType = "invalid_request_error"
+		errMsg = "Invalid request"
 	case 401:
 		statusCode = http.StatusBadGateway
 		errType = "upstream_error"
@@ -511,14 +518,7 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 		errMsg = "Upstream request failed"
 	}
 
-	// 返回自定义错误响应
-	c.JSON(statusCode, gin.H{
-		"type": "error",
-		"error": gin.H{
-			"type":    errType,
-			"message": errMsg,
-		},
-	})
+	writeProjectedAnthropicUserError(c, statusCode, errType, errMsg)
 
 	if upstreamMsg == "" {
 		return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
@@ -617,13 +617,7 @@ func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *ht
 		"upstream_error",
 		"Upstream request failed after retries",
 	); matched {
-		c.JSON(status, gin.H{
-			"type": "error",
-			"error": gin.H{
-				"type":    errType,
-				"message": errMsg,
-			},
-		})
+		writeProjectedAnthropicUserError(c, status, errType, errMsg)
 
 		summary := upstreamMsg
 		if summary == "" {
@@ -635,14 +629,7 @@ func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *ht
 		return nil, fmt.Errorf("upstream error: %d (retries exhausted, passthrough rule matched) message=%s", resp.StatusCode, summary)
 	}
 
-	// 返回统一的重试耗尽错误响应
-	c.JSON(http.StatusBadGateway, gin.H{
-		"type": "error",
-		"error": gin.H{
-			"type":    "upstream_error",
-			"message": "Upstream request failed after retries",
-		},
-	})
+	writeProjectedAnthropicUserError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed after retries")
 
 	if upstreamMsg == "" {
 		return nil, fmt.Errorf("upstream error: %d (retries exhausted)", resp.StatusCode)
@@ -699,7 +686,27 @@ func partialStreamUsageResult(c *gin.Context, resp *http.Response, streamResult 
 	}
 }
 
+// FlushGatewayResponse preserves Gin header bookkeeping while exposing transport
+// flush errors. Gin's Flush discards errors, so unwrap transparent middleware.
+// Wrappers with lifecycle guards should delegate through FlushError instead.
+func FlushGatewayResponse(w gin.ResponseWriter) error {
+	w.WriteHeaderNow()
+	var target http.ResponseWriter = w
+	for {
+		if f, ok := target.(interface{ FlushError() error }); ok {
+			return f.FlushError()
+		}
+		if u, ok := target.(interface{ Unwrap() http.ResponseWriter }); ok {
+			target = u.Unwrap()
+			continue
+		}
+		return http.NewResponseController(target).Flush()
+	}
+}
+
 func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
+	// Stop the upstream read as soon as forwarding ends, including silent upstreams.
+	defer func() { _ = resp.Body.Close() }()
 	observer := upstreamResponseModelObserverFromContext(c)
 	if observer == nil {
 		observer = beginUpstreamResponseModelObservation(c)
@@ -827,6 +834,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		if message == "" {
 			message = reason
 		}
+		message = ProjectNativeUserErrorFromGin(c, http.StatusBadGateway, reason, "", message, true, "network", "provider").Message
 		body, err := json.Marshal(map[string]any{
 			"type": "error",
 			"error": map[string]string{
@@ -843,7 +851,6 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	}
 
 	needModelReplace := originalModel != mappedModel
-	clientDisconnected := false // 客户端断开标志，断开后继续读取上游以获取完整usage
 	sawTerminalEvent := false
 	useNoopDeltaKeepalive := c != nil && c.Request != nil && shouldUseClaudeCodeNoopDeltaKeepalive(c.GetHeader("User-Agent"))
 	noopDeltaKeepaliveBlockIndex := -1
@@ -1012,27 +1019,49 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		return []string{block}, string(newData), usagePatch, nil
 	}
 
+	clientGone := func(cause error) (*streamingResult, error) {
+		logger.LegacyPrintf("service.gateway", "Client disconnected; stopping upstream stream: account=%d observed_input=%d observed_output=%d", account.ID, usage.InputTokens, usage.OutputTokens)
+		result := &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}
+		if sawTerminalEvent {
+			return result, nil
+		}
+		return result, fmt.Errorf("stream usage incomplete: client disconnected: %w", cause)
+	}
+	clientCtx := c.Request.Context()
 	for {
+		// Give cancellation priority over a busy stream or a timeout tick.
+		if err := clientCtx.Err(); err != nil {
+			return clientGone(err)
+		}
+		if err := ctx.Err(); err != nil {
+			return clientGone(err)
+		}
 		select {
+		case <-clientCtx.Done():
+			return clientGone(clientCtx.Err())
+		case <-ctx.Done():
+			return clientGone(ctx.Err())
 		case ev, ok := <-events:
+			if err := clientCtx.Err(); err != nil {
+				return clientGone(err)
+			}
+			if err := ctx.Err(); err != nil {
+				return clientGone(err)
+			}
 			if !ok {
 				// 上游完成，返回结果
 				if !sawTerminalEvent {
-					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, fmt.Errorf("stream usage incomplete: missing terminal event")
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: false}, fmt.Errorf("stream usage incomplete: missing terminal event")
 				}
-				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, nil
+				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: false}, nil
 			}
 			if ev.err != nil {
 				if sawTerminalEvent {
-					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, nil
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: false}, nil
 				}
 				// 检测 context 取消（客户端断开会导致 context 取消，进而影响上游读取）
 				if errors.Is(ev.err, context.Canceled) || errors.Is(ev.err, context.DeadlineExceeded) {
 					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, fmt.Errorf("stream usage incomplete: %w", ev.err)
-				}
-				// 客户端已通过写入失败检测到断开，上游也出错了，返回已收集的 usage
-				if clientDisconnected {
-					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, fmt.Errorf("stream usage incomplete after disconnect: %w", ev.err)
 				}
 				// 客户端未断开，正常的错误处理
 				if errors.Is(ev.err, bufio.ErrTooLong) {
@@ -1076,36 +1105,30 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				outputBlocks, data, usagePatch, err := processSSEEvent(pendingEventLines)
 				pendingEventLines = pendingEventLines[:0]
 				if err != nil {
-					if clientDisconnected {
-						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, nil
-					}
 					return nil, err
 				}
 
+				// Merge the current event before writing: even a failed write may carry
+				// upstream-metered usage. Do not read future events after disconnect.
+				if data != "" {
+					if firstTokenMs == nil && data != "[DONE]" {
+						ms := int(time.Since(startTime).Milliseconds())
+						firstTokenMs = &ms
+					}
+					if usagePatch != nil {
+						mergeSSEUsagePatch(usage, usagePatch)
+					}
+				}
 				for _, block := range outputBlocks {
-					if !clientDisconnected {
-						restored := reverseToolNamesIfPresent(c, []byte(block))
-						if _, werr := fmt.Fprint(w, string(restored)); werr != nil {
-							clientDisconnected = true
-							logger.LegacyPrintf("service.gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
-							// 不 break：客户端断开后仍需继续合并本事件及后续事件的 usage，
-							// 否则会漏计当前事件携带的 usage 导致少计费。后续写入由
-							// clientDisconnected 守卫跳过。
-						} else {
-							flusher.Flush()
-							lastDataAt = time.Now()
-							resetKeepaliveTimer()
-						}
+					restored := reverseToolNamesIfPresent(c, []byte(block))
+					if _, werr := fmt.Fprint(w, string(restored)); werr != nil {
+						return clientGone(werr)
 					}
-					if data != "" {
-						if firstTokenMs == nil && data != "[DONE]" {
-							ms := int(time.Since(startTime).Milliseconds())
-							firstTokenMs = &ms
-						}
-						if usagePatch != nil {
-							mergeSSEUsagePatch(usage, usagePatch)
-						}
+					if err := FlushGatewayResponse(w); err != nil {
+						return clientGone(err)
 					}
+					lastDataAt = time.Now()
+					resetKeepaliveTimer()
 				}
 				continue
 			}
@@ -1117,9 +1140,6 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			if time.Since(lastRead) < streamInterval {
 				continue
 			}
-			if clientDisconnected {
-				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, fmt.Errorf("stream usage incomplete after timeout")
-			}
 			logger.LegacyPrintf("service.gateway", "Stream data interval timeout: account=%d model=%s interval=%s", account.ID, originalModel, streamInterval)
 			// 处理流超时，可能标记账户为临时不可调度或错误状态
 			if s.rateLimitService != nil {
@@ -1129,9 +1149,6 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream data interval timeout")
 
 		case <-keepaliveCh:
-			if clientDisconnected {
-				continue
-			}
 			if time.Since(lastDataAt) < keepaliveInterval {
 				resetKeepaliveTimer()
 				continue
@@ -1143,11 +1160,11 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				}
 			}
 			if _, werr := fmt.Fprint(w, keepaliveBlock); werr != nil {
-				clientDisconnected = true
-				logger.LegacyPrintf("service.gateway", "Client disconnected during keepalive ping, continuing to drain upstream for billing")
-				continue
+				return clientGone(werr)
 			}
-			flusher.Flush()
+			if err := FlushGatewayResponse(w); err != nil {
+				return clientGone(err)
+			}
 			lastDataAt = time.Now()
 			resetKeepaliveTimer()
 		}
@@ -1200,6 +1217,12 @@ func (s *GatewayService) extractSSEUsagePatch(event map[string]any) *sseUsagePat
 		}
 
 		patch := &sseUsagePatch{}
+		// message_start may already meter output tokens. Preserve them when
+		// the client disconnects before the cumulative message_delta arrives.
+		if v, ok := parseSSEUsageInt(usageObj["output_tokens"]); ok {
+			patch.outputTokens = v
+			patch.hasOutputTokens = true
+		}
 		patch.hasInputTokens = true
 		if v, ok := parseSSEUsageInt(usageObj["input_tokens"]); ok {
 			patch.inputTokens = v

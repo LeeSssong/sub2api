@@ -12,7 +12,7 @@
       :class="isAdmin ? ['admin-main-frame', { 'admin-main-collapsed': sidebarCollapsed }] : 'user-main-frame'"
     >
       <!-- Header -->
-      <AppHeader v-if="isAdmin" />
+      <AppHeader v-if="isAdmin || showDesktopHeader" />
 
       <UserHeader v-else />
 
@@ -37,6 +37,8 @@ import { useOnboardingStore } from '@/stores/onboarding'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 import UserHeader from './UserHeader.vue'
+
+withDefaults(defineProps<{ showDesktopHeader?: boolean }>(), { showDesktopHeader: false })
 
 const appStore = useAppStore()
 const authStore = useAuthStore()

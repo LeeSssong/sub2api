@@ -62,6 +62,11 @@ type SettingHandler struct {
 	notificationEmailService *service.NotificationEmailService
 	totpService              *service.TotpService
 	userService              *service.UserService
+	openAIGatewayService     *service.OpenAIGatewayService
+}
+
+func (h *SettingHandler) SetOpenAIGatewayService(gateway *service.OpenAIGatewayService) {
+	h.openAIGatewayService = gateway
 }
 
 // NewSettingHandler 创建系统设置处理器
@@ -265,7 +270,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		DefaultBalance:                                         settings.DefaultBalance,
 		RiskControlEnabled:                                     settings.RiskControlEnabled,
 		CyberSessionBlockEnabled:                               settings.CyberSessionBlockEnabled,
+		CyberPolicyUserAllowlist:                               settings.CyberPolicyUserAllowlist,
 		CyberSessionBlockTTLSeconds:                            settings.CyberSessionBlockTTLSeconds,
+		CyberSessionIdentityStrictEnabled:                      settings.CyberSessionIdentityStrictEnabled,
 		AffiliateRebateRate:                                    settings.AffiliateRebateRate,
 		AffiliateRebateFreezeHours:                             settings.AffiliateRebateFreezeHours,
 		AffiliateRebateDurationDays:                            settings.AffiliateRebateDurationDays,
@@ -303,6 +310,18 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OpenAICodexClientVersion:                               settings.OpenAICodexClientVersion,
 		OpenAICodexClientVersionSynced:                         settings.OpenAICodexClientVersionSynced,
 		OpenAICodexVersionAutoSyncEnabled:                      settings.OpenAICodexVersionAutoSyncEnabled,
+		OpenAICodexTicketEnabled:                               settings.OpenAICodexTicketEnabled,
+		OpenAICodexTicketHarvestProxyURL:                       service.MaskProxyURL(settings.OpenAICodexTicketHarvestProxyURL),
+		OpenAICodexTicketStaticProxyURL:                        service.MaskProxyURL(settings.OpenAICodexTicketStaticProxyURL),
+		OpenAICodexTicketHarvestScope:                          settings.OpenAICodexTicketHarvestScope,
+		OpenAICodexTicketStrategy:                              settings.OpenAICodexTicketStrategy,
+		OpenAICodexTicketStrictResponse:                        settings.OpenAICodexTicketStrictResponse,
+		OpenAICodexTicketFailClosed:                            settings.OpenAICodexTicketFailClosed,
+		OpenAICodexTicketHarvestProxyConfigured:                strings.TrimSpace(settings.OpenAICodexTicketHarvestProxyURL) != "",
+		OpenAICodexTicketModels:                                settings.OpenAICodexTicketModels,
+		ClaudeCodeClientVersion:                                settings.ClaudeCodeClientVersion,
+		ClaudeCodeClientVersionSynced:                          settings.ClaudeCodeClientVersionSynced,
+		ClaudeCodeVersionAutoSyncEnabled:                       settings.ClaudeCodeVersionAutoSyncEnabled,
 		MinCodexVersion:                                        settings.MinCodexVersion,
 		MaxCodexVersion:                                        settings.MaxCodexVersion,
 		CodexCLIOnlyBlacklist:                                  settings.CodexCLIOnlyBlacklist,
@@ -341,13 +360,6 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OpenAIAdvancedSchedulerEffectiveWeightUpstreamCost:     settings.OpenAIAdvancedSchedulerEffectiveWeightUpstreamCost,
 		OpenAIAdvancedSchedulerEffectiveWeightPreviousResponse: settings.OpenAIAdvancedSchedulerEffectiveWeightPreviousResponse,
 		OpenAIAdvancedSchedulerEffectiveWeightSessionSticky:    settings.OpenAIAdvancedSchedulerEffectiveWeightSessionSticky,
-		OpenAIAdvancedSchedulerCandidatePoolMode:               settings.OpenAIAdvancedSchedulerCandidatePoolMode,
-		OpenAIAdvancedSchedulerExplorationRatio:                settings.OpenAIAdvancedSchedulerExplorationRatio,
-		OpenAIAdvancedSchedulerStarvationThresholdSeconds:      settings.OpenAIAdvancedSchedulerStarvationThresholdSeconds,
-		OpenAIAdvancedSchedulerFairnessWeight:                  settings.OpenAIAdvancedSchedulerFairnessWeight,
-		OpenAIAdvancedSchedulerGroupOverrides:                  settings.OpenAIAdvancedSchedulerGroupOverrides,
-		OpenAIAdvancedSchedulerGroupPolicies:                   settings.OpenAIAdvancedSchedulerGroupPolicies,
-		OpenAIAdvancedSchedulerAvailablePresets:                settings.OpenAIAdvancedSchedulerAvailablePresets,
 		BalanceLowNotifyEnabled:                                settings.BalanceLowNotifyEnabled,
 		BalanceLowNotifyThreshold:                              settings.BalanceLowNotifyThreshold,
 		BalanceLowNotifyRechargeURL:                            settings.BalanceLowNotifyRechargeURL,
@@ -366,6 +378,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		PaymentBalanceRechargeMultiplier:                       paymentCfg.BalanceRechargeMultiplier,
 		PaymentSubscriptionUSDToCNYRate:                        paymentCfg.SubscriptionUSDToCNYRate,
 		PaymentRechargeFeeRate:                                 paymentCfg.RechargeFeeRate,
+		PaymentRechargeBonusTiers:                              rechargeBonusTiersToDTO(paymentCfg.RechargeBonusTiers),
+		PaymentRechargeBonusMode:                               rechargeBonusModeToDTO(paymentCfg.RechargeBonusMode),
+		PaymentRechargeBonusNotice:                             paymentCfg.RechargeBonusNotice,
 		PaymentLoadBalanceStrat:                                paymentCfg.LoadBalanceStrategy,
 		PaymentProductNamePrefix:                               paymentCfg.ProductNamePrefix,
 		PaymentProductNameSuffix:                               paymentCfg.ProductNameSuffix,
@@ -391,6 +406,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		GrokDefaultBaseURLMode:         settings.GrokDefaultBaseURLMode,
 
 		AvailableChannelsEnabled: settings.AvailableChannelsEnabled,
+		PelicanShowcaseEnabled:   settings.PelicanShowcaseEnabled,
+		PelicanShowcase:          settings.PelicanShowcase,
+		SubscriptionEnabled:      settings.SubscriptionEnabled,
 
 		ModelPlazaEnabled:       settings.ModelPlazaEnabled,
 		ModelPlazaRequireAuth:   settings.ModelPlazaRequireAuth,
@@ -399,8 +417,27 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 
-		AccountSchedulingThresholds: settings.AccountSchedulingThresholds,
-		AllowUserViewErrorRequests:  settings.AllowUserViewErrorRequests,
+		AccountSchedulingThresholds:   settings.AccountSchedulingThresholds,
+		AllowUserViewErrorRequests:    settings.AllowUserViewErrorRequests,
+		UsageShowLongContextBadge:     settings.UsageShowLongContextBadge,
+		RequestCaptureEnabled:         settings.RequestCaptureEnabled,
+		RequestCaptureQuotaMiB:        settings.RequestCaptureQuotaMiB,
+		RequestCaptureRetentionDays:   settings.RequestCaptureRetentionDays,
+		ExcelBPSImageMode:             settings.ExcelBPSImageMode,
+		ExcelBPSImageRelayEnabled:     settings.ExcelBPSImageRelayEnabled,
+		ExcelBPSImageBaseURL:          settings.ExcelBPSImageBaseURL,
+		ExcelBPSImageBodyLimitMiB:     settings.ExcelBPSImageBodyLimitMiB,
+		ExcelBPSImageBudgetMiB:        settings.ExcelBPSImageBudgetMiB,
+		ExcelBPSImageMaxRequests:      settings.ExcelBPSImageMaxRequests,
+		ExcelBPSImageMaxImageMiB:      settings.ExcelBPSImageMaxImageMiB,
+		ExcelBPSImageLimitPolicy:      settings.ExcelBPSImageLimitPolicy,
+		ExcelBPSImageWarningRemaining: settings.ExcelBPSImageWarningRemaining,
+		ExcelBPSImageCompactReserve:   settings.ExcelBPSImageCompactReserve,
+		ExcelBPSImageMaxImages:        settings.ExcelBPSImageMaxImages,
+		ExcelBPSImageMaxTotalMiB:      settings.ExcelBPSImageMaxTotalMiB,
+		ExcelBPSImageStorageMiB:       settings.ExcelBPSImageStorageMiB,
+		ExcelBPSImageStorageEntries:   settings.ExcelBPSImageStorageEntries,
+		ExcelBPSImageTTLMinutes:       settings.ExcelBPSImageTTLMinutes,
 	}
 
 	// OpenAI fast policy (stored under a dedicated setting key)

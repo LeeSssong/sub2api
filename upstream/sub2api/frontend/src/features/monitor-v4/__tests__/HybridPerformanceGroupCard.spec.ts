@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { compileStyle, parse } from 'vue/compiler-sfc'
 import HybridPerformanceGroupCard from '../HybridPerformanceGroupCard.vue'
 
 const componentSource = readFileSync('src/features/monitor-v4/HybridPerformanceGroupCard.vue', 'utf8')
@@ -34,7 +35,7 @@ describe('HybridPerformanceGroupCard', () => {
     expect(wrapper.find('[data-test="cache-hit-rate"]').exists()).toBe(false)
   })
 
-  it('keeps the cache metric hidden even when its value is empty', () => {
+  it('keeps cache metrics hidden when there are no successful real requests', () => {
     const wrapper = mount(HybridPerformanceGroupCard, { props: { group: { ...group, cache_hit_rate: null } } })
     expect(wrapper.find('[data-test="cache-hit-rate"]').exists()).toBe(false)
   })
@@ -54,8 +55,11 @@ describe('HybridPerformanceGroupCard', () => {
   })
 
   it('targets dark overrides from the document theme ancestor', () => {
-    expect(componentSource).toContain(':global(.dark) .hybrid-card')
-    expect(componentSource).toContain(':global(.dark) .hybrid-metric strong')
+    const style = parse(componentSource).descriptor.styles[0]!
+    const { code, errors } = compileStyle({ source: style.content, filename: 'card.vue', id: 'data-v-test', scoped: true })
+    expect(errors).toEqual([])
+    expect(code).toContain('.dark .hybrid-card {')
+    expect(code).toContain('.dark .hybrid-metric strong {')
   })
 
   it.each([

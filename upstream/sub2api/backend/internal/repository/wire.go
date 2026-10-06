@@ -72,15 +72,25 @@ var ProviderSet = wire.NewSet(
 	NewAdminGroupRepository,
 	NewCompositeModelRouteRepository,
 	NewAccountRepository,
+	NewOpenAITurnStateStore,
 	NewAdminAccountRepository,
+	NewAccountOpsRepository,
+	NewAccountTokenGuardRepository,
+	NewAccountAdmissionRepository,
+	NewOpenAIOAuthReauthRepository,
+	NewAccountTokenGuardV2Repository,
+
 	NewScheduledTestPlanRepository,   // 定时测试计划仓储
 	NewScheduledTestResultRepository, // 定时测试结果仓储
+	NewQualityRuleTemplateRepository, // 质量运维分组规则仓储
+	NewPelicanShowcaseRepository,     // 鹈鹕测智用户展示快照仓储
+	NewPelicanGroupTestRepository,    // 鹈鹕测智分组测试计划与结果仓储
 	NewProxyRepository,
 	NewRedeemCodeRepository,
 	NewPromoCodeRepository,
 	NewAnnouncementRepository,
 	NewAnnouncementReadRepository,
-	NewUsageLogRepository,
+	ProvideUsageLogRepository,
 	NewAccountProbeCostRepository,
 	NewAccountFinancialUsageReader,
 	NewUsageCostEvidenceRepository,
@@ -92,6 +102,8 @@ var ProviderSet = wire.NewSet(
 	NewUsageCleanupRepository,
 	NewDashboardAggregationRepository,
 	NewSettingRepository,
+	NewCodexHarvestNodeRepository,
+	NewCodexHarvestFlowRepository,
 	NewOpsRepository,
 	NewUpstreamBalanceEventRepository,
 	NewAuditLogRepository,
@@ -104,6 +116,7 @@ var ProviderSet = wire.NewSet(
 	NewErrorPassthroughRepository,
 	NewTLSFingerprintProfileRepository,
 	NewPluginRepository,
+	NewPluginKVStore,
 	NewChannelRepository,
 	NewChannelMonitorRepository,
 	NewAccountMonitorRepositoryWithOutbox,
@@ -139,9 +152,7 @@ var ProviderSet = wire.NewSet(
 	NewBatchImageDownloadLimiter,
 	NewLeaderLockCache,
 	ProvideSchedulerCache,
-	ProvideOpenAISharedHealthStore,
 	NewSchedulerOutboxRepository,
-	NewOpenAISchedulerLogRepository,
 	NewAuthCacheInvalidationOutboxRepository,
 	NewProxyLatencyCache,
 	NewTotpCache,
@@ -153,6 +164,7 @@ var ProviderSet = wire.NewSet(
 
 	// Encryptors
 	NewAESEncryptor,
+	NewOpenAICredentialEncryptor,
 
 	// Backup infrastructure
 	NewPgDumper,
@@ -172,6 +184,7 @@ var ProviderSet = wire.NewSet(
 	NewClaudeOAuthClient,
 	NewHTTPUpstream,
 	NewOpenAIOAuthClient,
+	NewOpenAIReferralClient,
 	NewGrokOAuthClient,
 	NewGeminiOAuthClient,
 	NewGeminiCliCodeAssistClient,
@@ -240,4 +253,12 @@ func ProvideSQLDB(client *ent.Client) (*sql.DB, error) {
 // 提供：*redis.Client
 func ProvideRedis(cfg *config.Config) *redis.Client {
 	return InitRedis(cfg)
+}
+
+func ProvideUsageLogRepository(client *ent.Client, db *sql.DB, cfg *config.Config) service.UsageLogRepository {
+	r := newUsageLogRepositoryWithSQL(client, db)
+	if cfg == nil || service.ShouldStartSingleton(cfg.Server.ProcessRole) || cfg.Server.ProcessRole == "" {
+		r.startTimingMaintenance()
+	}
+	return r
 }

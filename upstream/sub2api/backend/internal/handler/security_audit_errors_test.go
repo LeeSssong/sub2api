@@ -9,6 +9,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -154,7 +155,7 @@ func TestLegacyModerationErrorKeepsExistingClientPriority(t *testing.T) {
 	c, recorder := securityAuditErrorTestContext(t)
 	(&GatewayHandler{}).openAISecurityAuditError(c, legacy)
 	require.Equal(t, http.StatusForbidden, recorder.Code)
-	require.Equal(t, "当前模型或分组不可用，请调整后重试。", gjson.GetBytes(recorder.Body.Bytes(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyPermission, "request-error-golden"), gjson.GetBytes(recorder.Body.Bytes(), "error.message").String())
 	require.Contains(t, recorder.Body.String(), "content_policy_violation")
 	require.NotContains(t, recorder.Body.String(), securityaudit.ErrorCodeBlocked)
 }

@@ -1,0 +1,9 @@
+# 2026-10-05 智商监测 Cron 与原生菜单修正
+
+- 结果：按本会话持续发布授权修正并发布主站 `64.83.10.67`。活动槽 green，API healthy；旧 blue 排空 115 秒，forced=false，未回滚。worker、模型检测器、PostgreSQL、Redis、Caddy 的 ID 与启动时间均未变。测试站未查询、未同步。
+- 改动：监测频率改为直接编辑 Cron 的原生文本输入框，保留 datalist 常用频率提示；自定义表达式经原有后端校验/保存/调度。移除“添加智商监测页面”专用按钮与预填充 helper，菜单继续使用原生添加、编辑、排序、可见角色、SVG 和新窗口按钮配置。没有修改任何现有规则或菜单数据，没有后端或数据库迁移变更。
+- 来源：`codex/intelligence-cron-menu@52ba134317` 无冲突合入根 main、推送并重新 fetch 核对。发布 commit `15679c9de17731413dc02c8b4594442a8b540883`，tree `6753b628f57efa4e30bc340c2ee13f8c118d4d85`；根 main 干净、非 detached，commit/tree 与 origin/main 一致，合并 tree 等于测试候选 tree。功能分支已合入，保留为历史证据。后续报告提交不改变应用内容。
+- 制品：从已提交并推送的根 main Git archive 构建一次，source/test/migrations 标签由现有发布门禁核验。Linux/amd64 image ID / manifest digest `sha256:514c0def75a304fcbbd36b3f77d363bf97b963d2b46dbd9dd0248d101d0b5889`；config digest `sha256:1dad7d009c4c2ae35edc7a42ad9686bb84dfb497f4365261dd97baeb4f43daf5`。本地复用同一镜像，仅更新 API；生产与本地的 worker 保留上一版 backend 等价镜像。迁移 hash 保持 `406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b`。
+- 验证：4 项后台规则测试通过，自定义 `5 */3 * * *` 原值提交；1 项原生菜单保存测试通过（77 项无关测试按范围跳过），站内 URL/角色/排序/隐藏按钮通过普通菜单 DTO 往返；生产构建含 locale、vue-tsc、前端打包通过。复用相同后端的已有测试，不重复全量回归。线上 health/readyz、API binary commit 和前端资源检查成功：`PelicanTestsView-DjxacqHc.js` 含自定义 Cron 输入/常用提示；`SettingsView-CK-12u12.js` 无专用添加按钮，原生添加菜单仍在。本地实际组件可编辑任意 Cron，验证草稿取消，未修改用户规则。普通生产 JWT 浏览器验收仍受既有 Turnstile 限制，未绕过；未把资源检查称为线上真实规则运行验收。
+- 阶段耗时：前端镜像阶段 83.7 秒、Go 链接阶段 7.5 秒、镜像导出 3.3 秒；主站约 03:43:51 平滑切流（Asia/Shanghai），排空 115 秒。API-only 发布没有 worker 排空/重建或全量数据库备份。
+- 回滚：`/var/lib/sub2api/release-records/20261004T194337Z-production-3282403.json`；沿用受保护生产参数调用 `/usr/local/libexec/deploy-sub2api-blue-green-host.sh --rollback --record /var/lib/sub2api/release-records/20261004T194337Z-production-3282403.json`。旧 API 镜像 `sha256:44c6abf4b22b9a44f093e775c61665967e00a1e4b509d62466fdca8faab400c0` 与恢复配置保留。

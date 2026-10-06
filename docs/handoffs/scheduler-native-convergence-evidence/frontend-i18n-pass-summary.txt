@@ -1,0 +1,6 @@
+ RUN  v2.1.9 /Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/scheduler-native-convergence/upstream/sub2api/frontend
+ ✓ src/i18n/__tests__/localeKeyCompleteness.spec.ts (3 tests) 99ms
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  00:58:58
+   Duration  50.93s (transform 19.16s, setup 2.03s, collect 27.45s, tests 99ms, environment 8.70s, prepare 1.49s)

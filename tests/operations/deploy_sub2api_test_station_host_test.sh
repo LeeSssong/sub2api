@@ -5,7 +5,7 @@ EXECUTOR=${EXECUTOR_UNDER_TEST:-$ROOT/ops/deploy-sub2api-test-station-host.sh}
 TMP_BASE=$(cd "${TMPDIR:-/tmp}" && pwd -P)
 FIXTURE=$(mktemp -d "$TMP_BASE/test-station-host.XXXXXX")
 trap 'rm -rf -- "$FIXTURE"' EXIT
-fail(){ printf 'FAIL: %s\n' "$1" >&2; exit 1; }
+fail(){ printf 'FAIL: %s\n' "$1" >&2; tail -20 "${EVENT_LOG:-/dev/null}" >&2; exit 1; }
 [[ -f "$EXECUTOR" ]] || fail 'executor missing'
 
 OLD_COMMIT=$(printf '1%.0s' {1..40})
@@ -56,6 +56,9 @@ printf 'backup %s\n' "$*" >>"${EVENT_LOG:?}"
 [[ "${FAKE_MODE:-ok}" != backup-fail ]] || exit 71
 backup_dir="${DEPLOY_ROOT:?}/backups/20260920T120000Z"
 mkdir -p "$backup_dir"
+: >"$backup_dir/postgres.dump"
+: >"$backup_dir/redis-dump.rdb"
+: >"$backup_dir/app-data.tar.gz"
 printf 'test_station_backup status=succeeded backup_dir=%s\n' "$backup_dir"
 SH
   chmod 0700 "$STAGE/backup.sh"
@@ -85,8 +88,10 @@ case "${1:-}" in
       printf '%s\n' "${IMAGE_ID:?}"
     fi
     ;;
+  cp|run) exit 0 ;;
   inspect)
     format=${3:-}; container=${4:-}
+    if [[ "$format" == *'.Mounts'* ]]; then printf 'sub2api-test-station-app-data\n'; exit 0; fi
     if [[ "$format" == '{{.Image}}' && "$container" == old-api-container ]]; then cat "${CASE:?}/old-image-id"; exit 0; fi
     if [[ "$format" == '{{.State.Health.Status}}' ]]; then
       service=${container#*-container}
@@ -94,7 +99,7 @@ case "${1:-}" in
       exit 0
     fi
     if [[ "$format" == '{{.State.Status}}' ]]; then
-      if [[ "$mode" == candidate-caddy-unhealthy && "$container" == candidate-test-station-caddy-container ]]; then printf 'exited\n'; else printf 'running\n'; fi
+      if [[ "$mode" == caddy-exited && "$container" == candidate-test-station-caddy-container ]]; then printf 'exited\n'; else printf 'running\n'; fi
       exit 0
     fi
     exit 63
@@ -103,21 +108,22 @@ case "${1:-}" in
     args="$*"
     [[ "$args" == *'--project-name sub2api-test-station'* ]] || exit 64
     if [[ "$args" == *"-f ${OLD_RELEASE:?}/compose.yaml"* ]]; then phase=previous; else phase=candidate; fi
-    if [[ "$args" == *' config --quiet'* ]]; then exit 0; fi
-    if [[ "$args" == *' stop '* ]]; then exit 0; fi
+    if [[ "$args" == *' config --quiet'* || "$args" == *' cp '* ]]; then exit 0; fi
+    if [[ "$args" == *' stop '* || "$args" == *' start test-station-redis'* || "$args" == *' up -d test-station-postgres test-station-redis'* ]]; then exit 0; fi
     if [[ "$args" == *' exec -T test-station-postgres '* ]]; then
       sql=$(cat)
       printf 'sql %s\n' "$sql" >>"${EVENT_LOG:?}"
       if [[ "$sql" == *'SELECT EXISTS'* ]]; then printf 't\n'; fi
-      if [[ "$mode" == schema-restore-fail && "$sql" == *'ADD COLUMN'* ]]; then exit 74; fi
+      if [[ "$mode" == schema-restore-fail && "$sql" == *'DROP DATABASE'* ]]; then exit 74; fi
       exit 0
     fi
-    if [[ "$args" == *' up -d --remove-orphans'* ]]; then
+    if [[ "$args" == *' up -d --no-deps test-station-detector test-station-worker test-station-api'* ]]; then
       if [[ "$phase" == candidate && "$mode" == candidate-up-fail ]]; then exit 72; fi
       if [[ "$phase" == previous && "$mode" == rollback-fail ]]; then exit 73; fi
       printf '%s\n' "$phase" >"${ACTIVE_PHASE:?}"
       exit 0
     fi
+    if [[ "$args" == *' ps -aq '* ]]; then printf 'previous-container\n'; exit 0; fi
     if [[ "$args" == *' ps -q '* ]]; then
       service=${args##* ps -q }
       if [[ "$phase" == candidate && "$mode" == transient-worker && "$service" == test-station-worker ]]; then
@@ -201,7 +207,7 @@ assert_no_destructive_commands(){
   ! grep -Eq 'compose .* down|volume rm| down -v' "$EVENT_LOG" || fail 'destructive Docker command used'
 }
 assert_rollback_invoked(){
-  grep -F -- "-f $OLD_RELEASE/compose.yaml up -d --remove-orphans" "$EVENT_LOG" >/dev/null || fail 'previous release was not restored'
+  grep -F -- "-f $OLD_RELEASE/compose.yaml up -d --no-deps test-station-detector test-station-worker test-station-api" "$EVENT_LOG" >/dev/null || fail 'previous release was not restored'
   [[ "$(cat "$ACTIVE_PHASE")" == previous ]] || fail 'active phase is not previous'
   assert_no_destructive_commands
 }
@@ -258,7 +264,7 @@ PY
       image-mismatch) FAKE_MODE=image-mismatch ;;
     esac
     if FAKE_MODE="${FAKE_MODE:-ok}" run_exec >/dev/null 2>&1; then fail "$case_name returned success"; fi
-    ! grep -F -- "-f $(candidate_release)/compose.yaml up -d --remove-orphans" "$EVENT_LOG" >/dev/null || fail "$case_name started candidate"
+    ! grep -F -- "-f $(candidate_release)/compose.yaml up -d --no-deps test-station-detector test-station-worker test-station-api" "$EVENT_LOG" >/dev/null || fail "$case_name started candidate"
     [[ "$(cat "$ACTIVE_PHASE")" == previous ]] || fail "$case_name changed active phase"
     assert_no_destructive_commands
     unset FAKE_MODE
@@ -274,7 +280,7 @@ test_transient_service_health_recovers(){
 
 test_candidate_failures_restore_previous(){
   local mode
-  for mode in candidate-up-fail candidate-worker-unhealthy candidate-caddy-unhealthy readiness-html readiness-malformed readiness-not-ready readiness-flaky; do
+  for mode in candidate-up-fail candidate-worker-unhealthy readiness-html readiness-malformed readiness-not-ready readiness-flaky; do
     setup "$mode"
     if FAKE_MODE=$mode run_exec >/dev/null 2>&1; then fail "$mode returned success"; fi
     assert_rollback_invoked
@@ -334,16 +340,17 @@ test_route_health_rollback_restores_schema_first(){
   python3 - "$EVENT_LOG" <<'CHECK'
 import sys
 s=open(sys.argv[1]).read()
-assert s.index(' stop test-station-api test-station-worker test-station-detector') < s.index(' up -d --remove-orphans')
-assert s.index('ADD COLUMN IF NOT EXISTS current_operational') < s.rindex(' up -d --remove-orphans')
-assert 'DELETE FROM schema_migrations' in s
+assert s.index(' stop test-station-api test-station-worker test-station-detector') < s.index(' up -d --no-deps test-station-detector test-station-worker test-station-api')
+assert s.index('pg_restore') < s.rindex(' up -d --no-deps test-station-detector test-station-worker test-station-api')
+assert 'DROP DATABASE %I' in s and 'app-data.tar.gz' in s and 'redis-dump.rdb' in s
+assert 'DELETE FROM schema_migrations' not in s
 CHECK
 }
 
 test_route_health_restore_failure_does_not_start_old_binary(){
   setup route-schema-fail
   if ROUTE_HEALTH_ARGS='--route-health-migration true --allow-downtime true' FAKE_MODE=schema-restore-fail TEST_STATION_PROBE_ATTEMPTS=1 run_exec >/dev/null 2>&1; then fail 'schema restore failure succeeded'; fi
-  ! grep -F -- "-f $OLD_RELEASE/compose.yaml up -d" "$EVENT_LOG" >/dev/null || fail 'old binary started on incompatible schema'
+  ! grep -F -- "-f $OLD_RELEASE/compose.yaml up -d --no-deps" "$EVENT_LOG" >/dev/null || fail 'old binary started on incompatible schema'
 }
 
 test_route_health_requires_downtime_permission

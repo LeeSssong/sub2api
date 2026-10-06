@@ -1,0 +1,3 @@
+ok  	github.com/Wei-Shaw/sub2api/internal/server	5.362s
+ok  	github.com/Wei-Shaw/sub2api/internal/server/middleware	3.804s [no tests to run]
+ok  	github.com/Wei-Shaw/sub2api/internal/server/routes	2.046s

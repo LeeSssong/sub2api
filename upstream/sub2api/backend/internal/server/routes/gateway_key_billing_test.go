@@ -44,6 +44,10 @@ func (r *keyBillingRouteRateRepo) GetRPMOverrideByUserAndGroup(context.Context, 
 	return nil, nil
 }
 
+func (r *keyBillingRouteRateRepo) GetDeniedModelsByUserAndGroup(context.Context, int64, int64) ([]string, error) {
+	return nil, nil
+}
+
 func newKeyBillingRouteTestRouter(runMode string) (*gin.Engine, *keyBillingRouteRateRepo, string) {
 	gin.SetMode(gin.TestMode)
 	group := &service.Group{
@@ -80,7 +84,7 @@ func newKeyBillingRouteTestRouter(runMode string) (*gin.Engine, *keyBillingRoute
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	openAIGatewayService := service.NewOpenAIGatewayService(
-		nil, nil, nil, nil, nil, rateRepo, nil, cfg, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, rateRepo, nil, cfg, nil, nil, nil,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	gatewayHandler := handler.NewGatewayHandler(
@@ -165,7 +169,7 @@ func TestGatewayRoutesKeyBillingInfoEndToEnd(t *testing.T) {
 			"type": "error",
 			"error": {
 				"type": "not_found_error",
-				"message": "Billing information is not supported in simple mode"
+				"message": "请求处理失败，请检查后重试。如需协助请联系管理员。"
 			}
 		}`, w.Body.String())
 		require.Zero(t, rateRepo.lookupCalls)

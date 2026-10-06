@@ -16,7 +16,21 @@ source_tree=$(git -C "$worktree" rev-parse 'HEAD^{tree}')
 [[ "$source_commit" =~ ^[a-f0-9]{40}$ && "$source_tree" =~ ^[a-f0-9]{40}$ ]] || fail 'source identity is invalid'
 
 target=${TEST_STATION_SSH_TARGET:-sub2api-test-station}
-[[ "$target" == sub2api-test-station ]] || fail 'unsafe SSH target'
+ssh_known_hosts=''
+ssh_port=''
+if [[ "$target" == sub2api-test-station ]]; then
+  :
+elif [[ "$target" == ubuntu@43.133.75.82 ]]; then
+  ssh_known_hosts=${TEST_STATION_APPROVED_KNOWN_HOSTS:-/tmp/sub2api-uiux-verified-known-hosts}
+  ssh_key=${TEST_STATION_APPROVED_KEY:-/Users/gongtengxinwen/.ssh/tencent_lighthouse_seoul_sub2api}
+  [[ "$ssh_known_hosts" == /tmp/sub2api-uiux-verified-known-hosts && -f "$ssh_known_hosts" && ! -L "$ssh_known_hosts" ]] || fail 'approved 43.133.75.82 known-hosts file is required'
+  [[ "$(stat -f '%Lp' "$ssh_known_hosts" 2>/dev/null || stat -c '%a' "$ssh_known_hosts")" == 600 ]] || fail 'approved known-hosts file must be 0600'
+  [[ "$ssh_key" == /Users/gongtengxinwen/.ssh/tencent_lighthouse_seoul_sub2api && -f "$ssh_key" && ! -L "$ssh_key" ]] || fail 'approved 43.133.75.82 key is required'
+  [[ "$(stat -f '%Lp' "$ssh_key" 2>/dev/null || stat -c '%a' "$ssh_key")" == 600 ]] || fail 'approved SSH key must be 0600'
+  ssh_port=22
+else
+  fail 'unsafe SSH target'
+fi
 deploy_root=/opt/sub2api-test-station
 build_context="$worktree/upstream/sub2api"
 migrations_dir="$build_context/backend/migrations"
@@ -45,6 +59,14 @@ ssh_opts=(
   -o TCPKeepAlive=yes
   -o StrictHostKeyChecking=yes
 )
+if [[ -n "$ssh_known_hosts" ]]; then
+  ssh_opts+=( -o "Port=$ssh_port" -i "$ssh_key" -o "UserKnownHostsFile=$ssh_known_hosts" -o IdentitiesOnly=yes )
+  ssh_config=$(ssh -G "${ssh_opts[@]}" "$target" 2>/dev/null) || fail 'approved SSH target resolution failed'
+  grep -Eq '^hostname 43\.133\.75\.82$' <<<"$ssh_config" || fail 'SSH target hostname mismatch'
+  grep -Eq '^user ubuntu$' <<<"$ssh_config" || fail 'SSH target user mismatch'
+  grep -Fqx "identityfile $ssh_key" <<<"$ssh_config" || fail 'SSH target identity mismatch'
+  grep -Eq '^port 22$' <<<"$ssh_config" || fail 'SSH target port mismatch'
+fi
 release_reconcile_attempts=${TEST_STATION_RELEASE_RECONCILE_ATTEMPTS:-6}
 release_reconcile_interval=${TEST_STATION_RELEASE_RECONCILE_INTERVAL_SECONDS:-10}
 [[ "$release_reconcile_attempts" =~ ^[1-9][0-9]*$ ]] || fail 'release reconciliation attempts are invalid'
@@ -74,6 +96,8 @@ migration_set_sha256=$(ruby -rdigest -e '
 
 allow_downtime=${TEST_STATION_ALLOW_DOWNTIME:-false}
 [[ "$allow_downtime" == true || "$allow_downtime" == false ]] || fail 'invalid downtime permission'
+maintenance_mode=${TEST_STATION_MAINTENANCE_MODE:-false}
+[[ "$maintenance_mode" == false || ( "$maintenance_mode" == true && "$allow_downtime" == true ) ]] || fail 'maintenance mode requires downtime authorization'
 route_health_migration=false
 [[ ! -f "$migrations_dir/241_remove_monitor_v4_operational_flag.sql" ]] || route_health_migration=true
 
@@ -100,7 +124,7 @@ scp -q "${ssh_opts[@]}" "$tmp/image.tar" "$tmp/image.sha256" "$tmp/compose.yaml"
   "$tmp/backup-sub2api-test-station-host.sh" "$tmp/deploy-sub2api-test-station-host.sh" \
   "$target:$remote/" || fail 'bundle transfer failed'
 if ! ssh -T "${ssh_opts[@]}" "$target" \
-  "sudo -n bash '$remote/deploy-sub2api-test-station-host.sh' --staging-root '$remote' --image-archive '$remote/image.tar' --image-sha256 '$archive_sha256' --image-id '$image_id' --compose '$remote/compose.yaml' --caddy '$remote/Caddyfile' --backup-script '$remote/backup-sub2api-test-station-host.sh' --source-commit '$source_commit' --source-tree '$source_tree' --migration-set-sha256 '$migration_set_sha256' --deploy-root '$deploy_root' --route-health-migration '$route_health_migration' --allow-downtime '$allow_downtime'"; then
+  "sudo -n bash '$remote/deploy-sub2api-test-station-host.sh' --staging-root '$remote' --image-archive '$remote/image.tar' --image-sha256 '$archive_sha256' --image-id '$image_id' --compose '$remote/compose.yaml' --caddy '$remote/Caddyfile' --backup-script '$remote/backup-sub2api-test-station-host.sh' --source-commit '$source_commit' --source-tree '$source_tree' --migration-set-sha256 '$migration_set_sha256' --deploy-root '$deploy_root' --maintenance-mode '$maintenance_mode' --route-health-migration '$route_health_migration' --allow-downtime '$allow_downtime'"; then
   reconciled=false
   for ((attempt=1; attempt<=release_reconcile_attempts; attempt++)); do
     if remote_release_succeeded; then

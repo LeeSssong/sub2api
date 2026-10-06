@@ -80,7 +80,7 @@ if [[ "${1:-}" == compose ]]; then
       ;;
     'ps -q test-station-postgres') printf 'postgres-container\n' ;;
     'ps -q test-station-redis') printf 'redis-container\n' ;;
-    'ps -q test-station-api') printf 'api-container\n' ;;
+    'ps -aq test-station-api') printf 'api-container\n' ;;
     *) exit 66 ;;
   esac
 elif [[ "${1:-}" == cp ]]; then

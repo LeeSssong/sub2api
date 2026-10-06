@@ -1,0 +1,10 @@
+ RUN  v2.1.9 /Users/gongtengxinwen/Documents/sub2api搭建/.worktrees/scheduler-native-convergence/upstream/sub2api/frontend
+ ✓ src/views/admin/scheduler/__tests__/schedulerPolicy.spec.ts (3 tests) 4ms
+ ✓ src/views/admin/ops/components/__tests__/OpsOpenAISchedulerExperienceCard.spec.ts (6 tests) 54ms
+ ✓ src/views/admin/__tests__/SchedulerLogsView.spec.ts (2 tests) 34ms
+ ✓ src/views/admin/__tests__/AccountMonitorView.spec.ts (36 tests) 332ms
+ ✓ src/views/admin/__tests__/SettingsView.spec.ts (50 tests | 11 skipped) 1291ms
+ Test Files  5 passed (5)
+      Tests  86 passed | 11 skipped (97)
+   Start at  00:57:05
+   Duration  3.84s (transform 3.77s, setup 305ms, collect 5.61s, tests 1.71s, environment 1.43s, prepare 281ms)

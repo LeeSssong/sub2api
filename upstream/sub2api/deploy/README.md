@@ -9,6 +9,7 @@ This directory contains files for deploying Sub2API on Linux servers and Apple-s
 | **Docker Compose** | Quick setup, all-in-one | Not needed (auto-setup) |
 | **Apple container** | Native local stack on macOS 26 | Not needed (auto-setup) |
 | **Binary Install** | Production servers, systemd | Web-based wizard |
+| **[Kubernetes / K3s](kubernetes/README.md)** | Request replicas with a shared primary | Pre-provisioned config / Secrets |
 
 ## Files
 
@@ -42,7 +43,7 @@ Apple-silicon Macs running macOS 26 can run the complete Sub2API, PostgreSQL, an
 ./apple-container.sh logs app -f
 ```
 
-The script uses Apple named volumes, starts dependencies in order, and performs live readiness checks. It does not provide a continuous restart supervisor; run `./apple-container.sh up` after a host reboot. Docker Compose remains the recommended production deployment path.
+The script uses Apple named volumes, starts dependencies in order, and performs live readiness checks. The application container supervises the Sub2API process so the Web UI's update-and-restart flow can relaunch an updated binary. It does not provide host-level automatic startup; run `./apple-container.sh up` after a host reboot. Docker Compose remains the recommended production deployment path.
 
 See [APPLE_CONTAINER.md](./APPLE_CONTAINER.md) for configuration, upgrades, persistence, networking behavior, and limitations.
 
@@ -265,6 +266,8 @@ docker compose down -v
 | `GEMINI_OAUTH_CLIENT_SECRET` | No | *(builtin)* | Google OAuth client secret (Gemini OAuth). Leave empty to use the built-in Gemini CLI client. |
 | `GEMINI_OAUTH_SCOPES` | No | *(default)* | OAuth scopes (Gemini OAuth) |
 | `GEMINI_QUOTA_POLICY` | No | *(empty)* | JSON overrides for Gemini local quota simulation (Code Assist only). |
+| `GATEWAY_API_KEY_QUEUE_MAX_WAITING` | No | `5` | Extra waiting requests per API key with `concurrency_limit>0`; `0` disables key queueing and restores immediate `429`. Read at process start; recreate the container after changing. |
+| `GATEWAY_API_KEY_QUEUE_TIMEOUT_SECONDS` | No | `30` | Per-request wait budget in seconds for key capacity; must be a positive integer. Read at process start; recreate the container after changing. |
 
 See `.env.example` for all available options.
 

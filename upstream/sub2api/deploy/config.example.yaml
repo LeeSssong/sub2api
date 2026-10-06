@@ -1,3 +1,9 @@
+# Process role: full retains the dashboard and global background jobs (default).
+# gateway exposes model gateway APIs only and keeps request-local workers running.
+# Keep exactly one full instance until every enabled global job has a shared lease.
+runtime:
+  role: "full"
+
 # Sub2API Configuration File
 # Sub2API 配置文件
 #
@@ -11,6 +17,14 @@
 # 服务器配置
 # =============================================================================
 server:
+  # Shared PostgreSQL/Redis readiness budget: 0 = 1s (default), allowed 1..60s.
+  # If changed, Kubernetes readinessProbe.timeoutSeconds must exceed this budget.
+  readiness_timeout_seconds: 0
+  # HTTP/WS request drain budget after load-balancer withdrawal (seconds).
+  # Default 5 preserves existing deployments; Kubernetes example uses 240.
+  graceful_shutdown_timeout: 5
+  # Fail readiness/reject new work, then wait for endpoint propagation.
+  shutdown_drain_delay: 0
   # Bind address (0.0.0.0 for all interfaces)
   # 绑定地址（0.0.0.0 表示监听所有网络接口）
   host: "0.0.0.0"
@@ -100,6 +114,14 @@ webauthn:
 # - simple: 隐藏 SaaS 功能，跳过计费和余额校验
 run_mode: "standard"
 
+simple_mode:
+  # 仅控制简易模式启动时补齐默认分组；false 不删除已有分组，不改变运行时自动绑定或管理员并发设置。
+  # 环境变量：SIMPLE_MODE_AUTO_CREATE_DEFAULT_GROUPS
+  auto_create_default_groups: true
+
+# Enforce API-key 5h/1d/7d spending windows in simple mode; other billing stays disabled.
+simple_mode_key_rate_limit_enabled: false
+
 # =============================================================================
 # CORS Configuration
 # 跨域资源共享 (CORS) 配置
@@ -147,6 +169,7 @@ security:
       - "api.moonshot.cn"
       - "open.bigmodel.cn"
       - "api.minimaxi.com"
+      - "opencode.ai"
       - "generativelanguage.googleapis.com"
       - "cloudcode-pa.googleapis.com"
       - "*.openai.azure.com"
@@ -305,11 +328,11 @@ gateway:
   # OpenAI 透传模式是否放行客户端超时头（如 x-stainless-timeout）
   # 默认 false：过滤超时头，降低上游提前断流风险。
   openai_passthrough_allow_timeout_headers: false
-  # Model used for OpenAI /responses/compact upstream requests (default: gpt-5.4).
-  # OpenAI /responses/compact 上游模型（默认 gpt-5.4）。
+  # Model used for OpenAI /responses/compact upstream requests (default: gpt-5.5).
+  # OpenAI /responses/compact 上游模型（默认 gpt-5.5）。
   # Use this to avoid compact failures when newer models are not yet supported by the compact endpoint.
   # 当 compact 端点暂未支持更新模型时，可通过这里降级规避失败。
-  openai_compact_model: "gpt-5.4"
+  openai_compact_model: "gpt-5.5"
   # ChatGPT Frameless Live 单会话硬上限（秒）。
   live:
     max_session_duration_seconds: 3600
@@ -356,10 +379,16 @@ gateway:
     max_idle_per_account: 12
     # 是否按账号并发动态计算连接池上限：
     # effective_max_conns = min(max_conns_per_account, ceil(account.concurrency * factor))
+    # 旧版及 mode_router_v2 的 ctx_pool 共用此开关和下方类型系数；关闭后使用 max_conns_per_account。
+    # mode_router_v2 下并发数 <= 0 的账号仍不可调度。
     dynamic_max_conns_by_account_concurrency_enabled: true
-    # 按账号类型分别设置系数（OAuth / API Key）
-    oauth_max_conns_factor: 1.0
-    apikey_max_conns_factor: 1.0
+    # 按账号类型分别设置系数（OAuth / API Key）。
+    # ctx_pool 接入下每个客户端会话在整个生命周期（轮次之间也不释放）持有一条上游连接，
+    # 该上限限制的是同时持有连接的会话数，在飞请求数另由账号并发限制；
+    # 系数 1.0 会让存活会话数一到并发数，新会话就收到 1013 upstream websocket is busy。
+    # 空闲连接数另受 max_idle_per_account 裁剪。
+    oauth_max_conns_factor: 5.0
+    apikey_max_conns_factor: 5.0
     dial_timeout_seconds: 10
     read_timeout_seconds: 900
     write_timeout_seconds: 120
@@ -513,6 +542,15 @@ gateway:
     # Max image requests waiting in this process when overflow_mode=wait, 0=unlimited
     # wait 模式当前进程允许排队等待的图片请求数，0=不限制
     max_waiting_requests: 100
+  # API Key concurrency wait queue. Global policy; no per-key database field.
+  # API Key 并发等待队列（全局策略，无逐 Key 数据库字段；进程启动时读取）。
+  api_key_queue:
+    # Extra waiting requests per API key with concurrency_limit>0; 0 disables key queueing.
+    # 每个受限 Key 允许额外等待的请求数；0 关闭 Key 排队（仍保留并发上限）。
+    max_waiting: 5
+    # Max wait budget per request in seconds (positive integer; 0 is rejected).
+    # 单个请求等待 Key 容量的最长秒数（正整数，0 会被拒绝）。
+    timeout_seconds: 30
   # SSE max line size in bytes (default: 40MB)
   # SSE 单行最大字节数（默认 40MB）
   max_line_size: 41943040
@@ -711,6 +749,19 @@ api_key_auth_cache:
     # Maximum tracked client identities per process; memory remains bounded.
     # 每进程最多跟踪的客户端身份数量，确保内存有界。
     capacity: 16384
+
+# =============================================================================
+# API Key Creation Limits
+# 用户创建 API Key 的防滥用限制（0 表示不限制）
+# =============================================================================
+api_key_create:
+  # Maximum non-deleted API keys per user
+  # 单个用户同时存在（未删除）的 API Key 上限
+  max_active_per_user: 200
+  # Maximum API key creations per user per hour (custom and generated keys).
+  # Deleting a key does not refund the count, which blocks delete/recreate loops.
+  # 单个用户每小时可创建的 API Key 次数（自定义与自动生成均计入）；删除 Key 不返还次数，阻断删建循环
+  max_per_user_per_hour: 60
 
 # =============================================================================
 # Dashboard Cache Configuration

@@ -118,7 +118,8 @@ func TestWriteOpenAICompactSSEBridge_AfterKeepaliveCommitFailureEmitsFailedEvent
 	require.Len(t, events, 1)
 	require.Equal(t, "response.failed", events[0][0])
 	require.Equal(t, "failed", gjson.Get(events[0][1], "response.status").String())
-	require.Contains(t, gjson.Get(events[0][1], "response.error.message").String(), "upstream exploded")
+	require.Contains(t, gjson.Get(events[0][1], "response.error.message").String(), NativeUserCopyAbnormal)
+	require.NotContains(t, gjson.Get(events[0][1], "response.error.message").String(), "upstream exploded")
 	require.NotEmpty(t, gjson.Get(events[0][1], "response.id").String())
 
 	streamErr, ok := GetOpsStreamError(c)
@@ -274,7 +275,8 @@ func TestWriteOpenAIFastPolicyBlockedResponse_AfterKeepaliveCommit(t *testing.T)
 	require.Len(t, events, 1)
 	require.Equal(t, "response.failed", events[0][0])
 	require.Equal(t, "permission_error", gjson.Get(events[0][1], "response.error.code").String())
-	require.Contains(t, gjson.Get(events[0][1], "response.error.message").String(), "tier blocked")
+	require.Contains(t, gjson.Get(events[0][1], "response.error.message").String(), NativeUserCopyPermission)
+	require.NotContains(t, gjson.Get(events[0][1], "response.error.message").String(), "tier blocked")
 }
 
 // failover"是否已写响应"判定的口径：心跳字节必须被排除，否则 compact 在

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Wei-Shaw/sub2api/internal/service/basispoints"
 	"log/slog"
 	"math"
 	"sort"
@@ -206,6 +207,12 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		// Available channels feature (default disabled; opt-in)
 		SettingKeyAvailableChannelsEnabled: "false",
 
+		// Pelican showcase (default disabled; opt-in). A missing config means the defaults.
+		SettingKeyPelicanShowcaseEnabled: "true",
+
+		// Subscription feature (default enabled; opt-out)
+		SettingKeySubscriptionEnabled: "true",
+
 		// Model plaza feature (default disabled; opt-in, public unless require_auth)
 		SettingKeyModelPlazaEnabled:       "false",
 		SettingKeyModelPlazaRequireAuth:   "false",
@@ -220,8 +227,10 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyRiskControlEnabled: "false",
 
 		// cyber 会话屏蔽（默认关闭，TTL 默认 3600s）
-		SettingKeyCyberSessionBlockEnabled:    "false",
-		SettingKeyCyberSessionBlockTTLSeconds: "3600",
+		SettingKeyCyberSessionBlockEnabled:          "false",
+		SettingKeyCyberSessionBlockTTLSeconds:       "3600",
+		SettingKeyCyberSessionIdentityStrictEnabled: "false",
+		SettingKeyCyberPolicyUserAllowlist:          "",
 
 		// Claude Code version check (default: empty = disabled)
 		SettingKeyMinClaudeCodeVersion: "",
@@ -247,6 +256,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOpenAICodexClientVersion:                           "",
 		SettingKeyOpenAICodexClientVersionSynced:                     "",
 		SettingKeyOpenAICodexVersionAutoSyncEnabled:                  "true",
+		SettingKeyOpenAICodexTicketHarvestProxyURL:                   "",
 		SettingPaymentVisibleMethodAlipaySource:                      "",
 		SettingPaymentVisibleMethodWxpaySource:                       "",
 		SettingPaymentVisibleMethodAlipayEnabled:                     "false",
@@ -265,13 +275,25 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOpenAIAdvancedSchedulerWeightUpstreamCost:          "",
 		SettingKeyOpenAIAdvancedSchedulerWeightPreviousResponse:      "",
 		SettingKeyOpenAIAdvancedSchedulerWeightSessionSticky:         "",
-		SettingKeyOpenAIAdvancedSchedulerCandidatePoolMode:           OpenAISchedulerCandidatePoolModeHybrid,
-		SettingKeyOpenAIAdvancedSchedulerExplorationRatio:            "20",
-		SettingKeyOpenAIAdvancedSchedulerStarvationThresholdSeconds:  "21600",
-		SettingKeyOpenAIAdvancedSchedulerFairnessWeight:              "2",
-		SettingKeyOpenAIAdvancedSchedulerGroupOverrides:              "{}",
 
 		SettingKeyAllowUserViewErrorRequests: "false",
+		SettingKeyExcelBPSImageMode:          ExcelBPSImageModeNative,
+		SettingKeyExcelBPSImageRelayEnabled:  "true",
+		SettingKeyExcelBPSImageBaseURL:       "",
+
+		SettingKeyUsageShowLongContextBadge:     "true",
+		SettingKeyExcelBPSImageBodyLimitMiB:     strconv.Itoa(DefaultExcelBPSImageBodyLimitMiB),
+		SettingKeyExcelBPSImageBudgetMiB:        strconv.Itoa(DefaultExcelBPSImageBudgetMiB),
+		SettingKeyExcelBPSImageMaxRequests:      strconv.Itoa(DefaultExcelBPSImageMaxRequests),
+		SettingKeyExcelBPSImageMaxImageMiB:      "20",
+		SettingKeyExcelBPSImageLimitPolicy:      "off",
+		SettingKeyExcelBPSImageWarningRemaining: "8",
+		SettingKeyExcelBPSImageCompactReserve:   "3",
+		SettingKeyExcelBPSImageMaxImages:        "20",
+		SettingKeyExcelBPSImageMaxTotalMiB:      "32",
+		SettingKeyExcelBPSImageStorageMiB:       "1024",
+		SettingKeyExcelBPSImageStorageEntries:   "512",
+		SettingKeyExcelBPSImageTTLMinutes:       "30",
 	}
 
 	return s.settingRepo.SetMultiple(ctx, defaults)
@@ -830,6 +852,17 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	// Available channels feature (default: disabled; strict true)
 	result.AvailableChannelsEnabled = settings[SettingKeyAvailableChannelsEnabled] == "true"
 
+	// Pelican showcase (default: disabled; strict true). A corrupt config is shown as the
+	// defaults so the admin page still loads; the runtime reader fails closed on it.
+	result.PelicanShowcaseEnabled = settings[SettingKeyPelicanShowcaseEnabled] == "true"
+	result.PelicanShowcase = DefaultPelicanShowcaseConfig()
+	if showcase, err := parsePelicanShowcaseConfig(settings[SettingKeyPelicanShowcaseConfig]); err == nil {
+		result.PelicanShowcase = showcase
+	}
+
+	// Subscription feature (default: enabled; only an explicit false disables)
+	result.SubscriptionEnabled = !isFalseSettingValue(settings[SettingKeySubscriptionEnabled])
+
 	// Model plaza feature (default: disabled; strict true)
 	result.ModelPlazaEnabled = settings[SettingKeyModelPlazaEnabled] == "true"
 	result.ModelPlazaRequireAuth = settings[SettingKeyModelPlazaRequireAuth] == "true"
@@ -844,11 +877,13 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 
 	// cyber 会话屏蔽（默认关闭，TTL 默认 3600s）
 	result.CyberSessionBlockEnabled = settings[SettingKeyCyberSessionBlockEnabled] == "true"
+	result.CyberPolicyUserAllowlist = settings[SettingKeyCyberPolicyUserAllowlist]
 	if v, err := strconv.Atoi(strings.TrimSpace(settings[SettingKeyCyberSessionBlockTTLSeconds])); err == nil && v > 0 {
 		result.CyberSessionBlockTTLSeconds = v
 	} else {
 		result.CyberSessionBlockTTLSeconds = 3600
 	}
+	result.CyberSessionIdentityStrictEnabled = settings[SettingKeyCyberSessionIdentityStrictEnabled] == "true"
 
 	// Claude Code version check
 	result.MinClaudeCodeVersion = settings[SettingKeyMinClaudeCodeVersion]
@@ -895,6 +930,37 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	} else {
 		result.OpenAICodexVersionAutoSyncEnabled = true
 	}
+	if v, ok := settings[SettingKeyOpenAICodexTicketEnabled]; ok && v != "" {
+		result.OpenAICodexTicketEnabled = v == "true"
+	} else if s != nil && s.cfg != nil {
+		result.OpenAICodexTicketEnabled = s.cfg.Gateway.OpenAICodexTicket.Enabled
+	}
+	// Missing values intentionally stay false. Ticket harvesting remains active,
+	// while scheduling is fail-open unless an administrator explicitly opts in.
+	result.OpenAICodexTicketFailClosed = settings[SettingKeyOpenAICodexTicketFailClosed] == "true"
+	result.OpenAICodexTicketHarvestProxyURL = strings.TrimSpace(settings[SettingKeyOpenAICodexTicketHarvestProxyURL])
+	harvestScope, harvestScopeErr := parseCodexTicketHarvestScope(settings[SettingKeyOpenAICodexTicketHarvestScope])
+	result.OpenAICodexTicketHarvestScope = harvestScope
+	if harvestScopeErr != nil {
+		result.OpenAICodexTicketHarvestScope = CodexTicketHarvestScope{Mode: "selected", GroupIDs: []int64{}}
+	}
+	result.OpenAICodexTicketStrategy = NormalizeCodexTicketStrategy(settings[SettingKeyOpenAICodexTicketStrategy])
+	result.OpenAICodexTicketStrictResponse = settings[SettingKeyOpenAICodexTicketStrict] == "true"
+	result.OpenAICodexTicketStaticProxyURL = strings.TrimSpace(settings[SettingKeyOpenAICodexTicketStaticProxyURL])
+	if raw, ok := settings[SettingKeyOpenAICodexTicketModels]; ok && strings.TrimSpace(raw) != "" {
+		var models []string
+		if err := json.Unmarshal([]byte(raw), &models); err == nil {
+			result.OpenAICodexTicketModels = NormalizeOpenAICodexTicketModels(models)
+		}
+	}
+	if result.OpenAICodexTicketModels == nil && s != nil && s.cfg != nil {
+		if len(s.cfg.Gateway.OpenAICodexTicket.Models) > 0 {
+			result.OpenAICodexTicketModels = NormalizeOpenAICodexTicketModels(s.cfg.Gateway.OpenAICodexTicket.Models)
+		}
+	}
+	if result.OpenAICodexTicketModels == nil {
+		result.OpenAICodexTicketModels = []string{openAICodexTicketDefaultModel, openAICodexTicketDefaultSolModel}
+	}
 	// codex_cli_only 加固
 	result.MinCodexVersion = settings[SettingKeyMinCodexVersion]
 	result.MaxCodexVersion = settings[SettingKeyMaxCodexVersion]
@@ -919,7 +985,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.PaymentVisibleMethodAlipayEnabled = settings[SettingPaymentVisibleMethodAlipayEnabled] == "true"
 	result.PaymentVisibleMethodWxpayEnabled = settings[SettingPaymentVisibleMethodWxpayEnabled] == "true"
 	result.OpenAILowUpstreamRatePriorityEnabled = settings[SettingKeyOpenAILowUpstreamRatePriorityEnabled] == "true"
-	result.OpenAIOAuthSchedulingRateMultiplier = parseOpenAIOAuthSchedulingRateMultiplier(settings[SettingKeyOpenAIOAuthSchedulingRateMultiplier])
+	result.OpenAIOAuthSchedulingRateMultiplier = parseOpenAIOAuthSchedulingRateMultiplier(settings)
 	result.OpenAIAdvancedSchedulerEnabled = settings[openAIAdvancedSchedulerSettingKey] == "true"
 	result.OpenAIAdvancedSchedulerStickyWeightedEnabled = settings[SettingKeyOpenAIAdvancedSchedulerStickyWeightedEnabled] == "true"
 	result.OpenAIAdvancedSchedulerSubscriptionPriorityEnabled = settings[SettingKeyOpenAIAdvancedSchedulerSubscriptionPriorityEnabled] == "true"
@@ -934,25 +1000,6 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.OpenAIAdvancedSchedulerWeightUpstreamCost = normalizeOpenAISchedulerWeightForRead(settings[SettingKeyOpenAIAdvancedSchedulerWeightUpstreamCost])
 	result.OpenAIAdvancedSchedulerWeightPreviousResponse = normalizeOpenAISchedulerWeightForRead(settings[SettingKeyOpenAIAdvancedSchedulerWeightPreviousResponse])
 	result.OpenAIAdvancedSchedulerWeightSessionSticky = normalizeOpenAISchedulerWeightForRead(settings[SettingKeyOpenAIAdvancedSchedulerWeightSessionSticky])
-	fairness := normalizeOpenAISchedulerFairnessSettingsForRead(OpenAISchedulerFairnessSettings{
-		CandidatePoolMode:          settings[SettingKeyOpenAIAdvancedSchedulerCandidatePoolMode],
-		ExplorationRatio:           parseIntSettingOrDefault(settings[SettingKeyOpenAIAdvancedSchedulerExplorationRatio], 20),
-		StarvationThresholdSeconds: parseIntSettingOrDefault(settings[SettingKeyOpenAIAdvancedSchedulerStarvationThresholdSeconds], 21600),
-		FairnessWeight:             parseFloatSettingOrDefault(settings[SettingKeyOpenAIAdvancedSchedulerFairnessWeight], 2),
-	})
-	result.OpenAIAdvancedSchedulerCandidatePoolMode = fairness.CandidatePoolMode
-	result.OpenAIAdvancedSchedulerExplorationRatio = fairness.ExplorationRatio
-	result.OpenAIAdvancedSchedulerStarvationThresholdSeconds = fairness.StarvationThresholdSeconds
-	result.OpenAIAdvancedSchedulerFairnessWeight = fairness.FairnessWeight
-	result.OpenAIAdvancedSchedulerGroupOverrides = normalizeOpenAISchedulerFairnessOverridesForRead(parseOpenAISchedulerFairnessOverrides(settings[SettingKeyOpenAIAdvancedSchedulerGroupOverrides]))
-	result.OpenAIAdvancedSchedulerCustomPresets, _ = parseOpenAISchedulerCustomPresets(settings[SettingKeyOpenAIAdvancedSchedulerCustomPresets])
-	result.OpenAIAdvancedSchedulerGroupPolicies, _ = parseOpenAISchedulerGroupPolicies(settings[SettingKeyOpenAIAdvancedSchedulerGroupOverrides])
-	result.OpenAIAdvancedSchedulerGroupPolicies = normalizeOpenAISchedulerGroupPoliciesForRead(result.OpenAIAdvancedSchedulerGroupPolicies)
-	global := openAISchedulerPolicyValuesFromSettings(result)
-	if policies, err := normalizeOpenAISchedulerGroupPoliciesWithPresets(result.OpenAIAdvancedSchedulerGroupPolicies, global, nil, result.OpenAIAdvancedSchedulerCustomPresets); err == nil {
-		result.OpenAIAdvancedSchedulerGroupPolicies = policies
-	}
-	result.OpenAIAdvancedSchedulerAvailablePresets = openAISchedulerAvailablePresets(result.OpenAIAdvancedSchedulerCustomPresets)
 	result.OpenAIAdvancedSchedulerEffectiveLBTopK = s.openAIAdvancedSchedulerEffectiveLBTopK()
 	effectiveWeights := s.openAIAdvancedSchedulerEffectiveWeights()
 	result.OpenAIAdvancedSchedulerEffectiveWeightPriority = formatOpenAIAdvancedSchedulerFloat(effectiveWeights.Priority)
@@ -1002,6 +1049,47 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 
 	result.AllowUserViewErrorRequests = settings[SettingKeyAllowUserViewErrorRequests] == "true" // default false
+	result.UsageShowLongContextBadge = settings[SettingKeyUsageShowLongContextBadge] != "false"
+	result.RequestCaptureEnabled = settings[SettingKeyRequestCaptureEnabled] == "true"
+	result.RequestCaptureQuotaMiB, _ = strconv.ParseInt(settings[SettingKeyRequestCaptureQuotaMiB], 10, 64)
+	if result.RequestCaptureQuotaMiB <= 0 {
+		result.RequestCaptureQuotaMiB = 1024
+	}
+	result.RequestCaptureRetentionDays, _ = strconv.Atoi(settings[SettingKeyRequestCaptureRetentionDays])
+	if result.RequestCaptureRetentionDays < 1 || result.RequestCaptureRetentionDays > 30 {
+		result.RequestCaptureRetentionDays = 7
+	}
+	result.ExcelBPSImageMode = settings[SettingKeyExcelBPSImageMode]
+	if result.ExcelBPSImageMode == "" {
+		result.ExcelBPSImageMode = ExcelBPSImageModeNative
+	}
+	result.ExcelBPSImageRelayEnabled = settings[SettingKeyExcelBPSImageRelayEnabled] == "" || settings[SettingKeyExcelBPSImageRelayEnabled] == "true"
+	result.ExcelBPSImageBaseURL = settings[SettingKeyExcelBPSImageBaseURL]
+	result.ExcelBPSImageBodyLimitMiB, _ = parseExcelBPSImageCapacity(settings[SettingKeyExcelBPSImageBodyLimitMiB], DefaultExcelBPSImageBodyLimitMiB)
+	result.ExcelBPSImageBudgetMiB, _ = parseExcelBPSImageCapacity(settings[SettingKeyExcelBPSImageBudgetMiB], DefaultExcelBPSImageBudgetMiB)
+	result.ExcelBPSImageMaxRequests, _ = parseExcelBPSImageCapacity(settings[SettingKeyExcelBPSImageMaxRequests], DefaultExcelBPSImageMaxRequests)
+	if validateExcelBPSImageCapacity(result.ExcelBPSImageBodyLimitMiB, result.ExcelBPSImageBudgetMiB, result.ExcelBPSImageMaxRequests) != nil {
+		result.ExcelBPSImageBodyLimitMiB = DefaultExcelBPSImageBodyLimitMiB
+		result.ExcelBPSImageBudgetMiB = DefaultExcelBPSImageBudgetMiB
+		result.ExcelBPSImageMaxRequests = DefaultExcelBPSImageMaxRequests
+	}
+
+	imageLimits, imageLimitsErr := parseExcelBPSImageLimits(settings)
+	if imageLimitsErr != nil {
+		imageLimits = basispoints.DefaultImageRelayLimits()
+	}
+	result.ExcelBPSImageMaxImageMiB = imageLimits.MaxImageMiB
+	result.ExcelBPSImageMaxImages = imageLimits.MaxImages
+	result.ExcelBPSImageLimitPolicy = settings[SettingKeyExcelBPSImageLimitPolicy]
+	if result.ExcelBPSImageLimitPolicy == "" {
+		result.ExcelBPSImageLimitPolicy = "off"
+	}
+	result.ExcelBPSImageWarningRemaining, _ = parseExcelBPSImageCapacity(settings[SettingKeyExcelBPSImageWarningRemaining], 8)
+	result.ExcelBPSImageCompactReserve, _ = parseExcelBPSImageCapacity(settings[SettingKeyExcelBPSImageCompactReserve], 3)
+	result.ExcelBPSImageMaxTotalMiB = imageLimits.MaxTotalMiB
+	result.ExcelBPSImageStorageMiB = imageLimits.StorageMiB
+	result.ExcelBPSImageStorageEntries = imageLimits.StorageEntries
+	result.ExcelBPSImageTTLMinutes = imageLimits.TTLMinutes
 
 	// Publish Grok default model_mapping options for accounts with empty mapping.
 	xai.SetRuntimeModelMappingOptions(xai.ModelMappingOptions{
@@ -1107,7 +1195,7 @@ func formatOpenAIAdvancedSchedulerFloat(value float64) string {
 }
 
 func (s *SettingService) normalizeOpenAIAdvancedSchedulerOverrides(settings *SystemSettings) error {
-	if rate := settings.OpenAIOAuthSchedulingRateMultiplier; rate < 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+	if rate := settings.OpenAIOAuthSchedulingRateMultiplier; rate != nil && (*rate < 0 || math.IsNaN(*rate) || math.IsInf(*rate, 0)) {
 		return infraerrors.BadRequest("INVALID_OPENAI_OAUTH_SCHEDULING_RATE_MULTIPLIER", "OpenAI OAuth scheduling rate multiplier must be a finite non-negative number")
 	}
 
@@ -1168,40 +1256,7 @@ func (s *SettingService) normalizeOpenAIAdvancedSchedulerOverrides(settings *Sys
 	if !resolved.IsValid() {
 		return infraerrors.BadRequest("INVALID_OPENAI_ADVANCED_SCHEDULER_WEIGHT", "openai advanced scheduler weights must have finite non-zero base and total sums")
 	}
-	fairness, err := normalizeOpenAISchedulerFairnessSettings(OpenAISchedulerFairnessSettings{
-		CandidatePoolMode:          settings.OpenAIAdvancedSchedulerCandidatePoolMode,
-		ExplorationRatio:           settings.OpenAIAdvancedSchedulerExplorationRatio,
-		StarvationThresholdSeconds: settings.OpenAIAdvancedSchedulerStarvationThresholdSeconds,
-		FairnessWeight:             settings.OpenAIAdvancedSchedulerFairnessWeight,
-		GroupOverrides:             settings.OpenAIAdvancedSchedulerGroupOverrides,
-	})
-	if err != nil {
-		return err
-	}
-	settings.OpenAIAdvancedSchedulerCandidatePoolMode = fairness.CandidatePoolMode
-	settings.OpenAIAdvancedSchedulerExplorationRatio = fairness.ExplorationRatio
-	settings.OpenAIAdvancedSchedulerStarvationThresholdSeconds = fairness.StarvationThresholdSeconds
-	settings.OpenAIAdvancedSchedulerFairnessWeight = fairness.FairnessWeight
-	settings.OpenAIAdvancedSchedulerGroupOverrides = fairness.GroupOverrides
-	if settings.OpenAIAdvancedSchedulerGroupPolicies != nil {
-		global := openAISchedulerPolicyValuesFromSettings(settings)
-		customPresets, err := normalizeOpenAISchedulerCustomPresets(settings.OpenAIAdvancedSchedulerCustomPresets)
-		if err != nil {
-			return err
-		}
-		normalized, err := normalizeOpenAISchedulerGroupPoliciesWithPresets(settings.OpenAIAdvancedSchedulerGroupPolicies, global, nil, customPresets)
-		if err != nil {
-			return err
-		}
-		settings.OpenAIAdvancedSchedulerGroupPolicies = normalized
-		settings.OpenAIAdvancedSchedulerCustomPresets = customPresets
-		settings.OpenAIAdvancedSchedulerAvailablePresets = openAISchedulerAvailablePresets(customPresets)
-	}
 	return nil
-}
-
-func openAISchedulerPolicyValuesFromSettings(settings *SystemSettings) OpenAISchedulerPolicyValues {
-	return OpenAISchedulerPolicyValues{TopK: parsePositiveIntOverride(settings.OpenAIAdvancedSchedulerLBTopK), Priority: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightPriority, 1), Load: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightLoad, 1), Queue: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightQueue, .7), ErrorRate: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightErrorRate, .8), TTFT: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightTTFT, .5), Reset: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightReset, 0), QuotaHeadroom: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightQuotaHeadroom, 0), UpstreamCost: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightUpstreamCost, 0), PreviousResponse: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightPreviousResponse, 5), SessionSticky: parseFloatSettingOrDefault(settings.OpenAIAdvancedSchedulerWeightSessionSticky, 3), CandidatePoolMode: settings.OpenAIAdvancedSchedulerCandidatePoolMode, ExplorationRatio: settings.OpenAIAdvancedSchedulerExplorationRatio, StarvationThresholdSeconds: settings.OpenAIAdvancedSchedulerStarvationThresholdSeconds, FairnessWeight: settings.OpenAIAdvancedSchedulerFairnessWeight}
 }
 
 func normalizeOpenAISchedulerFairnessSettings(value OpenAISchedulerFairnessSettings) (OpenAISchedulerFairnessSettings, error) {
@@ -1412,10 +1467,6 @@ func normalizeOpenAISchedulerGroupPoliciesForRead(policies map[int64]OpenAISched
 			override := normalizeOpenAISchedulerFairnessOverridesForRead(map[int64]OpenAISchedulerFairnessOverride{id: *policy.Fairness})[id]
 			policy.Fairness = &override
 		}
-		policy.QualityGate = normalizeOpenAISchedulerQualityGateForRead(policy.QualityGate)
-		policy.SessionEscape = normalizeOpenAISchedulerSessionEscapeForRead(policy.SessionEscape)
-		policy.UnifiedQualityPriorityColdStartMax = normalizeOpenAIUnifiedQualityPriorityCapForRead(policy.UnifiedQualityPriorityColdStartMax)
-		policy.UnifiedQualityPriorityDailyMax = normalizeOpenAIUnifiedQualityPriorityCapForRead(policy.UnifiedQualityPriorityDailyMax)
 		legacy := normalizeOpenAISchedulerFairnessOverridesForRead(map[int64]OpenAISchedulerFairnessOverride{id: policy.LegacyFairness})[id]
 		policy.LegacyFairness = legacy
 		if policy.Values.TopK != 0 || policy.Values.Priority != 0 || policy.Values.CandidatePoolMode != "" {
@@ -1459,8 +1510,6 @@ func parseOpenAISchedulerGroupPolicies(raw string) (map[int64]OpenAISchedulerGro
 		if isLegacy {
 			policy.Mode = OpenAISchedulerGroupPolicyModeWeightedOverride
 			policy.LegacyFairness = legacy
-			policy.UnifiedQualityPriorityColdStartMax = parseOpenAIUnifiedQualityPriorityCapForRead(rawFields["unified_quality_priority_cold_start_max"])
-			policy.UnifiedQualityPriorityDailyMax = parseOpenAIUnifiedQualityPriorityCapForRead(rawFields["unified_quality_priority_daily_max"])
 			value, err := parseOpenAIExtraRetryCount(rawFields["extra_retry_count"])
 			if err != nil {
 				return nil, err
@@ -1481,44 +1530,6 @@ func parseOpenAISchedulerGroupPolicies(raw string) (map[int64]OpenAISchedulerGro
 		result[id] = policy
 	}
 	return result, nil
-}
-
-func sanitizeOpenAISchedulerRuntimeGroupPolicyCapTypes(raw string) string {
-	var objects map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(raw), &objects); err != nil {
-		return raw
-	}
-	for id, blob := range objects {
-		var fields map[string]json.RawMessage
-		if err := json.Unmarshal(blob, &fields); err != nil {
-			continue
-		}
-		changed := false
-		for _, key := range []string{
-			"unified_quality_priority_cold_start_max",
-			"unified_quality_priority_daily_max",
-		} {
-			value, ok := fields[key]
-			if !ok || string(value) == "null" {
-				continue
-			}
-			var numeric float64
-			if err := json.Unmarshal(value, &numeric); err != nil {
-				delete(fields, key)
-				changed = true
-			}
-		}
-		if changed {
-			if sanitized, err := json.Marshal(fields); err == nil {
-				objects[id] = sanitized
-			}
-		}
-	}
-	sanitized, err := json.Marshal(objects)
-	if err != nil {
-		return raw
-	}
-	return string(sanitized)
 }
 
 func parseOpenAIExtraRetryCount(raw json.RawMessage) (*int, error) {
@@ -1774,15 +1785,6 @@ func normalizeOpenAISchedulerGroupPoliciesWithPresets(policies map[int64]OpenAIS
 				return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy references unknown group")
 			}
 		}
-		if policy.QualityGate != nil && !validateOpenAISchedulerQualityGatePolicy(*policy.QualityGate) {
-			return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy quality gate is invalid")
-		}
-		if policy.SessionEscape != nil && !validateOpenAISchedulerSessionEscapePolicy(*policy.SessionEscape) {
-			return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy session escape is invalid")
-		}
-		if err := validateOpenAIUnifiedQualityPriorityCapOverrides(policy); err != nil {
-			return nil, err
-		}
 		markOpenAISchedulerLegacyWeightOverridesIgnored(&policy)
 		if policy.Priority != (OpenAISchedulerBusinessPriority{}) {
 			business, err := parseOpenAISchedulerBusinessPolicy(policy)
@@ -1910,15 +1912,6 @@ func normalizeOpenAISchedulerGroupPolicies(policies map[int64]OpenAISchedulerGro
 				return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy references unknown group")
 			}
 		}
-		if policy.QualityGate != nil && !validateOpenAISchedulerQualityGatePolicy(*policy.QualityGate) {
-			return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy quality gate is invalid")
-		}
-		if policy.SessionEscape != nil && !validateOpenAISchedulerSessionEscapePolicy(*policy.SessionEscape) {
-			return nil, infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy session escape is invalid")
-		}
-		if err := validateOpenAIUnifiedQualityPriorityCapOverrides(policy); err != nil {
-			return nil, err
-		}
 		markOpenAISchedulerLegacyWeightOverridesIgnored(&policy)
 		if policy.Mode == "" {
 			policy.Mode = OpenAISchedulerGroupPolicyModeWeightedOverride
@@ -1978,34 +1971,6 @@ func normalizeOpenAISchedulerGroupPolicies(policies map[int64]OpenAISchedulerGro
 }
 
 var openAISchedulerPolicyWeightKeys = map[string]bool{"priority": true, "load": true, "queue": true, "error_rate": true, "ttft": true, "reset": true, "quota_headroom": true, "upstream_cost": true, "previous_response": true, "session_sticky": true}
-
-func normalizeOpenAIUnifiedQualityPriorityCapForRead(value *float64) *float64 {
-	if value == nil || math.IsNaN(*value) || math.IsInf(*value, 0) || *value < 0 {
-		return nil
-	}
-	normalized := *value
-	return &normalized
-}
-
-func parseOpenAIUnifiedQualityPriorityCapForRead(raw json.RawMessage) *float64 {
-	if len(raw) == 0 || string(raw) == "null" {
-		return nil
-	}
-	var value float64
-	if err := json.Unmarshal(raw, &value); err != nil {
-		return nil
-	}
-	return &value
-}
-
-func validateOpenAIUnifiedQualityPriorityCapOverrides(policy OpenAISchedulerGroupPolicy) error {
-	for _, value := range []*float64{policy.UnifiedQualityPriorityColdStartMax, policy.UnifiedQualityPriorityDailyMax} {
-		if value != nil && (math.IsNaN(*value) || math.IsInf(*value, 0) || *value < 0) {
-			return infraerrors.BadRequest("INVALID_OPENAI_SCHEDULER_GROUP_POLICY", "group policy unified quality priority cap is invalid")
-		}
-	}
-	return nil
-}
 
 func openAISchedulerPresetValues(p OpenAISchedulerPreset) OpenAISchedulerPolicyValues {
 	v := OpenAISchedulerPolicyValues{TopK: 7, Priority: 1, Load: 1, Queue: .7, ErrorRate: .8, TTFT: .5, PreviousResponse: 5, SessionSticky: 3, CandidatePoolMode: OpenAISchedulerCandidatePoolModeHybrid, ExplorationRatio: 25, StarvationThresholdSeconds: 21600, FairnessWeight: 3}
@@ -2082,12 +2047,17 @@ func resolveOpenAISchedulerFairnessForGroup(value OpenAISchedulerFairnessSetting
 	return resolved
 }
 
-func parseOpenAIOAuthSchedulingRateMultiplier(raw string) float64 {
+func parseOpenAIOAuthSchedulingRateMultiplier(settings map[string]string) *float64 {
+	raw, exists := settings[SettingKeyOpenAIOAuthSchedulingRateMultiplier]
+	if !exists {
+		value := defaultOpenAIOAuthSchedulingRateMultiplier
+		return &value
+	}
 	value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
 	if err != nil || value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
-		return defaultOpenAIOAuthSchedulingRateMultiplier
+		return nil
 	}
-	return value
+	return &value
 }
 
 // resolveOpenAIAdvancedSchedulerWeight 返回覆盖值（已归一化的非空字符串），空则回退默认值。

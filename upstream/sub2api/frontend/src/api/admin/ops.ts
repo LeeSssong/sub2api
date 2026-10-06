@@ -108,7 +108,7 @@ export interface OpsThroughputTrendResponse {
 
 export type OpsRequestKind = 'success' | 'error'
 export type OpsRequestDetailsKind = OpsRequestKind | 'all'
-export type OpsRequestDetailsSort = 'created_at_desc' | 'duration_desc'
+export type OpsRequestDetailsSort = 'created_at_desc' | 'duration_desc' | 'ttft_desc'
 
 export interface OpsRequestDetail {
   kind: OpsRequestKind
@@ -140,6 +140,7 @@ export interface OpsRequestDetail {
   platform?: string
   model?: string
   duration_ms?: number | null
+  first_token_ms?: number | null
   status_code?: number | null
 
   error_id?: number | null
@@ -265,51 +266,6 @@ export interface OpsOpenAITokenStatsParams {
   page?: number
   page_size?: number
   top_n?: number
-}
-
-export type OpsOpenAISchedulerExperienceTimeRange = '5m' | '30m' | '1h' | '6h' | '24h'
-export type OpsOpenAISchedulerMetricStatus = 'ok' | 'no_data' | 'insufficient_data'
-
-export interface OpsOpenAISchedulerRateMetric {
-  numerator: number
-  denominator: number
-  value?: number | null
-  status: OpsOpenAISchedulerMetricStatus
-}
-
-export interface OpsOpenAISchedulerAttemptsMetric {
-  sample_size: number
-  value?: number | null
-  p95?: number | null
-  status: OpsOpenAISchedulerMetricStatus
-}
-
-export interface OpsOpenAISchedulerExperienceMetrics {
-  auto_recovery_rate: OpsOpenAISchedulerRateMetric
-  average_attempts: OpsOpenAISchedulerAttemptsMetric
-  repeated_bad_account_rate: OpsOpenAISchedulerRateMetric
-  retry_budget_exhausted_rate: OpsOpenAISchedulerRateMetric
-  sticky_kept_rate: OpsOpenAISchedulerRateMetric
-  sticky_escape_rate: OpsOpenAISchedulerRateMetric
-  top_k_filtered_rate: OpsOpenAISchedulerRateMetric
-  ttft_report_eligible_rate: OpsOpenAISchedulerRateMetric
-}
-
-export interface OpsOpenAISchedulerExperienceResponse {
-  start_time: string
-  end_time: string
-  generated_at: string
-  latest_event_at?: string | null
-  sample_size: number
-  metrics: OpsOpenAISchedulerExperienceMetrics
-}
-
-export interface OpsOpenAISchedulerExperienceParams {
-  time_range?: OpsOpenAISchedulerExperienceTimeRange
-  start_time?: string
-  end_time?: string
-  platform?: string
-  group_id?: number | null
 }
 
 export interface OpsSystemMetricsSnapshot {
@@ -759,6 +715,8 @@ export type MetricType =
 export type Operator = '>' | '>=' | '<' | '<=' | '==' | '!='
 
 export interface AlertRule {
+  availability?: 'active' | 'retired'
+  availability_reason?: string
   id?: number
   name: string
   description?: string
@@ -889,6 +847,7 @@ export interface OpsRuntimeLogConfig {
   caller: boolean
   stacktrace_level: 'none' | 'error' | 'fatal'
   retention_days: number
+  request_retention_days: number
   source?: string
   updated_at?: string
   updated_by_user_id?: number
@@ -1022,6 +981,7 @@ export interface OpsErrorDetail extends OpsErrorLog {
     original_upstream_status?: number | null
     original_upstream_message?: string
     original_upstream_detail?: string
+    original_upstream_truncated?: boolean
   }
 
   // Upstream context (optional; enriched by gateway services)
@@ -1157,17 +1117,6 @@ export async function getOpenAITokenStats(
   options: OpsRequestOptions = {}
 ): Promise<OpsOpenAITokenStatsResponse> {
   const { data } = await apiClient.get<OpsOpenAITokenStatsResponse>('/admin/ops/dashboard/openai-token-stats', {
-    params,
-    signal: options.signal
-  })
-  return data
-}
-
-export async function getOpenAISchedulerExperience(
-  params: OpsOpenAISchedulerExperienceParams,
-  options: OpsRequestOptions = {}
-): Promise<OpsOpenAISchedulerExperienceResponse> {
-  const { data } = await apiClient.get<OpsOpenAISchedulerExperienceResponse>('/admin/ops/openai-scheduler-experience', {
     params,
     signal: options.signal
   })
@@ -1408,7 +1357,6 @@ export const opsAPI = {
   getErrorTrend,
   getErrorDistribution,
   getOpenAITokenStats,
-  getOpenAISchedulerExperience,
   getConcurrencyStats,
   getUserConcurrencyStats,
   getAccountAvailabilityStats,

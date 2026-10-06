@@ -35,7 +35,6 @@ export default {
     noDataAvailable: '暂无数据',
     model: '模型',
     group: '分组',
-    noGroup: '无分组',
     requests: '请求',
     tokens: 'Token',
     actual: '实际',
@@ -148,12 +147,45 @@ export default {
     createKey: '创建密钥',
     listHint: '密钥默认脱敏展示；可点击线路名称或编辑按钮更换绑定线路',
     editKey: '编辑密钥',
+    bulkEdit: {
+      title: '批量编辑',
+      selectedCount: '已选择 {count} 个密钥',
+      selectKey: '选择密钥 {name}',
+      clearSelection: '取消选择',
+      hint: '勾选需要修改的字段，未勾选的字段保持原值。',
+      limitHint: '输入 0 表示不限制；已用额度保持不变。',
+      ipHint: '每行一个 IP 或 CIDR；留空将清空所选密钥的此项名单。',
+      invalidLimit: '请输入大于或等于 0 的有效金额。',
+      invalidExpiration: '请选择有效的过期时间，或勾选永久有效。',
+      apply: '应用到 {count} 个密钥',
+      success: '已更新 {count} 个密钥',
+      partialFailure: '已更新 {success} 个密钥，{failed} 个失败',
+      failureHint: '以下密钥更新失败，可修改设置后重试。再次提交只会更新失败的密钥。'
+    },
     deleteKey: '删除密钥',
     deleteConfirmMessage: "确定要删除 '{name}' 吗？此操作无法撤销。",
     id: 'ID',
     apiKey: 'API 密钥',
     group: '线路',
     currentConcurrency: '当前并发',
+    concurrencyAndWaiting: '并发 / 等待',
+    concurrencyCount: '并发',
+    waitingCount: '等待',
+    queueFull: '已满',
+    queueOff: '全局排队已关闭',
+    queuePolicy: '统一排队设置：此密钥最多额外等待 {max} 个请求，每个请求最长等待 {seconds} 秒。由管理员统一配置。',
+    queuePolicyOff: '全局排队已关闭，达到此密钥的并发上限后直接拒绝新请求。',
+    queueNotApplicable: '此密钥未设置额外并发上限，不启用密钥级排队。',
+    queuePolicyLoading: '正在加载统一排队设置…',
+    queuePolicyUnavailable: '统一排队设置暂不可用。',
+    queueHint: '等待名额分别适用于每个密钥；名额已满时拒绝新请求，超时后结束等待。不保证按到达顺序处理。',
+    concurrencyLoading: '正在加载',
+    concurrencyUnavailable: '统计暂不可用',
+    concurrencyStale: '未更新',
+    concurrencyLimit: '并发上限',
+    concurrencyLimitHint: '此密钥可同时处理的最大请求数。0 表示无额外限制，用户和账号的并发限制仍然生效。',
+    concurrencyLimitInvalid: '并发上限必须为非负整数。',
+    noAdditionalConcurrencyLimit: '无额外限制',
     noGroup: '未绑定线路',
     searchLine: '搜索线路...',
     searchGroup: '搜索分组...',
@@ -167,6 +199,19 @@ export default {
     nameLabel: '名称',
     namePlaceholder: '我的 API 密钥',
     groupLabel: '分组',
+    providerLabel: '厂商',
+    providers: {
+      anthropic: 'Anthropic',
+      openai: 'OpenAI',
+      domestic: '国产模型',
+      other: '其他'
+    },
+    providerHints: {
+      anthropic: '选择 Anthropic / Claude 的可用分组',
+      openai: '选择 OpenAI / GPT 的可用分组',
+      domestic: '包含 DeepSeek、Kimi、智谱 GLM、MiniMax',
+      other: '包含 Gemini、Grok、Antigravity、OpenCode 和混合分组'
+    },
     selectGroup: '选择线路',
     statusLabel: '状态',
     selectStatus: '选择状态',
@@ -222,7 +267,12 @@ export default {
         codexCli: 'Codex CLI',
         codexCliWs: 'Codex CLI (WebSocket)',
         grokCli: 'Grok CLI',
+        systemOne: 'System One',
         opencode: 'OpenCode'
+      },
+      typesafe: {
+        description: '通过 TypeSafe 原生 System One 端点调用 Jev。',
+        note: 'System One 不支持流式请求，也不兼容 Chat Completions、Responses、Claude Code 或 Codex 客户端。'
       },
       antigravity: {
         description: '为 Antigravity 分组配置 API 访问。请根据您使用的客户端选择对应的配置方式。',
@@ -262,29 +312,33 @@ export default {
       deepseek: {
         description: '通过当前 DeepSeek 分组配置 Claude Code、Codex 或 OpenCode。',
         codexDescription: '使用 API Key 配置 Codex，并通过当前 DeepSeek 分组发送请求。',
-        codexConfigTomlHint: '下载下方模型目录，将两个文件保存到 Codex 配置目录后重启 Codex。',
+        codexConfigTomlHint: '保存 config.toml 后重启 Codex，客户端会加载远程目录。使用本地文件模式时，还需下载目录并保存到配置中的路径。',
         codexNote: '启动 Codex 前先导出 SUB2API_API_KEY。下载的目录只包含模型元数据，不包含 API Key。'
       },
       minimax: {
         description: '通过当前 MiniMax 分组配置 Claude Code、Codex 或 OpenCode。',
         codexDescription: '使用 API Key 配置 Codex，并通过当前 MiniMax 分组发送请求。',
-        codexConfigTomlHint: '下载下方模型目录，将两个文件保存到 Codex 配置目录后重启 Codex。',
+        codexConfigTomlHint: '保存 config.toml 后重启 Codex，客户端会加载远程目录。使用本地文件模式时，还需下载目录并保存到配置中的路径。',
         codexNote: '启动 Codex 前先导出 SUB2API_API_KEY。下载的目录只包含模型元数据，不包含 API Key。'
       },
       composite: {
         description: '通过当前 Composite 路由分组配置受支持的客户端。',
         codexDescription: '使用 API Key 和当前 Composite 分组的完整模型目录配置 Codex。',
-        codexConfigTomlHint: '下载下方模型目录，将两个文件保存到 Codex 配置目录后重启 Codex。',
+        codexConfigTomlHint: '保存 config.toml 后重启 Codex，客户端会加载远程目录。使用本地文件模式时，还需下载目录并保存到配置中的路径。',
         codexNote: '启动 Codex 前先导出 SUB2API_API_KEY；分组会根据目录中选中的模型路由请求。'
       },
       routedCodex: {
         description: '使用当前路由分组的完整模型目录配置 Codex。',
-        configTomlHint: '下载下方模型目录，将两个文件保存到 Codex 配置目录后重启 Codex。',
+        configTomlHint: '保存 config.toml 后重启 Codex，客户端会加载远程目录。使用本地文件模式时，还需下载目录并保存到配置中的路径。',
         note: '启动 Codex 前先导出 SUB2API_API_KEY。下载的目录只包含模型元数据，不包含 API Key。'
       },
       codexModelCatalog: {
+        mode: '目录来源',
+        remote: '远程目录（Codex 0.156.0+）',
+        local: '本地文件（旧版客户端）',
+        oversized: '完整目录超过远程加载的 1 MiB 限制，已改为本地文件。请下载目录并保存到配置中的路径。',
         title: 'Codex 模型目录',
-        description: '使用当前 API Key 获取目录，并保存到 config.toml 引用的路径。',
+        description: 'Codex 会使用配置中的认证信息加载并刷新远程目录。使用本地文件模式时，请在下方获取目录并保存到配置中的路径。',
         fetch: '获取目录',
         retry: '重试',
         download: '下载目录',
@@ -366,6 +420,7 @@ export default {
 
   // Usage
   usage: {
+    moreFilters: '更多筛选',
     title: '使用记录',
     description: '查看和分析您的 API 使用历史',
     costDetails: '费用明细',
@@ -380,6 +435,8 @@ export default {
     cacheBreakdown: '缓存 Token 明细',
     cacheCreationTokensLabel: '缓存创建',
     cacheReadTokensLabel: '缓存读取',
+    cacheHitValue: '缓存命中：{value}',
+    cacheSaved: '缓存省 ${value}',
     totalCost: '总消费',
     standardCost: '标准',
     actualCost: '实际',
@@ -436,6 +493,9 @@ export default {
     latency: '延迟',
     latencyFirstToken: '首字',
     latencyDuration: '总耗时',
+    latencyTps: 'TPS',
+    latencyTpsHint: '输出速度 = 输出 Token ÷ (总耗时 − 首字)',
+    latencyTpsHintNoFirstToken: '输出速度 = 输出 Token ÷ 总耗时（无首字数据，含等待时间）',
     time: '时间',
     ws: 'WS',
     stream: '流式',
@@ -597,7 +657,8 @@ export default {
       kimi: 'Kimi',
       zhipu: '智谱 GLM',
       deepseek: 'DeepSeek',
-      minimax: 'MiniMax'
+      minimax: 'MiniMax',
+      opencode_go: 'OpenCode'
     },
     // 检查模式（监控条目的工作方式）
     checkMode: {
@@ -614,6 +675,7 @@ export default {
         '7dSonnet': '7 天 Sonnet',
         '7dFable': '7 天 Fable',
         weekly: '周',
+        monthly: '月',
         daily: '日',
         '30d': '30 天',
         total: '总量'
@@ -689,6 +751,85 @@ export default {
     }
   },
 
+  // Pelican showcase (user-facing gallery)
+  pelicanShowcase: {
+    statistics: {
+      title: '鹈鹕测智统计',
+      scope: '{group} 统计',
+      count: '测试次数',
+      shortCount: '次数',
+      rate: '成功率',
+      definition: '成功率为成功测试次数除以已完成测试总次数。',
+      noTests: '此时段暂无已完成测试。',
+      unavailable: '暂时无法获取统计数据。',
+      partialCoverage: '统计覆盖 {time} 以来的结果。',
+      sinceEnabled: '自启用以来',
+      last24Hours: '近 24 小时'
+    },
+    title: '鹈鹕测智',
+    description: '各分组的模型定时完成同一道绘图题，直接看生成的作品，直观比较模型水平',
+    allGroups: '全部分组',
+    keepRule: '每组保留最近 {count} 张',
+    retentionRule: '超过 {days} 天自动清理',
+    itemCount: '展示作品 {count} 张',
+    latestAt: '最近更新 {time}',
+    groupEmpty: '该分组还没有作品，定时测试成功生成后会出现在这里',
+    scrollLabel: '{group}：拖动滑块查看更早的作品',
+    loadError: '加载鹈鹕测智失败',
+    itemLoading: '作品加载中…',
+    itemLoadError: '作品加载失败',
+    invalidHtml: '这张作品无法显示',
+    duration: '耗时 {seconds} 秒',
+    reasoning: '思考强度 {effort}',
+    efforts: {
+      minimal: '最低',
+      low: '低',
+      medium: '中',
+      high: '高',
+      xhigh: '极高'
+    },
+    preview: '查看大图',
+    previewTitle: '{group} · {model}',
+    fitArtwork: '适应窗口',
+    actualSize: '100%',
+    previewSizing: '预览缩放',
+    sandboxNote: '作品在隔离沙箱中运行，不能联网，也读取不到你的账号信息。',
+    remove: '从展示中移除',
+    removeConfirm: '确定把这张作品从鹈鹕测智中移除吗？移除后所有用户都看不到它，此操作不能撤销。',
+    removed: '已从展示中移除',
+    removeFailed: '移除失败',
+    api: {
+      title: 'API 调用',
+      available: 'API 已开放',
+      unavailable: 'API 未开放',
+      unavailableHint: '管理员尚未开放 API Key 读取作品，当前无法调用。以下为开放后的调用方式。',
+      manageKeys: '管理 API Key',
+      readOnly: '免费只读接口，读取已发布的成功作品，不发起测试、不调用模型、不扣 API Key 余额。',
+      manifestEndpoint: '作品清单',
+      itemEndpoint: '作品正文',
+      copyUrl: '复制接口地址',
+      authentication: '使用本站有效 API Key，通过 Authorization: Bearer YOUR_API_KEY 鉴权。网页登录令牌不可用于此接口。',
+      examples: '调用示例',
+      manifestExample: '读取清单',
+      itemExample: '读取正文',
+      cacheExample: '条件请求',
+      copyExample: '复制调用示例',
+      manifestHint: 'data.groups 包含各分组的作品摘要。清单不含完整 HTML/SVG，按作品 content_url 获取正文。',
+      itemHint: '作品 ID 以清单为准；没有作品时请替换 RESULT_ID。data.response_text 是原始输出，可能含代码围栏。作品移除或过期后返回 404。',
+      cacheHint: '将 YOUR_ETAG 替换为上次响应 ETag 的完整原值，包括 W/ 和双引号。返回 304 时沿用本地清单；返回 200 时只下载尚未保存的作品。',
+      polling: '建议每 60 秒或更久轮询，使用 ETag 和 If-None-Match 检查变化。清单和正文均支持 GET/HEAD；遇到 429/503 请遵守 Retry-After。',
+      keySafety: '建议在调用端后端保存 API Key，避免放入公开前端。跨域浏览器请求应不携带 Cookie；显示作品时使用隔离 iframe。'
+    },
+    disabled: {
+      title: '鹈鹕测智暂未开放',
+      description: '管理员开启后，这里会展示各分组定时生成的作品。'
+    },
+    empty: {
+      title: '暂无作品',
+      description: '管理员还没有选择要展示的分组。'
+    }
+  },
+
   // Available Channels (user-facing)
   availableChannels: {
     title: '可用渠道',
@@ -714,6 +855,8 @@ export default {
       billingModePerRequest: '按次',
       billingModeImage: '按图片',
       billingModeVideo: '按视频',
+      videoPrice: '视频单价',
+      unitPerSecond: '/ 秒',
       inputPrice: '输入',
       outputPrice: '输出',
       cacheWritePrice: '缓存写入',
@@ -767,6 +910,8 @@ export default {
       cacheReadShort: '读',
       tierHint: '按单次请求的总上下文（输入 + 缓存写入 + 缓存读取）所在档位对整单计价',
       tierHintMarginal: '仅超过阈值的部分按该档计价，输出不加价',
+      reasoningMultiplierBadge: '{effort} ×{multiplier}',
+      reasoningMultiplierHint: '最终转发的思考等级为 {effort} 时，整次请求的计费与额度消耗乘以 {multiplier}；未配置的等级按 1 倍计费',
       maxReasoningMultiplierBadge: 'Max {multiplier}x倍率',
       maxReasoningMultiplierHint: '最终转发的推理强度为 max 时，整次请求的计费与额度消耗按 {multiplier}x倍率计算',
       marginalBadge: '超出部分计价',
@@ -877,6 +1022,8 @@ export default {
     days: '天',
     codeRedeemSuccess: '兑换成功！',
     failedToRedeem: '兑换失败，请检查兑换码后重试。',
+    historyLoadFailed: '加载兑换记录失败，请重试。',
+    userRefreshFailed: '兑换成功，但账户信息刷新失败。',
     subscriptionRefreshFailed: '兑换成功，但订阅状态刷新失败。',
     pleaseEnterCode: '请输入兑换码'
   },

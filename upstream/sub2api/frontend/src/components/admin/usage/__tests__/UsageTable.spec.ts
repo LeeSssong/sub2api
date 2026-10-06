@@ -25,6 +25,8 @@ const messages: Record<string, string> = {
   'admin.usage.outputCost': 'Output Cost',
   'admin.usage.cacheCreationCost': 'Cache Creation Cost',
   'admin.usage.cacheReadCost': 'Cache Read Cost',
+  'usage.cacheHitValue': 'Cache hit: {value}',
+  'usage.cacheSaved': 'Cache saved ${value}',
   'usage.inputTokenPrice': 'Input price',
   'usage.outputTokenPrice': 'Output price',
   'usage.perMillionTokens': '/ 1M tokens',
@@ -74,7 +76,10 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? key,
+      t: (key: string, params?: Record<string, unknown>) => {
+        const template = messages[key] ?? key
+        return template.replace(/\{(\w+)\}/g, (_, name: string) => String(params?.[name] ?? `{${name}}`))
+      },
     }),
   }
 })
@@ -137,6 +142,71 @@ describe('admin UsageTable tooltip', () => {
       height: 20,
       toJSON: () => ({}),
     } as DOMRect)
+  })
+
+  it('shows cache hit rate and savings when user cache metrics are enabled', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{
+          ...baseImageRow,
+          request_id: 'req-user-cache-metrics',
+          billing_mode: 'token',
+          image_count: 0,
+          input_tokens: 4_000,
+          input_cost: 0.02,
+          output_tokens: 100,
+          cache_read_tokens: 100_000,
+          cache_read_cost: 0.05,
+          rate_multiplier: 0.5,
+        }],
+        loading: false,
+        columns: [],
+        showCacheMetrics: true,
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('Cache hit: 96.2%')
+    expect(wrapper.text()).toContain('Cache saved $0.2250')
+  })
+
+  it('shows cache hit rate without user savings in the admin table', () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{
+          ...baseImageRow,
+          request_id: 'req-admin-cache-metrics',
+          billing_mode: 'token',
+          image_count: 0,
+          input_tokens: 4_000,
+          input_cost: 0.02,
+          output_tokens: 100,
+          cache_read_tokens: 100_000,
+          cache_read_cost: 0.05,
+          rate_multiplier: 0.5,
+        }],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('Cache hit: 96.2%')
+    expect(wrapper.text()).not.toContain('Cache saved')
   })
 
   it('marks only usage rows that actually applied long-context billing', () => {
@@ -247,6 +317,53 @@ describe('admin UsageTable tooltip', () => {
 
     expect(wrapper.text()).toContain('A $0.24')
     expect(wrapper.text()).not.toContain('A $0.12')
+  })
+
+  it.each(['token', 'image', 'per_request'])('uses the confirmed money format in %s cost details', async (billingMode) => {
+    const row = {
+      ...baseImageRow,
+      billing_mode: billingMode,
+      image_count: billingMode === 'image' ? 2 : 0,
+      input_cost: 0.00000001,
+      image_input_cost: 0.00000002,
+      output_cost: 0.00000003,
+      image_output_cost: 0.00000004,
+      cache_creation_cost: 0.00000005,
+      cache_read_cost: 0.00000006,
+      total_cost: 0.00000022,
+      actual_cost: 0.00000042,
+      account_stats_cost: 0.00000012,
+      account_rate_multiplier: 1.5,
+    }
+    const wrapper = mount(UsageTable, {
+      props: { data: [row], loading: false, columns: [] },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    const triggers = wrapper.findAll('.group.relative')
+    await triggers[triggers.length - 1].trigger('mouseenter')
+    const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text())
+    expect(amounts).toEqual(expect.arrayContaining([
+      '$0.00', '$0.00', '$0.00', '$0.00',
+      '$0.00', '$0.00', '$0.00', '$0.00', '$0.00',
+    ]))
+    if (billingMode === 'image') expect(amounts).toContain('$0.00')
+    wrapper.unmount()
+  })
+
+  it('uses the confirmed money format for missing cost values', async () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{ ...baseImageRow, billing_mode: 'per_request', image_count: 0, total_cost: undefined, actual_cost: undefined }],
+        loading: false,
+        columns: [],
+      },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    const triggers = wrapper.findAll('.group.relative')
+    await triggers[triggers.length - 1].trigger('mouseenter')
+    const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text()).filter(text => text.startsWith('$'))
+    expect(amounts).toEqual(['$0.00'])
+    wrapper.unmount()
   })
 
   it('shows requested and upstream models separately for admin rows', () => {
@@ -732,5 +849,122 @@ describe('admin UsageTable deleted-user badge', () => {
 
     expect(wrapper.text()).not.toContain('Deleted')
     expect(wrapper.text()).toContain('active@test.com')
+  })
+})
+
+const DataTableStubWithLatency = {
+  props: ['data'],
+  template: `
+    <div>
+      <div v-for="row in data" :key="row.request_id" :data-row="row.request_id">
+        <slot name="cell-latency" :row="row" />
+      </div>
+    </div>
+  `,
+}
+
+describe('admin UsageTable latency TPS', () => {
+  const mountLatency = (data: Record<string, unknown>[]) =>
+    mount(UsageTable, {
+      props: {
+        data: data as any,
+        loading: false,
+        columns: [{ key: 'latency', label: 'Latency' }],
+        enableTimingDetails: true,
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStubWithLatency,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+  const tpsCell = (wrapper: ReturnType<typeof mountLatency>, requestId: string) =>
+    wrapper.find(`[data-row="${requestId}"] [data-testid="latency-tps"]`)
+
+  const barClasses = (wrapper: ReturnType<typeof mountLatency>, requestId: string) =>
+    wrapper.find(`[data-row="${requestId}"] [data-testid="latency-bar"]`).classes()
+
+  it('shows output speed after the first token for streaming rows', () => {
+    const wrapper = mountLatency([
+      { request_id: 'req-tps-stream', output_tokens: 872, duration_ms: 31_260, first_token_ms: 2_910 },
+    ])
+
+    expect(wrapper.text()).toContain('usage.latencyTps')
+    const cell = tpsCell(wrapper, 'req-tps-stream')
+    expect(cell.text()).toBe('30.8 t/s')
+    expect(cell.attributes('title')).toBe('usage.latencyTpsHint')
+    expect(cell.classes()).toContain('text-emerald-600')
+  })
+
+  it('colors the TPS text and the bottom bar segment red below 5 t/s and yellow below 8 t/s', () => {
+    const wrapper = mountLatency([
+      // first token 12s (warn), total 17s (good), 4 t/s (critical)
+      { request_id: 'req-tps-slow', output_tokens: 20, duration_ms: 17_000, first_token_ms: 12_000 },
+      // first token 2s (good), total 12s (good), 7.5 t/s (warn)
+      { request_id: 'req-tps-mid', output_tokens: 75, duration_ms: 12_000, first_token_ms: 2_000 },
+    ])
+
+    expect(tpsCell(wrapper, 'req-tps-slow').text()).toBe('4.0 t/s')
+    expect(tpsCell(wrapper, 'req-tps-slow').classes()).toContain('text-red-600')
+    expect(barClasses(wrapper, 'req-tps-slow')).toEqual(
+      expect.arrayContaining(['from-amber-400', 'via-emerald-500', 'to-red-500']),
+    )
+
+    expect(tpsCell(wrapper, 'req-tps-mid').text()).toBe('7.5 t/s')
+    expect(tpsCell(wrapper, 'req-tps-mid').classes()).toContain('text-amber-600')
+    expect(barClasses(wrapper, 'req-tps-mid')).toEqual(
+      expect.arrayContaining(['from-emerald-500', 'via-emerald-500', 'to-amber-400']),
+    )
+  })
+
+  it('lets bar segments without first-token or TPS data follow the total-duration color', () => {
+    const wrapper = mountLatency([
+      // no first token, total 70s (warn), 1400 tokens / 70s = 20 t/s (good)
+      { request_id: 'req-bar-sync', output_tokens: 1_400, duration_ms: 70_000, first_token_ms: null },
+      // image row: no first token and no TPS, total 40s (good)
+      { ...baseImageRow, request_id: 'req-bar-image', duration_ms: 40_000, first_token_ms: null },
+    ])
+
+    expect(barClasses(wrapper, 'req-bar-sync')).toEqual(
+      expect.arrayContaining(['from-amber-400', 'via-amber-400', 'to-emerald-500']),
+    )
+    expect(barClasses(wrapper, 'req-bar-image')).toEqual(
+      expect.arrayContaining(['from-emerald-500', 'via-emerald-500', 'to-emerald-500']),
+    )
+  })
+
+  it('uses the total duration and a different hint when first token is missing', () => {
+    const wrapper = mountLatency([
+      { request_id: 'req-tps-sync', output_tokens: 500, duration_ms: 10_000, first_token_ms: null },
+    ])
+
+    const cell = tpsCell(wrapper, 'req-tps-sync')
+    expect(cell.text()).toBe('50.0 t/s')
+    expect(cell.attributes('title')).toBe('usage.latencyTpsHintNoFirstToken')
+  })
+
+  it('renders a placeholder when TPS cannot be computed', () => {
+    const wrapper = mountLatency([
+      { request_id: 'req-tps-empty', output_tokens: 0, duration_ms: 1_200, first_token_ms: 300 },
+      { ...baseImageRow, request_id: 'req-tps-image', duration_ms: 40_000, first_token_ms: null },
+    ])
+
+    expect(tpsCell(wrapper, 'req-tps-empty').text()).toBe('-')
+    expect(tpsCell(wrapper, 'req-tps-empty').attributes('title')).toBeUndefined()
+    expect(tpsCell(wrapper, 'req-tps-image').text()).toBe('-')
+  })
+})
+
+describe('ordinary-user latency layout', () => {
+  it('keeps TPS and timing controls absent unless explicitly enabled by the admin view', () => {
+    const wrapper = mount(UsageTable, { props: { data: [{ request_id: 'user-row', output_tokens: 100, duration_ms: 10000, first_token_ms: 2000 }], columns: [{ key: 'latency', label: 'Latency' }], showAccountBilling: false }, global: { stubs: { DataTable: DataTableStubWithLatency, EmptyState: true, Icon: true, Teleport: true } } })
+    expect(wrapper.find('[data-testid="latency-tps"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="latency-bar"]').classes()).toContain('from-40%')
+    expect(wrapper.find('button[aria-label="requestTiming.title"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 })

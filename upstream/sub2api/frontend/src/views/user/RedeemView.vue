@@ -188,11 +188,11 @@
 
           <div v-if="historyLoadError" class="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
             <span>{{ t('common.error') }}</span>
-            <button type="button" class="btn btn-secondary" @click="fetchHistory"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
+            <button type="button" class="btn btn-secondary" @click="fetchHistory()"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
           </div>
 
           <!-- History List -->
-          <div v-else-if="history.length > 0" class="space-y-3">
+          <div v-if="history.length > 0" class="space-y-3">
             <div
               v-for="item in history"
               :key="item.id"
@@ -301,6 +301,30 @@
               {{ t('redeem.historyWillAppear') }}
             </p>
           </div>
+          <div v-if="historyTotal > historyPageSize || historyPage > 1" class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+            <span>{{ t('common.total') }}: {{ historyTotal }} {{ t('pagination.results') }}</span>
+            <label>
+              {{ t('pagination.perPage') }}
+              <select
+                v-model="historyPageSize"
+                class="input w-20"
+                :disabled="loadingHistory || submitting"
+                @change="fetchHistory(1)"
+              >
+                <option v-for="size in [20, 50, 100]" :key="size" :value="size">{{ size }}</option>
+              </select>
+            </label>
+            <button
+              class="btn btn-secondary"
+              :disabled="loadingHistory || submitting || historyPage <= 1"
+              @click="fetchHistory(historyPage - 1)"
+            >{{ t('pagination.previous') }}</button>
+            <button
+              class="btn btn-secondary"
+              :disabled="loadingHistory || submitting || historyPage * historyPageSize >= historyTotal"
+              @click="fetchHistory(historyPage + 1)"
+            >{{ t('pagination.next') }}</button>
+          </div>
         </div>
       </div>
       </div>
@@ -344,6 +368,11 @@ const errorMessage = ref('')
 // History data
 const history = ref<RedeemHistoryItem[]>([])
 const loadingHistory = ref(false)
+const historyPage = ref(1)
+const historyPageSize = ref(20)
+const historyTotal = ref(0)
+let historyRequest = 0
+let loadedHistoryPageSize = 20
 const historyLoadError = ref(false)
 const contactInfo = ref('')
 
@@ -390,16 +419,27 @@ const formatHistoryValue = (item: RedeemHistoryItem) => {
   }
 }
 
-const fetchHistory = async () => {
+const fetchHistory = async (page = 1) => {
+  const request = ++historyRequest
+  const pageSize = historyPageSize.value
   loadingHistory.value = true
   historyLoadError.value = false
   try {
-    history.value = await redeemAPI.getHistory()
+    const result = await redeemAPI.getHistory(page, pageSize)
+    if (request !== historyRequest) return
+    history.value = result.items
+    historyTotal.value = result.total
+    historyPage.value = page
+    historyPageSize.value = pageSize
+    loadedHistoryPageSize = pageSize
   } catch (error) {
+    if (request !== historyRequest) return
+    historyPageSize.value = loadedHistoryPageSize
+    appStore.showError(t('redeem.historyLoadFailed'))
     console.error('Failed to fetch history:', error)
     historyLoadError.value = true
   } finally {
-    loadingHistory.value = false
+    if (request === historyRequest) loadingHistory.value = false
   }
 }
 
@@ -419,7 +459,12 @@ const handleRedeem = async () => {
     redeemResult.value = result
 
     // Refresh user data to get updated balance/concurrency
-    await authStore.refreshUser()
+    try {
+      await authStore.refreshUser()
+    } catch (error) {
+      console.error('Failed to refresh user after redeem:', error)
+      appStore.showWarning(t('redeem.userRefreshFailed'))
+    }
 
     // If subscription type, immediately refresh subscription status
     if (result.type === 'subscription') {

@@ -2,7 +2,9 @@ package admin
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -316,4 +318,112 @@ func TestImportDataReusesProxyAndSkipsDefaultGroup(t *testing.T) {
 	require.Len(t, adminSvc.createdProxies, 0)
 	require.Len(t, adminSvc.createdAccounts, 1)
 	require.True(t, adminSvc.createdAccounts[0].SkipDefaultGroupBind)
+}
+
+func TestImportDataExcludesStructurallyInvalidAccountsFromCostDivisor(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+	payload := map[string]any{
+		"data": map[string]any{
+			"type": dataType, "version": dataVersion, "proxies": []any{},
+			"accounts": []map[string]any{
+				{"name": "first", "platform": service.PlatformOpenAI, "type": service.AccountTypeOAuth, "credentials": map[string]any{"token": "a"}, "concurrency": 1, "priority": 50},
+				{"name": "invalid", "platform": service.PlatformOpenAI, "type": service.AccountTypeOAuth, "credentials": map[string]any{}, "concurrency": 1, "priority": 50},
+				{"name": "third", "platform": service.PlatformOpenAI, "type": service.AccountTypeOAuth, "credentials": map[string]any{"token": "c"}, "concurrency": 1, "priority": 50},
+			},
+		},
+		"total_procurement_cost_cny": 3,
+	}
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/data", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, adminSvc.createdAccounts, 2)
+	for _, created := range adminSvc.createdAccounts {
+		require.NotNil(t, created.ProcurementCostCNY)
+		require.Equal(t, 1.5, *created.ProcurementCostCNY)
+	}
+}
+
+type dataImportCreateFailureAdminService struct {
+	*stubAdminService
+	createCalls int
+}
+
+func (s *dataImportCreateFailureAdminService) CreateAccount(_ context.Context, input *service.CreateAccountInput) (*service.Account, error) {
+	s.createdAccounts = append(s.createdAccounts, input)
+	s.createCalls++
+	if s.createCalls == 2 {
+		return nil, errors.New("injected create failure")
+	}
+	return &service.Account{ID: int64(300 + s.createCalls), Name: input.Name, Status: service.StatusActive}, nil
+}
+
+func TestImportDataDoesNotRedistributeCostAfterValidAccountCreationFailure(t *testing.T) {
+	adminSvc := &dataImportCreateFailureAdminService{stubAdminService: newStubAdminService()}
+	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	totalCost := 3.0
+	req := DataImportRequest{
+		TotalProcurementCostCNY: &totalCost,
+		Data: DataPayload{Accounts: []DataAccount{
+			{Name: "first", Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Credentials: map[string]any{"token": "a"}, Concurrency: 1, Priority: 50},
+			{Name: "second", Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Credentials: map[string]any{"token": "b"}, Concurrency: 1, Priority: 50},
+			{Name: "third", Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Credentials: map[string]any{"token": "c"}, Concurrency: 1, Priority: 50},
+		}},
+	}
+
+	result, err := handler.importData(context.Background(), req)
+	require.NoError(t, err)
+	require.Equal(t, 2, result.AccountCreated)
+	require.Equal(t, 1, result.AccountFailed)
+	require.Len(t, adminSvc.createdAccounts, 3)
+	for _, attempted := range adminSvc.createdAccounts {
+		require.NotNil(t, attempted.ProcurementCostCNY)
+		require.Equal(t, 1.0, *attempted.ProcurementCostCNY)
+	}
+}
+
+func TestImportDataRejectsNegativeTotalProcurementCost(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+	payload := map[string]any{
+		"data": map[string]any{
+			"type": dataType, "version": dataVersion, "proxies": []any{},
+			"accounts": []map[string]any{{"name": "first", "platform": service.PlatformOpenAI, "type": service.AccountTypeOAuth, "credentials": map[string]any{"token": "a"}, "concurrency": 1, "priority": 50}},
+		},
+		"total_procurement_cost_cny": -0.01,
+	}
+	body, err := json.Marshal(payload)
+	require.NoError(t, err)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/data", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Empty(t, adminSvc.createdAccounts)
+}
+
+func TestExportDataExcludesCodexTicketMaterial(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+	extra := map[string]any{
+		"codex_turn_ticket:gpt-6-astra": map[string]any{"state": "private-ticket-blob", "length": 292},
+		"codex_harvest_proxy_url":       "http://user:legacy-proxy-secret@proxy.example.com:8080",
+		"ordinary":                      "retained",
+	}
+	adminSvc.accounts = []service.Account{{ID: 21, Name: "account", Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Credentials: map[string]any{"access_token": "backup-token"}, Extra: extra}}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/data?include_proxies=false", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp dataResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Len(t, resp.Data.Accounts, 1)
+	require.Equal(t, map[string]any{"ordinary": "retained"}, resp.Data.Accounts[0].Extra)
+	require.Equal(t, "backup-token", resp.Data.Accounts[0].Credentials["access_token"])
+	require.NotContains(t, rec.Body.String(), "private-ticket-blob")
+	require.NotContains(t, rec.Body.String(), "legacy-proxy-secret")
+	require.Contains(t, extra, "codex_turn_ticket:gpt-6-astra")
+	require.Contains(t, extra, "codex_harvest_proxy_url")
 }

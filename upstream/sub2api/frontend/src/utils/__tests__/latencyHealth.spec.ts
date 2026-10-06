@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { durationSeverity, firstTokenSeverity } from '../latencyHealth'
+import { durationSeverity, firstTokenSeverity, tpsSeverity } from '../latencyHealth'
 
 describe('latencyHealth', () => {
   it('classifies first-token latency at 10s/30s/60s boundaries', () => {
@@ -21,5 +21,14 @@ describe('latencyHealth', () => {
     expect(durationSeverity(180_000)).toBe('slow')
     expect(durationSeverity(299_999)).toBe('slow')
     expect(durationSeverity(300_000)).toBe('critical')
+  })
+
+  it('classifies output speed at 5/8 t/s boundaries (higher is better)', () => {
+    expect(tpsSeverity(0)).toBe('critical')
+    expect(tpsSeverity(4.99)).toBe('critical')
+    expect(tpsSeverity(5)).toBe('warn')
+    expect(tpsSeverity(7.99)).toBe('warn')
+    expect(tpsSeverity(8)).toBe('good')
+    expect(tpsSeverity(500)).toBe('good')
   })
 })

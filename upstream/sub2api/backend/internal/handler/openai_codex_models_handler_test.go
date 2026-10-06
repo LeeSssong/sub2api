@@ -164,6 +164,7 @@ func TestCodexModelsAppliesLocalFiltersBeforeClientETag(t *testing.T) {
 	}
 	gatewayService := service.NewOpenAIGatewayService(
 		repo,
+		nil,
 		nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
@@ -233,6 +234,7 @@ func TestCodexModelsAPIKeyCacheDoesNotLeakGroupFilters(t *testing.T) {
 	}
 	gatewayService := service.NewOpenAIGatewayService(
 		repo,
+		nil,
 		nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
@@ -339,6 +341,7 @@ func TestCodexModelsSupplementsConfiguredModelsWithUnmappedAccountDefaults(t *te
 	upstream := &codexModelsFailoverHTTPUpstream{firstStatus: http.StatusNotFound}
 	gatewayService := service.NewOpenAIGatewayService(
 		repo,
+		nil,
 		nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
@@ -388,6 +391,7 @@ func TestCodexModelsUnmappedParentAndSparkShadowHonorCustomListAndETag(t *testin
 	upstream := &codexModelsFailoverHTTPUpstream{firstStatus: http.StatusNotFound}
 	gatewayService := service.NewOpenAIGatewayService(
 		repo,
+		nil,
 		nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
@@ -601,6 +605,7 @@ func newCodexModelsFailoverTestHandlerWithAccountCount(firstStatus, accountCount
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	gatewayService := service.NewOpenAIGatewayService(
 		codexModelsFailoverAccountRepo{accounts: accounts},
+		nil,
 		nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,
@@ -629,8 +634,7 @@ func newCodexModelsAggregationTestHandler() (*OpenAIGatewayHandler, *codexModels
 		20: `{"models":[{"slug":"gpt-5.6"}]}`,
 	}}
 	gatewayService := service.NewOpenAIGatewayService(
-		codexModelsFailoverAccountRepo{accounts: accounts},
-		nil, nil, nil, nil, nil, nil,
+		codexModelsFailoverAccountRepo{accounts: accounts}, nil, nil, nil, nil, nil, nil, nil,
 		&config.Config{RunMode: config.RunModeSimple}, nil, nil, nil, nil, nil,
 		upstream, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
@@ -782,6 +786,7 @@ func newPinnedCodexTestHandler(accounts []service.Account, upstream *codexModels
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	gatewayService := service.NewOpenAIGatewayService(
 		codexModelsFailoverAccountRepo{accounts: accounts},
+		nil,
 		nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil,
 		upstream,
 		nil, nil, nil, nil, nil, nil, nil, nil,

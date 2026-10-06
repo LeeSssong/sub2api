@@ -515,6 +515,10 @@ func logOpenAIWSModeInfo(format string, args ...any) {
 	logger.LegacyPrintf("service.openai_gateway", "[OpenAI WS Mode][openai_ws_mode=true] "+format, args...)
 }
 
+func logOpenAIWSModeWarn(format string, args ...any) {
+	logger.LegacyPrintf("service.openai_gateway", "[warn] [OpenAI WS Mode][openai_ws_mode=true] "+format, args...)
+}
+
 func isOpenAIWSModeDebugEnabled() bool {
 	return logger.L().Core().Enabled(zap.DebugLevel)
 }
@@ -655,6 +659,12 @@ func summarizeOpenAIWSDialError(err error) (
 
 func isOpenAIWSClientDisconnectError(err error) bool {
 	if err == nil {
+		return false
+	}
+	// Local policy/control closes can unwrap context.Canceled or an IO error;
+	// they must not be mistaken for an actual downstream disconnection.
+	var closeErr *OpenAIWSClientCloseError
+	if errors.As(err, &closeErr) {
 		return false
 	}
 	if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) || errors.Is(err, context.Canceled) {

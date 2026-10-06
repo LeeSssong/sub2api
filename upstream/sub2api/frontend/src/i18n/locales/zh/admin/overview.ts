@@ -50,6 +50,7 @@ export default {
       tokens: 'Token',
       cache: '缓存',
       recentUsage: '最近使用',
+      actualSpending: '实际消费 ($)',
       viewModelDistribution: '模型分布',
       viewSpendingRanking: '用户消费榜',
       spendingRankingTitle: '用户消费榜',
@@ -122,10 +123,42 @@ export default {
         cronExpr: 'Cron 表达式',
         cronHint: '例如 "0 2 * * *" 表示每天凌晨 2 点',
         retainDays: '备份过期天数',
-        retainDaysHint: '备份文件超过此天数后自动删除，0 = 永不过期',
+        retainDaysHint: '普通备份超过此天数后自动删除，0 = 不按天数清理',
         retainCount: '最大保留份数',
-        retainCountHint: '最多保留的备份数量，0 = 不限制',
+        retainCountHint: '最多保留的普通备份数量，0 = 不按份数清理',
+        ordinaryRetention: '普通备份保留',
+        ordinaryHint: '达到任一清理条件时，清理最旧的普通备份；月度归档独立保留。',
+        preview: '保留效果',
+        previewBoth: '最近 {days} 天内最多保留 {count} 份普通备份。',
+        previewDays: '保留最近 {days} 天的普通备份，份数不限。',
+        previewCount: '保留最新 {count} 份普通备份，天数不限。',
+        previewUnlimited: '普通备份不自动清理。',
         saved: '定时备份配置已保存'
+      },
+      archive: {
+        title: '月度归档',
+        enabled: '启用',
+        dates: '归档日期（可多选）',
+        selectDates: '请至少选择一个归档日期',
+        selectedDates: '已选择 {count} 个日期',
+        day: '{day} 日',
+        monthEnd: '月末',
+        done: '完成',
+        datesHint: '按备份计划的时区与备份开始日期匹配，每个日期归档首份成功的定时备份。',
+        retention: '归档保留方式',
+        count: '归档保留数量',
+        copies: '份',
+        forever: '永久保留',
+        foreverHint: '所有新归档均永久保留；已有永久归档不会因配置变更被自动删除。',
+        countHint: '所有选定日期的非永久归档合计计数，超出时清理最旧归档。',
+        fallbackHint: '当日无成功备份时，顺延至本月下次成功备份；当月没有所选日期时按月末处理，同一份备份只计一份。',
+        independentHint: '归档不额外执行备份，不占普通备份名额；本月无后续成功备份则不归档。',
+        disabledHint: '关闭后停止产生新归档，已有归档继续按原保留方式管理。',
+        invalidRetention: '保留天数和份数须为非负整数；非永久归档须填写至少 1 份。',
+        preview: '每月 {dates} 各归档一份，{retention}。',
+        retainLatest: '合计保留最近 {count} 份',
+        badge: '月度归档',
+        deleteConfirm: '这是月度归档备份。确定要解除归档保护并永久删除此备份吗？此操作无法撤销。',
       },
       operations: {
         title: '备份记录',
@@ -390,10 +423,12 @@ export default {
 
     affiliates: {
       invitesDescription: '查看全站邀请关系和被邀请用户累计返利',
-      rebatesDescription: '查看每一笔产生返利的充值订单',
-      transfersDescription: '查看返利额度转入账户余额的提取流水',
+      rebatesDescription: '查看每一笔返利入账，包括充值订单、兑换码和管理员充值产生的返利',
+      transfersDescription: '查看返利额度转入余额与线下提现的流水',
       errors: {
-        loadFailed: '加载邀请返利记录失败'
+        loadFailed: '加载邀请返利记录失败',
+        AFFILIATE_QUOTA_INSUFFICIENT: '可提取返利额度不足',
+        AFFILIATE_WITHDRAW_AMOUNT_INVALID: '提现金额无效'
       },
       records: {
         search: '搜索',
@@ -418,7 +453,33 @@ export default {
         historyQuotaAfter: '提取后历史返利',
         invitedAt: '邀请时间',
         rebatedAt: '返利时间',
-        transferredAt: '提取时间'
+        transferredAt: '提取时间',
+        outflowType: '类型'
+      },
+      outflowTypes: {
+        transfer: '转入余额',
+        withdraw: '线下提现'
+      },
+      withdraw: {
+        button: '登记线下提现',
+        title: '登记线下提现',
+        user: '用户',
+        userPlaceholder: '输入邮箱或用户名搜索',
+        noUserFound: '未找到匹配的用户',
+        changeUser: '更换用户',
+        availableQuota: '当前可提取额度',
+        frozenHint: '冻结期内的返利不计入可提取额度',
+        amount: '提现金额（USD）',
+        amountHint: '填写已在站外实际打款给该用户的金额',
+        fillAll: '全部',
+        warning: '登记后将从该用户的可提取返利额度中扣除，且无法撤销。请确认已完成站外打款。',
+        submit: '确认登记',
+        submitting: '登记中...',
+        success: '已登记线下提现 {amount}，剩余可提取 {remaining}',
+        replayed: '这笔线下提现此前已登记（{amount}），本次未重复扣减；登记后剩余可提取 {remaining}',
+        uncertainHint: '上次提交没有收到结果，可能已经登记成功。用户与金额已锁定，重新提交会沿用同一笔登记，已登记时不会重复扣减。',
+        amountRequired: '请输入大于 0 的金额',
+        amountExceeds: '提现金额不能超过当前可提取额度'
       },
       overview: {
         title: '用户返利概览',
@@ -436,6 +497,13 @@ export default {
       title: '用户管理',
       description: '管理用户账户和权限',
       createUser: '创建用户',
+      bulkDelete: {
+        action: '批量删除（{count}）',
+        title: '删除已选用户',
+        confirm: '确定删除已选的 {count} 个用户吗？此操作无法撤销。管理员账号无法删除。',
+        success: '已删除 {count} 个用户',
+        failed: '{count} 个用户删除失败，已保留选中，可重试。'
+      },
       bulkLimits: {
         action: '批量设置限制（{count}）',
         title: '批量设置用户限制',
@@ -558,7 +626,23 @@ export default {
       failedToToggle: '更新用户状态失败',
       failedToLoadApiKeys: '加载用户 API 密钥失败',
       deleteConfirm: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
+      observerGroups: '可管理的账号分组',
+      observerSetup: {
+        title: '转为观察者时同步执行',
+        createGroup: '创建以该用户名称命名的专属分组',
+        createGroupHint: '固定为 OpenAI 平台, 倍率为 1. 自动授予该分组的账号管理和 API 使用权限. 同名分组已存在时提交失败.',
+        simpleModeHint: '简易模式不支持专属分组, 此选项不可用.',
+        revokePublic: '取消该用户使用其他公开分组的权限',
+        revokePublicHint: '限制公开普通分组及其已有 API Key. 保留专属分组授权和已购订阅; 账号管理分组不受此选项影响.',
+        grantResources: '增加 99999 余额额度和 1000 并发',
+        grantResourcesHint: '余额累加 99999, 并发在表单值基础上增加 1000. 并发为 0 时保持无限制. 变更记录在余额/并发历史中.',
+        onceHint: '默认不勾选. 仅在本次从其他角色改为观察者时执行, 后续编辑不会重复执行.',
+        usernameRequired: '创建专属分组前请填写用户名'
+      },
+      observerGroupsHint: '仅授权账号管理, 不影响用户调用 API 的分组权限. 未选择分组时无账号管理权限. 允许查看和导出账号凭据; 共享账号的操作也会影响其他分组.',
+      observerImportHint: '选择导入目标分组. 观察者导入不包含代理配置, 请使用不含代理的备份文件.',
       roles: {
+        observer: '观察者',
         admin: '管理员',
         user: '用户'
       },
@@ -777,6 +861,7 @@ export default {
         clearAllConfirm: '确认清空全部平台的日 / 周 / 月限额？所有平台将变为"无限额"，本地无法撤销，需要在保存前手动重填。',
         reset: {
           button: '重置该窗口',
+          unavailable: '该平台未配置限额，没有可重置的用量窗口',
           confirm: '确认重置该用户 {platform} 平台的 {window} 用量？此操作立即生效。',
           success: '已重置 {platform} {window} 用量',
           failed: '重置失败',
@@ -822,6 +907,7 @@ export default {
         rateMultiplier: '费率倍数',
         rpmOverride: 'RPM 覆盖',
         rpmOverrideHint: '该用户在此分组的 RPM 上限；留空 = 使用分组默认；0 = 不限制',
+        deniedModels: '禁用模型',
         rateDefault: '默认',
         rpmDefault: '默认',
         exclusive: '独占',
@@ -864,6 +950,9 @@ export default {
         rpmLimit: '每分钟请求数 (RPM)',
         rpmLimitPlaceholder: '0 表示不限制',
         rpmLimitHint: '每用户在本分组每分钟最大请求数，0 = 不限制；一旦设置即接管该用户的限流（覆盖用户级 rpm_limit）',
+        streamOnly: '仅允许流式请求',
+        streamOnlyHint: '开启后本分组只接受流式对话请求：Messages、Chat Completions、Responses 里没写 "stream": true 的请求，以及 Gemini 的 generateContent，都会直接返回 400。Token 计数、模型列表、Embeddings、图片视频等本来没有流式的接口不受影响。注意：部分客户端的连通性检测是非流式请求，开启后会检测失败。',
+        streamOnlyBadge: '仅流式',
         maxReasoningEffort: '推理强度上限',
         maxReasoningEffortUnlimited: '不限制（跟随请求）',
         maxReasoningEffortHint: '仅限制客户端主动请求的 Anthropic/OpenAI 推理强度；Composite 分组按实际目标平台生效。不会为缺省请求主动开启推理。上限优先级高于推理强度映射。',
@@ -932,6 +1021,8 @@ export default {
         zhipu: 'Zhipu GLM',
         deepseek: 'DeepSeek',
         minimax: 'MiniMax',
+        opencode_go: 'OpenCode',
+        typesafe: 'TypeSafe / Jev',
         composite: 'Composite',
       },
       saving: '保存中...',
@@ -986,6 +1077,13 @@ export default {
       noRpmOverrides: '暂无用户设置了专属 RPM',
       rpmSaved: '专属 RPM 已保存',
       groupRpmDefault: '分组默认 RPM',
+      userDeniedModels: '用户模型限制',
+      userDeniedModelsTitle: '分组用户模型限制',
+      userDeniedModelsHint: '禁止指定用户在本分组使用某些模型，其他模型不受影响。不区分大小写，支持末尾 * 通配（如 gpt-6-*）。',
+      addUserDeniedModels: '添加用户模型限制',
+      deniedModelsPlaceholder: '输入模型名后回车',
+      noUserDeniedModels: '暂无用户设置了模型限制',
+      userDeniedModelsSaved: '用户模型限制已保存',
       searchUserPlaceholder: '搜索用户邮箱...',
       noRateMultipliers: '暂无用户设置了专属倍率',
       rateUpdated: '专属倍率已更新',
@@ -1074,6 +1172,10 @@ export default {
           '留空使用默认价 $0.01/次（官方定价 $10/1000 次）；填 0 表示免费。实际扣费会叠加分组费率倍数。',
         finalPricePreview: '应用当前倍率后的单次价格：{price}'
       },
+      turnStateReuse: {
+        title: '启用 Turn-State 票据注入',
+        description: '全局功能开启后，本组内的 OpenAI OAuth 账号会参与 Astra 票据采集与出站注入。'
+      },
       peakRate: {
         enable: '启用高峰倍率',
         peakStart: '高峰开始',
@@ -1095,19 +1197,18 @@ export default {
       },
       modelAllowlist: {
         title: '模型白名单',
-        hint: '开启后，不在白名单中的模型会被拒绝（404 model_not_found），模型列表接口也只展示白名单内的模型。条目支持精确模型 ID 与末尾 * 通配。注意：Claude Code 会用 haiku 系小模型做标题/摘要等探测，/messages/count_tokens 同样受白名单控制，请一并勾选所需的小模型。',
+        hint: '开启后，不在白名单中的模型会被拒绝（404 model_not_found），模型列表接口也只展示白名单内的模型。条目支持精确模型 ID 与任意位置的 * 通配（如 gpt-*-codex）。注意：Claude Code 会用 haiku 系小模型做标题/摘要等探测，/messages/count_tokens 同样受白名单控制，请一并勾选所需的小模型。',
         loading: '正在加载候选模型...',
         empty: '暂无候选模型，可在下方手工添加条目',
         selectedSummary: '已选 {selected} / {total}',
         selectAll: '全选',
         invertSelection: '反选',
         wildcardTag: '通配',
-        customPlaceholder: '自定义条目，如 claude-* 或 gpt-5.5-codex',
+        customPlaceholder: '自定义条目，如 gpt-*-codex 或 claude-*',
         addCustom: '添加',
         emptySelectionError: '模型白名单已开启，请至少选择或添加一个模型条目',
         errors: {
           empty: '请输入模型条目',
-          invalidWildcard: '通配符 * 只能出现在条目末尾',
           duplicate: '该条目已存在'
         }
       },

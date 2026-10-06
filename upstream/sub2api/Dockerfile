@@ -7,15 +7,15 @@
 # Stage 3: Final minimal image
 # =============================================================================
 
-ARG NODE_IMAGE=docker.m.daocloud.io/library/node:24-alpine
-ARG GOLANG_IMAGE=docker.m.daocloud.io/library/golang:1.27.0-alpine
-ARG ALPINE_IMAGE=docker.m.daocloud.io/library/alpine:3.21
-ARG POSTGRES_IMAGE=docker.m.daocloud.io/library/postgres:18-alpine
+# Official registry digests avoid the mirror authentication failure.
+ARG NODE_IMAGE=docker.io/library/node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+ARG GOLANG_IMAGE=docker.io/library/golang:1.27.0-alpine@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bdfc999fee45ea9d6c46dbc
+ARG ALPINE_IMAGE=docker.io/library/alpine:3.21@sha256:ce64758a109eb420d874a118f87920e625e12d3634e03b4a5573fd9f6e5d3507
+ARG POSTGRES_IMAGE=docker.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
 ARG GOPROXY=https://goproxy.cn,direct
 ARG GOSUMDB=sum.golang.google.cn
 ARG NPM_CONFIG_REGISTRY=
-ARG GPT56_V411_RELEASE_URL=https://github.com/chen-006/gpt56_api_detector/releases/download/v4.1.1/gpt56_api_detector_github_upload.zip
-ARG GPT56_V411_RELEASE_SHA256=70c0c2f092e66cd219f2384e08872e5bedb4559e427c2e320d0070186376f865
+ARG GPT56_VENDOR_IMAGE=ghcr.io/leesssong/xingqiao-sub2api:release-5e098c4a91865853312fe5bdc869d9d15c00eb3f-e3e958d95cf12c08acbb74f6449114ef7069a3ad92527d80da1bab9eb9503c16
 
 # -----------------------------------------------------------------------------
 # Stage 1: Frontend Builder
@@ -119,13 +119,13 @@ RUN --mount=type=cache,id=sub2api-gomod,target=/go/pkg/mod \
 # -----------------------------------------------------------------------------
 FROM ${POSTGRES_IMAGE} AS pg-client
 
+# Reuse the checksum-verified vendor files from the current production image.
+FROM ${GPT56_VENDOR_IMAGE} AS gpt56-v411-vendor
+
 # -----------------------------------------------------------------------------
 # Stage 4: Final Runtime Image
 # -----------------------------------------------------------------------------
 FROM ${ALPINE_IMAGE}
-
-ARG GPT56_V411_RELEASE_URL
-ARG GPT56_V411_RELEASE_SHA256
 
 # Labels
 LABEL maintainer="Wei-Shaw <github.com/Wei-Shaw>"
@@ -136,6 +136,7 @@ LABEL org.opencontainers.image.source="https://github.com/Wei-Shaw/sub2api"
 RUN apk add --no-cache \
     ca-certificates \
     python3 \
+    py3-pip \
     nodejs \
     curl \
     tzdata \
@@ -147,6 +148,12 @@ RUN apk add --no-cache \
     libldap \
     libedit \
     && rm -rf /var/cache/apk/*
+
+# Native credential guard executor, pinned dependencies and upstream sources.
+COPY token-guard /app/token-guard
+COPY Dockerfile deploy/docker-entrypoint.sh /app/token-guard/build/
+RUN python3 -m venv /app/token-guard-venv && \
+    /app/token-guard-venv/bin/pip install --no-cache-dir -r /app/token-guard/requirements.txt
 
 # Copy pg_dump and psql from the same postgres image used in docker-compose
 # This ensures version consistency between backup tools and the database server
@@ -166,33 +173,9 @@ COPY --from=backend-builder --chown=sub2api:sub2api /app/sub2api /app/sub2api
 COPY --from=backend-builder --chown=sub2api:sub2api /app/model-detector /app/model-detector
 COPY --from=backend-builder --chown=sub2api:sub2api /app/backend/resources /app/resources
 
-# The authorized v4.1.1 release is pinned by URL and checksum. Its archive
-# uses Windows separators, so normalize them while rejecting path traversal.
-RUN set -eu; \
-    mkdir -p /app/vendor/gpt56-v411; \
-    if ! curl --fail --show-error --silent --location --retry 5 --retry-all-errors --retry-delay 5 --retry-max-time 180 \
-        "$GPT56_V411_RELEASE_URL" -o /tmp/gpt56-v411.zip; then \
-        curl --fail --show-error --silent --location --retry 3 --retry-all-errors --retry-delay 3 --retry-max-time 120 \
-            "https://ghfast.top/$GPT56_V411_RELEASE_URL" -o /tmp/gpt56-v411.zip; \
-    fi; \
-    echo "$GPT56_V411_RELEASE_SHA256  /tmp/gpt56-v411.zip" | sha256sum -c -; \
-    python3 - <<'PY'
-import pathlib
-import zipfile
-
-archive = pathlib.Path('/tmp/gpt56-v411.zip')
-root = pathlib.Path('/app/vendor/gpt56-v411').resolve()
-with zipfile.ZipFile(archive) as source:
-    for entry in source.infolist():
-        name = entry.filename.replace('\\', '/')
-        if not name or name.endswith('/'):
-            continue
-        destination = (root / name).resolve()
-        if root not in destination.parents:
-            raise SystemExit('invalid detector archive path')
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(source.read(entry))
-PY
+# This image was built from the pinned v4.1.1 archive and verified SHA256.
+# Its full image ID is embedded in the source image tag.
+COPY --from=gpt56-v411-vendor --chown=sub2api:sub2api /app/vendor/gpt56-v411 /app/vendor/gpt56-v411
 
 COPY --chown=sub2api:sub2api deploy/model-detector-v411-adapter.py /app/model-detector
 RUN chmod 0555 /app/model-detector && chown -R sub2api:sub2api /app/vendor/gpt56-v411

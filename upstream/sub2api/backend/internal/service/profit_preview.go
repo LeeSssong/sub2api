@@ -130,7 +130,7 @@ func PreviewProfitAdmission(inputs []ProfitPreviewGroupInput, evalAt time.Time) 
 			admittedDefault := verdict.Class == ProfitPreviewClassAdmitted
 			admittedMinD := admittedDefault && !verdict.RejectedUnderMinD
 			for _, model := range in.Models {
-				if !account.IsModelSupported(model) {
+				if !account.IsModelSupportedInGroup(&group.ID, model) {
 					continue
 				}
 				verdict.SupportedModels = append(verdict.SupportedModels, model)
@@ -183,11 +183,11 @@ func previewAccountProfitAdmission(
 		verdict.Class = ProfitPreviewClassAdmitted
 	case !validRate:
 		verdict.Class = ProfitPreviewClassRejectedInvalidRate
-	case profitControlOverThreshold(*account.RateMultiplier, thresholdDefault):
+	case profitControlOverThreshold(*account.RateMultiplier, clampProfitControlThreshold(thresholdDefault*account.UserGroupRateMultiplier())):
 		verdict.Class = ProfitPreviewClassRejectedThreshold
 	default:
 		verdict.Class = ProfitPreviewClassAdmitted
-		verdict.RejectedUnderMinD = profitControlOverThreshold(*account.RateMultiplier, thresholdMinD)
+		verdict.RejectedUnderMinD = profitControlOverThreshold(*account.RateMultiplier, clampProfitControlThreshold(thresholdMinD*account.UserGroupRateMultiplier()))
 	}
 	return verdict
 }

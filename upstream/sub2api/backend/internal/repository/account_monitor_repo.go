@@ -515,13 +515,15 @@ func (r *accountMonitorRepository) ProjectMonitorV4GroupsForGroups(
   LEFT JOIN metric_stats ms ON ms.group_id = g.group_id
   GROUP BY g.group_id
 )
-	SELECT group_id, success_rate, request_count, success_count, real_request_count, real_success_count,
-	       probe_fallback_bucket_count, probe_fallback_request_count, missing_probe_terminal_count,
-	       ttft_p95_ms, ttft_sample_count,
-	       latency_p95_ms, latency_sample_count, input_tokens, cache_read_tokens, cache_creation_tokens,
-	       cache_hit_denominator, cache_hit_rate, source_updated_at, ttft_p50_ms, latency_p50_ms
-FROM aggregate
-ORDER BY group_id
+	SELECT a.group_id, a.success_rate, a.request_count, a.success_count, a.real_request_count, a.real_success_count,
+	       a.probe_fallback_bucket_count, a.probe_fallback_request_count, a.missing_probe_terminal_count,
+	       a.ttft_p95_ms, a.ttft_sample_count,
+	       a.latency_p95_ms, a.latency_sample_count,
+	       COALESCE(cu.input_tokens, 0), COALESCE(cu.cache_read_tokens, 0), COALESCE(cu.cache_creation_tokens, 0),
+	       COALESCE(cu.cache_hit_denominator, 0), cu.cache_hit_rate, a.source_updated_at, a.ttft_p50_ms, a.latency_p50_ms
+FROM aggregate a
+LEFT JOIN cache_usage cu ON cu.group_id = a.group_id
+ORDER BY a.group_id
 `, start.UTC(), end.UTC(), bucketSize.String(), pq.Array(scopeGroupIDs), pq.Array(accountIDs), pq.Array(uniqueGroupIDs))
 	if err != nil {
 		return nil, fmt.Errorf("query hybrid monitor v4 groups: %w", err)

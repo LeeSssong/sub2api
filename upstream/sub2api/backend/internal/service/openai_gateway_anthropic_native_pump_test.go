@@ -140,7 +140,7 @@ func TestCCStreamingFromNativeAnthropic_HangTimesOut(t *testing.T) {
 
 	resp, pr, pw := newHangingUpstreamResponse()
 	start := time.Now()
-	res, err := svc.handleCCStreamingFromNativeAnthropic(resp, c, "glm-4.7", "glm-4.7", "glm-4.7", nil, start, true)
+	res, err := svc.handleCCStreamingFromNativeAnthropic(resp, c, "glm-4.7", "glm-4.7", "glm-4.7", nil, start)
 	_ = pw.Close()
 	_ = pr.Close()
 
@@ -175,8 +175,12 @@ func TestCCBufferedFromNativeAnthropic_HangTimesOut(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Fatalf("handler did not respect interval bound: %v", elapsed)
 	}
-	if !strings.Contains(rec.Body.String(), "Upstream stream data interval timeout") {
-		t.Fatalf("expected 502 error body, got %q", rec.Body.String())
+	body := rec.Body.String()
+	if !strings.Contains(body, AppendNativeUserErrorHelp(NativeUserCopyAbnormal, "")) {
+		t.Fatalf("expected native 502 error body, got %q", body)
+	}
+	if strings.Contains(body, "Upstream") || strings.Contains(body, "upstream") {
+		t.Fatalf("client body leaked English: %q", body)
 	}
 }
 
@@ -203,6 +207,15 @@ func TestResponsesStreamingFromNativeAnthropic_HangTimesOut(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Fatalf("handler did not respect interval bound: %v", elapsed)
 	}
+	body := rec.Body.String()
+	if body != "" {
+		if strings.Contains(body, "Upstream") || strings.Contains(body, "upstream") {
+			t.Fatalf("client body leaked English: %q", body)
+		}
+		if !strings.Contains(body, NativeUserCopyAbnormal) && !strings.Contains(body, NativeUserCopyBusy) && !strings.Contains(body, NativeUserCopyFailed) {
+			t.Fatalf("expected native client copy, got %q", body)
+		}
+	}
 }
 
 func TestCCStreamingFromNativeAnthropic_HappyPathStillConverts(t *testing.T) {
@@ -220,7 +233,7 @@ func TestCCStreamingFromNativeAnthropic_HappyPathStillConverts(t *testing.T) {
 	}()
 	defer func() { _ = pr.Close() }()
 
-	res, err := svc.handleCCStreamingFromNativeAnthropic(resp, c, "glm-4.7", "glm-4.7", "glm-4.7", nil, time.Now(), true)
+	res, err := svc.handleCCStreamingFromNativeAnthropic(resp, c, "glm-4.7", "glm-4.7", "glm-4.7", nil, time.Now())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

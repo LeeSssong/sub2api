@@ -48,6 +48,17 @@ const monitorV4RealEventsSQL = `WITH scopes AS (
   WHERE u.created_at >= $1::timestamptz AND u.created_at < $2::timestamptz
     AND NOT (u.created_at >= TIMESTAMPTZ '2026-08-31 00:00:00+08' AND u.created_at < TIMESTAMPTZ '2026-09-02 00:00:00+08')
     AND u.usage_completeness IS DISTINCT FROM 'unknown'
+), cache_usage AS (
+  SELECT group_id,
+         COALESCE(SUM(input_tokens), 0)::bigint AS input_tokens,
+         COALESCE(SUM(cache_read_tokens), 0)::bigint AS cache_read_tokens,
+         COALESCE(SUM(cache_creation_tokens), 0)::bigint AS cache_creation_tokens,
+         COALESCE(SUM(input_tokens + cache_creation_tokens + cache_read_tokens), 0)::bigint AS cache_hit_denominator,
+         SUM(cache_read_tokens)
+           / NULLIF(SUM(input_tokens + cache_creation_tokens + cache_read_tokens), 0) AS cache_hit_rate
+  FROM raw_usage_candidates
+  WHERE successful
+  GROUP BY group_id
 ), unknown_usage_keys AS (
   SELECT DISTINCT u.group_id, NULLIF(u.request_id, '') AS request_key
   FROM usage_logs u

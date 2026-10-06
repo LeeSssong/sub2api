@@ -141,27 +141,27 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			c.Set(string(ContextKeyUserRole), apiKey.User.Role)
 			setGroupContext(c, apiKey.Group)
 			_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
-			c.Next()
+			nextWithAPIKeyAdmissionOwner(c, apiKeyService, apiKeyString, ip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL()), apiKey, true)
 			return
 		}
 
 		// Key 状态检查（状态字段可能因后台异步刷新而滞后，故显式拦截）。
 		switch apiKey.Status {
 		case service.StatusAPIKeyQuotaExhausted:
-			abortWithGoogleError(c, 429, "API key 额度已用完")
+			abortWithGoogleTypedError(c, 429, "subscription_error", "API_KEY_QUOTA_EXHAUSTED", "API key 额度已用完")
 			return
 		case service.StatusAPIKeyExpired:
-			abortWithGoogleError(c, 403, "API key 已过期")
+			abortWithGoogleTypedError(c, 403, "subscription_error", "API_KEY_EXPIRED", "API key 已过期")
 			return
 		}
 
 		// 运行时过期/配额检查（即使状态是 active，也要检查时间和用量，与主中间件一致）。
 		if apiKey.IsExpired() {
-			abortWithGoogleError(c, 403, "API key 已过期")
+			abortWithGoogleTypedError(c, 403, "subscription_error", "API_KEY_EXPIRED", "API key 已过期")
 			return
 		}
 		if apiKey.IsQuotaExhausted() {
-			abortWithGoogleError(c, 429, "API key 额度已用完")
+			abortWithGoogleTypedError(c, 429, "subscription_error", "API_KEY_QUOTA_EXHAUSTED", "API key 额度已用完")
 			return
 		}
 
@@ -173,7 +173,7 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 				apiKey.Group.ID,
 			)
 			if err != nil {
-				abortWithGoogleError(c, 403, "No active subscription found for this group")
+				abortWithGoogleTypedError(c, 403, "subscription_error", "SUBSCRIPTION_NOT_FOUND", "No active subscription found for this group")
 				return
 			}
 
@@ -189,19 +189,21 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			}
 			if err != nil {
 				status := 403
+				code := "SUBSCRIPTION_INVALID"
 				if errors.Is(err, service.ErrDailyLimitExceeded) ||
 					errors.Is(err, service.ErrWeeklyLimitExceeded) ||
 					errors.Is(err, service.ErrMonthlyLimitExceeded) {
 					status = 429
+					code = "USAGE_LIMIT_EXCEEDED"
 				}
-				abortWithGoogleError(c, status, err.Error())
+				abortWithGoogleTypedError(c, status, "subscription_error", code, err.Error())
 				return
 			}
 
 			c.Set(string(ContextKeySubscription), subscription)
 		} else {
 			if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
-				abortWithGoogleError(c, 403, "Insufficient account balance")
+				abortWithGoogleError(c, 403, service.InsufficientUserBalanceMessage)
 				return
 			}
 		}
@@ -214,7 +216,7 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 		c.Set(string(ContextKeyUserRole), apiKey.User.Role)
 		setGroupContext(c, apiKey.Group)
 		_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
-		c.Next()
+		nextWithAPIKeyAdmissionOwner(c, apiKeyService, apiKeyString, ip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL()), apiKey, true)
 	}
 }
 
@@ -258,10 +260,18 @@ func allowGoogleQueryKey(path string) bool {
 }
 
 func abortWithGoogleError(c *gin.Context, status int, message string) {
+	abortWithGoogleTypedError(c, status, nativeUserErrorTypeFromAPIKeyCode("", status), "", message)
+}
+
+func abortWithGoogleTypedError(c *gin.Context, status int, errType, code, message string) {
+	if errType == "" {
+		errType = nativeUserErrorTypeFromAPIKeyCode(code, status)
+	}
+	projected := service.ProjectNativeUserErrorFromGin(c, status, errType, code, message, false, "auth", "client")
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"code":    status,
-			"message": message,
+			"message": projected.Message,
 			"status":  googleapi.HTTPStatusToGoogleStatus(status),
 		},
 	})

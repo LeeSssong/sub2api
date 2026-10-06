@@ -242,6 +242,7 @@ type RefreshTokenRequest struct {
 type IDTokenClaims struct {
 	// Standard claims
 	Sub           string   `json:"sub"`
+	SID           string   `json:"sid"`
 	Email         string   `json:"email"`
 	EmailVerified bool     `json:"email_verified"`
 	Iss           string   `json:"iss"`
@@ -250,7 +251,10 @@ type IDTokenClaims struct {
 	Iat           int64    `json:"iat"`
 
 	// OpenAI specific claims (nested under https://api.openai.com/auth)
-	OpenAIAuth *OpenAIAuthClaims `json:"https://api.openai.com/auth,omitempty"`
+	OpenAIAuth    *OpenAIAuthClaims `json:"https://api.openai.com/auth,omitempty"`
+	OpenAIProfile *struct {
+		Email string `json:"email"`
+	} `json:"https://api.openai.com/profile,omitempty"`
 }
 
 // OpenAIAuthClaims represents the OpenAI specific auth claims
@@ -389,6 +393,9 @@ func (c *IDTokenClaims) GetUserInfo() *UserInfo {
 		Email: c.Email,
 	}
 
+	if info.Email == "" && c.OpenAIProfile != nil {
+		info.Email = c.OpenAIProfile.Email
+	}
 	if c.OpenAIAuth != nil {
 		info.ChatGPTAccountID = c.OpenAIAuth.ChatGPTAccountID
 		info.ChatGPTUserID = c.OpenAIAuth.ChatGPTUserID
@@ -407,6 +414,15 @@ func (c *IDTokenClaims) GetUserInfo() *UserInfo {
 		if info.OrganizationID == "" && len(c.OpenAIAuth.Organizations) > 0 {
 			info.OrganizationID = c.OpenAIAuth.Organizations[0].ID
 		}
+		if info.ChatGPTUserID == "" {
+			info.ChatGPTUserID = c.OpenAIAuth.UserID
+		}
+	}
+	if info.ChatGPTAccountID == "" {
+		info.ChatGPTAccountID = c.SID
+	}
+	if info.ChatGPTUserID == "" {
+		info.ChatGPTUserID = c.Sub
 	}
 
 	return info

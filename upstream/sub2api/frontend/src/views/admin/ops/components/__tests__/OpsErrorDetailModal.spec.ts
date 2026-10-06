@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, shallowMount } from '@vue/test-utils'
 
 import OpsErrorDetailModal from '../OpsErrorDetailModal.vue'
+import { observerUsageContext } from '@/components/admin/usage/observerUsageContext'
 
-const { getRequestErrorDetail, getUpstreamErrorDetail, listRequestErrorUpstreamErrors } = vi.hoisted(() => ({
+const { getRequestErrorDetail, getUpstreamErrorDetail, listRequestErrorUpstreamErrors, own } = vi.hoisted(() => ({
   getRequestErrorDetail: vi.fn(),
   getUpstreamErrorDetail: vi.fn(),
   listRequestErrorUpstreamErrors: vi.fn(),
+  own: vi.fn(),
 }))
 
+vi.mock('@/api/observerUsage', () => ({ observerUsageAPI: { getErrorDetail: own } }))
 vi.mock('@/api/admin/ops', () => ({
   opsAPI: { getRequestErrorDetail, getUpstreamErrorDetail, listRequestErrorUpstreamErrors },
 }))
@@ -111,9 +114,9 @@ describe('OpsErrorDetailModal diagnosis', () => {
     expect(diagnosis.text()).toContain('未选择上游')
   })
 
-  it('reuses diagnosis for upstream context with selected account and sanitized evidence', async () => {
+  it('shows administrator evidence separately from the projected client response', async () => {
     const rawDetail = makeDetail(true)
-    rawDetail.error_body = 'Authorization: Bearer raw-body-secret'
+    rawDetail.error_body = '{"error":{"message":"服务暂时异常，请稍后重试。"}}'
     rawDetail.upstream_error_detail = 'X-Goog-Api-Key: raw-upstream-secret'
     getUpstreamErrorDetail.mockResolvedValue(rawDetail)
     const wrapper = mountModal('upstream')
@@ -125,8 +128,9 @@ describe('OpsErrorDetailModal diagnosis', () => {
     expect(diagnosis.text()).toContain('paid')
     expect(diagnosis.text()).toContain('provider unavailable')
     expect(diagnosis.text()).toContain('maintenance')
-    expect(wrapper.text()).not.toContain('raw-body-secret')
+    expect(wrapper.text()).toContain('服务暂时异常，请稍后重试。')
     expect(wrapper.text()).not.toContain('raw-upstream-secret')
+    expect(wrapper.text()).toContain('[REDACTED]')
   })
 
   it('redacts credential keys inside JSON evidence from an older error record', async () => {
@@ -158,4 +162,47 @@ describe('OpsErrorDetailModal diagnosis', () => {
     expect(wrapper.text()).not.toContain('historical-api-secret')
     expect(wrapper.text()).toContain('provider unavailable')
   })
+
+  it('shows the upstream payload verbatim without JSON reformatting', async () => {
+    const payload = ' {\n  "error":{"message":"Encrypted output cannot be decoded","code":"thinking_signature_invalid"}\n}\n'
+    getUpstreamErrorDetail.mockResolvedValue({ ...makeDetail(true), upstream_error_detail: payload })
+    const wrapper = mountModal('upstream')
+    await flushPromises()
+    expect(wrapper.findAll('pre code').some(node => node.element.textContent === payload)).toBe(true)
+  })
+
+})
+
+it('loads only the owned observer error and never requests correlated admin details', async () => {
+  vi.clearAllMocks()
+  own.mockResolvedValue({ id: 42, status_code: 502, message: 'own error' })
+  const wrapper = shallowMount(OpsErrorDetailModal, {
+    props: { show: true, errorId: 42, errorType: 'request' },
+    global: { provide: { [observerUsageContext as symbol]: true } },
+  })
+  await flushPromises()
+  expect(own).toHaveBeenCalledWith(42)
+  expect(getRequestErrorDetail).not.toHaveBeenCalled()
+  expect(listRequestErrorUpstreamErrors).not.toHaveBeenCalled()
+  wrapper.unmount()
+})
+
+it.each(['user', 'upstream'])('explains %s balance failures and preserves diagnostics', async source => {
+  vi.clearAllMocks()
+  listRequestErrorUpstreamErrors.mockResolvedValue({ items: [] })
+  getRequestErrorDetail.mockResolvedValue({
+    id: 1, status_code: 403, phase: 'request',
+    error_owner: source === 'user' ? 'client' : 'provider',
+    error_source: source === 'user' ? 'client_request' : 'upstream_http',
+    user_id: 7, account_id: source === 'upstream' ? 9 : null,
+    message: 'insufficient balance', error_body: '{"error":{"message":"insufficient balance"}}',
+  })
+  const wrapper = shallowMount(OpsErrorDetailModal, {
+    props: { show: true, errorId: 1, errorType: 'request' },
+    global: { stubs: { BaseDialog: { template: '<div><slot /></div>' }, Icon: true } },
+  })
+  await flushPromises()
+  expect(wrapper.get('[data-testid="balance-source"]').text()).toContain(`admin.ops.balanceError.${source}Hint`)
+  expect(wrapper.find('pre').text()).toContain('insufficient balance')
+  wrapper.unmount()
 })

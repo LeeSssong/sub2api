@@ -29,8 +29,9 @@ func TestGatewayErrorResponseProjectsApplication402WithoutUpstreamLeak(t *testin
 	c, recorder := nativeUserErrorTestContext(t, "/v1/messages")
 	c.Set(opsAccountIDKey, int64(23))
 	(&GatewayHandler{}).errorResponse(c, http.StatusPaymentRequired, "payment_required", "payment required provider=https://secret.example")
-	require.Contains(t, recorder.Body.String(), "余额或额度不足，请充值或检查额度后重试。")
+	require.Contains(t, recorder.Body.String(), "服务暂时异常，请稍后重试。")
 	require.NotContains(t, recorder.Body.String(), "secret.example")
+	require.NotContains(t, recorder.Body.String(), "充值")
 }
 
 func TestResponsesStreamErrorProjectsApplication524WithoutUpstreamLeak(t *testing.T) {
@@ -38,8 +39,9 @@ func TestResponsesStreamErrorProjectsApplication524WithoutUpstreamLeak(t *testin
 	c.Set(opsAccountIDKey, int64(23))
 	(&OpenAIGatewayHandler{}).handleStreamingAwareError(c, 524, "upstream_error", "A timeout occurred request_id=req_secret", true)
 	require.Contains(t, recorder.Body.String(), "event: response.failed")
-	require.Contains(t, recorder.Body.String(), "上游服务处理超时，请稍后重试。")
+	require.Contains(t, recorder.Body.String(), "服务暂时异常，请稍后重试。")
 	require.NotContains(t, recorder.Body.String(), "req_secret")
+	require.NotContains(t, recorder.Body.String(), "上游")
 }
 
 func TestOpenAIErrorResponseHidesSelectedAccountEvidence(t *testing.T) {

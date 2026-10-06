@@ -16,11 +16,13 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 )
 
+const InsufficientUserBalanceMessage = "Insufficient user balance. Please top up your user balance."
+
 var (
 	ErrRedeemCodeNotFound  = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
 	ErrRedeemCodeUsed      = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
 	ErrRedeemCodeExpired   = infraerrors.Conflict("REDEEM_CODE_EXPIRED", "redeem code expired")
-	ErrInsufficientBalance = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient balance")
+	ErrInsufficientBalance = infraerrors.BadRequest("INSUFFICIENT_BALANCE", InsufficientUserBalanceMessage)
 	ErrRedeemRateLimited   = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
 	ErrRedeemCodeLocked    = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
 )
@@ -713,15 +715,24 @@ func (s *RedeemService) reduceOrCancelSubscription(ctx context.Context, userID, 
 		return ErrSubscriptionNotFound
 	}
 
-	now := time.Now()
-	remaining := int(sub.ExpiresAt.Sub(now).Hours() / 24)
-	if remaining < 0 {
-		remaining = 0
+	// Redemption already owns a transaction. Lock and reread the subscription
+	// before computing changes: the redeem-code lock cannot serialize different
+	// codes (or an administrator renewal) targeting the same subscription.
+	sub, err = s.subscriptionService.userSubRepo.GetByIDForUpdate(ctx, sub.ID)
+	if err != nil {
+		return fmt.Errorf("lock subscription for reduction: %w", err)
 	}
+
+	now := time.Now()
+	if s.subscriptionService.now != nil {
+		now = s.subscriptionService.now()
+	}
+	// Preserve calendar-day semantics without rounding away the remaining hours.
+	newExpiresAt := sub.ExpiresAt.AddDate(0, 0, -reduceDays)
 
 	notes := fmt.Sprintf("通过兑换码 %s 退款扣减 %d 天", code, reduceDays)
 
-	if remaining <= reduceDays {
+	if !newExpiresAt.After(now) {
 		// 剩余天数不足，直接取消订阅
 		if err := s.subscriptionService.userSubRepo.UpdateStatus(ctx, sub.ID, SubscriptionStatusExpired); err != nil {
 			return fmt.Errorf("cancel subscription: %w", err)
@@ -732,7 +743,6 @@ func (s *RedeemService) reduceOrCancelSubscription(ctx context.Context, userID, 
 		}
 	} else {
 		// 缩短天数
-		newExpiresAt := sub.ExpiresAt.AddDate(0, 0, -reduceDays)
 		if err := s.subscriptionService.userSubRepo.ExtendExpiry(ctx, sub.ID, newExpiresAt); err != nil {
 			return fmt.Errorf("reduce subscription: %w", err)
 		}
@@ -752,4 +762,9 @@ func (s *RedeemService) reduceOrCancelSubscription(ctx context.Context, userID, 
 	s.subscriptionService.InvalidateSubCache(userID, groupID)
 
 	return nil
+}
+
+// GetUserHistoryPaginated returns all redemption types for the authenticated user.
+func (s *RedeemService) GetUserHistoryPaginated(ctx context.Context, userID int64, params pagination.PaginationParams) ([]RedeemCode, *pagination.PaginationResult, error) {
+	return s.redeemRepo.ListByUserPaginated(ctx, userID, params, "")
 }

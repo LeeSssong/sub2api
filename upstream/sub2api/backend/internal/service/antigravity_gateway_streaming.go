@@ -197,6 +197,11 @@ func (s *AntigravityGatewayService) handleGeminiStreamingResponse(c *gin.Context
 	if s.settingService.cfg != nil && s.settingService.cfg.Gateway.StreamKeepaliveInterval > 0 {
 		keepaliveInterval = time.Duration(s.settingService.cfg.Gateway.StreamKeepaliveInterval) * time.Second
 	}
+	// go-genai / python-genai 不会忽略 SSE 注释行，收到 ":\n\n" 会直接把整个流判成
+	// invalid stream chunk 而中断（Antigravity CLI 在用 go-genai）。对这类客户端宁可不发心跳。
+	if keepaliveInterval > 0 && downstreamRejectsSSEComments(c) {
+		keepaliveInterval = 0
+	}
 	var keepaliveTicker *time.Ticker
 	if keepaliveInterval > 0 {
 		keepaliveTicker = time.NewTicker(keepaliveInterval)
@@ -285,6 +290,14 @@ func (s *AntigravityGatewayService) handleGeminiStreamingResponse(c *gin.Context
 				}
 
 				cw.Fprintf("data: %s\n\n", payload)
+				continue
+			}
+
+			// 上游每个 data 事件后面跟一个空行作为事件分隔。上面已经把 data 行写成
+			// "data: ...\n\n"，若再把这个空行透传出去，事件之间就会变成 "\n\n\n"。
+			// google-genai 的 Go SDK（Antigravity CLI 在用）按 "\n\n" 切事件，多出的
+			// "\n" 会粘到下一个事件开头，前缀变成 "\ndata" 而被判成 invalid stream chunk。
+			if trimmed == "" {
 				continue
 			}
 
@@ -673,11 +686,15 @@ func mergeTextPartsToResponse(response map[string]any, textParts []string) map[s
 	return result
 }
 
+// antigravityStatusClientClosed 是客户端在上游响应前断开时回写的状态码（499 client closed request）。
+const antigravityStatusClientClosed = 499
+
 func (s *AntigravityGatewayService) writeClaudeError(c *gin.Context, status int, errType, message string) error {
+	projected := projectSelectedAccountUserError(c, status, errType, "", message)
 	MarkResponseCommitted(c)
 	c.JSON(status, gin.H{
 		"type":  "error",
-		"error": gin.H{"type": errType, "message": message},
+		"error": gin.H{"type": projected.Type, "message": projected.Message},
 	})
 	return fmt.Errorf("%s", message)
 }
@@ -717,10 +734,7 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 		c, account.Platform, upstreamStatus, body,
 		0, "", "",
 	); matched {
-		c.JSON(ptStatus, gin.H{
-			"type":  "error",
-			"error": gin.H{"type": ptErrType, "message": ptErrMsg},
-		})
+		writeProjectedAnthropicUserError(c, ptStatus, ptErrType, ptErrMsg)
 		if upstreamMsg == "" {
 			return fmt.Errorf("upstream error: %d", upstreamStatus)
 		}
@@ -757,10 +771,7 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 		errMsg = "Upstream request failed"
 	}
 
-	c.JSON(statusCode, gin.H{
-		"type":  "error",
-		"error": gin.H{"type": errType, "message": errMsg},
-	})
+	writeProjectedAnthropicUserError(c, statusCode, errType, errMsg)
 	if upstreamMsg == "" {
 		return fmt.Errorf("upstream error: %d", upstreamStatus)
 	}
@@ -768,6 +779,7 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 }
 
 func (s *AntigravityGatewayService) writeGoogleError(c *gin.Context, status int, message string) error {
+	projected := ProjectNativeUserErrorFromGin(c, status, "", "", message, false, "", "")
 	MarkResponseCommitted(c)
 	statusStr := "UNKNOWN"
 	switch status {
@@ -777,6 +789,8 @@ func (s *AntigravityGatewayService) writeGoogleError(c *gin.Context, status int,
 		statusStr = "NOT_FOUND"
 	case 429:
 		statusStr = "RESOURCE_EXHAUSTED"
+	case antigravityStatusClientClosed:
+		statusStr = "CANCELLED"
 	case 500:
 		statusStr = "INTERNAL"
 	case 502, 503:
@@ -786,7 +800,7 @@ func (s *AntigravityGatewayService) writeGoogleError(c *gin.Context, status int,
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"code":    status,
-			"message": message,
+			"message": projected.Message,
 			"status":  statusStr,
 		},
 	})

@@ -1,0 +1,2832 @@
+{
+  "baseline": "50c1376e754bf81517b7c1e4fadd9073decf16c6",
+  "official_base": "fd80b08c90b55edcad5b00171b53f08721d30da1",
+  "source": "6b0c0ddbd1649caad5d980e92368059b1a5d1158",
+  "source_tag": "v2.8.13",
+  "paths": [
+    {
+      "path": ".github/release-tools/release-images.sh",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": ".github/release-tools/release_matrix.py",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": ".github/release-tools/test_release_matrix.py",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": ".github/workflows/backend-ci.yml",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": ".github/workflows/pelican-trial-build.yml",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": ".github/workflows/request-timing-build.yml",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": ".gitignore",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": ".goreleaser.yaml",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "Makefile",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "README.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "README_CN.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "README_EN.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "README_JA.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "assets/community/coffee-reward.jpg",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "assets/community/qq-relay-tech-group.png",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "assets/community/wechat-relay-tech-group.jpg",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "assets/gpt6-sol-luna-opus55-model-selector.jpg",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "assets/logo-icon.png",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "backend/cmd/server/VERSION",
+      "resolution": "native_version_with_fusion_build_metadata"
+    },
+    {
+      "path": "backend/cmd/server/main.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/cmd/server/wire.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/cmd/server/wire_gen.go",
+      "resolution": "regenerated_from_combined_providers"
+    },
+    {
+      "path": "backend/cmd/server/wire_gen_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/ent/account/account.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/account/where.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/account.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/account_create.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/account_update.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/accountgroup/accountgroup.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/accountgroup/where.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/accountgroup.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/accountgroup_create.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/accountgroup_update.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/group/group.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/group/where.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/group.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/group_create.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/group_update.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/migrate/schema.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/mutation.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/runtime/runtime.go",
+      "resolution": "regenerated_from_combined_schema"
+    },
+    {
+      "path": "backend/ent/schema/account.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/ent/schema/account_group.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/ent/schema/group.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/go.mod",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/go.sum",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/config/config.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/domain/announcement.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_codex_harvest_controls.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_codex_harvest_controls_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_codex_harvest_flow.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_codex_import.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_codex_import_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_codex_ticket_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_data.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_data_handler_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_handler.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_handler_group_allowed_models_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_ops_handler.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_token_guard_handler.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/admin_service_stub_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/admin/announcement_handler_user_targeting_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/group_handler.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/admin/group_handler_simple_mode_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/group_handler_stream_only_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/group_handler_user_denied_models_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/request_capture_handler.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/request_capture_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/scheduled_test_handler.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_audit.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_codex_ticket_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_excel_bps_image_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_pelican_showcase_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_update.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/admin/system_handler.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/system_mihomo.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/admin/usage_handler.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/dto/account_group_allowed_models_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/dto/account_mapper_redact_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/dto/group_mapper_stream_only_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/dto/mappers.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/dto/settings.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/dto/types.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/gateway_handler.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/gateway_key_billing_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/gemini_v1beta_handler.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/grok_media_slots_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/handler.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/model_plaza_handler.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/model_plaza_handler_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/openai_codex_models_handler.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/openai_codex_models_handler_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/openai_excel_bps_error_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/openai_excel_bps_image.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/openai_gateway_credential_failover_loop_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/openai_gateway_cyber_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/openai_gateway_handler.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/openai_gateway_handler_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/openai_images.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/openai_images_failover_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/openai_models_handler.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/openai_responses_failover_cancel_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/openai_ws_client_close_attribution_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/openai_ws_v2_passthrough_cyber_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/handler/pelican_showcase_handler.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/pelican_showcase_handler_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/security_audit_helper.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/setting_handler.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/user_group_denied_models_list_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/handler/wire.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/mihomo/collection.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/collection_smoke_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/collection_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/controller_status.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/controller_status_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/country.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/country_smoke_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/country_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/dynamic_subscription.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/dynamic_subscription_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/harvest_directed.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/harvest_directed_config.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/harvest_directed_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/harvest_managed.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/harvest_managed_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/lease.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/lease_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/manager.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/manager_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/migrate.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/migrate_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/node_names.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/node_names_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/process_linux.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/mihomo/process_other.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/apicompat/chatcompletions_responses_bridge_custom_tools_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/apicompat/chatcompletions_responses_stream_lifecycle_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/apicompat/chatcompletions_responses_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/apicompat/responses_stream_event_wire.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/apicompat/responses_stream_event_wire_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/apicompat/types.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/gemini/model_action.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/gemini/model_action_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/httputil/body.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/requesttiming/body.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/requesttiming/collector.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/requesttiming/collector_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/pkg/requesttiming/http.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/account_group_allowed_models_integration_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/account_ops.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/account_ops_integration_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/account_quality.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/account_quality_integration_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/account_repo.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/account_repo_codex_ticket_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/account_repo_excel_bps_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/account_repo_integration_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/account_repo_opencode_go_usage_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/account_repo_upstream_billing_probe_update_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/account_token_guard.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/announcement_user_targeting_integration_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/api_key_repo.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/api_key_repo_stream_only_unit_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/codex_harvest_flow_repo.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/codex_harvest_flow_repo_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/codex_harvest_node_postgres_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/codex_harvest_node_repo.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/codex_harvest_node_repo_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/group_repo.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/http_upstream.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/http_upstream_billing_lifecycle_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/http_upstream_pre_request_retry.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/http_upstream_pre_request_retry_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/http_upstream_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/migrations_schema_integration_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/openai_turn_admission.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/openai_turn_admission_integration_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/openai_turn_admission_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/pelican_scheduled_integration_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/pelican_scheduled_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/pelican_showcase_repo.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/pelican_showcase_repo_integration_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/request_capture_integration_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/request_timing.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/request_timing_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/scheduled_test_repo.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/scheduler_cache.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/scheduler_cache_group_allowed_models_unit_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/scheduler_cache_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/scheduler_cache_unit_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/scheduler_ticket_account_unit_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/usage_log_repo.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/user_group_denied_models_integration_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/user_group_rate_repo.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/repository/user_repo.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/repository/wire.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/requestcapture/capture_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/requestcapture/edge_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/requestcapture/export.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/requestcapture/filter.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/requestcapture/json_validator.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/requestcapture/load_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/requestcapture/manager.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/requestcapture/privacy_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/requestcapture/session.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/requestcapture/store.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/requestcapture/types.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/requestcapture/websocket.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/api_contract_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/server/middleware/api_key_auth.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/server/middleware/audit_log.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/backend_mode_guard_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/excel_bps_image_admission.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/excel_bps_image_admission_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/group_model_allowlist.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/group_model_allowlist_user_denied_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/group_stream_only.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/group_stream_only_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/ingress_reject.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/logger.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/openai_fast_policy_forwarding_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/request_capture.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/request_capture_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/request_logger.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/request_logger_image_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/request_timing.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/middleware/request_timing_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/router.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/server/routes/admin.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/server/routes/composite_images_compatible_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/routes/excel_bps_image_admission_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/routes/excel_bps_image_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/routes/gateway.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/server/routes/gateway_key_billing_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/server/routes/gateway_model_allowlist_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/routes/gateway_models_pinned_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/routes/gateway_stream_only_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/server/routes/user.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/account.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/account_grok_media_eligibility_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/account_group.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/account_group_allowed_models_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/account_openai_passthrough_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/account_ops.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/account_ops_signal.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/account_ops_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/account_quality.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/account_quality_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/account_service.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/account_service_delete_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/account_test_service.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/account_test_service_excel_bps_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/account_token_guard.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/admin_account.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/admin_account_codex_ticket_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/admin_account_group_allowed_models_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/admin_codex_harvest_wake_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/admin_group.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/admin_group_duplicate.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/admin_group_duplicate_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/admin_group_stream_only_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/admin_service.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/admin_service_bulk_excel_bps_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/admin_service_group_rate_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/admin_service_list_users_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/announcement.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/announcement_service.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/announcement_targeting_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/announcement_user_targeting_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/api_key_auth_cache.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/api_key_auth_cache_impl.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/api_key_auth_cache_stream_only_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/api_key_service.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/NOTICE.md",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/README.md",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/agent_message_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/basispoints_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/catalog.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/catalog_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/content.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/content_diagnostics_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/custom_transport.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/custom_transport_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/deep_audit_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/deep_envelope_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/direct_call_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/envelope.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/envelope_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/history_collision_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/history_recovery_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/image_relay.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/basispoints/image_relay_disk_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/image_relay_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/basispoints/images.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/images_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/invocation_recovery_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/plan.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/plan_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/raw_custom_call_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/request.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/request_compatibility_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/route.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/route_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/stream.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/structured_output.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/structured_output_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/terminal_tools_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/basispoints/tools.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/batch_image_public.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/billing_cache_service.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/codex_account_availability.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_account_availability_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_780.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_780_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_780_ws.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_attempt.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_controls.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_controls_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_edge.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_edge_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_errors.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_fenjue_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_flow.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_flow_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_hunt.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_hunt_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_nodes.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_nodes_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_parallel.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_parallel_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_probe.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_regression_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_session_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_status.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_toolchain_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/domain_constants.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/gateway_model_availability.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/gateway_multiplatform_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/gateway_scheduling.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/gateway_service.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/gateway_service_selection_failure_stats_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/gateway_usage_billing.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/gemini_messages_compat_service.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/gemini_multiplatform_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/gemini_sse_comment_compat_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/group.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/group_model_allowlist.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/http_upstream_profile.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/http_upstream_profile_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_account_runtime_block_fastpath.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_account_runtime_block_fastpath_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_account_runtime_transient_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_account_scheduler.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_account_scheduler_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_agent_identity_compat_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_bulk_account_settings.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_harvest_scope_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_models_service.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_models_service_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_probe_response.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_probe_response_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_probe_status.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_strict_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket_cookie_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket_egress.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket_feedback.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket_feedback_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket_lifecycle_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket_manual.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket_manual_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket_scheduler_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_turn_state.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_compact_stream_bridge.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_copilot_sdk.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_copilot_sdk_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_cyber_session_block.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_cyber_session_block_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_cyber_session_identity_observability.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_cyber_session_identity_observability_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_cyber_transcript.go",
+      "resolution": "native_custom_file_retained"
+    },
+    {
+      "path": "backend/internal/service/openai_deepseek_compact.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_deepseek_compact_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps_billing_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps_image_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps_models_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps_structured_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps_usage.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps_usage_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_chat_completions.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_chat_completions_raw.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_chat_completions_raw_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_count_tokens_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_deepseek_chat_reasoning_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_factory.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_forward.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_grok_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_messages.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_model_availability.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_ollama_cloud_max_tokens_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_passthrough.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_passthrough_function_args_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_record_usage_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_request_body.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_response_handling.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_responses_anthropic_native.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_responses_chat_fallback.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_responses_chat_fallback_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_responses_client_tools_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_scheduling.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_service.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_service_codex_cli_only_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_service_hotpath_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_service_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_usage.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_gpt56_max_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_guardian_affinity_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_image_generation_controls_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_images.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_images_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_models_list.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_oauth_passthrough_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_plugin_account_directory.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_plugin_account_directory_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_plugin_transport.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_profit_control_paths_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_proxy_fallback_ticket_compat_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_proxy_quarantine_fallback_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_proxy_runtime_chain_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_proxy_runtime_fallback.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_proxy_runtime_fallback_compat_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_proxy_runtime_fallback_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_proxy_stream_circuit.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_responses_deepseek_aggregator_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_responses_deepseek_lite_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_responses_reasoning_visibility.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_responses_reasoning_visibility_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_sse_concatenated_json_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_sse_passthrough_lifecycle_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_sse_read_pump.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_sse_read_pump_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ticket_candidates.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_turn_admission.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_turn_admission_lifecycle_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_turn_admission_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_upstream_transport_error.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_client_read.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_ingress.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_ingress_execution_scope_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_ingress_retry_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_ingress_session_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_payload.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_success_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_support.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_v2.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_v2_execution_scope_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_http_bridge.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_http_bridge_isolation_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_http_bridge_resume_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_http_bridge_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_passthrough_turn_pricing_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_pool.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_pool_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_protocol_forward_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_request_capture.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_v2_passthrough_adapter.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_v2_passthrough_lifecycle_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/pelican_scheduled.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/pelican_scheduled_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/pelican_showcase.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/pelican_showcase_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/pelican_test_service.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/pelican_test_service_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/profit_preview.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/quality_judge.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/quality_judge_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/ratelimit_service.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/ratelimit_session_window_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/request_capture.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/request_timing.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/scheduled_test_port.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/scheduled_test_runner_service.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/scheduled_test_service.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/scheduler_account_batch.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/scheduler_account_batch_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/session_id.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/session_id_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_codex_harvest_cache_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_codex_harvest_integration_unit_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_codex_harvest_scope.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_codex_harvest_wake.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_codex_harvest_wake_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_codex_harvest_wake_update_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_codex_strategy.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_codex_ticket_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_excel_bps_image.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_excel_bps_image_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_gateway_runtime.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_parse.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/setting_pelican_showcase.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/setting_public.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/setting_service.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_service_backend_mode_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/setting_service_update_test.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/setting_update.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/settings_view.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/update_service.go",
+      "resolution": "native_update_chain_preserved"
+    },
+    {
+      "path": "backend/internal/service/update_service_test.go",
+      "resolution": "native_update_chain_preserved"
+    },
+    {
+      "path": "backend/internal/service/user.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/user_group_denied_models.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/user_group_denied_models_test.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/user_group_rate.go",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "backend/internal/service/user_service.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/internal/service/wire.go",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/239_codex_harvest_node_learning.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/240_codex_harvest_flow_events.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/241_add_account_group_rate_multiplier.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/242_request_timing_details.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/243_pelican_scheduled_tests.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/244_account_group_allowed_models.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/245_user_group_denied_models.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/246_group_stream_only.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/247_account_quality_ops.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/248_account_quality_judgment.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/249_account_ops_alerts.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/249_pelican_showcase_items.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/250_account_token_guard.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "backend/migrations/251_request_captures.sql",
+      "resolution": "combined_with_native_or_adapted"
+    },
+    {
+      "path": "deploy/README.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/config.example.yaml",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/copilot-sdk/.gitignore",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/copilot-sdk/README.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/copilot-sdk/copilot-sdk-sidecar.service",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/copilot-sdk/login.py",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/copilot-sdk/prepare.sh",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/copilot-sdk/server.py",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/copilot-sdk/sidecar.env.example",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/copilot-sdk/test_adapter_contract.py",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/copilot-sdk/test_server.py",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/docker-compose.local.yml",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/docker-compose.standalone.yml",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/docker-compose.yml",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/docker-deploy.sh",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/install-mihomo-codex.sh",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/install.sh",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/migrate-mihomo-managed.sh",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/mihomo-codex.config.example.yaml",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/mihomo-codex.service",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "deploy/tests/mihomo-arm64.Dockerfile",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/CODEX_HARVEST_SCOPE_CN.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/MIHOMO_MANAGED_CN.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/account-quality-operations.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/account-token-guard.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/codex-780-native-mint.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/codex-parallel-harvest.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/codex-ticket-pinning.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/copilot-sdk-codex.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/cyber-session-blocking.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/dynamic-proxy-regions.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/excel-bps.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/pelican-scheduled-tests.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "docs/request-capture.md",
+      "resolution": "native_delivery_branding_or_docs_preserved"
+    },
+    {
+      "path": "frontend/src/__tests__/integration/usage-reasoning-effort.spec.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/api/admin/__tests__/requestCaptures.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/api/admin/accountOps.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/api/admin/accountQuality.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/api/admin/accountTokenGuard.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/api/admin/accounts.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/api/admin/codexHarvest.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/api/admin/groups.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/api/admin/requestCaptures.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/api/admin/scheduledTests.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/api/admin/settings.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/api/admin/usageTiming.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/api/pelicanShowcase.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/account/AccountGroupModelLimits.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/account/AccountUsageCell.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/account/BulkEditAccountModal.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/account/CreateAccountModal.vue",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/account/EditAccountModal.vue",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/AccountGroupModelLimits.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/AccountUsageCell.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/BulkEditAccountModal.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/CreateAccountModal.spec.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/EditAccountModal.groupModelLimits.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/EditAccountModal.spec.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/groupAllowedModels.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/account/groupAllowedModels.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/HarvestControlsPanel.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/HarvestManualConsole.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/HarvestNodeRecords.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/__tests__/HarvestManualConsole.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/account/AccountActionMenu.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/account/IQTestModal.vue",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/admin/account/PelicanRecordsDashboard.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/account/PelicanTestFields.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/account/ScheduledTestsPanel.vue",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/admin/account/__tests__/AccountActionMenu.position.spec.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/admin/account/__tests__/IQTestModal.spec.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/admin/account/__tests__/PelicanRecordsDashboard.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/account/__tests__/ScheduledTestsPanel.pelican.spec.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/admin/announcements/AnnouncementTargetingEditor.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/announcements/AnnouncementUserPicker.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/announcements/__tests__/AnnouncementTargetingEditor.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/announcements/__tests__/AnnouncementUserPicker.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/group/GroupUserDeniedModelsModal.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/group/ModelTagInput.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/group/__tests__/GroupUserDeniedModelsModal.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/group/__tests__/ModelTagInput.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/SmartOpsNav.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/usage/UsageTable.vue",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/admin/usage/UsageTimingDialog.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/admin/usage/__tests__/UsageTable.spec.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/admin/usage/__tests__/UsageTimingDialog.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/common/BaseDialog.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/common/GroupSelector.vue",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/common/__tests__/BaseDialog.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/layout/AppSidebar.vue",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/components/user/pelican/PelicanShowcaseCard.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/components/user/pelican/pelicanShowcaseFormat.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/accountOps.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/accounts.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/harvestFlow.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/index.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/overview.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/requestCapture.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/resources.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/settings.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/common.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/dashboard.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/index.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/qualityOps.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/requestTiming.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/tokenGuard.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/accountOps.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/accounts.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/harvestFlow.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/index.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/overview.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/requestCapture.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/resources.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/settings.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/common.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/dashboard.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/index.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/qualityOps.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/requestTiming.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/tokenGuard.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/router/index.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/router/meta.d.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/stores/__tests__/accountQuality.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/stores/__tests__/adminSettings.retry.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/stores/accountOps.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/stores/accountQuality.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/stores/adminSettings.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/style.css",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/types/index.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/announcementTargeting.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/harvestAvailability.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/latencyHealth.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/pelicanHtml.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/requestTimingHealth.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/usageTps.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/utils/announcementTargeting.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/utils/featureFlags.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/utils/harvestAvailability.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/utils/intelligenceTest.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/utils/latencyHealth.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/utils/pelicanHtml.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/utils/requestTimingHealth.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/utils/usageTps.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/KeyUsageView.vue",
+      "resolution": "native_user_view_preserved"
+    },
+    {
+      "path": "frontend/src/views/__tests__/KeyUsageView.spec.ts",
+      "resolution": "native_user_view_preserved"
+    },
+    {
+      "path": "frontend/src/views/admin/AccountOpsView.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/AccountQualityView.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/AccountsView.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/AnnouncementsView.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/GroupsView.vue",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/views/admin/HarvestFlowView.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/ProxiesView.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/RequestCaptureView.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/SettingsView.vue",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/views/admin/UsageView.vue",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/AccountOpsView.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/AccountQualityView.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/GroupsView.streamOnly.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/HarvestControls.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/HarvestFlowView.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/RequestCaptureView.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/SettingsView.spec.ts",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/views/admin/ops/TokenGuardView.vue",
+      "resolution": "frontend_merged_see_frontend_report"
+    },
+    {
+      "path": "frontend/src/views/admin/settings/MihomoCountryFilter.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/settings/MihomoCountryFilter.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/settings/MihomoSettings.spec.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/settings/MihomoSettings.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/settings/PelicanShowcaseSettings.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/settings/mihomoCountry.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/admin/settings/pelicanShowcase.ts",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/user/PelicanShowcaseView.vue",
+      "resolution": "identical_to_release"
+    },
+    {
+      "path": "frontend/src/views/user/__tests__/PelicanShowcaseView.spec.ts",
+      "resolution": "identical_to_release"
+    }
+  ]
+}

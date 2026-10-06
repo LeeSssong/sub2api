@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -142,6 +143,36 @@ func TestNormalizeCodexSessionJSONExtractsCredentialsAndIgnoresSessionToken(t *t
 	}
 	if item.TokenExpiresAt == nil {
 		t.Fatalf("TokenExpiresAt should be parsed from accessToken")
+	}
+}
+
+func TestNormalizeCodexSessionInfoUsesUserInfoAccountIDThenAccessTokenClaim(t *testing.T) {
+	accessToken := buildCodexImportTestJWT(t, time.Now().Add(time.Hour), map[string]any{
+		"https://api.openai.com/auth": map[string]any{"chatgpt_account_id": "jwt-account"},
+	})
+	for _, tt := range []struct {
+		name     string
+		userInfo map[string]any
+		wantID   string
+	}{
+		{"user_info account", map[string]any{"chatgpt_account_id": "user-info-account"}, "user-info-account"},
+		{"JWT fallback", map[string]any{}, "jwt-account"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			item, err := normalizeCodexImportEntry(codexImportEntry{Index: 1, Value: map[string]any{
+				"session_info": map[string]any{"access_token": accessToken},
+				"user_info":    tt.userInfo,
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := item.Credentials["access_token"]; got != accessToken {
+				t.Fatalf("access_token = %v, want session_info token", got)
+			}
+			if got := item.Credentials["chatgpt_account_id"]; got != tt.wantID {
+				t.Fatalf("chatgpt_account_id = %v, want %s", got, tt.wantID)
+			}
+		})
 	}
 }
 
@@ -648,6 +679,32 @@ func TestImportCodexSessionsAccessTokenOnlySameWorkspaceDifferentUsersCreatesTwo
 	}
 }
 
+func TestImportCodexSessionsCarriesPerAccountProcurementCostOnlyToCreatedAccount(t *testing.T) {
+	svc := newCodexImportMemoryAdminService(nil)
+	handler := NewAccountHandler(svc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	reqValue := reflect.ValueOf(&CodexSessionImportRequest{}).Elem()
+	costField := reqValue.FieldByName("ProcurementCostCNY")
+	if !costField.IsValid() {
+		t.Fatal("CodexSessionImportRequest must carry procurement cost")
+	}
+	cost := 1.25
+	costField.Set(reflect.ValueOf(&cost))
+	req := reqValue.Interface().(CodexSessionImportRequest)
+	entries := []codexImportEntry{{Index: 1, Value: buildCodexAccessOnlyImportValue(t, "workspace-1", "user-1")}}
+
+	result, err := handler.importCodexSessions(context.Background(), req, entries)
+	if err != nil {
+		t.Fatalf("importCodexSessions error = %v", err)
+	}
+	if result.Created != 1 || len(svc.createdAccounts) != 1 {
+		t.Fatalf("result = %+v, created inputs = %d", result, len(svc.createdAccounts))
+	}
+	createdValue := reflect.ValueOf(svc.createdAccounts[0]).Elem().FieldByName("ProcurementCostCNY")
+	if !createdValue.IsValid() || createdValue.IsNil() || createdValue.Elem().Float() != 1.25 {
+		t.Fatalf("created procurement cost = %v, want 1.25", createdValue)
+	}
+}
+
 func TestImportCodexSessionsAccessTokenOnlySameWorkspaceAndUserDifferentTokensCreatesTwoAccounts(t *testing.T) {
 	svc := newCodexImportMemoryAdminService(nil)
 	handler := NewAccountHandler(svc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
@@ -1020,4 +1077,76 @@ func buildCodexImportTestJWT(t *testing.T, exp time.Time, extraClaims map[string
 		t.Fatalf("marshal claims: %v", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(headerBytes) + "." + base64.RawURLEncoding.EncodeToString(claimBytes) + "."
+}
+
+func TestImportCodexSessionsSkipExistingPreservesAccount(t *testing.T) {
+	svc := newCodexImportMemoryAdminService(nil)
+	h := NewAccountHandler(svc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	entries := []codexImportEntry{{Index: 1, Value: buildCodexRefreshImportValue(t, "workspace-1", "user-1", "refresh-new")}}
+	req := CodexSessionImportRequest{SkipDefaultGroupBind: boolPtr(true), UpdateExisting: boolPtr(false), SkipExisting: true}
+	first, err := h.importCodexSessions(context.Background(), req, entries)
+	if err != nil || first.Created != 1 {
+		t.Fatal("initial import did not create an account")
+	}
+	second, err := h.importCodexSessions(context.Background(), req, entries)
+	if err != nil || second.Skipped != 1 || second.Created != 0 || second.Updated != 0 || second.Failed != 0 {
+		t.Fatalf("repeat import counts = created:%d updated:%d skipped:%d failed:%d", second.Created, second.Updated, second.Skipped, second.Failed)
+	}
+	if len(svc.createdAccounts) != 1 || len(svc.updatedAccounts) != 0 {
+		t.Fatal("repeat import modified an account")
+	}
+	// Existing callers can still intentionally create duplicates by omitting skip_existing.
+	req.SkipExisting = false
+	third, err := h.importCodexSessions(context.Background(), req, entries)
+	if err != nil || third.Created != 1 {
+		t.Fatal("legacy create-only behavior changed")
+	}
+}
+
+func TestImportCodexSessionsSkipExistingResolvesLegacyMember(t *testing.T) {
+	for _, tc := range []struct {
+		name, storedUser         string
+		opaque                   bool
+		wantCreated, wantSkipped int
+	}{
+		{"different member", "user-old", false, 1, 0},
+		{"same member", "user-new", false, 0, 1},
+		{"unknown member", "", true, 1, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			token := "opaque-old-token"
+			if !tc.opaque {
+				token = buildCodexAccessToken(t, "workspace-1", tc.storedUser, time.Now().Add(-time.Hour))
+			}
+			credentials := map[string]any{"chatgpt_account_id": "workspace-1", "access_token": token, "refresh_token": "refresh-old"}
+			svc := newCodexImportMemoryAdminService([]service.Account{{ID: 11, Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Credentials: credentials}})
+			h := NewAccountHandler(svc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+			req := CodexSessionImportRequest{SkipDefaultGroupBind: boolPtr(true), UpdateExisting: boolPtr(false), SkipExisting: true}
+			entries := []codexImportEntry{{Index: 1, Value: buildCodexRefreshImportValue(t, "workspace-1", "user-new", "refresh-new")}}
+			result, err := h.importCodexSessions(context.Background(), req, entries)
+			if err != nil || result.Created != tc.wantCreated || result.Skipped != tc.wantSkipped || result.Failed != 0 {
+				t.Fatalf("result=%+v err=%v", result, err)
+			}
+			if len(svc.updatedAccounts) != 0 {
+				t.Fatal("skip-existing changed the legacy account")
+			}
+			if _, ok := credentials["chatgpt_user_id"]; ok {
+				t.Fatal("index mutated stored credentials")
+			}
+		})
+	}
+}
+
+func TestNormalizeCodexImportReadsProfileEmail(t *testing.T) {
+	token := buildCodexImportTestJWT(t, time.Now().Add(time.Hour), map[string]any{
+		"https://api.openai.com/profile": map[string]any{"email": "member@example.com"},
+		"https://api.openai.com/auth":    map[string]any{"chatgpt_account_id": "workspace-1", "chatgpt_user_id": "user-new"},
+	})
+	item, err := normalizeCodexImportEntry(codexImportEntry{Index: 1, Value: map[string]any{"access_token": token, "refresh_token": "refresh"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.Credentials["email"] != "member@example.com" {
+		t.Fatalf("email=%v", item.Credentials["email"])
+	}
 }

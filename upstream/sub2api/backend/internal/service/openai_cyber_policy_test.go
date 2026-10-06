@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestMarkAndGetOpsCyberPolicy(t *testing.T) {
@@ -58,6 +59,28 @@ func TestClearOpsCyberPolicy_AllowsRemark(t *testing.T) {
 	got := GetOpsCyberPolicy(c)
 	require.NotNil(t, got, "re-mark after Clear must take effect")
 	require.Equal(t, "second", got.Message)
+}
+
+func TestRewriteOpenAICyberPolicyClientPayload(t *testing.T) {
+	raw := []byte(`{"error":{"code":"cyber_policy","message":"Join Trusted Access https://chatgpt.com/cyber","request_id":"req_secret"}}`)
+	got, changed := rewriteOpenAICyberPolicyClientPayload(raw)
+	require.True(t, changed)
+	require.Equal(t, openAICyberPolicyClientCode, gjson.GetBytes(got, "error.code").String())
+	require.Equal(t, openAICyberPolicyClientMessage, gjson.GetBytes(got, "error.message").String())
+	require.NotContains(t, string(got), "chatgpt.com")
+	require.NotContains(t, string(got), "Trusted Access")
+	require.NotContains(t, string(got), "cyber_policy")
+
+	wrapped := []byte(`{"type":"response.failed","response":{"error":{"code":"cyber_policy","message":"flagged"}}}`)
+	got, changed = rewriteOpenAICyberPolicyClientPayload(wrapped)
+	require.True(t, changed)
+	require.Equal(t, openAICyberPolicyClientCode, gjson.GetBytes(got, "response.error.code").String())
+	require.Equal(t, openAICyberPolicyClientMessage, gjson.GetBytes(got, "response.error.message").String())
+
+	other := []byte(`{"error":{"code":"rate_limit_exceeded","message":"slow down"}}`)
+	got, changed = rewriteOpenAICyberPolicyClientPayload(other)
+	require.False(t, changed)
+	require.Equal(t, "slow down", gjson.GetBytes(got, "error.message").String())
 }
 
 func TestDetectOpenAICyberPolicy(t *testing.T) {

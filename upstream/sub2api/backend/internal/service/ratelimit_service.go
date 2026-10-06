@@ -20,6 +20,8 @@ import (
 
 // RateLimitService 处理限流和过载状态管理
 type RateLimitService struct {
+	accountOps            *AccountOpsService
+	qualityTrigger        *quality5xxTrigger
 	accountRepo           AccountRepository
 	usageRepo             UsageLogRepository
 	cfg                   *config.Config
@@ -31,6 +33,12 @@ type RateLimitService struct {
 	settingService        *SettingService
 	tokenCacheInvalidator TokenCacheInvalidator
 	runtimeBlocker        AccountRuntimeBlocker
+	openAIIPUnauthorized  openAIIPUnauthorizedStreak
+	// ollamaCloudUsageProbe is the optional Ollama Cloud usage probe scheduler
+	// injected via SetOllamaCloudUsageProbeScheduler. See
+	// ratelimit_service_ollama_429.go for how real-Ollama 429s schedule an async
+	// probe to learn the true usage-window reset.
+	ollamaCloudUsageProbe ollamaCloudUsageProbeScheduler
 	usageCacheMu          sync.RWMutex
 	usageCache            map[int64]*geminiUsageCacheEntry
 
@@ -325,7 +333,21 @@ func (s *RateLimitService) CheckErrorPolicy(ctx context.Context, account *Accoun
 // HandleUpstreamError 处理上游错误响应，标记账号状态
 // 返回是否应该停止该账号的调度
 func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte, requestedModel ...string) (shouldDisable bool) {
+	if !isOpenAIIPUnauthorizedResponse(statusCode, responseBody) {
+		s.resetOpenAIIPUnauthorizedStreak(account)
+	}
+	return s.handleUpstreamErrorAfterStreakReset(ctx, account, statusCode, headers, responseBody, requestedModel...)
+}
+
+// handleUpstreamErrorAfterStreakReset keeps account policy handling shared with
+// the OpenAI gateway, which resets the streak before its early-return policies.
+func (s *RateLimitService) handleUpstreamErrorAfterStreakReset(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte, requestedModel ...string) (shouldDisable bool) {
+	ctx = s.observeAccountOps(ctx, account, statusCode, headers, responseBody)
 	ctx = withTempUnschedulableModel(ctx, requestedModel)
+	bpsAuthPolicy := ctx.Value(excelBPSAuthPolicyKey{}) == true && statusCode == http.StatusUnauthorized
+	if !bpsAuthPolicy && s.HandleOpenAIPermanentAuthFailure(ctx, account, statusCode, responseBody) {
+		return true
+	}
 	// Team 联动熔断必须先于池模式/自定义错误码/临时不可调度的各类早退；
 	// 同请求内与 fastpath 调用点的重复触发由方法内去重吸收。
 	s.maybeHandleOpenAITeamLinkedError(ctx, account, statusCode, responseBody)
@@ -352,8 +374,10 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 		slog.Info("account_error_code_skipped", "account_id", account.ID, "status_code", statusCode)
 		return false
 	}
-	if handled, disable := s.handleDeterministicUpstreamFailure(ctx, account, statusCode, responseBody, firstRequestedModel(requestedModel)); handled {
-		return disable
+	if !bpsAuthPolicy {
+		if handled, disable := s.handleDeterministicUpstreamFailure(ctx, account, statusCode, responseBody, firstRequestedModel(requestedModel)); handled {
+			return disable
+		}
 	}
 
 	if statusCode == 529 {
@@ -471,6 +495,15 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 				shouldDisable = true
 				break
 			}
+			// An isolated IP-policy rejection is not evidence that this OAuth
+			// account should be parked. Require two consecutive responses within
+			// five seconds; credential revocation/missing refresh tokens above
+			// retain their existing handling.
+			if authAccount.Platform == PlatformOpenAI && isOpenAIIPUnauthorizedResponse(statusCode, responseBody) &&
+				!s.openAIIPUnauthorized.observe(authAccount.ID, headers.Get("x-request-id"), time.Now()) {
+				slog.Info("openai_ip_unauthorized_below_threshold", "account_id", authAccount.ID, "window_seconds", 5, "threshold", 2)
+				return false
+			}
 			// 2. 临时不可调度，替代 SetError（保持 status=active 让刷新服务能拾取）
 			// 注意：此处不再写回 account.Credentials/expires_at。
 			// 原实现使用请求开始时的 account 快照整列覆盖 credentials JSONB（见
@@ -520,7 +553,7 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 	case 402:
 		// 国产供应商：余额不足是可恢复状态（充值/检测恢复后由周期任务自动解除），
 		// 不能走 handleAuthError 永久置 status=error。改为可恢复的临时停调。
-		if account.IsCNProvider() {
+		if account.IsCNProvider() || account.IsOpenCodeZen() {
 			s.handleCNProviderInsufficientBalance(ctx, account, upstreamMsg)
 			shouldDisable = true
 			break
@@ -594,6 +627,12 @@ func (s *RateLimitService) handleDeterministicUpstreamFailure(ctx context.Contex
 	case deterministicBalanceClass:
 		return true, s.handleDeterministicBalanceFailureWithReason(ctx, account, reason)
 	case deterministicCredentialClass:
+		if account.Platform == PlatformTypeSafe {
+			if err := s.accountRepo.SetError(ctx, account.ID, reason); err != nil {
+				slog.Warn("typesafe_credential_set_error_failed", "account_id", account.ID, "error", err)
+			}
+			return true, true
+		}
 		if account.IsOAuth() {
 			if err := s.accountRepo.SetError(ctx, account.ID, reason); err != nil {
 				slog.Warn("deterministic_credential_set_error_failed", "account_id", account.ID, "error", err)
@@ -1050,10 +1089,18 @@ func (s *RateLimitService) handle403(ctx context.Context, account *Account, upst
 		s.handleCNProviderConcurrencyLimit403(ctx, account)
 		return true
 	}
+	// Kimi 等 CN 供应商把 Coding Plan 配额窗口耗尽打成 403
+	// （error.type=access_terminated_error），这是窗口到期后自动恢复的限流
+	// 信号而非封禁：按 429 口径冷却到真实窗口重置点，避免落入下方通用 403
+	// 升级计数后被永久 SetError。
+	if isCNProviderQuotaExhausted403(account, responseBody, upstreamMsg) {
+		s.handleCNProviderQuotaExhausted403(ctx, account, upstreamMsg)
+		return true
+	}
 	// 国产供应商与 openai 同口径:HTML 403(CDN/代理拦截页)不构成账号失效证据,
 	// 且 403 在 failover 状态集里会被逐账号重放——直接 SetError 会让一个坏请求/
 	// 一层坏代理连环永久禁用整组账号。走 HTML 豁免 + N 次累计 + 临时冷却。
-	if account.Platform == PlatformOpenAI || IsCNProvider(account.Platform) {
+	if account.Platform == PlatformOpenAI || IsCNProvider(account.Platform) || account.IsOpenCodeGo() {
 		return s.handleOpenAI403(ctx, account, upstreamMsg, responseBody)
 	}
 	// 非 Antigravity 平台：保持原有行为
@@ -1085,6 +1132,15 @@ func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account
 		slog.Warn(
 			"openai_403_html_body_skips_account_penalty",
 			"account_id", account.ID,
+			"upstream_message", upstreamMsg,
+		)
+		return false
+	}
+	if isCloudflareBotBlockResponse(responseBody) {
+		slog.Warn(
+			"openai_403_cloudflare_bot_block_skips_account_penalty",
+			"account_id", account.ID,
+			"platform", account.Platform,
 			"upstream_message", upstreamMsg,
 		)
 		return false
@@ -1132,6 +1188,14 @@ func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account
 		"threshold", openAI403DisableThreshold,
 	)
 	return true
+}
+
+// isCloudflareBotBlockResponse reports Cloudflare's WAF bot-signature response
+// (error code 1010). The upstream never reached the account API, so this is a
+// request/edge-level failure and must not consume the account 403 strike budget.
+func isCloudflareBotBlockResponse(body []byte) bool {
+	normalized := strings.ToLower(strings.TrimSpace(string(body)))
+	return strings.Contains(normalized, "error code: 1010")
 }
 
 // handleAntigravity403 处理 Antigravity 平台的 403 错误
@@ -1212,6 +1276,13 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 			}
 		}
 	}
+	s.handle429Cooldown(ctx, account, headers, responseBody)
+}
+
+// handle429Cooldown persists the shared quota snapshot and blocks scheduling.
+// Callers that do not retry the rejected request (Excel BPS) enter here directly
+// instead of deferring the cooldown for the Codex same-account retry window.
+func (s *RateLimitService) handle429Cooldown(ctx context.Context, account *Account, headers http.Header, responseBody []byte) {
 	// Spark 影子：限流/熔断状态 100% 由 QueryUsage(/wham/usage body 的 codex_bengalfox)驱动。
 	// /responses 的 429 携带的 x-codex-*/usage_limit_reached 是 global codex 道(plan/spec §8),
 	// 套到影子会把 spark 误耦合到 global 窗口——即便 spark 仍有配额也会被冷却到 global reset,
@@ -1223,9 +1294,17 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 		}
 		return
 	}
+	// 真实 Ollama Cloud 用量账号（credentials base_url 指向 ollama.com）的 429 由
+	// ollama.com 的用量窗口驱动。其响应头不得被当作 OpenAI codex / Anthropic /
+	// CN 限流来解析，故在国产供应商分支之前单独处理：先设置永不缩短的临时冷却，
+	// 再调度异步 probe 学习真实重置点（详见 ratelimit_service_ollama_429.go）。
+	if account != nil && IsOllamaCloudUsageAccount(account) {
+		s.handleOllamaCloudUsage429(ctx, account, headers)
+		return
+	}
 	// 国产供应商（kimi/zhipu/deepseek）的 429 走专用可恢复路径：余额不足 → 临时停调，
 	// Coding Plan 窗口耗尽 → 冷却到快照重置点。未命中则继续默认 429 逻辑。
-	if account.IsCNProvider() {
+	if account.IsCNProvider() || account.IsOpenCodeGo() {
 		if s.applyCNProviderReactive429(ctx, account, headers, responseBody) {
 			return
 		}
@@ -2318,7 +2397,11 @@ func (s *RateLimitService) HandleTempUnschedulable(ctx context.Context, account 
 		return false
 	}
 	ctx = withTempUnschedulableModel(ctx, requestedModel)
-	return s.tryTempUnschedulable(ctx, account, statusCode, responseBody, firstRequestedModel(requestedModel))
+	matched := s.tryTempUnschedulable(ctx, account, statusCode, responseBody, firstRequestedModel(requestedModel))
+	if matched {
+		s.observeAccountOps(ctx, account, statusCode, nil, responseBody)
+	}
+	return matched
 }
 
 func (s *RateLimitService) HandleOpenAIImageRateLimit(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte) bool {
@@ -2501,6 +2584,7 @@ func parseOpenAIImageTryAgainCooldown(body []byte) time.Duration {
 
 const upstreamModelNotFoundCooldown = 30 * time.Minute
 const upstreamModelNotFoundReason = "upstream_404_model_not_found"
+const upstreamModelNotFound401Reason = "upstream_401_model_not_found"
 const upstreamCodexPlanGatedModelCooldown = 30 * time.Minute
 const upstreamCodexPlanGatedModelReason = "upstream_400_codex_plan_gated_model"
 const tempUnschedBodyMaxBytes = 64 << 10
@@ -2526,6 +2610,8 @@ func (s *RateLimitService) HandleUpstreamModelNotFound(ctx context.Context, acco
 	switch {
 	case isUpstreamModelNotFoundError(statusCode, responseBody):
 		cooldown, reason = upstreamModelNotFoundCooldown, upstreamModelNotFoundReason
+	case statusCode == http.StatusUnauthorized && account.Type == AccountTypeAPIKey && account.IsOpenAICompatible() && isOpenAICompatibleModelNotFoundBody(responseBody):
+		cooldown, reason = upstreamModelNotFoundCooldown, upstreamModelNotFound401Reason
 	case isOpenAIOAuthAccount(account) && isOpenAICodexPlanGatedModelError(statusCode, responseBody):
 		cooldown, reason = upstreamCodexPlanGatedModelCooldown, upstreamCodexPlanGatedModelReason
 	default:

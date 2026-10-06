@@ -21,12 +21,14 @@ type OpenAIOAuthHandler struct {
 	openaiOAuthService *service.OpenAIOAuthService
 	adminService       service.AdminService
 	quotaService       openAIQuotaService
+	referralService    openAIReferralService
 	rateLimitService   openAIAccountStateRecoverer
 }
 
 type openAIQuotaService interface {
 	QueryUsage(ctx context.Context, accountID int64) (*service.OpenAIQuotaUsage, error)
 	CacheResetCreditsSnapshot(ctx context.Context, accountID int64, credits *service.OpenAIRateLimitResetCredits) error
+	CacheCreditsSnapshot(ctx context.Context, accountID int64, usage *service.OpenAIQuotaUsage) error
 	CachePostResetSnapshot(ctx context.Context, accountID int64, usage *service.OpenAIQuotaUsage) error
 	ResetCredit(ctx context.Context, accountID int64) (*service.OpenAIQuotaResetResult, error)
 }
@@ -57,7 +59,8 @@ type openAIQuotaResetResponse struct {
 // failed display-cache write must never discard a successful upstream read.
 type openAIQuotaRefreshResponse struct {
 	service.OpenAIQuotaUsage
-	CachePersisted bool `json:"cache_persisted"`
+	CachePersisted        bool `json:"cache_persisted"`
+	CreditsCachePersisted bool `json:"credits_cache_persisted"`
 }
 
 // openAIQuotaResetPostProcessContext detaches the post-reset bookkeeping from the
@@ -92,6 +95,7 @@ func NewOpenAIOAuthHandler(
 	// `== nil` capability guards below and panic instead of returning 400.
 	if quotaService != nil {
 		h.quotaService = quotaService
+		h.referralService = quotaService
 	}
 	if rateLimitService != nil {
 		h.rateLimitService = rateLimitService
@@ -170,22 +174,23 @@ type OpenAIRefreshTokenRequest struct {
 }
 
 type OpenAICodexPATCreateRequest struct {
-	AccessToken             string         `json:"access_token" binding:"required"`
-	Name                    string         `json:"name"`
-	Notes                   *string        `json:"notes"`
-	GroupIDs                []int64        `json:"group_ids"`
-	ProxyID                 *int64         `json:"proxy_id"`
-	Concurrency             *int           `json:"concurrency"`
-	Priority                *int           `json:"priority"`
-	RateMultiplier          *float64       `json:"rate_multiplier"`
-	LoadFactor              *int           `json:"load_factor"`
-	ExpiresAt               *int64         `json:"expires_at"`
-	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
-	CredentialExtras        map[string]any `json:"credential_extras"`
-	Extra                   map[string]any `json:"extra"`
-	SkipDefaultGroupBind    *bool          `json:"skip_default_group_bind"`
-	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"`
-	ActiveProbeEnabled      *bool          `json:"active_probe_enabled"`
+	Admission               *service.AccountAdmissionInput `json:"admission,omitempty"`
+	AccessToken             string                         `json:"access_token" binding:"required"`
+	Name                    string                         `json:"name"`
+	Notes                   *string                        `json:"notes"`
+	GroupIDs                []int64                        `json:"group_ids"`
+	ProxyID                 *int64                         `json:"proxy_id"`
+	Concurrency             *int                           `json:"concurrency"`
+	Priority                *int                           `json:"priority"`
+	RateMultiplier          *float64                       `json:"rate_multiplier"`
+	LoadFactor              *int                           `json:"load_factor"`
+	ExpiresAt               *int64                         `json:"expires_at"`
+	AutoPauseOnExpired      *bool                          `json:"auto_pause_on_expired"`
+	CredentialExtras        map[string]any                 `json:"credential_extras"`
+	Extra                   map[string]any                 `json:"extra"`
+	SkipDefaultGroupBind    *bool                          `json:"skip_default_group_bind"`
+	ConfirmMixedChannelRisk *bool                          `json:"confirm_mixed_channel_risk"`
+	ActiveProbeEnabled      *bool                          `json:"active_probe_enabled"`
 }
 
 // RefreshToken refreshes an OpenAI OAuth token
@@ -290,81 +295,101 @@ func (h *OpenAIOAuthHandler) RefreshAccountToken(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.AccountFromService(updatedAccount))
+	response.Success(c, dto.AccountForObserver(c.Request.Context(), dto.AccountFromService(updatedAccount)))
 }
 
 // CreateAccountFromOAuth creates a new OpenAI OAuth account from token info
 // POST /api/v1/admin/openai/create-from-oauth
 func (h *OpenAIOAuthHandler) CreateAccountFromOAuth(c *gin.Context) {
 	var req struct {
-		SessionID   string  `json:"session_id" binding:"required"`
-		Code        string  `json:"code" binding:"required"`
-		State       string  `json:"state" binding:"required"`
-		RedirectURI string  `json:"redirect_uri"`
-		ProxyID     *int64  `json:"proxy_id"`
-		Name        string  `json:"name"`
-		Concurrency int     `json:"concurrency"`
-		Priority    int     `json:"priority"`
-		GroupIDs    []int64 `json:"group_ids"`
+		Admission   *service.AccountAdmissionInput `json:"admission,omitempty"`
+		SessionID   string                         `json:"session_id" binding:"required"`
+		Code        string                         `json:"code" binding:"required"`
+		State       string                         `json:"state" binding:"required"`
+		RedirectURI string                         `json:"redirect_uri"`
+		ProxyID     *int64                         `json:"proxy_id"`
+		Name        string                         `json:"name"`
+		Concurrency int                            `json:"concurrency"`
+		Priority    int                            `json:"priority"`
+		GroupIDs    []int64                        `json:"group_ids"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	if !validateAdmissionBeforeAuthorization(c, h.adminService, &service.CreateAccountInput{Platform: service.PlatformOpenAI, Extra: nil, GroupIDs: req.GroupIDs, Admission: req.Admission}) {
+		return
+	}
 
-	// Exchange code for tokens
-	tokenInfo, err := h.openaiOAuthService.ExchangeCode(c.Request.Context(), &service.OpenAIExchangeCodeInput{
-		SessionID:   req.SessionID,
-		Code:        req.Code,
-		State:       req.State,
-		RedirectURI: req.RedirectURI,
-		ProxyID:     req.ProxyID,
-	})
+	execute := func(ctx context.Context) (any, error) {
+		// Exchange code for tokens
+		tokenInfo, err := h.openaiOAuthService.ExchangeCode(ctx, &service.OpenAIExchangeCodeInput{
+			SessionID:   req.SessionID,
+			Code:        req.Code,
+			State:       req.State,
+			RedirectURI: req.RedirectURI,
+			ProxyID:     req.ProxyID,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// Build credentials from token info
+		credentials := h.openaiOAuthService.BuildAccountCredentials(tokenInfo)
+
+		platform := oauthPlatformFromPath(c)
+
+		// Use email as default name if not provided
+		name := req.Name
+		if name == "" && tokenInfo.Email != "" {
+			name = tokenInfo.Email
+		}
+		if name == "" {
+			name = "OpenAI OAuth Account"
+		}
+
+		// Create account
+		account, err := h.adminService.CreateAccount(ctx, &service.CreateAccountInput{
+			Name:        name,
+			Platform:    platform,
+			Type:        "oauth",
+			Credentials: credentials,
+			Extra:       nil,
+			ProxyID:     req.ProxyID,
+			Concurrency: req.Concurrency,
+			Priority:    req.Priority,
+			GroupIDs:    req.GroupIDs,
+			Admission:   req.Admission,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return dto.AccountFromService(account), nil
+	}
+	if req.Admission.IsEnabled() {
+		if c.GetHeader("Idempotency-Key") == "" {
+			c.Request.Header.Set("Idempotency-Key", "admission-oauth-"+req.SessionID)
+		}
+		executeAdminIdempotentJSON(c, "admin.accounts.admission.openai_oauth", req, service.DefaultWriteIdempotencyTTL(), execute)
+		return
+	}
+	data, err := execute(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	// Build credentials from token info
-	credentials := h.openaiOAuthService.BuildAccountCredentials(tokenInfo)
-
-	platform := oauthPlatformFromPath(c)
-
-	// Use email as default name if not provided
-	name := req.Name
-	if name == "" && tokenInfo.Email != "" {
-		name = tokenInfo.Email
-	}
-	if name == "" {
-		name = "OpenAI OAuth Account"
-	}
-
-	// Create account
-	account, err := h.adminService.CreateAccount(c.Request.Context(), &service.CreateAccountInput{
-		Name:        name,
-		Platform:    platform,
-		Type:        "oauth",
-		Credentials: credentials,
-		Extra:       nil,
-		ProxyID:     req.ProxyID,
-		Concurrency: req.Concurrency,
-		Priority:    req.Priority,
-		GroupIDs:    req.GroupIDs,
-	})
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, dto.AccountFromService(account))
+	response.Success(c, dto.AccountForObserver(c.Request.Context(), data.(*dto.Account)))
 }
 
-// CreateAccountFromCodexPAT creates an OpenAI OAuth account from a Codex at-* personal access token.
-// POST /api/v1/admin/openai/create-from-codex-pat
 func (h *OpenAIOAuthHandler) CreateAccountFromCodexPAT(c *gin.Context) {
 	var req OpenAICodexPATCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if !validateAdmissionBeforeAuthorization(c, h.adminService, &service.CreateAccountInput{Platform: service.PlatformOpenAI, Extra: req.Extra, GroupIDs: req.GroupIDs, Admission: req.Admission}) {
 		return
 	}
 	if err := service.ValidateOpenAILongContextBillingExtra(service.PlatformOpenAI, req.Extra); err != nil {
@@ -443,6 +468,7 @@ func (h *OpenAIOAuthHandler) CreateAccountFromCodexPAT(c *gin.Context) {
 		RateMultiplier:        req.RateMultiplier,
 		LoadFactor:            req.LoadFactor,
 		GroupIDs:              req.GroupIDs,
+		Admission:             req.Admission,
 		ExpiresAt:             req.ExpiresAt,
 		AutoPauseOnExpired:    req.AutoPauseOnExpired,
 		ActiveProbeEnabled:    req.ActiveProbeEnabled,
@@ -454,7 +480,7 @@ func (h *OpenAIOAuthHandler) CreateAccountFromCodexPAT(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.AccountFromService(account))
+	response.Success(c, dto.AccountForObserver(c.Request.Context(), dto.AccountFromService(account)))
 }
 
 func buildOpenAICodexPATAccountName(name string, tokenInfo *service.OpenAITokenInfo) string {
@@ -524,6 +550,11 @@ func (h *OpenAIOAuthHandler) RefreshQuota(c *gin.Context) {
 	service.NotifyOpenAIAutoResetCredit(accountID)
 
 	refreshResponse := openAIQuotaRefreshResponse{OpenAIQuotaUsage: *usage}
+	if err := h.quotaService.CacheCreditsSnapshot(c.Request.Context(), accountID, usage); err != nil {
+		slog.Warn("openai_quota_credits_cache_persist_failed", "account_id", accountID, "error", err)
+	} else {
+		refreshResponse.CreditsCachePersisted = true
+	}
 	// A failed snapshot write leaves the previous cache intact — report it as a
 	// partial success instead of discarding the usage payload we just fetched,
 	// which would leave the card without a credit count at all.
@@ -570,7 +601,7 @@ func (h *OpenAIOAuthHandler) CreateShadow(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.AccountFromServiceShallow(shadow))
+	response.Success(c, dto.AccountForObserver(c.Request.Context(), dto.AccountFromServiceShallow(shadow)))
 }
 
 // ResetQuota consumes one rate-limit reset credit for an OpenAI account.
@@ -611,7 +642,7 @@ func (h *OpenAIOAuthHandler) ResetQuota(c *gin.Context) {
 	resetResponse.AccountStateRecovered = postResult.AccountStateRecovered
 	resetResponse.WarningCode = postResult.WarningCode
 	if postResult.Account != nil {
-		resetResponse.Account = dto.AccountFromService(postResult.Account)
+		resetResponse.Account = dto.AccountForObserver(c.Request.Context(), dto.AccountFromService(postResult.Account))
 	}
 	response.Success(c, resetResponse)
 }

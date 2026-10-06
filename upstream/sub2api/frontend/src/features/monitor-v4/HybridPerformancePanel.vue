@@ -62,8 +62,8 @@ let timer: number | null = null
 
 const windowOptions = computed(() => [
   { value: '1h' as const, label: t('monitorV2.window.1h') },
-  { value: '24h' as const, label: t('monitorV2.window.24h') },
   { value: '7d' as const, label: t('monitorV2.window.7d') },
+  { value: '24h' as const, label: t('monitorV2.window.24h') },
 ])
 const updatedAt = computed(() => new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(snapshot.value.generated_at)))
 

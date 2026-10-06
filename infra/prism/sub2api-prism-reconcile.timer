@@ -1,0 +1,11 @@
+[Unit]
+Description=Keep Prism namespace bindings current across blue/green releases
+
+[Timer]
+OnBootSec=10s
+OnUnitInactiveSec=10s
+AccuracySec=1s
+Unit=sub2api-prism-reconcile.service
+
+[Install]
+WantedBy=timers.target

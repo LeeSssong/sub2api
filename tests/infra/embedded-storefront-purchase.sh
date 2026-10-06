@@ -11,6 +11,9 @@ reject() { ! rg -Fq -- "$1" "$2" || fail "forbidden $1 in $2"; }
 CADDY=infra/Caddyfile
 reject '@embedded_storefront_purchase' "$CADDY"
 reject '/purchase.html' "$CADDY"
+require '@storefront_purchase path /purchase /purchase/' "$CADDY"
+require 'handle @storefront_purchase {' "$CADDY"
+require 'redir * /custom/xingqiao-storefront 302' "$CADDY"
 require '{$STOREFRONT_SITE_ADDRESS:https://shop.xingqiaolab.top} {' "$CADDY"
 require "header_down Content-Security-Policy \"frame-src \" \"frame-src 'self' https://shop.xingqiaolab.top https://catfk.com \"" "$CADDY"
 require '@catfk_storefront_entry {' "$CADDY"
@@ -22,7 +25,7 @@ require 'Cache-Control "no-store, max-age=0"' "$CADDY"
 reject 'reverse_proxy https://catfk.com' "$CADDY"
 reject '/shopApi/' "$CADDY"
 require 'respond 404' "$CADDY"
-require 'reverse_proxy sub2api:8080' "$CADDY"
+require 'reverse_proxy {$SUB2API_ACTIVE_UPSTREAM:sub2api-blue:8080}' "$CADDY"
 [[ $(rg -c '^\tlog \{$' "$CADDY") -eq 1 ]] || fail "storefront access logging must remain disabled to avoid token leakage"
 
 CONFIGURE=ops/configure-embedded-storefront.sh

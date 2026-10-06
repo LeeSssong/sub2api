@@ -82,9 +82,10 @@ func TestOpenAIAccessStateCredentialFailureUsesTypedSafeResponse(t *testing.T) {
 	}, false)
 
 	require.Equal(t, http.StatusBadGateway, recorder.Code)
-	require.Contains(t, recorder.Body.String(), "Upstream access is temporarily unavailable")
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyAbnormal, ""), gjson.Get(recorder.Body.String(), "error.message").String())
 	require.NotContains(t, strings.ToLower(recorder.Body.String()), "deactivated")
 	require.NotContains(t, recorder.Body.String(), "must-not-leak")
+	require.NotContains(t, recorder.Body.String(), "Upstream access is temporarily unavailable")
 }
 
 func TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError(t *testing.T) {
@@ -105,8 +106,9 @@ func TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError(t *testin
 		(&OpenAIGatewayHandler{}).handleFailoverExhausted(c, failoverErr, false)
 		require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 		require.Equal(t, "server_error", gjson.Get(recorder.Body.String(), "error.type").String())
-		require.Equal(t, message, gjson.Get(recorder.Body.String(), "error.message").String())
+		require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""), gjson.Get(recorder.Body.String(), "error.message").String())
 		require.NotContains(t, recorder.Body.String(), "server_is_overloaded")
+		require.NotContains(t, recorder.Body.String(), message)
 	})
 
 	t.Run("responses_compat", func(t *testing.T) {
@@ -115,7 +117,8 @@ func TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError(t *testin
 		(&GatewayHandler{}).handleResponsesFailoverExhausted(c, failoverErr, false)
 		require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 		require.Equal(t, "server_error", gjson.Get(recorder.Body.String(), "error.code").String())
-		require.Equal(t, message, gjson.Get(recorder.Body.String(), "error.message").String())
+		require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""), gjson.Get(recorder.Body.String(), "error.message").String())
+		require.NotContains(t, recorder.Body.String(), message)
 	})
 
 	t.Run("anthropic_compat", func(t *testing.T) {
@@ -124,7 +127,8 @@ func TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError(t *testin
 		(&OpenAIGatewayHandler{}).handleAnthropicFailoverExhausted(c, failoverErr, false)
 		require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 		require.Equal(t, "api_error", gjson.Get(recorder.Body.String(), "error.type").String())
-		require.Equal(t, message, gjson.Get(recorder.Body.String(), "error.message").String())
+		require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBusy, ""), gjson.Get(recorder.Body.String(), "error.message").String())
+		require.NotContains(t, recorder.Body.String(), message)
 	})
 }
 
@@ -143,7 +147,7 @@ func TestOpenAIManagedSingleAccountModelNotFoundExhaustionPreservesStructured400
 	require.Equal(t, "invalid_request_error", gjson.Get(recorder.Body.String(), "error.type").String())
 	require.Equal(t, "model_not_found", gjson.Get(recorder.Body.String(), "error.code").String())
 	require.Equal(t, "model", gjson.Get(recorder.Body.String(), "error.param").String())
-	require.Equal(t, "The requested model is unavailable on this account", gjson.Get(recorder.Body.String(), "error.message").String())
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBadRequest, ""), gjson.Get(recorder.Body.String(), "error.message").String())
 }
 
 func TestOpenAIManagedModelNotFoundExhaustionSanitizesMessage(t *testing.T) {
@@ -159,7 +163,8 @@ func TestOpenAIManagedModelNotFoundExhaustionSanitizesMessage(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, recorder.Code)
 	require.NotContains(t, recorder.Body.String(), "super-secret-value")
-	require.Contains(t, gjson.Get(recorder.Body.String(), "error.message").String(), "access_token=***")
+	require.NotContains(t, recorder.Body.String(), "upstream.example")
+	require.Equal(t, service.AppendNativeUserErrorHelp(service.NativeUserCopyBadRequest, ""), gjson.Get(recorder.Body.String(), "error.message").String())
 	recorded, ok := c.Get(service.OpsUpstreamErrorMessageKey)
 	require.True(t, ok)
 	require.NotContains(t, recorded, "super-secret-value")

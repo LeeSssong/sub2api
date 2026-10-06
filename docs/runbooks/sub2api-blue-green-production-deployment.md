@@ -1,5 +1,7 @@
 # Sub2API Blue-Green Production Deployment
 
+> Policy update (2026-09-19): The release SOP in root `AGENTS.md` supersedes older authorization, repeated verification, and maintenance requirements below. Local acceptance is sufficient by default; test-station synchronization is optional. Normal release authorization includes cutover fluctuation and a maximum 300-second connection drain, including termination of remaining connections at the deadline. Database schema/data migrations default to a single-stack maintenance release; a different strategy requires an explicit exception for that release only. The commands below describe the existing executor, not proof that artifact reuse, selective service updates, draining, or the revised maintenance workflow are implemented. Verify/adapt the relevant executor behavior before use; never bypass its checks to simulate compliance.
+
 This runbook is the operator contract for the command-driven Sub2API release path. It does not authorize or start a release. Run the production command only after the user explicitly says `部署生产` (or an unambiguous equivalent) for the tested commit.
 
 ## Authorization Boundary
@@ -153,6 +155,22 @@ Current T132 transition:
 from 30adae913d7470c785b3d7e0e54153985be9e0fcdc1d6d3d3e5067896aef3f59
 to   a01097cc0beb4376aca6982f0c993b5e2dd34cc8b8a739757cf178feb26c9a8d
 file 236_account_model_detection_trigger_evidence.sql (SHA-256 89e5b4f68afb7d21c4f95d24a13623e1cc8a8198e36e4b31f8e2e710740ad8bf) — add-only nullable JSONB trigger evidence for model-detection runs; no historical backfill, credential/prompt/output persistence, usage/accounting rewrite, or destructive data operation.
+```
+
+Current legacy administrator balance-history cleanup transition:
+
+```text
+from 6dfcbaf9f6c451cdd2c28c43c807b9e3cd15e9e4708a6ad25b509df331545757
+to   fe924d3c21c3dc4a5f41e26ba444c08c074cfed04de52042e37f57a2e9a811bb
+file 236_remove_legacy_admin_balance_history.sql (SHA-256 1426278b991ac1c6f3a96e36ca259716ed766bc0e41a2866d39aa07779114943) — deletes only legacy `redeem_codes` rows whose type is `admin_balance`; quota accounting facts, wallets, payment orders, and concurrency history remain unchanged.
+```
+
+Current turn-state and retired scheduler cleanup transition:
+
+```text
+from fca9ca2b278404dc6d2dd08e4486ac1c5ac57440b4e6fa20f2de9dfee2c86330
+to   dba4c4d272406097a3f39c27694f748c53fe0ad6cf4efb42e40786d12e327c54
+files 239_group_turn_state_reuse.sql and 240_remove_custom_scheduler_artifacts.sql — adds the group-scoped turn-state injection flag, deletes seven retired custom scheduler settings, and drops openai_scheduler_logs. The cleanup is destructive; create and verify a restorable database backup before stopping writes. Recovery requires restoring that backup together with the previous application artifact.
 ```
 
 Invoke the same controller with the explicit maintenance flag:

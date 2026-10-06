@@ -88,7 +88,7 @@ func TestBuildUsageBillingCommand_SubscriptionAppliesRateMultiplier(t *testing.T
 	}
 }
 
-func TestBuildUsageBillingCommand_UsesResolvedAccountCostForAccountQuota(t *testing.T) {
+func TestBuildUsageBillingCommand_UsesNativeAccountCostForAccountQuota(t *testing.T) {
 	groupID := int64(7)
 	account := &Account{
 		ID:   3,
@@ -112,8 +112,8 @@ func TestBuildUsageBillingCommand_UsesResolvedAccountCostForAccountQuota(t *test
 	if cmd == nil {
 		t.Fatal("buildUsageBillingCommand returned nil")
 	}
-	if cmd.AccountQuotaCost != 0.24 {
-		t.Errorf("AccountQuotaCost = %v, want 0.24", cmd.AccountQuotaCost)
+	if cmd.AccountQuotaCost != 0.45 {
+		t.Errorf("AccountQuotaCost = %v, want 0.45", cmd.AccountQuotaCost)
 	}
 	if cmd.BalanceCost != 0.45 {
 		t.Errorf("BalanceCost = %v, want 0.45", cmd.BalanceCost)
@@ -127,7 +127,7 @@ func TestBuildUsageBillingCommand_UsesResolvedAccountCostForAccountQuota(t *test
 	}
 }
 
-func TestNotifyAccountQuota_UsesResolvedAccountCost(t *testing.T) {
+func TestNotifyAccountQuota_UsesNativeAccountCost(t *testing.T) {
 	var logs bytes.Buffer
 	previous := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
@@ -142,7 +142,7 @@ func TestNotifyAccountQuota_UsesResolvedAccountCost(t *testing.T) {
 	}
 	notifyAccountQuota(p, &billingDeps{balanceNotifyService: &BalanceNotifyService{}}, nil)
 
-	if !strings.Contains(logs.String(), "account_cost=0.24") {
-		t.Fatalf("notifyAccountQuota log = %q, want resolved account_cost=0.24", logs.String())
+	if !strings.Contains(logs.String(), "account_cost=0.45") {
+		t.Fatalf("notifyAccountQuota log = %q, want native account_cost=0.45", logs.String())
 	}
 }

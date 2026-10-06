@@ -1,5 +1,9 @@
 # 原生 Sub 小步发布任务包队列
 
+**打开原生调度 Top-K/权重管理页（2026-09-20）：** 状态 `DONE`。用户授权「部署主站」。去掉设置页网关调度卡片隐藏层，实验调度开启后显示原生 Top-K/权重；退役说明保留，已退役分组策略仍不展示。无 migration。根 `main@0b620d38f6` / tree `8cb98763668b` 已推送并预加载蓝绿发布，宿主记录 `20260920T122754Z-production-1613107.json` 为 `succeeded`、`rolled_back=false`，活动槽 `blue`。公网三项健康探针 HTTP 200；线上 SettingsView 含原生调度开关和权值面板。独立测试站未查询、未同步。回滚入口为 green 槽 `b80a6ed636`。证据 `/private/tmp/sub2api-release-evidence/2026-09-20-main-0b620d38f6-show-scheduler-weights.json`。
+
+**官方 v0.2.7 增量同步（2026-09-19）：** 状态 `DONE`。已按 4.2 overlay-then-merge 将星桥定制叠到官方 `v0.2.4` 后再合入官方 `v0.2.7@aea725f2ea644d5592d0bbb1d63b607efa7e200a`（annotated tag `7484192016807acf55c6ef4f2827d371eb61ec1c`），保留星桥定制与官方新行为。合入后编译收口已推送根 `main@30abf237e25ce21ca406030f95c7fab3ff92d8af`、tree `357b5cd47298e46c138409345e2b2205d83e17fa`。官方更新例外未跑功能测试/回归/类型检查/独立构建；保留 native 并发门禁、来源门禁、迁移停机保护与就绪检查。新增迁移 238 两条，迁移集 `fe924d3c…` → `fca9ca2b…`，单套停机维护发布。主站预加载蓝绿宿主记录 `/var/lib/sub2api/release-records/20260919T154201Z-production-350815.json` 为 `succeeded/promoted`、`rolled_back=false`，活动槽 `green`，镜像 `ghcr.io/leesssong/xingqiao-sub2api:release-30abf237e25ce21ca406030f95c7fab3ff92d8af-a61d377450ded869a1112eb862bcfb7c56d545edef83fd63acdb63abc8602711`（digest `sha256:a61d377450ded869a1112eb862bcfb7c56d545edef83fd63acdb63abc8602711`）；运行二进制 `Sub2API 0.2.7`；公网 `/healthz`、`/readyz`、`/health` 均 HTTP 200。制品复用首次成功预加载构建。独立测试站按授权未查询、未同步，两站明确未对账。其他非 `main` worktree 保持原样。应用回滚入口为保留的 blue 槽 `b94f79f895` / `d6e637e11f`，不等于数据库回滚。证据 `/private/tmp/sub2api-release-evidence/2026-09-19-main-30abf237e2-official-v027.json`（0600）。
+
 **统一质量调度改用账号级原生 priority 且日常上限 50（2026-09-14）：** 状态 `DONE`。用户确认 A+C：统一质量日常优先级上限 50，读 `accounts.priority` 不读组关系 priority。候选已合入并推送根 `main@8d9b7595ab6fd103d40e0bcab7080c2aac6d6f91`、tree `6aca2d04c7558a1ef1ff13c74337139e3bb9a436`。直接相关 service/config 测试、`go build ./cmd/server` 与 `git diff --check` 通过；无 migration。按用户授权「快速部署主站，不同步独立测试站」完成预加载蓝绿发布，宿主记录 `/var/lib/sub2api/release-records/20260913T173318Z-production-581819.json` 为 `succeeded`、`rolled_back=false`、`downtime_required=false`，活动槽 `blue`；公网 `/healthz`、`/readyz`、`/health` 均 HTTP 200。验收站按授权未同步，当前 `944a0b9cb4767eb8a03cc8f51da78a4143bd6c41` / tree `82ab8a3522faaaf63df4e4e0121963125f5e13b2`，两站明确不一致。测试证据 `/private/tmp/sub2api-release-evidence/2026-09-14-main-8d9b7595ab-unified-quality-account-priority-production-only-fast.json`。本条不混入官方 v0.2.4 未完成 INTEGRATING 文档。
 
 **飞书余额检测仅纳入账号状态「正常」（2026-09-14）：** 状态 `DONE`。飞书出站余额检测与 Feishu 触发的 `RefreshUpstreamBalanceScope` 只纳入管理页【正常】账号（`status=active` + `schedulable=true` + 当前未限流 + 当前未临时不可调度）。候选已快进合入并推送根 `main@3a49564273ae5a87d10a86162c655cc8f61f4a00`、tree `9bef642e2b0233b698663bfa1d76ab9cca6511b2`。直接相关 service 测试、`go build ./cmd/server` 与 `git diff --check` 通过；无 migration。按用户授权「快速部署主站，不同步独立测试站」完成预加载蓝绿发布，宿主记录 `/var/lib/sub2api/release-records/20260913T165533Z-production-535287.json` 为 `succeeded`、`rolled_back=false`、`downtime_required=false`，活动槽 `green`；公网 `/healthz`、`/readyz`、`/health` 均 HTTP 200。验收站按授权未同步，当前 `944bbadfb0ec9268d7ab600bbd01d52ac427d0e8` / tree `b476ef25d9ca991c8b86091e4a2851ea88119e31`，两站明确不一致。测试证据 `/private/tmp/sub2api-release-evidence/2026-09-14-main-3a49564273-feishu-balance-normal-status-production-only-fast.json`。本条不混入官方 v0.2.4 未完成 INTEGRATING 文档。
@@ -773,3 +777,11 @@ T103 发布门禁边界补齐：`main@4ce15f896` 将 admission/slow-session 调�
 - 最终发布源：`main@8843a9ca9990a523f9665a8d5d48dbfe27ce6f7c`，tree `514aec6abaf9d1755e33ac7d73c757eb47ff2568`，已推送 `origin/main`。
 - 官方 v0.2.4 新增迁移 `235/236/237` 已登记受控维护转换 `3c0db678... -> 6dfcbaf9...`；停机维护发布成功，活动槽 `green`，线上三项健康检查均 200。
 - 测试站按用户授权未同步；非 `main` worktree 已归档并删除，恢复证据目录为 `/Users/gongtengxinwen/Documents/sub2api-archives/2026-09-12-all-non-main-rollout-v2`。
+
+## 2026-09-19 非 main 全量整合与主站-only维护发布
+
+- 当前状态：`DEPLOYING`。用户已明确授权 C 路径“快速部署主站，不同步验收站”，并授权发布预检需要时停机。
+- 已整合候选：轻量运行时更新规则、NewAPI 倍率同步合并、Monitor V4 真实缓存命中率；合并后直接相关测试、构建、发布控制器合同和 diff-check 已通过。
+- 不可推广分支：仅含旧版本候选或旧发布脚本、会倒退当前 0.2.4 主线的远端非 `main` 分支；不得合入，将在发布成功后先制作可恢复 bundle，再删除远端分支。
+- 发布边界：只从干净、已推送且与 `origin/main` commit/tree 一致的根 `main` 运行既有预加载蓝绿链；测试站保持独立，不部署、不合并、不复制数据或凭据。
+- 清理边界：主站健康与版本核对完成后，归档全部剩余非 `main` refs/worktree，再删除本地和 `origin` 非 `main` 分支；`test-station` 远端作为独立环境代码源不纳入删除。
