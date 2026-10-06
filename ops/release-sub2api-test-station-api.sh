@@ -23,7 +23,7 @@ previous=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sour
 # Reuse runtime dependencies only when the entire backend and runtime source match.
 while IFS= read -r path; do
   case "$path" in
-    upstream/sub2api/frontend/src/*|docs/*|ops/*|tests/*) ;;
+    upstream/sub2api/frontend/src/*|docs/*|ops/*|tests/*|artifacts/*) ;;
     *) fail "API-only release excludes non-UI runtime changes: $path" ;;
   esac
 done < <(git diff --name-only "$previous" HEAD)
