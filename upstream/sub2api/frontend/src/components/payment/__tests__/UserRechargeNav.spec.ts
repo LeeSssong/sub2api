@@ -15,6 +15,17 @@ describe('UserRechargeNav', () => {
     expect(wrapper.find('[data-test="orders-link"]').exists()).toBe(false)
   })
 
+  it('keeps purchasing available through the storefront when native payment is disabled', () => {
+    const wrapper = mount(UserRechargeNav, {
+      props: { active: 'redeem', balance: 2, paymentEnabled: false, storefrontAvailable: true },
+      global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+    })
+    expect(wrapper.find('[role="tablist"]').exists()).toBe(true)
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').attributes('to')).toBe('/redeem')
+    expect(wrapper.find('[data-test="recharge-unavailable"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="account-metrics"]').text()).toContain('$2.00')
+  })
+
   it('keeps recharge and orders navigation when payment is on', () => {
     const wrapper = mount(UserRechargeNav, {
       props: { active: 'redeem', balance: 2, paymentEnabled: true },

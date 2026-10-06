@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import RedeemView from '../RedeemView.vue'
 
-const { redeem, getHistory, refreshUser, fetchActiveSubscriptions, showError, showWarning, showSuccess } = vi.hoisted(() => ({
+const { redeem, getHistory, refreshUser, fetchActiveSubscriptions, showError, showWarning, showSuccess, settings } = vi.hoisted(() => ({
   redeem: vi.fn(),
   getHistory: vi.fn(),
   refreshUser: vi.fn(),
@@ -10,6 +10,7 @@ const { redeem, getHistory, refreshUser, fetchActiveSubscriptions, showError, sh
   showError: vi.fn(),
   showWarning: vi.fn(),
   showSuccess: vi.fn(),
+  settings: { payment_enabled: false, custom_menu_items: [] as Array<{ id: string; visibility: string; url: string }> },
 }))
 
 vi.mock('@/api', () => ({
@@ -17,13 +18,13 @@ vi.mock('@/api', () => ({
   authAPI: { getPublicSettings: vi.fn().mockResolvedValue({}) },
 }))
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ user: { balance: 10, concurrency: 2 }, refreshUser }),
+  useAuthStore: () => ({ user: { balance: 10, concurrency: 2 }, token: 'local-test-token', refreshUser }),
 }))
 vi.mock('@/stores/subscriptions', () => ({
   useSubscriptionStore: () => ({ fetchActiveSubscriptions }),
 }))
 vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({ showError, showWarning, showSuccess }),
+  useAppStore: () => ({ showError, showWarning, showSuccess, cachedPublicSettings: settings }),
 }))
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -32,7 +33,7 @@ vi.mock('vue-i18n', async () => {
 
 async function submitCode() {
   const wrapper = mount(RedeemView, {
-    global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true } },
+    global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true, RouterLink: { template: '<a><slot /></a>' } } },
   })
   await flushPromises()
   await wrapper.get('input#code').setValue(' REDEEM-CODE ')
@@ -44,6 +45,7 @@ async function submitCode() {
 describe('RedeemView refresh after redemption', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    settings.custom_menu_items = []
     redeem.mockResolvedValue({ type: 'balance', value: 20, message: 'Code applied' })
     getHistory.mockResolvedValue({ items: [], total: 0 })
     refreshUser.mockResolvedValue({ balance: 30, concurrency: 2 })
@@ -53,6 +55,35 @@ describe('RedeemView refresh after redemption', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('embeds the configured user store without passing login credentials and keeps redemption usable', async () => {
+    settings.custom_menu_items = [{ id: 'xingqiao-storefront', visibility: 'user', url: 'https://catfk.com/shop/DLK8SNUJ' }]
+    const wrapper = await submitCode()
+    expect(wrapper.get('iframe').attributes('src')).toBe('https://catfk.com/shop/DLK8SNUJ')
+    const link = wrapper.get('[data-test="storefront-open"]')
+    expect(link.attributes('href')).toBe('https://catfk.com/shop/DLK8SNUJ')
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toBe('noopener noreferrer')
+    expect(wrapper.find('[data-test="recharge-unavailable"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="recharge-tab"]').attributes('aria-disabled')).toBe('true')
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').attributes('to')).toBe('/redeem')
+    expect(wrapper.text()).toContain('Code applied')
+    wrapper.unmount()
+  })
+
+  it.each([
+    { items: [] },
+    { items: [{ id: 'xingqiao-storefront', visibility: 'admin', url: 'https://catfk.com/shop/DLK8SNUJ' }] },
+    { items: [{ id: 'xingqiao-storefront', visibility: 'user', url: 'javascript:alert(1)' }] },
+    { items: [{ id: 'xingqiao-storefront', visibility: 'user', url: 'md:shop' }] },
+  ])('keeps native redemption when no safe user store is configured: %j', async ({ items }) => {
+    settings.custom_menu_items = items
+    const wrapper = await submitCode()
+    expect(wrapper.find('iframe').exists()).toBe(false)
+    expect(wrapper.find('[data-test="recharge-unavailable"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Code applied')
+    wrapper.unmount()
   })
 
   it.each(['balance', 'concurrency', 'subscription'])(
@@ -87,7 +118,7 @@ describe('RedeemView refresh after redemption', () => {
   it('pages on the server, changes size, and resets page and total after redeeming', async () => {
     getHistory.mockResolvedValue({ items: [], total: 101 })
     const wrapper = mount(RedeemView, {
-      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true } },
+      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true, RouterLink: { template: '<a><slot /></a>' } } },
     })
     await flushPromises()
     const button = (text: string) => wrapper.findAll('button').find(b => b.text() === text)!
@@ -123,7 +154,7 @@ describe('RedeemView refresh after redemption', () => {
     const item = { id: 1, code: 'OLD-ROWS', type: 'balance', value: 20, used_at: '2026-03-08T00:00:00Z' }
     getHistory.mockResolvedValue({ items: [item], total: 61 })
     const wrapper = mount(RedeemView, {
-      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true } },
+      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true, RouterLink: { template: '<a><slot /></a>' } } },
     })
     await flushPromises()
     const button = (text: string) => wrapper.findAll('button').find(b => b.text() === text)!
@@ -162,7 +193,7 @@ describe('RedeemView refresh after redemption', () => {
       rejectOld = reject
     }))
     const wrapper = mount(RedeemView, {
-      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true } },
+      global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true, RouterLink: { template: '<a><slot /></a>' } } },
     })
     await flushPromises()
     await wrapper.findAll('button').find(button => button.text() === 'pagination.next')!.trigger('click')
