@@ -985,6 +985,12 @@ export default {
 
   // Redeem
   redeem: {
+    rechargeTitle: '充值与兑换',
+    redeemInstructions: '已有兑换码？输入后即可兑换到账户。',
+    storefrontTitle: '云猫小铺',
+    storefrontInstructions: '购买后复制兑换码，再在本页兑换入账。',
+    buyCode: '去云猫购买兑换码',
+    storefrontFallback: '店铺无法显示或支付遇到问题？请尝试',
     title: '兑换码',
     description: '输入兑换码以充值余额或增加并发数',
     currentBalance: '当前余额',

@@ -29,7 +29,7 @@
       </div>
       <router-link v-if="paymentEnabled" data-test="orders-link" to="/orders" class="flex h-[34px] shrink-0 items-center whitespace-nowrap px-1 text-xs text-[var(--xq-secondary)] transition-colors hover:text-[var(--xq-accent)]">我的订单 →</router-link>
     </div>
-    <p v-if="!paymentEnabled" data-test="recharge-unavailable" class="mt-3 text-xs text-[var(--xq-secondary)]">充值暂不可用，仍可使用兑换码。</p>
+    <p v-if="!paymentEnabled && !storefrontAvailable" data-test="recharge-unavailable" class="mt-3 text-xs text-[var(--xq-secondary)]">充值暂不可用，仍可使用兑换码。</p>
   </div>
 </template>
 
@@ -39,9 +39,11 @@ withDefaults(defineProps<{
   balance: number
   concurrency?: number
   paymentEnabled?: boolean
+  storefrontAvailable?: boolean
 }>(), {
   concurrency: 0,
   paymentEnabled: true,
+  storefrontAvailable: false,
 })
 
 const activeClass = 'text-[var(--xq-core)] after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-[var(--xq-accent)]'

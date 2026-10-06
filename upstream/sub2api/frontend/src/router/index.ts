@@ -249,7 +249,7 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'Redeem Code',
-      titleKey: 'redeem.title',
+      titleKey: 'redeem.rechargeTitle',
       descriptionKey: 'redeem.description'
     }
   },
@@ -385,6 +385,10 @@ const routes: RouteRecordRaw[] = [
       title: 'Payment',
       requiresPayment: false
     }
+  },
+  {
+    path: '/custom/xingqiao-storefront',
+    redirect: '/redeem',
   },
   {
     path: '/custom/:id',

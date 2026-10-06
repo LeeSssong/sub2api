@@ -113,6 +113,6 @@ describe('approved operational navigation', () => {
     for (const path of ['auto-config', 'priority-scheduling', 'account-quality', 'account-ops', 'token-guard', 'token-guard-v2', 'pelican-tests', 'request-captures', 'harvest-flow']) expect(block).toContain(`/admin/${path}`)
     expect(block).toContain('expandOnly: true')
     expect(block).toContain('featureFlag: () => adminSettingsStore.requestCaptureEnabled')
-    expect(componentSource).toContain(".filter(item => item.id === 'xingqiao-storefront' || item.url === '/intelligence-test')")
+    expect(componentSource).toContain(".filter(item => item.url === '/intelligence-test')")
   })
 })

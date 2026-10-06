@@ -981,6 +981,12 @@ export default {
 
   // Redeem
   redeem: {
+    rechargeTitle: 'Top Up & Redeem',
+    redeemInstructions: 'Already have a code? Enter it to apply it to your account.',
+    storefrontTitle: 'Yunmao Shop',
+    storefrontInstructions: 'After purchasing, copy the code and redeem it on this page.',
+    buyCode: 'Buy a code on Yunmao',
+    storefrontFallback: 'Cannot view the shop or complete payment? Try',
     title: 'Redeem Code',
     description: 'Enter your redeem code to add balance or increase concurrency',
     currentBalance: 'Current Balance',

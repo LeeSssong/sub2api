@@ -179,7 +179,7 @@
         @click="handleMenuItemClick(rechargeEntryPath)"
       >
         <strong>{{ formatMoney(userBalance) }}</strong>
-        <span>充值｜兑换</span>
+        <span>{{ t('redeem.rechargeTitle') }}</span>
       </router-link>
 
       <div ref="accountMenuRef" class="user-sidebar-actions">
@@ -845,8 +845,8 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
-      path: item.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${item.id}`,
-      label: item.url === '/intelligence-test' && item.label === '智商检测' ? '智商监测' : item.label,
+      path: item.id === 'xingqiao-storefront' ? '/redeem' : item.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${item.id}`,
+      label: item.id === 'xingqiao-storefront' ? t('redeem.rechargeTitle') : item.url === '/intelligence-test' && item.label === '智商检测' ? '智商监测' : item.label,
       icon: item.id === 'performance-monitor' ? PerformanceMonitorIcon : null,
       iconSvg: item.icon_svg,
     })),
@@ -875,13 +875,13 @@ function buildUserNavItems(): NavItem[] {
     { path: '/dashboard', label: userNavLabel('aiTools', 'AI 工具'), icon: DashboardIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/keys', label: userNavLabel('myKeys', '我的密钥'), icon: KeyIcon },
-    // Reuse the existing storefront configuration and embedded custom-page route.
+    // Recharge and redemption are accessed only through the fixed balance entry.
     ...customMenuItemsForUser.value
-      .filter(item => item.id === 'xingqiao-storefront' || item.url === '/intelligence-test')
+      .filter(item => item.url === '/intelligence-test')
       .map((item): NavItem => ({
-        path: item.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${item.id}`,
-        label: item.url === '/intelligence-test' && item.label === '智商检测' ? '智商监测' : item.label,
-        icon: item.url === '/intelligence-test' ? PerformanceMonitorIcon : CreditCardIcon,
+        path: '/intelligence-test',
+        label: item.label === '智商检测' ? '智商监测' : item.label,
+        icon: PerformanceMonitorIcon,
         iconSvg: item.icon_svg,
       })),
   ]
