@@ -169,7 +169,30 @@ test_invalid_migration_content_stops_before_build(){
   assert_no_ssh
 }
 
+test_authorized_local_main_is_pinned_and_does_not_fetch(){
+  setup local-main
+  output=$(FAKE_MODE=origin-drift TEST_STATION_LOCAL_MAIN_COMMIT=$COMMIT run_release) || fail 'authorized local main rejected'
+  [[ "$output" == "test_station_release status=succeeded source_commit=$COMMIT source_tree=$TREE" ]] || fail 'local source output mismatch'
+  ! grep -q 'fetch origin main' "$EVENT_LOG" || fail 'local-only release fetched origin'
+}
+
+test_local_main_mismatch_and_invalid_inputs_stop_before_build(){
+  local value mode
+  for value in invalid "$(printf 'd%.0s' {1..40})"; do
+    setup local-mismatch
+    if TEST_STATION_LOCAL_MAIN_COMMIT=$value run_release >/dev/null 2>&1; then fail 'local pin mismatch accepted'; fi
+    assert_no_docker; assert_no_ssh
+  done
+  for mode in non-main dirty; do
+    setup "local-$mode"
+    if FAKE_MODE=$mode TEST_STATION_LOCAL_MAIN_COMMIT=$COMMIT run_release >/dev/null 2>&1; then fail 'unsafe local source accepted'; fi
+    assert_no_docker; assert_no_ssh
+  done
+}
+
 bash -n "$SCRIPT"
+test_authorized_local_main_is_pinned_and_does_not_fetch
+test_local_main_mismatch_and_invalid_inputs_stop_before_build
 test_success_transfers_metadata_and_backup_helper
 test_source_failures_stop_before_build
 test_unsafe_target_and_missing_migrations_stop_early
