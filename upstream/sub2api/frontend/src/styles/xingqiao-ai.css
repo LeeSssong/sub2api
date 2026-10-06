@@ -44,12 +44,17 @@
 .xq-ai .tool-status:hover .tool-status-arrow{transform:translateX(2px)}
 .xq-ai .separator{height:1px;background:rgba(63,115,136,.22);margin:12px 0}
 .xq-ai .tool-best{display:flex;flex-direction:column;min-width:0;gap:4px}
-.xq-ai .tool-best small{font-size:11px;color:var(--xq-muted)}
-.xq-ai .best{font-size:12px;font-weight:500;line-height:1.45;color:#8ea8b4;margin:0;overflow-wrap:anywhere}
-.xq-ai .best.muted{color:#5f7b8a}
-.xq-ai .card-bottom{margin-top:auto;padding-top:20px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.xq-ai .card-bottom button{flex-shrink:0;min-height:36px;padding:0 14px;border-color:rgba(97,201,217,.46);background:linear-gradient(145deg,rgba(29,82,105,.82),rgba(13,47,68,.90));color:#8fe4eb;font-size:12px;font-weight:600}
-.xq-ai .card-bottom button:disabled{background:rgba(10,31,46,.58);border-color:rgba(52,103,124,.24);color:#557483;opacity:.58}
+.xq-ai .tool-best small{font-size:11px;line-height:1.5;color:var(--xq-secondary)}
+.xq-ai .best{font-size:12px;font-weight:500;line-height:1.45;color:var(--xq-text);margin:0;overflow-wrap:anywhere}
+.xq-ai .best.muted{color:var(--xq-secondary)}
+.xq-ai .card-bottom{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.xq-ai .card-bottom .tool-best{flex:1}
+.xq-ai .tool-association{width:100%;padding:12px;border-radius:10px;background:color-mix(in srgb,var(--xq-depth) 82%,var(--xq-surface));box-shadow:inset 0 2px 4px rgb(0 0 0 / 16%),0 1px 0 rgb(255 255 255 / 4%)}
+.xq-ai .tool-status{margin-bottom:16px}
+.xq-ai .card-bottom button{flex-shrink:0;min-height:36px;padding:0 10px;border-color:rgba(97,201,217,.46);background:linear-gradient(145deg,rgba(39,102,124,.90),rgba(20,66,89,.94));color:#8fe4eb;font-size:12px;font-weight:600;box-shadow:0 3px 6px rgb(0 0 0 / 22%),inset 0 1px 0 rgb(255 255 255 / 10%);transition:transform .14s,box-shadow .14s,background .14s}
+.xq-ai .card-bottom button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 8px rgb(0 0 0 / 26%),inset 0 1px 0 rgb(255 255 255 / 14%)}
+.xq-ai .card-bottom button:active:not(:disabled){transform:translateY(1px);box-shadow:0 1px 3px rgb(0 0 0 / 28%)}
+.xq-ai .card-bottom button:disabled{box-shadow:none;background:rgba(10,31,46,.58);border-color:rgba(52,103,124,.24);color:#557483;opacity:.58}
 .xq-ai .lines-panel{flex-grow:1;padding:24px;min-width:0;background:rgba(5,19,31,.78);border:1px solid rgba(69,135,160,.48);border-radius:14px}
 .xq-ai .panel-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
 .xq-ai .route-table-scroll,.xq-dialog .table-scroll{overflow-x:auto;scrollbar-color:var(--xq-border) transparent;scrollbar-width:thin}
@@ -130,9 +135,13 @@
 :root:not(.dark) .xq-ai .tool-card { background: var(--xq-surface); border-color: var(--xq-border); }
 :root:not(.dark) .xq-ai .tool-card:hover { background: var(--xq-raised); border-color: var(--xq-accent); }
 :root:not(.dark) .xq-ai .lines-panel { background: var(--xq-surface); border-color: var(--xq-border); }
-:root:not(.dark) .xq-ai :is(.tool-type, .tool-status, .tool-best small, .best) { color: var(--xq-muted); }
-:root:not(.dark) .xq-ai .card-bottom button { background: var(--xq-depth); color: var(--xq-text); border-color: var(--xq-border); }
-:root:not(.dark) .xq-ai .card-bottom button:disabled { background: var(--xq-depth); color: var(--xq-muted); }
+:root:not(.dark) .xq-ai :is(.tool-type, .tool-status) { color: var(--xq-muted); }
+:root:not(.dark) .xq-ai .tool-association { background:color-mix(in srgb,var(--xq-depth) 65%,var(--xq-surface));box-shadow:inset 0 2px 4px rgb(24 59 69 / 10%),0 1px 0 rgb(255 255 255 / 65%); }
+:root:not(.dark) .xq-ai .card-bottom button { background:var(--xq-surface);color:var(--xq-text);border-color:var(--xq-border);box-shadow:0 3px 6px rgb(24 59 69 / 18%),inset 0 1px 0 rgb(255 255 255 / 90%); }
+:root:not(.dark) .xq-ai .card-bottom button:hover:not(:disabled) { box-shadow:0 5px 8px rgb(24 59 69 / 20%); }
+:root:not(.dark) .xq-ai .card-bottom button:active:not(:disabled) { box-shadow:0 1px 2px rgb(24 59 69 / 14%); }
+:root:not(.dark) .xq-ai .card-bottom button:disabled { background:var(--xq-depth);color:var(--xq-muted);box-shadow:none; }
+@media(prefers-reduced-motion:reduce){.xq-ai .card-bottom button{transition:none}}
 :root:not(.dark) .xq-ai .route-row:hover,
 :root:not(.dark) .xq-button:hover:not(:disabled) { background: var(--xq-raised); }
 :root:not(.dark) :is(.xq-ai, .xq-dialog) ::selection { background: var(--xq-raised); color: var(--xq-text); }

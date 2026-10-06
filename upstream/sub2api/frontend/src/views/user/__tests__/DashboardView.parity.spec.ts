@@ -13,7 +13,7 @@ vi.mock('@/features/ai-tools/api',()=>({checkLines:mocks.check,getGroupModels:mo
 const groups=[{id:1,name:'GPT-Pro',platform:'openai',rate_multiplier:1,status:'active'},{id:2,name:'未关联线路',platform:'openai',rate_multiplier:.5,status:'active'}]
 const metric=(id:number)=>({id,tool_ids:['codex'],success_rate:98,request_count:100,success_count:98,ttft_p50_ms:2160,latency_p50_ms:6500,real_request_count:100,real_success_count:98,source_updated_at:new Date().toISOString()})
 const deferred=<T,>()=>{let resolve!:(value:T)=>void;let reject!:(reason?:unknown)=>void;const promise=new Promise<T>((res,rej)=>{resolve=res;reject=rej});return {promise,resolve,reject}}
-const make=()=>mount(Dashboard,{global:{stubs:{AppLayout:{template:'<div><slot/></div>'},BaseDialog:{props:['show','title'],template:'<div v-if="show" role="dialog"><h3>{{title}}</h3><slot/><slot name="footer"/></div>'},CreateLineKeyDialog:{props:['show','initialGroupId'],template:'<div v-if="show" data-testid="create-key">{{initialGroupId}}</div>'}}}})
+const make=()=>mount(Dashboard,{global:{stubs:{AppLayout:{template:'<div><slot/></div>'},BaseDialog:{props:['show','title'],template:'<div v-if="show" role="dialog"><h3>{{title}}</h3><slot/><slot name="footer"/></div>'},CreateLineKeyDialog:{name:'CreateLineKeyDialog',props:['show','initialGroupId'],template:'<div v-if="show" data-testid="create-key">{{initialGroupId}}</div>'}}}})
 beforeEach(()=>{vi.clearAllMocks();clearDashboardWorkspaceSnapshot();mocks.models.mockResolvedValue([{group_id:1,supported_models:['gpt-5.4','gpt-5.2']},{group_id:2,supported_models:['gpt-5.4','custom-model']},{group_id:99,supported_models:['private-model']}]);mocks.groups.mockResolvedValue(groups);mocks.rates.mockResolvedValue({});mocks.keys.mockResolvedValue({items:[{id:1,group_id:1,status:'inactive',group:groups[0]}],total:1});mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))});mocks.check.mockResolvedValue([{group_id:1,status:'success',ttft_ms:1230}])})
 describe('原型AI工具交互',()=>{
  it('renders route cards with request samples and associates the selected route',async()=>{
@@ -50,7 +50,11 @@ describe('原型AI工具交互',()=>{
   mocks.snapshot.mockImplementation((window:string)=>Promise.resolve(snapshot(window)))
   const w=make();await flushPromises()
   expect(mocks.snapshot.mock.calls.map(([window])=>window)).toContain('24h')
-  expect(w.get('.tool-card .tool-best .best').text()).toBe('未关联最佳线路')
+  expect(w.get('.tool-card .tool-best .best').text()).toContain('未关联最佳线路')
+  expect(w.get('.tool-card .card-bottom').element.firstElementChild?.className).toBe('tool-best')
+  await w.get('.tool-card .card-bottom button').trigger('click');await flushPromises()
+  expect(w.get('[data-testid="create-key"]').text()).toBe('2')
+  w.findComponent({name:'CreateLineKeyDialog'}).vm.$emit('close');await flushPromises()
   await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
   const bestCard=()=>w.findAll('.route-detail-card').find(card=>card.find('.best-route-badge').exists())!
   expect(bestCard().get('h3').text()).toBe('未关联最佳线路')
@@ -60,17 +64,17 @@ describe('原型AI工具交互',()=>{
    ...snapshot(window),groups:snapshot(window).groups.map(g=>({...g,cache_hit_rate:1,ttft_p50_ms:1000,real_success_count:g.id===1?100:90})),
   }))
   await w.findAll('button').find(button=>button.text()==='近 24 小时')!.trigger('click');await flushPromises()
-  expect(w.get('.tool-card .best').text()).toBe('已关联线路')
+  expect(w.get('.tool-card .tool-best .best').text()).toContain('已关联线路')
   expect(bestCard().get('h3').text()).toBe('已关联线路')
   w.unmount()
  })
  it('keeps the cached 24-hour best route when returning before statistics finish loading',async()=>{
   mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>({...metric(g.id),cache_hit_rate:.5}))})
   const first=make();await flushPromises()
-  const best=first.get('.tool-card .best').text();expect(best).toBe('GPT-Pro');first.unmount()
+  const best=first.get('.tool-card .tool-best .best').text();expect(best).toContain('GPT-Pro');first.unmount()
   const pending=deferred<unknown>();mocks.snapshot.mockReturnValue(pending.promise)
   const w=make();await flushPromises()
-  expect(w.get('.tool-card .best').text()).toBe(best)
+  expect(w.get('.tool-card .tool-best .best').text()).toBe(best)
   pending.resolve({generated_at:new Date().toISOString(),groups:[]});await flushPromises()
   w.unmount()
  })
@@ -80,11 +84,13 @@ describe('原型AI工具交互',()=>{
    : Promise.resolve({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))}))
   const w=make();await flushPromises()
   expect(w.get('.ranking-error').text()).toContain('近 24 小时')
-  expect(w.get('.tool-card .best').text()).toBe('暂无请求数据')
+  expect(w.get('.tool-card .tool-best .best').text()).toBe('暂无请求数据')
   mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))})
   await w.get('.ranking-error button').trigger('click');await flushPromises()
   expect(w.find('.ranking-error').exists()).toBe(false)
-  expect(w.get('.tool-card .best').text()).toBe('统计不足')
+  expect(w.get('.tool-card .tool-best .best').text()).toBe('统计不足')
+  await w.get('.tool-card .card-bottom button').trigger('click');await flushPromises()
+  expect(w.get('[data-testid="create-key"]').text()).toBe('')
   w.unmount()
  })
  it('distinguishes zero real requests from missing statistics in cards',async()=>{

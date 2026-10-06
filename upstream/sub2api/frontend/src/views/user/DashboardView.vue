@@ -20,9 +20,9 @@
               <span v-else class="tool-status-value"><span class="dot muted" aria-hidden="true"></span>暂无线路</span>
               <Icon class="tool-status-arrow" name="chevronRight" size="sm" />
             </button>
-            <div class="card-bottom">
-              <div class="tool-best" title="近 24 小时：成功率 50% · 缓存命中率 30% · 首字速度 20%"><small>最佳线路</small><strong class="best" :class="{muted:!tool.best}">{{ tool.best?.name || tool.bestEmptyText }}</strong></div>
-              <button class="xq-button" :disabled="!tool.active.length" @click="openCreate(tool)">关联密钥</button>
+            <div class="card-bottom tool-association" role="group" :aria-label="`${tool.label} 最佳线路与关联密钥`">
+              <div :id="`tool-best-${tool.id}`" class="tool-best" title="近 24 小时：成功率 50% · 缓存命中率 30% · 首字速度 20%"><small>最佳线路</small><strong class="best" :class="{muted:!tool.best}">{{ tool.best?.name || (tool.active.length ? tool.bestEmptyText : '暂无可用线路') }}</strong></div>
+              <button type="button" class="xq-button" :disabled="!tool.active.length" :aria-describedby="`tool-best-${tool.id}`" @click="openCreate(tool)">关联密钥</button>
             </div>
           </article>
         </div>
@@ -225,7 +225,7 @@ async function loadDetails(window:MonitorV4Window){
     }
   }finally{if(!c.signal.aborted)detailLoading.value=false}
 }
-function openCreate(tool:ToolCard,id?:number){createTrigger=document.activeElement as HTMLElement;createTool.value=tool;createGroupId.value=id}
+function openCreate(tool:ToolCard,id?:number){createTrigger=document.activeElement as HTMLElement;createTool.value=tool;createGroupId.value=id??tool.best?.id}
 function restoreDetailFocus(){
   if(returnToDetailGroup){document.querySelector<HTMLElement>(`[data-detail-group-id="${returnToDetailGroup}"]`)?.focus();returnToDetailGroup=undefined}
 }
