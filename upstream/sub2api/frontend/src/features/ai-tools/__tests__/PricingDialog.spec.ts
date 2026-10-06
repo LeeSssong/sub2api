@@ -1,6 +1,7 @@
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PricingDialog from '../PricingDialog.vue'
+import { createI18n } from 'vue-i18n'
 import type { Group } from '@/types'
 
 const mocks = vi.hoisted(() => ({ groups: vi.fn(), rates: vi.fn(), models: vi.fn() }))
@@ -14,7 +15,7 @@ const pending = <T,>() => {
 }
 const make = () => mount(PricingDialog, {
   props: { tool: { id: 'codex', label: 'Codex' }, lines: [group(1, '旧分组', 9)], rates: { 1: 8 } },
-  global: { stubs: { BaseDialog: { props: ['show'], template: '<div v-if="show"><slot/></div>' } } },
+  global: { plugins: [createI18n({ legacy: false, locale: 'zh', messages: {} })], stubs: { BaseDialog: { props: ['show'], template: '<div v-if="show"><slot/></div>' } } },
 })
 beforeEach(() => {
   vi.clearAllMocks()
@@ -25,6 +26,21 @@ beforeEach(() => {
 enableAutoUnmount(afterEach)
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 describe('原生扣费标准同步', () => {
+  it('orders newer models first and filters official types without changing group fees', async () => {
+    mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-5.2', 'gpt-image-2', 'gpt-5.4', 'gpt-4o-transcribe', 'gpt-realtime', 'gpt-5.6-cyber', 'gpt-6.1-sol'] }])
+    const w = make(); await flushPromises()
+    expect(w.findAll('.model-pricing-table tbody th')[0].text()).toContain('gpt-6.1-sol')
+    const fees = w.get('.fee-table').text()
+    await w.get('button[aria-label="模型类型"]').trigger('click'); await flushPromises()
+    const option = document.querySelector<HTMLElement>('[role="option"][data-value="image"]')
+    const candidates = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+    ;(option || candidates.find(e => e.textContent?.includes('图像生成模型')))!.click()
+    await flushPromises()
+    expect(w.findAll('.model-pricing-table tbody tr')).toHaveLength(1)
+    expect(w.get('.model-pricing-table').text()).toContain('gpt-image-2')
+    expect(w.get('.fee-table').text()).toBe(fees)
+  })
+
   it('uses model plaza same-source prices rather than static model constants', async () => {
     mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-5.4', 'gpt-5.4-2026-03-05'], official_pricing: {
       'gpt-5.4': { input_price: 7.34e-6, cache_read_price: 0, cache_write_price: null, output_price: 41e-6 },
@@ -49,7 +65,8 @@ describe('原生扣费标准同步', () => {
       ] },
     } }])
     const w = make(); await flushPromises()
-    expect(w.findAll('.model-pricing-table tbody tr')).toHaveLength(3)
+    expect(w.findAll('.model-pricing-table tbody tr')).toHaveLength(1)
+    expect(w.findAll('.model-pricing-table tbody th')).toHaveLength(1)
     expect(w.get('.model-pricing-table').text()).toContain('100K–200K')
     expect(w.get('.model-pricing-table').text()).toContain('$5.00')
     expect(w.get('.model-pricing-table').text()).toContain('$8.00')
@@ -94,6 +111,18 @@ describe('原生扣费标准同步', () => {
     expect(w.get('.fee-table').text()).toContain('模型基础费用 × 0.12')
     w.unmount()
   })
+  it('keeps failed cached fees hidden while a retry is pending', async () => {
+    const w = make(); await flushPromises()
+    mocks.rates.mockRejectedValueOnce(new Error('offline'))
+    await w.get('button[aria-label="刷新价格与扣费标准"]').trigger('click'); await flushPromises()
+    const retry = pending<Group[]>()
+    mocks.groups.mockReturnValueOnce(retry.promise)
+    await w.findAll('button').find(button => button.text() === '重试')!.trigger('click'); await flushPromises()
+    expect(w.find('.fee-table').exists()).toBe(false)
+    expect(w.find('.model-pricing-table').exists()).toBe(false)
+    retry.resolve([group(1, '重新读取', .4)]); await flushPromises()
+    expect(w.get('.fee-table').text()).toContain('重新读取')
+  })
   it('shows empty native groups even when the dashboard has an old group', async () => {
     mocks.groups.mockResolvedValue([])
     const w = make(); await flushPromises()
@@ -125,7 +154,7 @@ describe('原生扣费标准同步', () => {
     expect(w.text()).toContain('暂无分组')
     w.unmount()
   })
-  it('polls while open and aborts outstanding work on close', async () => {
+  it('syncs silently while open and aborts outstanding work on close', async () => {
     vi.useFakeTimers()
     const w = make(); await flushPromises()
     mocks.rates.mockResolvedValue({ 1: .45 })
@@ -134,7 +163,11 @@ describe('原生扣费标准同步', () => {
     expect(w.get('.fee-table').text()).toContain('模型基础费用 × 0.45')
     const request = pending<Group[]>()
     mocks.groups.mockReturnValue(request.promise)
+    const table = w.get('.model-pricing-table').element
+    const fees = w.get('.fee-table').element
     await vi.advanceTimersByTimeAsync(60_000)
+    expect(w.get('.model-pricing-table').element).toBe(table)
+    expect(w.get('.fee-table').element).toBe(fees)
     const signal = mocks.groups.mock.calls.at(-1)![0] as AbortSignal
     await w.setProps({ tool: null })
     expect(signal.aborted).toBe(true)
@@ -158,13 +191,19 @@ describe('原生扣费标准同步', () => {
     expect(w.get('.fee-table').text()).not.toContain('最新分组')
     w.unmount()
   })
-  it('pauses background polling and refreshes immediately when visible again', async () => {
+  it('does not refetch on a brief tab switch but syncs after stale data', async () => {
     vi.useFakeTimers()
     const w = make(); await flushPromises()
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
     document.dispatchEvent(new Event('visibilitychange'))
-    await vi.advanceTimersByTimeAsync(120_000)
+    await vi.advanceTimersByTimeAsync(10_000)
     expect(mocks.groups).toHaveBeenCalledOnce()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    document.dispatchEvent(new Event('visibilitychange')); await flushPromises()
+    expect(mocks.groups).toHaveBeenCalledOnce()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(60_000)
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
     document.dispatchEvent(new Event('visibilitychange')); await flushPromises()
     expect(mocks.groups).toHaveBeenCalledTimes(2)

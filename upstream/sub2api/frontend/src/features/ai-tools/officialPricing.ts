@@ -25,14 +25,14 @@ export function nativePriceRows(models: string[], groups: GroupModels[]) {
       if (price && !prices.has(model)) prices.set(model, price)
     }
   }
-  return models.flatMap(model => {
+  return models.map(model => {
     const price = prices.get(model)
     const intervals = price?.intervals
-    if (intervals?.length) return intervals.map((interval, index) => ({
-      key: `${model}:${index}`, model,
+    const tiers = intervals?.length ? intervals.map((interval, index) => ({
+      label: intervals.length === 2 ? (index === 0 ? '短' : '长') : `第${index + 1}档`,
       context: interval.tier_label || `${interval.min_tokens.toLocaleString()}–${interval.max_tokens?.toLocaleString() ?? '不限'} Token`,
       prices: interval as Prices,
-    }))
-    return [{ key: model, model, context: price ? '全部上下文' : '暂无参考价', prices: (price || {}) as Prices }]
+    })) : [{ label: '', context: price ? '全部上下文' : '暂无参考价', prices: (price || {}) as Prices }]
+    return { key: model, model, tiers }
   })
 }

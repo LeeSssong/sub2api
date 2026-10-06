@@ -1,4 +1,5 @@
 vi.mock('@/features/ai-tools/routeTimeline',()=>({getRouteTimeline:(...args:unknown[])=>mocks.timeline(...args)}))
+import { createI18n } from 'vue-i18n'
 import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Dashboard from '../DashboardView.vue'
@@ -13,7 +14,7 @@ vi.mock('@/features/ai-tools/api',()=>({checkLines:mocks.check,getGroupModels:mo
 const groups=[{id:1,name:'GPT-Pro',platform:'openai',rate_multiplier:1,status:'active'},{id:2,name:'未关联线路',platform:'openai',rate_multiplier:.5,status:'active'}]
 const metric=(id:number)=>({id,tool_ids:['codex'],success_rate:98,request_count:100,success_count:98,ttft_p50_ms:2160,latency_p50_ms:6500,real_request_count:100,real_success_count:98,source_updated_at:new Date().toISOString()})
 const deferred=<T,>()=>{let resolve!:(value:T)=>void;let reject!:(reason?:unknown)=>void;const promise=new Promise<T>((res,rej)=>{resolve=res;reject=rej});return {promise,resolve,reject}}
-const make=()=>mount(Dashboard,{global:{stubs:{AppLayout:{template:'<div><slot/></div>'},BaseDialog:{props:['show','title'],template:'<div v-if="show" role="dialog"><h3>{{title}}</h3><slot/><slot name="footer"/></div>'},CreateLineKeyDialog:{name:'CreateLineKeyDialog',props:['show','initialGroupId'],template:'<div v-if="show" data-testid="create-key">{{initialGroupId}}</div>'}}}})
+const make=()=>mount(Dashboard,{global:{plugins:[createI18n({legacy:false,locale:'zh',messages:{}})],stubs:{AppLayout:{template:'<div><slot/></div>'},BaseDialog:{props:['show','title'],template:'<div v-if="show" role="dialog"><h3>{{title}}</h3><slot/><slot name="footer"/></div>'},CreateLineKeyDialog:{name:'CreateLineKeyDialog',props:['show','initialGroupId'],template:'<div v-if="show" data-testid="create-key">{{initialGroupId}}</div>'}}}})
 beforeEach(()=>{vi.clearAllMocks();clearDashboardWorkspaceSnapshot();mocks.models.mockResolvedValue([{group_id:1,supported_models:['gpt-5.4','gpt-5.2'],official_pricing:{'gpt-5.4':{input_price:2.5e-6,cache_read_price:.25e-6,output_price:15e-6}}},{group_id:2,supported_models:['gpt-5.4','custom-model']},{group_id:99,supported_models:['private-model']}]);mocks.groups.mockResolvedValue(groups);mocks.rates.mockResolvedValue({});mocks.keys.mockResolvedValue({items:[{id:1,group_id:1,status:'inactive',group:groups[0]}],total:1});mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))});mocks.check.mockResolvedValue([{group_id:1,status:'success',ttft_ms:1230}])})
 describe('原型AI工具交互',()=>{
  it('reveals request counts only on success-rate hover or focus and associates the selected route',async()=>{
@@ -232,18 +233,18 @@ describe('原型AI工具交互',()=>{
  })
  it('preserves the last successful detail metrics after a same-window refresh fails',async()=>{const w=make();await flushPromises();await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises();mocks.snapshot.mockRejectedValue(new Error('offline'));await w.findAll('button').find(b=>b.text()==='近 24 小时')!.trigger('click');await flushPromises();expect(w.get('[role="dialog"]').text()).toContain('98 / 100 次请求成功');expect(w.get('[role="dialog"]').text()).toContain('98%');w.unmount()})
 
- it('shows only current tool group models and switches official price tiers without changing fees',async()=>{
+ it('shows current tool models newest first with native prices without changing group fees',async()=>{
   mocks.rates.mockResolvedValue({1:0.12})
   const w=make();await flushPromises()
   await w.get('button[aria-label="Codex 价格与扣费说明"]').trigger('click');await flushPromises()
   const dialog=w.get('[role="dialog"]')
   expect(dialog.text()).toContain('OpenAI 官方参考价')
   const rows=dialog.findAll('.model-pricing-table tbody tr')
-  expect(rows.map(r=>r.find('th').text())).toEqual(['custom-model','gpt-5.2','gpt-5.4'])
+  expect(rows.map(r=>r.find('.model-name').text())).toEqual(['gpt-5.4','gpt-5.2','custom-model'])
   expect(dialog.text()).not.toContain('private-model')
-  const gpt=()=>dialog.findAll('.model-pricing-table tbody tr').find(r=>r.find('th').text()==='gpt-5.4')!
-  expect(gpt().findAll('td')[1].text()).toBe('$2.50')
-  expect(gpt().findAll('td')[2].text()).toBe('$0.25')
+  const gpt=()=>dialog.findAll('.model-pricing-table tbody tr').find(r=>r.find('.model-name').text()==='gpt-5.4')!
+  expect(gpt().findAll('td')[0].text()).toBe('$2.50')
+  expect(gpt().findAll('td')[1].text()).toBe('$0.25')
   expect(dialog.find('[role="tablist"]').exists()).toBe(false)
   expect(dialog.text()).not.toContain('待核对')
   const fees=dialog.get('.fee-table')
