@@ -4,13 +4,12 @@
       <section class="official-pricing-section" aria-labelledby="official-pricing-title">
         <div class="pricing-heading official-pricing-heading">
           <h3 id="official-pricing-title">{{ isOpenAiTool ? 'OpenAI 官方参考价' : '模型官方参考价' }}</h3>
-          <span class="pricing-tier-label">Standard · 美元 / 100 万 Token</span>
-        </div>
-        <div v-if="isOpenAiTool" class="pricing-filter">
-          <Select v-model="selectedCategory" :options="categoryOptions" :searchable="false" brand aria-label="模型类型" />
-          <span class="pricing-sort-note" title="未知发布时间的模型排在最后">按发布时间从新到旧</span>
+          <div v-if="isOpenAiTool" class="pricing-filter">
+            <Select v-model="selectedCategory" :options="categoryOptions" :searchable="false" brand aria-label="模型类型" />
+          </div>
         </div>
         <div id="official-pricing-panel" aria-labelledby="official-pricing-title">
+          <div class="pricing-tier-label">Standard · 美元 / 100 万 Token</div>
           <p v-if="loading && !hasLoaded" role="status">正在读取分组、模型与倍率…</p>
           <div v-else-if="error" class="pricing-error" role="alert">分组、模型或倍率读取失败，请重试。<button type="button" class="btn btn-secondary" @click="loadPricing">重试</button></div>
           <div v-else-if="priceRows.length" class="table-scroll model-pricing-table context-pricing-table" tabindex="0" aria-label="模型价格，美元 / 100 万 Token">
@@ -28,10 +27,10 @@
                     <td v-for="(column, index) in contextPriceColumns" :key="column.key" :class="{ 'context-divider': index === 0 }">
                       <span v-if="index === 0 && !group.context && row.tiers[group.index].label" class="model-context context-range">{{ row.tiers[group.index].context }}</span>
                       <template v-if="column.key === 'cache_write_price' && row.tiers[group.index].prices.cache_write_1h_price != null && row.tiers[group.index].prices.cache_write_1h_price !== row.tiers[group.index].prices.cache_write_price">
-                        <span class="cache-price"><span class="cache-duration">5分钟</span> {{ formatNativePrice(row.tiers[group.index].prices.cache_write_price) }}</span>
-                        <span v-if="row.tiers[group.index].prices.cache_write_1h_price != null" class="cache-price"><span class="cache-duration">1小时</span> {{ formatNativePrice(row.tiers[group.index].prices.cache_write_1h_price) }}</span>
+                        <span class="cache-price"><span class="cache-duration">5分钟</span> <span class="price-value">{{ formatNativePrice(row.tiers[group.index].prices.cache_write_price) }}</span></span>
+                        <span v-if="row.tiers[group.index].prices.cache_write_1h_price != null" class="cache-price"><span class="cache-duration">1小时</span> <span class="price-value">{{ formatNativePrice(row.tiers[group.index].prices.cache_write_1h_price) }}</span></span>
                       </template>
-                      <template v-else>{{ formatNativePrice(row.tiers[group.index].prices[column.key]) }}</template>
+                      <span v-else class="price-value" :class="{ 'price-missing': formatNativePrice(row.tiers[group.index].prices[column.key]) === '—' }">{{ formatNativePrice(row.tiers[group.index].prices[column.key]) }}</span>
                     </td>
                   </template>
                   <td v-else :colspan="contextPriceColumns.length" class="context-divider context-unavailable">{{ row.tiers[0].label ? '无此档位' : row.tiers[0].context === '全部上下文' ? '适用全部上下文，单价同左侧' : '暂无参考价' }}</td>
@@ -41,7 +40,6 @@
           </div>
           <p v-else class="pricing-note" role="status">{{ allowedModels.length ? '当前类型暂无可用模型。' : '当前工具暂无可用模型，暂不展示模型价格。' }}</p>
         </div>
-        <p class="pricing-note">参考价与模型广场、原生计费目录同源；“—”表示原生目录未提供该项。实际扣费以分组定价、服务档位和有效倍率为准。</p>
         <div class="pricing-source"><a :href="source" target="_blank" rel="noopener noreferrer" title="官方参考价格，美元 / 100 万 Token">官方费率来源 <Icon name="externalLink" size="sm" /></a></div>
       </section>
       <section aria-labelledby="group-pricing-title" :aria-busy="loading">
@@ -70,14 +68,15 @@ import Icon from '@/components/icons/Icon.vue'
 import { formatLineRate, resolveLineRate } from '@/components/keys/lineOptions'
 import type { Group } from '@/types'
 import userGroupsAPI from '@/api/groups'
-import { getGroupModels, type GroupModels } from './api'
+import { getGroupModels, getModelPopularity, type GroupModels, type ModelPopularity } from './api'
 import { toolIdsForGroup, tools } from './model'
-import { modelCategories, modelCategory, sortOpenAIModels, type ModelCategory } from './modelMetadata'
+import { modelCategories, modelCategory, sortModelsByPopularity, type ModelCategory } from './modelMetadata'
 import { contextPriceColumns, formatNativePrice, nativeContextGroups, nativePriceRows } from './officialPricing'
 
 const props = defineProps<{ tool: { id: string; label: string } | null; lines: Group[]; rates: Record<number, number> }>()
 const emit = defineEmits<{ close: [] }>()
 const modelData = ref<GroupModels[]>([])
+const popularity = ref<ModelPopularity[]>([])
 const nativeGroups = ref<Group[]>([])
 const nativeRates = ref<Record<number, number>>({})
 const loading = ref(false)
@@ -109,7 +108,7 @@ const pricingGroups = computed(() => groupsForTool(nativeGroups.value))
 const feeRows = computed(() => pricingGroups.value.map(group => ({ group, rate: resolveLineRate(group, nativeRates.value) })))
 const allowedModels = computed(() => {
   const models = [...new Set(pricingGroups.value.flatMap(line => modelsByGroup.value.get(line.id) || []))]
-  return isOpenAiTool.value ? sortOpenAIModels(models) : models.sort()
+  return sortModelsByPopularity(models, popularity.value)
 })
 const categoryOptions = computed(() => modelCategories.map(category => ({
   ...category,
@@ -130,12 +129,21 @@ function scheduleRefresh() {
   stopRefreshTimer()
   if (props.tool && !document.hidden) refreshTimer = setTimeout(() => { void loadPricing() }, error.value ? REFRESH_INTERVAL_MS : Math.max(0, REFRESH_INTERVAL_MS - (Date.now() - lastUpdatedAt)))
 }
+async function loadPopularity(signal: AbortSignal) {
+  try {
+    const stats = await getModelPopularity(signal)
+    if (!signal.aborted) popularity.value = stats.models
+  } catch {
+    // Keep previous ordering; an optional aggregate must not hide prices.
+  }
+}
 async function loadPricing() {
   stopRefreshTimer()
   controller?.abort()
   if (!props.tool) return
   const current = new AbortController()
   controller = current
+  void loadPopularity(current.signal)
   loading.value = true
   error.value = false
   try {
@@ -170,6 +178,7 @@ watch(() => props.tool?.id, () => {
   controller?.abort()
   stopRefreshTimer()
   modelData.value = []
+  popularity.value = []
   nativeGroups.value = []
   nativeRates.value = {}
   error.value = false
@@ -203,7 +212,7 @@ onBeforeUnmount(() => {
 .pricing-content h3 { margin:0; font-size:19px; font-weight:600; }
 .official-pricing-heading { margin-bottom:16px; }
 .official-pricing-heading h3 { flex:0 0 auto; }
-.pricing-tier-label { color:var(--xq-muted); font-size:12px; text-align:right; }
+.pricing-tier-label { margin-bottom:12px; color:var(--xq-muted); font-size:12px; }
 .table-scroll:focus-visible { outline:2px solid var(--xq-accent); outline-offset:2px; }
 .pricing-content p { margin:8px 0; color:var(--xq-muted); }
 .pricing-note { font-size:12px; }
@@ -220,10 +229,11 @@ onBeforeUnmount(() => {
 .model-pricing-table .model-column { width:180px; }
 .model-pricing-table th.model-column { position:sticky; left:0; z-index:1; background:var(--xq-raised); }
 .model-pricing-table .context-divider { border-left:1px solid var(--xq-border); }
-.pricing-filter { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
-.pricing-filter > :first-child { width:260px; max-width:100%; }
-.pricing-sort-note { color:var(--xq-muted); font-size:12px; }
-.model-name { display:block; }
+.pricing-filter { flex:0 1 260px; min-width:0; margin-left:auto; }
+.pricing-filter > :first-child { width:100%; }
+.pricing-content .model-name { display:block; color:var(--xq-text); font-size:14px; font-weight:650; }
+.pricing-content .price-value { color:var(--xq-text); font-size:14px; font-weight:600; }
+.pricing-content .price-missing { color:var(--xq-muted); font-weight:400; }
 .model-context { display:block; color:var(--xq-muted); font-size:11px; font-weight:400; line-height:1.8; }
 .cache-price { display:block; line-height:1.8; }
 .cache-duration { color:var(--xq-muted); font-size:11px; }
@@ -257,6 +267,7 @@ onBeforeUnmount(() => {
   .official-pricing-section { padding:16px 12px; }
   .pricing-content h3 { font-size:17px; }
   .official-pricing-heading { flex-wrap:wrap; }
+  .pricing-filter { flex-basis:100%; margin-left:0; }
   .model-pricing-table .model-column { width:120px; }
 }
 </style>

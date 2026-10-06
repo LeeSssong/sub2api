@@ -4,9 +4,9 @@ import PricingDialog from '../PricingDialog.vue'
 import { createI18n } from 'vue-i18n'
 import type { Group } from '@/types'
 
-const mocks = vi.hoisted(() => ({ groups: vi.fn(), rates: vi.fn(), models: vi.fn() }))
+const mocks = vi.hoisted(() => ({ groups: vi.fn(), rates: vi.fn(), models: vi.fn(), popularity: vi.fn() }))
 vi.mock('@/api/groups', () => ({ default: { getAvailable: mocks.groups, getUserGroupRates: mocks.rates } }))
-vi.mock('../api', () => ({ getGroupModels: mocks.models }))
+vi.mock('../api', () => ({ getGroupModels: mocks.models, getModelPopularity: mocks.popularity }))
 const group = (id: number, name: string, rate: number, platform = 'openai') => ({ id, name, rate_multiplier: rate, platform, status: 'active' }) as Group
 const pending = <T,>() => {
   let resolve!: (value: T) => void
@@ -19,6 +19,7 @@ const make = () => mount(PricingDialog, {
 })
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.popularity.mockResolvedValue({ models: [], start_time: '', end_time: '' })
   mocks.groups.mockResolvedValue([group(1, '最新分组', .2), group(2, '新分组', .3), group(3, 'Claude', 1, 'anthropic')])
   mocks.rates.mockResolvedValue({ 1: .12 })
   mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-5.4'] }, { group_id: 2, supported_models: ['gpt-image-2'] }, { group_id: 3, supported_models: ['claude-private'] }])
@@ -26,6 +27,53 @@ beforeEach(() => {
 enableAutoUnmount(afterEach)
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 describe('原生扣费标准同步', () => {
+  it('keeps category filter alongside the heading and moves units above the table without explanatory copy', async () => {
+    const w = make(); await flushPromises()
+    expect(w.get('.official-pricing-heading').find('button[aria-label="模型类型"]').exists()).toBe(true)
+    expect(w.get('.official-pricing-heading').text()).not.toContain('100 万 Token')
+    expect(w.get('#official-pricing-panel').get('.pricing-tier-label').text()).toBe('Standard · 美元 / 100 万 Token')
+    expect(w.text()).not.toContain('按发布时间从新到旧')
+    expect(w.text()).not.toContain('参考价与模型广场')
+  })
+  it('uses site popularity, preserves it when refreshing stats fails, and updates it on recovery', async () => {
+    mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-6.1-sol', 'gpt-5.4', 'gpt-image-2'] }])
+    mocks.popularity.mockResolvedValueOnce({ models: [{ model: 'gpt-5.4', requests: 20 }], start_time: '', end_time: '' })
+    const w = make(); await flushPromises()
+    const names = () => w.findAll('.model-name').map(e => e.text())
+    expect(names()).toEqual(['gpt-5.4', 'gpt-6.1-sol', 'gpt-image-2'])
+    mocks.popularity.mockRejectedValueOnce(new Error('offline'))
+    await w.get('button[aria-label="刷新价格与扣费标准"]').trigger('click'); await flushPromises()
+    expect(names()[0]).toBe('gpt-5.4')
+    expect(w.find('.fee-table').exists()).toBe(true)
+    mocks.popularity.mockResolvedValueOnce({ models: [{ model: 'gpt-image-2', requests: 30 }], start_time: '', end_time: '' })
+    await w.get('button[aria-label="刷新价格与扣费标准"]').trigger('click'); await flushPromises()
+    expect(names()[0]).toBe('gpt-image-2')
+  })
+  it('falls back to release order on first stats failure and keeps popularity order within a category', async () => {
+    mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-6.1-sol', 'gpt-5.4', 'gpt-image-2'] }])
+    mocks.popularity.mockRejectedValueOnce(new Error('offline'))
+    const w = make(); await flushPromises()
+    expect(w.findAll('.model-name').map(e => e.text())).toEqual(['gpt-6.1-sol', 'gpt-image-2', 'gpt-5.4'])
+    mocks.popularity.mockResolvedValueOnce({ models: [{ model: 'gpt-5.4', requests: 20 }], start_time: '', end_time: '' })
+    await w.get('button[aria-label="刷新价格与扣费标准"]').trigger('click'); await flushPromises()
+    await w.get('button[aria-label="模型类型"]').trigger('click'); await flushPromises()
+    ;[...document.querySelectorAll<HTMLElement>('[role="option"]')].filter(e => e.textContent?.includes('旗舰模型')).at(-1)!.click()
+    await flushPromises()
+    expect(w.findAll('.model-name').map(e => e.text())).toEqual(['gpt-5.4', 'gpt-6.1-sol'])
+  })
+  it('does not let slow or unavailable popularity block native prices and discards stale tool results', async () => {
+    const stats = pending<{ models: { model: string; requests: number }[] }>()
+    mocks.popularity.mockReturnValueOnce(stats.promise)
+    const w = make(); await flushPromises()
+    expect(w.find('.model-pricing-table').exists()).toBe(true)
+    const signal = mocks.popularity.mock.calls[0][0] as AbortSignal
+    await w.setProps({ tool: { id: 'claude', label: 'Claude' }, lines: [] }); await flushPromises()
+    expect(signal.aborted).toBe(true)
+    stats.resolve({ models: [{ model: 'gpt-5.4', requests: 20 }] }); await flushPromises()
+    expect(w.get('.model-pricing-table').text()).toContain('claude-private')
+    expect(w.get('.model-pricing-table').text()).not.toContain('gpt-5.4')
+  })
+
   it('shows one cache-write price when native duration fields are equivalent or absent', async () => {
     mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-6.1-sol', 'native-flat'], official_pricing: {
       'gpt-6.1-sol': { input_price: 2e-6, output_price: 10e-6, cache_read_price: .1e-6, cache_write_price: 2.5e-6, cache_write_1h_price: 2.5e-6 },
@@ -93,9 +141,8 @@ describe('原生扣费标准同步', () => {
     expect(w.findAll('.model-pricing-table tbody th')[0].text()).toContain('gpt-6.1-sol')
     const fees = w.get('.fee-table').text()
     await w.get('button[aria-label="模型类型"]').trigger('click'); await flushPromises()
-    const option = document.querySelector<HTMLElement>('[role="option"][data-value="image"]')
-    const candidates = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
-    ;(option || candidates.find(e => e.textContent?.includes('图像生成模型')))!.click()
+        const candidates = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+    ;candidates.filter(e => e.textContent?.includes('图像生成模型')).at(-1)!.click()
     await flushPromises()
     expect(w.findAll('.model-pricing-table tbody tr')).toHaveLength(1)
     expect(w.get('.model-pricing-table').text()).toContain('gpt-image-2')

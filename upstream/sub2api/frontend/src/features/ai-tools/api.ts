@@ -11,3 +11,10 @@ export async function checkLines(groupIDs:number[], signal?:AbortSignal):Promise
   const {data}=await apiClient.post<{results:LineCheck[]}>('/monitor-v4/check',{group_ids:groupIDs},{signal,timeout:120000})
   return data.results
 }
+
+export interface ModelPopularity { model: string; requests: number }
+export interface ModelPopularityResponse { models: ModelPopularity[]; start_time: string; end_time: string }
+export async function getModelPopularity(signal?: AbortSignal): Promise<ModelPopularityResponse> {
+  const { data } = await apiClient.get<ModelPopularityResponse>('/usage/models/popularity', { signal })
+  return data
+}

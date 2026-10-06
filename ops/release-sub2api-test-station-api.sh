@@ -24,10 +24,15 @@ update_worker=${TEST_STATION_UPDATE_WORKER:-false}
 [[ "$update_worker" == true || "$update_worker" == false ]] || fail 'invalid worker update flag'
 # Monitor service changes require the same new binary in API and singleton worker.
 # Native group catalogue handlers and their read-only tool mapping can update API only.
+# The reviewed user popularity projection reuses native read-only aggregates, API only.
 # Runtime dependency, migration and other backend changes remain excluded.
 while IFS= read -r path; do
   case "$path" in
     upstream/sub2api/frontend/src/*|docs/*|ops/*|tests/*|artifacts/*) ;;
+    upstream/sub2api/backend/internal/handler/usage_handler.go|\
+    upstream/sub2api/backend/internal/handler/usage_model_popularity.go|\
+    upstream/sub2api/backend/internal/handler/usage_model_popularity_test.go|\
+    upstream/sub2api/backend/internal/server/routes/user.go|\
     upstream/sub2api/backend/internal/handler/api_key_handler.go|\
     upstream/sub2api/backend/internal/handler/gateway_handler.go|\
     upstream/sub2api/backend/internal/handler/gateway_user_models.go|\

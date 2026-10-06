@@ -45,6 +45,12 @@ class ReleaseScopeTests(unittest.TestCase):
         result = self.check_scope(['upstream/sub2api/backend/' + path for path in paths])
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_native_model_popularity_projection_allows_api_only_release(self):
+        paths = ['internal/handler/usage_handler.go', 'internal/handler/usage_model_popularity.go',
+                 'internal/handler/usage_model_popularity_test.go', 'internal/server/routes/user.go']
+        result = self.check_scope(['upstream/sub2api/backend/' + path for path in paths])
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_monitor_changes_still_require_worker_update(self):
         paths = ['upstream/sub2api/backend/internal/service/monitor_v4.go']
         self.assertNotEqual(self.check_scope(paths).returncode, 0)

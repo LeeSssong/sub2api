@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { modelCategory, sortOpenAIModels } from '../modelMetadata'
+import { modelCategory, sortOpenAIModels, sortModelsByPopularity } from '../modelMetadata'
 import { formatNativePrice, nativePriceRows } from '../officialPricing'
 
 describe('原生参考价展示', () => {
@@ -36,4 +36,22 @@ describe('官方模型分类和发布时间排序', () => {
     ['gpt-realtime-whisper', 'transcription'], ['gpt-realtime-translate', 'transcription'],
     ['gpt-4o-transcribe', 'transcription'], ['codex-auto-review', 'specialized'], ['custom-model', 'other'],
   ])('classifies %s using official model purposes', (id, category) => expect(modelCategory(id)).toBe(category))
+})
+
+ describe('近24小时模型热度排序', () => {
+  it('prioritizes request count over release dates and keeps unused models newest first', () => {
+    const models = ['gpt-6.1-sol', 'gpt-5.6-sol', 'gpt-5.4', 'gpt-image-2', 'private-model']
+    expect(sortModelsByPopularity(models, [
+      { model: 'gpt-5.6-sol', requests: 31324 }, { model: 'gpt-6.1-sol', requests: 16086 },
+      { model: 'unavailable', requests: 90000 },
+    ])).toEqual(['gpt-5.6-sol', 'gpt-6.1-sol', 'gpt-image-2', 'gpt-5.4', 'private-model'])
+    expect(models[0]).toBe('gpt-6.1-sol')
+  })
+  it('breaks equal counts by release date and never treats invalid counts as popularity', () => {
+    expect(sortModelsByPopularity(['gpt-5.4', 'gpt-6.1-sol', 'private'], [
+      { model: 'gpt-5.4', requests: 4 }, { model: 'gpt-6.1-sol', requests: 4 },
+      { model: 'private', requests: NaN },
+    ])).toEqual(['gpt-6.1-sol', 'gpt-5.4', 'private'])
+    expect(sortModelsByPopularity(['gpt-5.4', 'gpt-6.1-sol'], [{ model: 'gpt-5.4', requests: -1 }])).toEqual(['gpt-6.1-sol', 'gpt-5.4'])
+  })
 })

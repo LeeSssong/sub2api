@@ -90,3 +90,9 @@ function releaseDate(model: string): string {
 export function sortOpenAIModels(models: string[]): string[] {
   return [...models].sort((a, b) => releaseDate(b).localeCompare(releaseDate(a)) || a.localeCompare(b, 'en', { numeric: true }))
 }
+
+/** Site requests lead; verified release dates provide a stable fallback. */
+export function sortModelsByPopularity(models: string[], stats: { model: string; requests: number }[]): string[] {
+  const counts = new Map(stats.filter(stat => Number.isFinite(stat.requests) && stat.requests > 0).map(stat => [stat.model, stat.requests]))
+  return sortOpenAIModels(models).sort((a, b) => (counts.get(b) || 0) - (counts.get(a) || 0))
+}
