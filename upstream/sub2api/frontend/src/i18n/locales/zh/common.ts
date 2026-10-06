@@ -1,6 +1,5 @@
 export default {
   common: {
-    docsNotConfigured: '文档暂未配置',
     loading: '加载中...',
     submitting: '提交中...',
     justNow: '刚刚',
@@ -178,7 +177,6 @@ export default {
 
   // Navigation
   nav: {
-    aiTools: 'AI 工具',
     dashboard: '仪表盘',
     myRoutes: '我的线路',
     myKeys: '我的密钥',

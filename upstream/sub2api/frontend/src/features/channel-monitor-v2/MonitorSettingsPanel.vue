@@ -10,6 +10,9 @@
           </span>
           {{ t('channelMonitorV2.settings.title') }}
         </h2>
+        <p class="page-description mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+          {{ t('channelMonitorV2.settings.description') }}
+        </p>
       </div>
       <button
         type="button"

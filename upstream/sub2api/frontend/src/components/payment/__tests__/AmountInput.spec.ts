@@ -90,23 +90,3 @@ describe('recharge bonus hints on quick amounts', () => {
     expect(hit.get('[data-testid="quick-amount-credited"]').text()).toContain('350.00')
   })
 })
-
-
-describe('quick amount badge ownership', () => {
-  it.each(['default', 'recharge'] as const)('anchors multiple qualifying badges to their own %s buttons and submits the clicked amount', async (variant) => {
-    const wrapper = mount(AmountInput, { props: {
-      modelValue: null, variant, amounts: [10, 30, 50],
-      bonusTiers: [{ min_amount: 10, bonus_percent: 5 }, { min_amount: 30, bonus_percent: 10 }],
-    } })
-    for (const [amount, bonus] of [[10, '+5%'], [30, '+10%'], [50, '+10%']] as const) {
-      const button = wrapper.get(`[data-testid="quick-amount-${amount}"]`)
-      const badge = button.get('[data-testid="quick-amount-bonus-badge"]')
-      expect(button.classes()).toContain('relative')
-      expect(badge.classes()).toContain('absolute')
-      expect(badge.element.parentElement).toBe(button.element)
-      expect(badge.text()).toBe(bonus)
-      await button.trigger('click')
-      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([amount])
-    }
-  })
-})

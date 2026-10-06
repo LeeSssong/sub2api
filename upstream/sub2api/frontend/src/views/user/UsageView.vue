@@ -1,39 +1,30 @@
 <template>
   <AppLayout>
-    <div class="user-page space-y-6">
-      <UserPageHeader title="使用记录" />
-      <section class="usage-overview" aria-label="用量概览">
-        <div class="usage-time-toolbar">
-          <div class="usage-time-controls">
-            <div class="usage-time-control">
-              <span>{{ t('usage.timeRange') }}</span>
+    <div class="space-y-6">
+      <UsageStatsCards :stats="usageStats" :show-account-cost="false" :strike-standard-cost="true" />
+
+      <div class="space-y-4">
+        <div class="card p-4">
+          <div class="flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
               <DateRangePicker
                 v-model:start-date="startDate"
                 v-model:end-date="endDate"
                 @change="onDateRangeChange"
               />
             </div>
-            <div class="usage-time-control">
-              <span>{{ t('usage.statGranularity') }}</span>
-              <div class="usage-granularity">
-                <Select v-model="granularity" :options="granularityOptions" brand @change="loadChartData" />
+            <div class="ml-auto flex items-center gap-2">
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
+              <div class="w-28">
+                <Select v-model="granularity" :options="granularityOptions" @change="loadChartData" />
               </div>
             </div>
           </div>
         </div>
-        <UsageStatsCards class="usage-stats" :stats="usageStats" :show-account-cost="false" user-overview />
-        <div v-if="statsLoadError" class="flex items-center justify-between gap-3 border-t border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
-          <span>{{ t('usage.failedToLoad') }}</span>
-          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadStats"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
-        </div>
-      </section>
 
-      <section class="usage-analysis" aria-label="使用分析">
-        <div class="usage-analysis-grid">
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ModelDistributionChart
-            class="usage-chart"
-            v-if="!modelStatsLoadError || modelStatsLoaded"
-            data-testid="usage-model-chart"
             v-model:metric="modelDistributionMetric"
             :model-stats="requestedModelStats"
             :loading="modelStatsLoading"
@@ -45,9 +36,6 @@
             :end-date="endDate"
           />
           <GroupDistributionChart
-            class="usage-chart"
-            v-if="!chartsLoadError || chartsLoaded"
-            :title="t('usage.lineDistribution')"
             v-model:metric="groupDistributionMetric"
             :group-stats="groupStats"
             :loading="chartsLoading"
@@ -57,9 +45,10 @@
             :start-date="startDate"
             :end-date="endDate"
           />
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <EndpointDistributionChart
-            class="usage-chart"
-            v-if="!statsLoadError || usageStats"
             v-model:source="endpointDistributionSource"
             v-model:metric="endpointDistributionMetric"
             :endpoint-stats="inboundEndpointStats"
@@ -73,35 +62,22 @@
             :start-date="startDate"
             :end-date="endDate"
           />
-          <TokenUsageTrend v-if="!chartsLoadError || chartsLoaded" class="usage-chart" :trend-data="trendData" :loading="chartsLoading" />
+          <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
         </div>
-        <div v-if="chartsLoadError || modelStatsLoadError" data-testid="usage-charts-error" class="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
-          <span>{{ t('usage.failedToLoad') }}</span>
-          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="retryFailedCharts"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
-        </div>
-      </section>
+      </div>
 
-      <section class="usage-records" aria-label="请求记录">
-        <div v-if="errorViewEnabled" class="flex gap-2 border-b border-gray-200 px-5 dark:border-dark-700">
-          <button class="tab" :class="{ 'tab-active': activeTab === 'usage' }" @click="activeTab = 'usage'">
-            {{ t('usage.tabs.usage') }}
-          </button>
-          <button class="tab" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrors">
-            {{ t('usage.tabs.errors') }}
-          </button>
-        </div>
-        <div class="usage-records-controls">
-          <div v-if="activeTab === 'errors'" class="usage-filter-grid">
-            <div>
+      <div class="card p-6">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div v-if="activeTab === 'errors'" class="flex flex-1 flex-wrap items-end gap-4">
+            <div class="w-full sm:w-auto sm:min-w-[220px]">
               <label class="input-label">{{ t('usage.errors.keyName') }}</label>
-              <Select v-model="errorFilter.api_key_id" :options="errorKeyOptions" brand @change="applyErrorFilters" />
+              <Select v-model="errorFilter.api_key_id" :options="errorKeyOptions" @change="applyErrorFilters" />
             </div>
-            <div>
+            <div class="w-full sm:w-auto sm:min-w-[220px]">
               <label class="input-label">{{ t('usage.errors.model') }}</label>
               <Select
                 v-model="errorFilter.model"
                 :options="errorModelOptions"
-                brand
                 searchable
                 creatable
                 clearable
@@ -109,48 +85,44 @@
                 @change="applyErrorFilters"
               />
             </div>
-            <div>
+            <div class="w-full sm:w-auto sm:min-w-[200px]">
               <label class="input-label">{{ t('usage.errors.category') }}</label>
-              <Select v-model="errorFilter.category" :options="errorCategoryOptions" brand @change="applyErrorFilters" />
+              <Select v-model="errorFilter.category" :options="errorCategoryOptions" @change="applyErrorFilters" />
             </div>
           </div>
-          <div v-else class="usage-filter-grid" data-testid="usage-primary-filters">
-            <div>
+          <div v-else class="flex flex-1 flex-wrap items-end gap-4">
+            <div class="w-full sm:w-auto sm:min-w-[220px]">
               <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
-              <Select v-model="filters.api_key_id" :options="apiKeyOptions" :placeholder="t('usage.allApiKeys')" brand @change="applyFilters" />
+              <Select v-model="filters.api_key_id" :options="apiKeyOptions" @change="applyFilters" />
             </div>
-            <div>
+            <div class="w-full sm:w-auto sm:min-w-[220px]">
               <label class="input-label">{{ t('usage.model') }}</label>
-              <Select v-model="filters.model" :options="modelOptions" :placeholder="t('admin.usage.allModels')" searchable brand @change="applyFilters" />
-            </div>
-            <div>
-              <label class="input-label">{{ t('usage.lineFilter') }}</label>
-              <Select v-model="filters.group_id" :options="groupOptions" :placeholder="t('usage.allLines')" searchable brand @change="applyFilters" />
+              <Select v-model="filters.model" :options="modelOptions" searchable @change="applyFilters" />
             </div>
             <div class="w-full sm:w-auto sm:min-w-[200px]">
-              <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
-              <Select v-model="filters.billing_mode" :options="billingModeOptions" :placeholder="t('admin.usage.allBillingModes')" brand @change="applyFilters" />
+              <label class="input-label">{{ t('admin.usage.group') }}</label>
+              <Select v-model="filters.group_id" :options="groupOptions" searchable @change="applyFilters" />
             </div>
-          </div>
-          <div v-if="activeTab !== 'errors'" class="mt-3">
-            <button type="button" class="btn btn-secondary" data-testid="usage-more-filters" :aria-expanded="advancedFiltersVisible" aria-controls="usage-advanced-filters" @click="advancedFiltersVisible = !advancedFiltersVisible">{{ t('usage.moreFilters') }}</button>
-            <div v-if="advancedFiltersVisible" id="usage-advanced-filters" class="usage-filter-grid mt-3" data-testid="usage-advanced-filters">
-            <div  class="w-full sm:w-auto sm:min-w-[180px]">
+            <div class="w-full sm:w-auto sm:min-w-[180px]">
               <label class="input-label">{{ t('usage.type') }}</label>
-              <Select v-model="filters.request_type" :options="requestTypeOptions" brand @change="applyFilters" />
+              <Select v-model="filters.request_type" :options="requestTypeOptions" @change="applyFilters" />
             </div>
-            <div  class="w-full sm:w-auto sm:min-w-[180px]">
+            <div class="w-full sm:w-auto sm:min-w-[180px]">
               <label class="input-label">{{ t('usage.compactionFilter') }}</label>
-              <Select v-model="filters.native_compaction_v2" :options="compactionOptions" brand @change="applyFilters" />
+              <Select v-model="filters.native_compaction_v2" :options="compactionOptions" @change="applyFilters" />
             </div>
             <div v-if="subscriptionFeatureEnabled" class="w-full sm:w-auto sm:min-w-[200px]">
               <label class="input-label">{{ t('admin.usage.billingType') }}</label>
-              <Select v-model="filters.billing_type" :options="billingTypeOptions" brand @change="applyFilters" />
+              <Select v-model="filters.billing_type" :options="billingTypeOptions" @change="applyFilters" />
             </div>
+            <div class="w-full sm:w-auto sm:min-w-[200px]">
+              <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
+              <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
             </div>
           </div>
-          <div class="usage-filter-actions" data-testid="usage-filter-actions">
-            <button type="button" @click="refreshData" :disabled="activeTab === 'errors' ? errorLoading : loading" class="btn btn-secondary"><Icon name="refresh" size="sm" aria-hidden="true" />
+
+          <div class="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
+            <button type="button" @click="refreshData" :disabled="activeTab === 'errors' ? errorLoading : loading" class="btn btn-secondary">
               {{ t('common.refresh') }}
             </button>
             <button type="button" @click="resetFilters" class="btn btn-secondary">
@@ -184,21 +156,24 @@
                 </button>
               </div>
             </div>
-            <button v-if="activeTab !== 'errors'" type="button" data-testid="usage-export" @click="exportToCSV" :disabled="exporting" class="btn btn-primary usage-export">
+            <button v-if="activeTab !== 'errors'" type="button" @click="exportToCSV" :disabled="exporting" class="btn btn-primary">
               {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
             </button>
           </div>
         </div>
+      </div>
+
+      <div v-if="errorViewEnabled" class="flex gap-2 border-b border-gray-200 dark:border-dark-700">
+        <button class="tab" :class="{ 'tab-active': activeTab === 'usage' }" @click="activeTab = 'usage'">
+          {{ t('usage.tabs.usage') }}
+        </button>
+        <button class="tab" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrors">
+          {{ t('usage.tabs.errors') }}
+        </button>
+      </div>
 
       <template v-if="activeTab === 'usage'">
-        <h2 class="usage-records-heading">{{ t('usage.requestDetails') }}</h2>
-        <div v-if="logsLoadError" data-testid="usage-logs-error" class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
-          <span>{{ t('usage.failedToLoad') }}</span>
-          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadLogs"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
-        </div>
         <UsageTable
-          v-if="!logsLoadError || logsLoaded"
-          flat
           :data="usageLogs"
           :loading="loading"
           :columns="visibleColumns"
@@ -223,13 +198,8 @@
         />
       </template>
 
-      <template v-else-if="errorViewEnabled">
-        <div v-if="errorListLoadError" data-testid="usage-errors-error" class="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
-          <span>{{ t('usage.errors.failedToLoad') }}</span>
-          <button type="button" class="btn btn-secondary px-3 py-1.5" @click="loadErrors"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
-        </div>
-        <UserErrorRequestsTable
-        v-if="!errorListLoadError || errorListLoaded"
+      <UserErrorRequestsTable
+        v-else-if="errorViewEnabled"
         :rows="errorRows"
         :total="errorTotal"
         :loading="errorLoading"
@@ -241,8 +211,6 @@
         @update:pageSize="onErrorPageSize"
         @ipGeoBatchFailed="handleIpGeoBatchFailed"
       />
-      </template>
-      </section>
 
       <UsageDetailDialog
         v-model:show="showUsageDetail"
@@ -261,7 +229,6 @@ import { useAppStore } from '@/stores/app'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
 import { keysAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import UserPageHeader from '@/components/user/UserPageHeader.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
@@ -313,15 +280,6 @@ const loading = ref(false)
 const chartsLoading = ref(false)
 const modelStatsLoading = ref(false)
 const endpointStatsLoading = ref(false)
-const logsLoadError = ref(false)
-const statsLoadError = ref(false)
-const modelStatsLoadError = ref(false)
-const chartsLoadError = ref(false)
-const logsLoaded = ref(false)
-const modelStatsLoaded = ref(false)
-const chartsLoaded = ref(false)
-const errorListLoaded = ref(false)
-const errorListLoadError = ref(false)
 const exporting = ref(false)
 const errorRows = ref<UserErrorRequest[]>([])
 const errorLoading = ref(false)
@@ -421,8 +379,6 @@ const granularityOptions = computed<SelectOption[]>(() => [
   { value: 'day', label: t('admin.dashboard.day') },
   { value: 'hour', label: t('admin.dashboard.hour') },
 ])
-// Additional filters stay collapsed to preserve the default four-filter workspace.
-const advancedFiltersVisible = ref(false)
 const requestTypeOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.usage.allTypes') },
   { value: 'ws_v2', label: t('usage.ws') },
@@ -458,7 +414,7 @@ const apiKeyOptions = computed<SelectOption[]>(() => [
   ...apiKeys.value.map((key) => ({ value: key.id, label: key.name })),
 ])
 const groupOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('usage.allLines') },
+  { value: null, label: t('admin.usage.allGroups') },
   ...groups.value.map((group) => ({ value: group.id, label: group.name })),
 ])
 const modelOptions = computed<SelectOption[]>(() => [
@@ -490,7 +446,6 @@ const loadLogs = async () => {
   const controller = new AbortController()
   abortController = controller
   loading.value = true
-  logsLoadError.value = false
   try {
     const res = await usageAPI.query(buildUsageListParams(pagination.page, pagination.page_size), {
       signal: controller.signal,
@@ -498,11 +453,9 @@ const loadLogs = async () => {
     if (!controller.signal.aborted) {
       usageLogs.value = res.items
       pagination.total = res.total
-      logsLoaded.value = true
     }
   } catch (error: any) {
     if (error?.name !== 'AbortError' && error?.code !== 'ERR_CANCELED') {
-      logsLoadError.value = true
       appStore.showError(t('usage.failedToLoad'))
     }
   } finally {
@@ -513,7 +466,6 @@ const loadLogs = async () => {
 const loadStats = async () => {
   const seq = ++statsReqSeq
   endpointStatsLoading.value = true
-  statsLoadError.value = false
   try {
     const stats = await usageAPI.getStats(normalizedFilters.value)
     if (seq !== statsReqSeq) return
@@ -524,7 +476,9 @@ const loadStats = async () => {
   } catch (error) {
     if (seq !== statsReqSeq) return
     console.error('Failed to load usage stats:', error)
-    statsLoadError.value = true
+    inboundEndpointStats.value = []
+    upstreamEndpointStats.value = []
+    endpointPathStats.value = []
   } finally {
     if (seq === statsReqSeq) endpointStatsLoading.value = false
   }
@@ -533,7 +487,6 @@ const loadStats = async () => {
 const loadModelStats = async () => {
   const seq = ++modelStatsReqSeq
   modelStatsLoading.value = true
-  modelStatsLoadError.value = false
   try {
     const response = await usageAPI.getDashboardModels({
       ...normalizedFilters.value,
@@ -541,12 +494,11 @@ const loadModelStats = async () => {
     })
     if (seq !== modelStatsReqSeq) return
     requestedModelStats.value = response.models || []
-    modelStatsLoaded.value = true
     refreshModelOptions(response.models || [])
   } catch (error) {
     if (seq !== modelStatsReqSeq) return
     console.error('Failed to load model stats:', error)
-    modelStatsLoadError.value = true
+    requestedModelStats.value = []
   } finally {
     if (seq === modelStatsReqSeq) modelStatsLoading.value = false
   }
@@ -555,7 +507,6 @@ const loadModelStats = async () => {
 const loadChartData = async () => {
   const seq = ++chartReqSeq
   chartsLoading.value = true
-  chartsLoadError.value = false
   try {
     const snapshot = await usageAPI.getDashboardSnapshotV2({
       ...normalizedFilters.value,
@@ -567,11 +518,11 @@ const loadChartData = async () => {
     if (seq !== chartReqSeq) return
     trendData.value = snapshot.trend || []
     groupStats.value = snapshot.groups || []
-    chartsLoaded.value = true
   } catch (error) {
     if (seq !== chartReqSeq) return
     console.error('Failed to load chart data:', error)
-    chartsLoadError.value = true
+    trendData.value = []
+    groupStats.value = []
   } finally {
     if (seq === chartReqSeq) chartsLoading.value = false
   }
@@ -602,11 +553,6 @@ const refreshData = () => {
   void loadModelStats()
   void loadChartData()
   if (activeTab.value === 'errors') void loadErrors()
-}
-
-const retryFailedCharts = () => {
-  if (modelStatsLoadError.value) void loadModelStats()
-  if (chartsLoadError.value) void loadChartData()
 }
 
 const resetFilters = () => {
@@ -912,7 +858,6 @@ const resetErrorRows = () => {
 
 const loadErrors = async () => {
   errorLoading.value = true
-  errorListLoadError.value = false
   try {
     const resp = await usageAPI.listMyErrorRequests({
       page: errorPage.value,
@@ -927,10 +872,8 @@ const loadErrors = async () => {
     })
     errorRows.value = resp.items
     errorTotal.value = resp.total
-    errorListLoaded.value = true
   } catch (error) {
     console.error('[UsageView] loadErrors failed:', error)
-    errorListLoadError.value = true
     appStore.showError(t('usage.errors.failedToLoad'))
   } finally {
     errorLoading.value = false
@@ -977,283 +920,3 @@ watch(endpointDistributionSource, () => {
   // Endpoint source switching is handled by the chart component using already loaded stats.
 })
 </script>
-
-<style scoped>
-.usage-overview,
-.usage-analysis,
-.usage-records {
-  border: 1px solid var(--xq-border);
-  border-radius: 14px;
-  background: var(--xq-surface);
-}
-
-.usage-time-toolbar {
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--xq-line);
-}
-
-.usage-time-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px 20px;
-}
-
-.usage-time-control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-  color: var(--xq-muted);
-  font-size: 12px;
-}
-
-.usage-granularity {
-  min-width: 90px;
-}
-
-.usage-time-toolbar :deep(.date-picker-trigger),
-.usage-time-toolbar :deep(.select-trigger-brand) {
-  width: auto;
-  height: 28px;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--xq-line) !important;
-  border-radius: 7px;
-  background: var(--xq-raised) !important;
-  color: var(--xq-core);
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.usage-time-toolbar :deep(.select-trigger-brand) {
-  width: 100%;
-}
-
-.usage-time-toolbar :deep(.date-picker-icon) {
-  display: none;
-}
-
-.usage-time-toolbar :deep(.date-picker-dropdown) {
-  right: 0;
-  left: auto;
-}
-
-.usage-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-}
-
-.usage-stats :deep(> .card) {
-  display: block;
-  position: relative;
-  min-width: 0;
-  padding: 20px;
-  border: 0;
-  border-radius: 0 !important;
-  background: transparent !important;
-  background-color: transparent !important;
-  box-shadow: none;
-}
-
-.usage-stats :deep(> .card:not(:first-child)) {
-  border-left: 0;
-}
-
-.usage-stats :deep(> .card:not(:first-child)::before) {
-  position: absolute;
-  top: 20px;
-  bottom: 20px;
-  left: 0;
-  width: 1px;
-  background: var(--xq-line);
-  content: '';
-}
-
-.usage-stats :deep(> .card > div:first-child) {
-  display: none;
-}
-
-.usage-stats :deep(> .card p.text-xl) {
-  font-size: 28px;
-  line-height: 1.2;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.usage-stats :deep(> .card:nth-child(3) p.text-xl) {
-  color: var(--xq-text);
-}
-
-.usage-stats :deep(> .card:nth-child(2) svg.h-3\.5) {
-  color: var(--xq-accent);
-}
-
-.usage-analysis-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.usage-analysis-grid :deep(> .usage-chart) {
-  min-width: 0;
-  min-height: 264px;
-  margin: 0;
-  padding: 20px;
-  border: 0;
-  border-radius: 0 !important;
-  background: transparent !important;
-  background-color: transparent !important;
-  box-shadow: none;
-}
-
-.usage-analysis-grid :deep(> .usage-chart:nth-child(odd)) {
-  border-right: 1px solid var(--xq-line);
-}
-
-.usage-analysis-grid :deep(> .usage-chart:nth-child(-n+2)) {
-  border-bottom: 1px solid var(--xq-line);
-}
-
-.usage-records-controls {
-  padding: 20px;
-  border-bottom: 1px solid var(--xq-line);
-}
-
-.usage-filter-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.usage-filter-grid > div {
-  min-width: 0;
-}
-
-.usage-filter-grid .input-label {
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.usage-filter-grid :deep(.select-trigger-brand) {
-  min-height: 40px;
-  padding: 0 12px;
-}
-
-.usage-filter-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.usage-filter-actions .btn {
-  height: 28px;
-  min-height: 28px;
-  padding: 0 10px;
-  border-color: var(--xq-line) !important;
-  border-radius: 7px !important;
-  background: var(--xq-raised) !important;
-  color: var(--xq-secondary) !important;
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.usage-filter-actions .btn:hover:not(:disabled) {
-  border-color: var(--xq-border) !important;
-  background: var(--xq-depth) !important;
-  color: var(--xq-text) !important;
-}
-
-.usage-filter-actions .usage-export {
-  margin-left: auto;
-}
-
-.usage-records-heading {
-  padding: 16px 20px 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.usage-records :deep(.space-y-3 > .p-12) {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-@media (max-width: 1050px) {
-  .usage-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .usage-stats :deep(> .card:nth-child(3)::before) {
-    display: none;
-  }
-
-  .usage-stats :deep(> .card:nth-child(-n+2)) {
-    border-bottom: 1px solid var(--xq-line);
-  }
-
-  .usage-analysis-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .usage-analysis-grid :deep(> .usage-chart) {
-    min-height: 0;
-  }
-
-  .usage-analysis-grid :deep(> .usage-chart > .h-48) {
-    height: 144px;
-  }
-
-  .usage-analysis-grid :deep(> .usage-chart:nth-child(odd)) {
-    border-right: 0;
-  }
-
-  .usage-analysis-grid :deep(> .usage-chart:not(:last-child)) {
-    border-bottom: 1px solid var(--xq-line);
-  }
-
-  .usage-filter-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 520px) {
-  .usage-time-toolbar,
-  .usage-records-controls {
-    padding: 12px 14px;
-  }
-
-  .usage-time-controls {
-    gap: 8px;
-  }
-
-  .usage-records-heading {
-    padding: 14px 14px 0;
-  }
-
-  .usage-stats :deep(> .card) {
-    padding: 14px;
-  }
-
-  .usage-stats :deep(> .card:not(:first-child)::before) {
-    top: 14px;
-    bottom: 14px;
-  }
-
-  .usage-stats :deep(> .card p.text-xl) {
-    font-size: 24px;
-  }
-
-  .usage-analysis-grid :deep(> .usage-chart) {
-    padding: 16px 14px;
-  }
-
-  .usage-filter-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

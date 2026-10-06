@@ -36,9 +36,8 @@ const mockTriggerRect = (left: number, width: number) => {
   })
 }
 
-const openSelect = async (attachTo?: HTMLElement) => {
+const openSelect = async () => {
   const wrapper = mount(Select, {
-    attachTo,
     props: {
       modelValue: null,
       options: [
@@ -67,44 +66,6 @@ afterEach(() => {
 })
 
 describe('Select dropdown viewport constraints', () => {
-  it('supplies brand colors when a teleported trigger has no theme variables', async () => {
-    const wrapper = mount(Select, {
-      attachTo: document.body,
-      props: { modelValue: null, options: [{ value: 1, label: 'GPT Plus' }], brand: true, searchable: true },
-    })
-    unmountWrapper = () => wrapper.unmount()
-
-    await wrapper.get('button').trigger('click')
-    await nextTick()
-
-    const dropdown = document.body.querySelector<HTMLElement>('.select-dropdown-brand')
-    expect(dropdown?.style.getPropertyValue('--xq-depth')).toBe('#091a2b')
-    expect(dropdown?.style.getPropertyValue('--xq-raised')).toBe('#10283d')
-    expect(dropdown?.style.getPropertyValue('--xq-text')).toBe('#f1f9f9')
-    expect(dropdown?.style.getPropertyValue('--xq-border')).toBe('#1b4055')
-    expect(dropdown?.style.getPropertyValue('--xq-muted')).toBe('#708c9e')
-  })
-
-  it('carries brand colors into a dropdown teleported outside the themed shell', async () => {
-    const wrapper = mount(Select, {
-      attachTo: document.body,
-      props: { modelValue: null, options: [{ value: 1, label: 'GPT Plus' }], brand: true, searchable: true },
-    })
-    unmountWrapper = () => wrapper.unmount()
-    const trigger = wrapper.get('button').element as HTMLElement
-    trigger.style.setProperty('--xq-depth', '#091a2b')
-    trigger.style.setProperty('--xq-text', '#f1f9f9')
-    trigger.style.setProperty('--xq-raised', '#10283d')
-
-    await wrapper.get('button').trigger('click')
-    await nextTick()
-
-    const dropdown = document.body.querySelector<HTMLElement>('.select-dropdown-brand')
-    expect(dropdown?.style.getPropertyValue('--xq-depth')).toBe('#091a2b')
-    expect(dropdown?.style.getPropertyValue('--xq-text')).toBe('#f1f9f9')
-    expect(dropdown?.style.getPropertyValue('--xq-raised')).toBe('#10283d')
-  })
-
   it('preserves the existing 200px minimum width when space is available', async () => {
     setViewportWidth(1024)
     mockTriggerRect(20, 80)
@@ -117,16 +78,16 @@ describe('Select dropdown viewport constraints', () => {
     expect(dropdown?.style.maxWidth).toBe('996px')
   })
 
-  it('opens leftward near the right viewport edge', async () => {
+  it('shrinks the minimum width to fit near the right viewport edge', async () => {
     setViewportWidth(320)
     mockTriggerRect(220, 80)
 
     const dropdown = await openSelect()
 
     expect(dropdown).not.toBeNull()
-    expect(dropdown?.style.left).toBe('112px')
-    expect(dropdown?.style.minWidth).toBe('200px')
-    expect(dropdown?.style.maxWidth).toBe('200px')
+    expect(dropdown?.style.left).toBe('220px')
+    expect(dropdown?.style.minWidth).toBe('92px')
+    expect(dropdown?.style.maxWidth).toBe('92px')
   })
 
   it('clamps a trigger left of the viewport to the safe padding', async () => {
@@ -148,79 +109,9 @@ describe('Select dropdown viewport constraints', () => {
     const dropdown = await openSelect()
 
     expect(dropdown).not.toBeNull()
-    expect(dropdown?.style.left).toBe('112px')
-    expect(dropdown?.style.minWidth).toBe('200px')
-    expect(dropdown?.style.maxWidth).toBe('200px')
-  })
-
-  it('opens to the left at the right edge without narrowing a readable menu', async () => {
-    setViewportWidth(390)
-    mockTriggerRect(280, 96)
-
-    const dropdown = await openSelect()
-
-    expect(dropdown?.style.left).toBe('182px')
-    expect(dropdown?.style.minWidth).toBe('200px')
-    expect(dropdown?.style.maxWidth).toBe('200px')
-  })
-
-  it('keeps a right-aligned menu within its card rather than the wider viewport', async () => {
-    setViewportWidth(1024)
-    const panel = document.createElement('div')
-    panel.className = 'card'
-    document.body.append(panel)
-    vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({ left: 100, right: 400 } as DOMRect)
-    mockTriggerRect(330, 64)
-
-    const dropdown = await openSelect(panel)
-
-    expect(dropdown?.style.left).toBe('192px')
-    expect(dropdown?.style.minWidth).toBe('200px')
-    expect(dropdown?.style.maxWidth).toBe('200px')
-  })
-})
-
-describe('Select keyboard navigation', () => {
-  it('moves focus into a non-searchable menu and selects with arrows and Enter', async () => {
-    const wrapper = mount(Select, {
-      attachTo: document.body,
-      props: { modelValue: 'active', searchable: false, options: [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }] },
-    })
-    unmountWrapper = () => wrapper.unmount()
-    const trigger = wrapper.get('button')
-    trigger.element.focus()
-    await trigger.trigger('keydown', { key: 'ArrowDown' })
-    await nextTick()
-    const dropdown = document.querySelector<HTMLElement>('[role="listbox"]')!
-    expect(document.activeElement).toBe(dropdown)
-    dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
-    await nextTick()
-    dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-    await nextTick()
-    expect(wrapper.emitted('update:modelValue')).toEqual([['inactive']])
-    expect(document.activeElement).toBe(trigger.element)
-  })
-
-  it('closes only the open dropdown on Escape and restores trigger focus', async () => {
-    const wrapper = mount(Select, {
-      attachTo: document.body,
-      props: { modelValue: null, options: [{ value: 1, label: 'Example' }], searchable: true },
-    })
-    unmountWrapper = () => wrapper.unmount()
-    const outerEscape = vi.fn()
-    document.addEventListener('keydown', outerEscape)
-    try {
-      await wrapper.get('button').trigger('click')
-      await nextTick()
-      const search = document.querySelector<HTMLInputElement>('.select-search-input')!
-      search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-      await nextTick()
-      expect(outerEscape).not.toHaveBeenCalled()
-      expect(wrapper.get('button').attributes('aria-expanded')).toBe('false')
-      expect(document.activeElement).toBe(wrapper.get('button').element)
-    } finally {
-      document.removeEventListener('keydown', outerEscape)
-    }
+    expect(dropdown?.style.left).toBe('312px')
+    expect(dropdown?.style.minWidth).toBe('0px')
+    expect(dropdown?.style.maxWidth).toBe('0px')
   })
 })
 

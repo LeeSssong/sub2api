@@ -43,7 +43,7 @@
             }}</span>
             <button
               @click="refreshVersion(true)"
-              class="btn btn-secondary rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-dark-200"
+              class="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-dark-200"
               :disabled="loading"
               :title="t('version.refresh')"
             >
@@ -53,7 +53,7 @@
                 :stroke-width="2"
                 :class="{ 'animate-spin': loading }"
               />
-            <span>{{ t('common.refresh') }}</span></button>
+            </button>
           </div>
 
           <div class="p-4">

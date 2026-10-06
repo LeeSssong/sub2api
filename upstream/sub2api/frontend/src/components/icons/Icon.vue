@@ -1,7 +1,6 @@
 <template>
   <svg
-    :class="[sizeClass, { 'shrink-0': name === 'refresh' }]"
-    :data-icon="name"
+    :class="sizeClass"
     fill="none"
     viewBox="0 0 24 24"
     stroke="currentColor"

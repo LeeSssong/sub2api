@@ -8,7 +8,6 @@ import { adminAPI } from '@/api/admin'
 
 const {
   listGroups,
-  duplicateGroup,
   createGroup,
   updateGroup,
   getModelAllowlistCandidates,
@@ -19,7 +18,6 @@ const {
   showError
 } = vi.hoisted(() => ({
   listGroups: vi.fn(),
-  duplicateGroup: vi.fn(),
   createGroup: vi.fn(),
   updateGroup: vi.fn(),
   getModelAllowlistCandidates: vi.fn(),
@@ -182,7 +180,6 @@ describe('GroupsView group actions', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     for (const fn of [
       listGroups,
-      duplicateGroup,
       createGroup,
       updateGroup,
       getModelAllowlistCandidates,

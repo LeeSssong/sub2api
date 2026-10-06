@@ -10,9 +10,11 @@ const source = readFileSync(
 )
 
 describe('AppLayout regular user shell', () => {
-  it('keeps the admin header and provides the fixed user header', () => {
+  it('keeps the full header for admins and a mobile menu trigger for users', () => {
     expect(source).toContain('<AppHeader v-if="isAdmin" />')
-    expect(source).toContain('<UserHeader v-else />')
+    expect(source).toContain('v-else class="sticky top-0')
+    expect(source).toContain('@click="appStore.toggleMobileSidebar()"')
+    expect(source).toContain('lg:hidden')
   })
 
   it('restores the native locale switcher on the user mobile header', () => {

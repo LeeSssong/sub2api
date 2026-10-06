@@ -1,12 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mount, isReady, initI18n, initFromInjectedConfig, updateFavicon, appStoreState } = vi.hoisted(() => ({
+const { mount, isReady, initI18n } = vi.hoisted(() => ({
   mount: vi.fn(),
   isReady: vi.fn(),
-  initI18n: vi.fn(),
-  initFromInjectedConfig: vi.fn(),
-  updateFavicon: vi.fn(),
-  appStoreState: { siteName: 'Sub2API', siteLogo: null as string | null }
+  initI18n: vi.fn()
 }))
 
 vi.mock('vue', () => ({
@@ -18,28 +15,21 @@ vi.mock('../router', () => ({ default: { isReady } }))
 vi.mock('../i18n', () => ({ default: {}, initI18n }))
 vi.mock('@/stores/app', () => ({
   useAppStore: vi.fn(() => ({
-    initFromInjectedConfig,
-    get siteName() { return appStoreState.siteName },
-    get siteLogo() { return appStoreState.siteLogo }
+    initFromInjectedConfig: vi.fn(),
+    siteName: 'Sub2API',
+    siteLogo: null
   }))
 }))
-vi.mock('@/utils/branding', () => ({ updateFavicon }))
+vi.mock('@/utils/branding', () => ({ updateFavicon: vi.fn() }))
 vi.mock('@/utils/device', () => ({ isIOSDevice: vi.fn(() => false) }))
 
 describe('frontend bootstrap', () => {
   beforeEach(() => {
-    localStorage.clear()
-    document.documentElement.classList.remove('dark')
     mount.mockClear()
     isReady.mockReset()
     initI18n.mockReset()
     initI18n.mockResolvedValue(undefined)
     isReady.mockRejectedValue(new Error('navigation failed'))
-    initFromInjectedConfig.mockReset()
-    initFromInjectedConfig.mockReturnValue(false)
-    updateFavicon.mockReset()
-    appStoreState.siteName = 'Sub2API'
-    appStoreState.siteLogo = null
     document.body.innerHTML = '<div id="app"></div>'
   })
 
@@ -61,37 +51,4 @@ describe('frontend bootstrap', () => {
 
     expect(mount).toHaveBeenCalledWith('#app')
   })
-
-  it('does not replace a server-injected favicon before public settings load', async () => {
-    const { bootstrap } = await import('../main')
-
-    await bootstrap()
-
-    expect(updateFavicon).not.toHaveBeenCalled()
-  })
-
-  it('applies the administrator logo from injected public settings', async () => {
-    initFromInjectedConfig.mockReturnValue(true)
-    appStoreState.siteLogo = 'data:image/png;base64,ADMIN'
-    const { bootstrap } = await import('../main')
-
-    await bootstrap()
-
-    expect(updateFavicon).toHaveBeenCalledWith('data:image/png;base64,ADMIN')
-  })
-  it('defaults to dark before mount even on a light system', async () => {
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
-    const { bootstrap } = await import('../main')
-    await bootstrap()
-    expect(document.documentElement.classList.contains('dark')).toBe(true)
-    vi.unstubAllGlobals()
-  })
-
-  it.each(['light', 'dark'])('restores the saved %s preference', async (theme) => {
-    localStorage.setItem('theme', theme)
-    const { bootstrap } = await import('../main')
-    await bootstrap()
-    expect(document.documentElement.classList.contains('dark')).toBe(theme === 'dark')
-  })
-
 })

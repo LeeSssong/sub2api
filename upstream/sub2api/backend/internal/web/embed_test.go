@@ -529,7 +529,6 @@ func TestFrontendServer_Middleware(t *testing.T) {
 			"/antigravity/test",
 			"/setup/init",
 			"/health",
-			"/readyz",
 			"/responses",
 			"/responses/compact",
 			"/chat/completions",
@@ -694,11 +693,6 @@ func TestFrontendServer_Middleware(t *testing.T) {
 	})
 }
 
-func TestEmbeddedFrontendBypassesReadiness(t *testing.T) {
-	require.True(t, shouldBypassEmbeddedFrontend("/readyz"))
-	require.False(t, shouldBypassEmbeddedFrontend("/readyz/details"))
-}
-
 func TestEmbeddedFrontendBypassesBareVideoAPIRoutes(t *testing.T) {
 	for _, path := range []string{
 		"/videos/generations",
@@ -811,7 +805,6 @@ func TestServeEmbeddedFrontend(t *testing.T) {
 			"/antigravity/test",
 			"/setup/init",
 			"/health",
-			"/readyz",
 			"/responses",
 			"/responses/compact",
 		}

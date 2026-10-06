@@ -156,7 +156,6 @@ describe('RedeemView refresh after redemption', () => {
   it.each(['success', 'failure'])('ignores a stale history %s after a newer size request succeeds', async (outcome) => {
     let resolveOld!: (value: unknown) => void
     let rejectOld!: (error: Error) => void
-    getHistory.mockResolvedValueOnce({ items: [], total: 61 })
     getHistory.mockImplementationOnce(() => new Promise((resolve, reject) => {
       resolveOld = resolve
       rejectOld = reject
@@ -164,13 +163,10 @@ describe('RedeemView refresh after redemption', () => {
     const wrapper = mount(RedeemView, {
       global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Icon: true } },
     })
-    await flushPromises()
-    await wrapper.findAll('button').find(button => button.text() === 'pagination.next')!.trigger('click')
     getHistory.mockResolvedValue({ items: [{
       id: 2, code: 'NEW-ROWS', type: 'balance', value: 30, used_at: '2026-03-08T00:00:00Z',
     }], total: 61 })
     // Force overlapping requests to exercise responses arriving out of order.
-    ;(wrapper.get('select').element as HTMLSelectElement).disabled = false
     await wrapper.get('select').setValue('50')
     await flushPromises()
     const button = (text: string) => wrapper.findAll('button').find(b => b.text() === text)!

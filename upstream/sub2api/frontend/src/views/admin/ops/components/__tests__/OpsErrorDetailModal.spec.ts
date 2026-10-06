@@ -129,40 +129,8 @@ describe('OpsErrorDetailModal diagnosis', () => {
     expect(diagnosis.text()).toContain('provider unavailable')
     expect(diagnosis.text()).toContain('maintenance')
     expect(wrapper.text()).toContain('服务暂时异常，请稍后重试。')
-    expect(wrapper.text()).not.toContain('raw-upstream-secret')
-    expect(wrapper.text()).toContain('[REDACTED]')
+    expect(wrapper.text()).toContain('raw-upstream-secret')
   })
-
-  it('redacts credential keys inside JSON evidence from an older error record', async () => {
-    const rawDetail = makeDetail(true)
-    rawDetail.error_body = JSON.stringify({
-      'x-goog-api-key': 'provider-secret',
-      nested: { token: 'historical-token-secret', private_key: 'historical-key-secret' },
-      max_tokens: 128,
-      status: 'unavailable',
-    })
-    getUpstreamErrorDetail.mockResolvedValue(rawDetail)
-    const wrapper = mountModal('upstream')
-    await flushPromises()
-
-    expect(wrapper.text()).not.toContain('provider-secret')
-    expect(wrapper.text()).not.toContain('historical-token-secret')
-    expect(wrapper.text()).not.toContain('historical-key-secret')
-    expect(wrapper.text()).toContain('128')
-    expect(wrapper.text()).toContain('unavailable')
-  })
-
-  it('redacts key-value credentials in older plain-text evidence', async () => {
-    const rawDetail = makeDetail(true)
-    rawDetail.error_body = 'api_key=historical-api-secret\nprovider unavailable'
-    getUpstreamErrorDetail.mockResolvedValue(rawDetail)
-    const wrapper = mountModal('upstream')
-    await flushPromises()
-
-    expect(wrapper.text()).not.toContain('historical-api-secret')
-    expect(wrapper.text()).toContain('provider unavailable')
-  })
-
   it('shows the upstream payload verbatim without JSON reformatting', async () => {
     const payload = ' {\n  "error":{"message":"Encrypted output cannot be decoded","code":"thinking_signature_invalid"}\n}\n'
     getUpstreamErrorDetail.mockResolvedValue({ ...makeDetail(true), upstream_error_detail: payload })
@@ -189,8 +157,8 @@ it('loads only the owned observer error and never requests correlated admin deta
 
 it.each(['user', 'upstream'])('explains %s balance failures and preserves diagnostics', async source => {
   vi.clearAllMocks()
-  listRequestErrorUpstreamErrors.mockResolvedValue({ items: [] })
-  getRequestErrorDetail.mockResolvedValue({
+  mocks.listRequestErrorUpstreamErrors.mockResolvedValue({ items: [] })
+  mocks.getRequestErrorDetail.mockResolvedValue({
     id: 1, status_code: 403, phase: 'request',
     error_owner: source === 'user' ? 'client' : 'provider',
     error_source: source === 'user' ? 'client_request' : 'upstream_http',

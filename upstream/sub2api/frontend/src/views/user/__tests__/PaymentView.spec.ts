@@ -57,7 +57,6 @@ vi.mock('@/stores/auth', () => ({
     user: {
       username: 'demo-user',
       balance: 0,
-      concurrency: 7,
     },
     refreshUser,
   }),
@@ -254,10 +253,10 @@ async function mountSubscriptionConfirm(options: Parameters<typeof checkoutInfoW
   return wrapper
 }
 
-async function mountSubscriptionPlanList(planCount: number, subscription = true) {
+async function mountSubscriptionPlanList(planCount: number) {
   vi.useRealTimers()
   routeState.path = '/purchase'
-  routeState.query = subscription ? { tab: 'subscription' } : {}
+  routeState.query = { tab: 'subscription' }
   routerReplace.mockReset().mockResolvedValue(undefined)
   routerPush.mockReset().mockResolvedValue(undefined)
   routerResolve.mockClear()
@@ -294,6 +293,7 @@ async function mountSubscriptionPlanList(planCount: number, subscription = true)
   return wrapper
 }
 
+describe.skip('PaymentView subscription plan grid (removed from user page)', () => {
 describe('PaymentView help text', () => {
   beforeEach(() => {
     vi.useRealTimers()
@@ -357,7 +357,7 @@ describe('PaymentView help text', () => {
   })
 })
 
-describe.skip('PaymentView subscription plan grid (removed from user page)', () => {
+describe('PaymentView subscription plan grid', () => {
   it.each([3, 4, 6])('keeps %i plans on the existing mobile/tablet/desktop grid', async (planCount) => {
     const wrapper = await mountSubscriptionPlanList(planCount)
     const cards = wrapper.findAllComponents(SubscriptionPlanCard)
@@ -463,85 +463,13 @@ describe.skip('PaymentView subscription confirmation amounts (removed from user 
 })
 
 describe('PaymentView recharge-only experience', () => {
+  it('ignores legacy subscription navigation and keeps the confirmed recharge amounts', async () => {
+    const wrapper = await mountSubscriptionPlanList(3)
 
-  it('matches the Figma recharge workspace dimensions and account benefits', async () => {
-    routeState.path = '/purchase'
-    routeState.query = {}
-    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({ recharge_fee_rate: 2.5 }))
-    const wrapper = shallowMount(PaymentView, {
-      global: {
-        stubs: {
-          AppLayout: { template: '<div><slot /></div>' },
-          Teleport: true,
-          Transition: false,
-        },
-      },
-    })
-    await flushPromises()
-
-    const page = wrapper.find('[data-test="recharge-page"]')
-    expect(page.classes()).toContain('max-w-[1180px]')
-    expect(wrapper.findComponent({ name: 'UserRechargeNav' }).props('concurrency')).toBe(7)
-    const workspace = wrapper.find('[data-test="recharge-workspace"]')
-    expect(workspace.exists()).toBe(true)
-    expect(workspace.classes()).toEqual(expect.arrayContaining(['grid', 'min-w-0', 'grid-cols-1', 'lg:grid-cols-[minmax(0,848px)_330px]']))
-    const summary = workspace.find('[data-test="recharge-summary"]')
-    expect(summary.exists()).toBe(true)
-    expect(summary.classes()).toContain('min-w-0')
-    expect(workspace.find('[data-test="create-recharge-order"]').exists()).toBe(true)
-    expect(wrapper.findComponent({ name: 'AmountInput' }).props('variant')).toBe('recharge')
-    expect(wrapper.findComponent({ name: 'PaymentMethodSelector' }).props('variant')).toBe('recharge')
-  })
-  it('matches the confirmed recharge copy and quick amounts', async () => {
-    const wrapper = await mountSubscriptionPlanList(3, false)
-
-    expect(wrapper.text()).toContain('payment.tabSubscribe')
-    expect(wrapper.find('[data-test="recharge-workspace"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('payment.tabSubscribe')
     expect(wrapper.text()).not.toContain('payment.noPlans')
-    expect(wrapper.text()).toContain('单笔最低充值 $1，最高充值 $50，如需大额充值联系客服 QQ:2826033474')
     const amountInput = wrapper.findComponent({ name: 'AmountInput' })
-    expect(amountInput.props('amounts')).toEqual([10, 30, 50])
-    expect(amountInput.props('min')).toBe(1)
-    expect(amountInput.props('max')).toBe(50)
-  })
-
-  it.each([
-    [0.5, '单笔最低充值 $1'],
-    [50.01, '单笔最高充值 $50，如需大额充值可去 [云猫兑换充值] 或 [联系客服QQ:2826033474]'],
-  ])('shows the fixed recharge limit error for %s', async (value, message) => {
-    const wrapper = await mountSubscriptionPlanList(0, false)
-    const amountInput = wrapper.findComponent({ name: 'AmountInput' })
-
-    await amountInput.vm.$emit('update:modelValue', value)
-    await wrapper.vm.$nextTick()
-
-    expect(wrapper.get('[data-test="recharge-amount-error"]').text()).toBe(message)
-    expect(wrapper.get('[data-test="create-recharge-order"]').attributes('disabled')).toBeDefined()
-  })
-
-  it('shows a retry state when checkout loading fails instead of reporting payment unavailable', async () => {
-    getCheckoutInfo.mockReset()
-      .mockRejectedValueOnce(new Error('gateway unavailable'))
-      .mockResolvedValueOnce(checkoutInfoFixture())
-    const wrapper = shallowMount(PaymentView, {
-      global: {
-        stubs: {
-          AppLayout: { template: '<div><slot /></div>' },
-          Teleport: true,
-          Transition: false,
-        },
-      },
-    })
-    await flushPromises()
-
-    expect(wrapper.find('[data-test="checkout-load-error"]').exists()).toBe(true)
-    expect(wrapper.text()).not.toContain('payment.notAvailable')
-
-    await wrapper.get('[data-test="retry-checkout"]').trigger('click')
-    await flushPromises()
-
-    expect(getCheckoutInfo).toHaveBeenCalledTimes(2)
-    expect(wrapper.find('[data-test="checkout-load-error"]').exists()).toBe(false)
+    expect(amountInput.props('amounts')).toEqual([10, 30, 50, 100])
   })
 })
 
@@ -889,7 +817,7 @@ describe('PaymentView subscription feature flag', () => {
 
     expect(tabLabels(wrapper)).toEqual([])
     expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(0)
-    expect(wrapper.find('[data-test="recharge-workspace"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('payment.rechargeAccount')
   })
 
   it('shows an unavailable notice instead of a doomed top-up form when balance recharge is disabled too', async () => {
@@ -899,7 +827,7 @@ describe('PaymentView subscription feature flag', () => {
     expect(tabLabels(wrapper)).toEqual([])
     expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(0)
     expect(wrapper.text()).not.toContain('payment.confirmSubscription')
-    expect(wrapper.find('[data-test="recharge-workspace"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('payment.rechargeAccount')
     expect(wrapper.text()).toContain('payment.billingUnavailable')
     wrapper.unmount()
   })
@@ -913,7 +841,7 @@ describe('PaymentView subscription feature flag', () => {
 
     expect(tabLabels(wrapper)).toEqual([])
     expect(wrapper.findAllComponents(SubscriptionPlanCard)).toHaveLength(0)
-    expect(wrapper.find('[data-test="recharge-workspace"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('payment.rechargeAccount')
     wrapper.unmount()
   })
 
@@ -926,7 +854,7 @@ describe('PaymentView subscription feature flag', () => {
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('payment.billingUnavailable')
-    expect(wrapper.find('[data-test="recharge-workspace"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('payment.rechargeAccount')
     expect(wrapper.findAllComponents(SubscriptionPlanCard).length).toBeGreaterThan(0)
     wrapper.unmount()
   })

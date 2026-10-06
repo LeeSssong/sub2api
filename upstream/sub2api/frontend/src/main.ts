@@ -25,7 +25,8 @@ function initIOSViewportZoomFix() {
 function initThemeClass() {
   const savedTheme = localStorage.getItem('theme')
   const shouldUseDark =
-    savedTheme !== 'light'
+    savedTheme === 'dark' ||
+    (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
   document.documentElement.classList.toggle('dark', shouldUseDark)
 }
 
@@ -41,15 +42,13 @@ export async function bootstrap() {
   // Initialize settings from injected config BEFORE mounting (prevents flash)
   // This must happen after pinia is installed but before router and i18n
   const appStore = useAppStore()
-  const hasInjectedConfig = appStore.initFromInjectedConfig()
+  appStore.initFromInjectedConfig()
 
   // Set document title immediately after config is loaded
   if (appStore.siteName && appStore.siteName !== 'Sub2API') {
     document.title = `${appStore.siteName} - AI API Gateway`
   }
-  if (hasInjectedConfig) {
-    updateFavicon(appStore.siteLogo)
-  }
+  updateFavicon(appStore.siteLogo)
 
   app.use(router)
   app.use(i18n)

@@ -44,28 +44,6 @@ const stats = {
 }
 
 describe('UsageStatsCards', () => {
-  it('shows the user overview empty-duration state and range caption without changing admin defaults', async () => {
-    const emptyStats = { ...stats, total_requests: 0, average_duration_ms: 0 }
-    const user = mount(UsageStatsCards, {
-      props: { stats: emptyStats, userOverview: true },
-      global: { stubs: { Icon: true } },
-    })
-    const duration = user.findAll('.card')[3]
-    expect(duration.text()).toContain('—')
-    expect(duration.text()).toContain('in selected range')
-    expect(duration.text()).not.toContain('0ms')
-    expect(user.findAll('.card')[1].text()).toContain('In 100·Out 50·Cache 34')
-    await user.setProps({ stats })
-    expect(duration.text()).toContain('250ms')
-
-    const admin = mount(UsageStatsCards, {
-      props: { stats: emptyStats },
-      global: { stubs: { Icon: true } },
-    })
-    expect(admin.findAll('.card')[3].text()).toContain('0ms')
-    expect(admin.findAll('.card')[3].text()).not.toContain('in selected range')
-  })
-
   it('shows cache token breakdown values', () => {
     const wrapper = mount(UsageStatsCards, {
       props: {

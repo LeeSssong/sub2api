@@ -100,8 +100,7 @@
               :title="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            <span>{{ t('common.refresh') }}</span>
-          </button>
+            </button>
             <!-- Column Settings Dropdown -->
             <div class="relative" ref="columnDropdownRef">
               <button

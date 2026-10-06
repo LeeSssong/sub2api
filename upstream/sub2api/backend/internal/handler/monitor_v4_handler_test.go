@@ -1,12 +1,10 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -31,13 +29,6 @@ func (s *monitorV4SnapshotterStub) Snapshot(
 	s.userID = userID
 	s.window = window
 	return s.snapshot, nil
-}
-
-func TestMonitorV4ResponseOmitsLegacyOperationalFlag(t *testing.T) {
-	body, err := json.Marshal(monitorV4GroupResponse{RealRequestCount: 10, RealSuccessCount: 9})
-	require.NoError(t, err)
-	require.NotContains(t, string(body), "current_operational")
-	require.Contains(t, string(body), `"real_request_count":10`)
 }
 
 func TestMonitorV4HandlerReturnsCacheHitRateContract(t *testing.T) {
@@ -91,83 +82,4 @@ func TestMonitorV4HandlerReturnsCacheHitRateContract(t *testing.T) {
 	require.Nil(t, withoutSamples["cache_hit_rate"])
 	require.Nil(t, withoutSamples["cache_read_tokens_p95"])
 	require.Equal(t, float64(0), withoutSamples["cache_read_tokens_sample_count"])
-}
-
-type monitorV4CheckerStub struct {
-	monitorV4SnapshotterStub
-	ids  []int64
-	user int64
-}
-
-func (s *monitorV4CheckerStub) Check(_ context.Context, user int64, ids []int64) ([]service.MonitorV4CheckResult, error) {
-	s.ids = ids
-	s.user = user
-	return []service.MonitorV4CheckResult{{GroupID: 7, Status: "success"}}, nil
-}
-func TestMonitorV4ManualCheckUsesAuthenticatedIdentity(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	stub := &monitorV4CheckerStub{}
-	h := NewMonitorV4Handler(stub)
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/monitor-v4/check", strings.NewReader(`{"group_ids":[7],"user_id":99}`))
-	c.Request.Header.Set("Content-Type", "application/json")
-	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 42})
-	h.Check(c)
-	require.Equal(t, http.StatusOK, recorder.Code)
-	require.Equal(t, int64(42), stub.user)
-	require.Equal(t, []int64{7}, stub.ids)
-	require.NotContains(t, recorder.Body.String(), "account_id")
-}
-func TestMonitorV4ManualCheckRejectsOversizedInput(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	stub := &monitorV4CheckerStub{}
-	h := NewMonitorV4Handler(stub)
-	ids := make([]int64, 101)
-	data, _ := json.Marshal(map[string]any{"group_ids": ids})
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/monitor-v4/check", bytes.NewReader(data))
-	c.Request.Header.Set("Content-Type", "application/json")
-	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 42})
-	h.Check(c)
-	require.Equal(t, http.StatusBadRequest, recorder.Code)
-	require.Nil(t, stub.ids)
-}
-
-type monitorTimelineStub struct {
-	monitorV4SnapshotterStub
-	user   int64
-	window service.MonitorV4Window
-}
-
-func (s *monitorTimelineStub) TimelineWithGranularity(_ context.Context, id int64, w service.MonitorV4Window, _ string, _ time.Time) (*service.MonitorV4Timeline, error) {
-	s.user = id
-	s.window = w
-	return &service.MonitorV4Timeline{Window: w, Points: []service.MonitorV4TimelinePoint{}}, nil
-}
-func TestMonitorV4TimelineHandlerAuthAndWindow(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	for _, tc := range []struct {
-		user   int64
-		window string
-		code   int
-	}{{0, "1h", 401}, {42, "invalid", 400}, {42, "24h&granularity=invalid", 400}, {42, "24h&granularity=day", 200}, {42, "24h", 200}} {
-		stub := &monitorTimelineStub{}
-		h := NewMonitorV4Handler(stub)
-		rr := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(rr)
-		c.Request = httptest.NewRequest("GET", "/monitor-v4/timeline?window="+tc.window, nil)
-		if tc.user > 0 {
-			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: tc.user})
-		}
-		h.Timeline(c)
-		require.Equal(t, tc.code, rr.Code)
-		if tc.code == 200 {
-			require.Equal(t, tc.user, stub.user)
-			require.Equal(t, service.MonitorV4Window24H, stub.window)
-		} else {
-			require.Zero(t, stub.user)
-		}
-	}
 }

@@ -1,7 +1,6 @@
 <template>
   <AppLayout>
-    <div class="user-page space-y-4">
-      <UserPageHeader title="我的订单" />
+    <div class="space-y-4">
       <!-- Filters -->
       <div class="card p-4">
         <div class="flex flex-wrap items-center gap-3">
@@ -9,19 +8,14 @@
           <div class="flex flex-1 items-center justify-end gap-2">
             <button @click="fetchOrders" :disabled="loading" class="btn btn-secondary" :title="t('common.refresh')">
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-            <span>{{ t('common.refresh') }}</span>
-          </button>
+            </button>
             <button data-testid="back-to-recharge" class="btn btn-primary" @click="router.push('/purchase')">返回充值</button>
           </div>
         </div>
       </div>
 
       <!-- Table -->
-      <div v-if="loadError" class="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
-        <span>{{ t('common.error') }}</span>
-        <button type="button" class="btn btn-secondary" @click="fetchOrders"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
-      </div>
-      <OrderTable v-else :orders="orders" :loading="loading">
+      <OrderTable :orders="orders" :loading="loading">
         <template #actions="{ row }">
           <div class="flex items-center gap-2">
             <button v-if="row.status === 'PENDING'" @click="handleCancel(row.id)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-yellow-600 hover:bg-yellow-50 dark:text-yellow-400 dark:hover:bg-yellow-900/20">
@@ -38,7 +32,7 @@
 
       <!-- Pagination -->
       <Pagination
-        v-if="!loadError && pagination.total > 0"
+        v-if="pagination.total > 0"
         :page="pagination.page"
         :total="pagination.total"
         :page-size="pagination.page_size"
@@ -95,7 +89,6 @@ import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { PaymentOrder } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import UserPageHeader from '@/components/user/UserPageHeader.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -107,7 +100,6 @@ const router = useRouter()
 const appStore = useAppStore()
 
 const loading = ref(false)
-const loadError = ref(false)
 const actionLoading = ref(false)
 const orders = ref<PaymentOrder[]>([])
 const refundEligibleProviders = ref<Set<string>>(new Set())
@@ -127,7 +119,6 @@ const statusFilters = computed(() => [
 
 async function fetchOrders() {
   loading.value = true
-  loadError.value = false
   try {
     const res = await paymentAPI.getMyOrders({
       page: pagination.page,
@@ -137,7 +128,6 @@ async function fetchOrders() {
     orders.value = res.data.items || []
     pagination.total = res.data.total || 0
   } catch (err: unknown) {
-    loadError.value = true
     appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
   } finally {
     loading.value = false

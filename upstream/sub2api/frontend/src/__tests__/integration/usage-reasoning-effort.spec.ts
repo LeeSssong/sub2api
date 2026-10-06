@@ -282,9 +282,7 @@ describe('usage reasoning effort page display', () => {
     const wrapper = mountAdminUsage()
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="reasoning-effort-cell"]').exists()).toBe(false)
-
-    await wrapper.get('[title="Columns"]').trigger('click')
+    await wrapper.get('[data-testid="usage-column-settings"]').trigger('click')
     await wrapper.get('[data-testid="usage-column-toggle-reasoning_effort"]').trigger('click')
     await flushPromises()
     const cell = reasoningCellText(wrapper)
@@ -325,7 +323,7 @@ describe('usage reasoning effort page display', () => {
     const wrapper = mountAdminUsage()
     await flushPromises()
 
-    await wrapper.get('[title="Columns"]').trigger('click')
+    await wrapper.get('[data-testid="usage-column-settings"]').trigger('click')
     await wrapper.get('[data-testid="usage-column-toggle-reasoning_effort"]').trigger('click')
     await flushPromises()
     const cell = reasoningCellText(wrapper)

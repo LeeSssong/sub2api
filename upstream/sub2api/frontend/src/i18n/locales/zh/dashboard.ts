@@ -1,7 +1,7 @@
 export default {
   dashboard: {
-    title: 'AI 工具',
-    welcomeMessage: '选择工具并比较可用线路、稳定性与价格倍率。',
+    title: '仪表盘',
+    welcomeMessage: '欢迎回来！这是您账户的概览。',
     balance: '余额',
     apiKeys: 'API 密钥',
     todayRequests: '今日请求',
@@ -35,6 +35,7 @@ export default {
     noDataAvailable: '暂无数据',
     model: '模型',
     group: '分组',
+    noGroup: '无分组',
     requests: '请求',
     tokens: 'Token',
     actual: '实际',
@@ -91,7 +92,7 @@ export default {
     },
     availability: '可用性：{value}%',
     availabilityNoData: '暂无可用率数据',
-    peakRate: '{start}-{end} 高峰 {rate}x倍率',
+    peakRate: '{start}-{end} 高峰倍率 {rate}×',
     timeline: {
       label: '可用性时间线，共 {count} 个探测点',
       noData: '该时段暂无探测记录',
@@ -116,15 +117,6 @@ export default {
 
   // API Keys
   keys: {
-    bulk: {
-      edit: '批量编辑', selected: '已选择 {count} 个密钥', cancel: '取消选择', hint: '仅修改勾选的字段，其他设置保持不变。选择范围为当前页。',
-      group: '线路', status: '启用 / 停用', quota: '额度限制', expiry: '有效期', rate: '速率限制', ip: 'IP 限制',
-      apply: '应用到 {count} 个密钥', working: '正在更新…', unchanged: '不修改', unlimited: '0 表示不限额；留空有效期表示永久有效。',
-      whitelist: 'IP 白名单（每行一个 IP 或 CIDR）', blacklist: 'IP 黑名单（每行一个 IP 或 CIDR）', ipHint: '勾选后替换原有列表，留空表示清除对应限制。',
-      result: '成功 {success} 个，失败 {failed} 个。', failed: '未更新的密钥：{ids}。请检查字段和权限后重试。', retry: '重试失败项',
-      chooseField: '请至少勾选一个需要修改的字段。', chooseGroup: '请选择要绑定的线路。', invalidNumber: '额度和速率限制必须是非负数字。', invalidExpiry: '请选择未来的有效时间。',
-      row: '选择密钥 {name}', rate5h: '5 小时额度（USD）', rate1d: '1 天额度（USD）', rate7d: '7 天额度（USD）',
-    },
     title: 'API 密钥',
     description: '管理您的 API 密钥和访问令牌',
     searchPlaceholder: '搜索名称或Key...',
@@ -135,17 +127,12 @@ export default {
       copiedHint: '已复制到剪贴板',
       clickToCopy: '点击可复制此端点',
       speedTest: '测速',
-      copyAddress: '复制地址',
-      instructions: '接入说明',
-      instructionsHint: '创建密钥后，在客户端填写 API 端点及对应密钥。不同客户端的配置格式可能不同。',
-      unavailable: '端点暂不可用',
     },
-    allGroups: '全部线路',
+    allGroups: '全部分组',
     allStatus: '全部状态',
     columnSettings: '列设置',
     columnAlwaysVisible: '该列固定显示，不可隐藏',
     createKey: '创建密钥',
-    listHint: '密钥默认脱敏展示；可点击线路名称或编辑按钮更换绑定线路',
     editKey: '编辑密钥',
     bulkEdit: {
       title: '批量编辑',
@@ -166,7 +153,7 @@ export default {
     deleteConfirmMessage: "确定要删除 '{name}' 吗？此操作无法撤销。",
     id: 'ID',
     apiKey: 'API 密钥',
-    group: '线路',
+    group: '分组',
     currentConcurrency: '当前并发',
     concurrencyAndWaiting: '并发 / 等待',
     concurrencyCount: '并发',
@@ -186,8 +173,7 @@ export default {
     concurrencyLimitHint: '此密钥可同时处理的最大请求数。0 表示无额外限制，用户和账号的并发限制仍然生效。',
     concurrencyLimitInvalid: '并发上限必须为非负整数。',
     noAdditionalConcurrencyLimit: '无额外限制',
-    noGroup: '未绑定线路',
-    searchLine: '搜索线路...',
+    noGroup: '无分组',
     searchGroup: '搜索分组...',
     noGroupFound: '未找到匹配的分组',
     created: '创建时间',
@@ -212,7 +198,7 @@ export default {
       domestic: '包含 DeepSeek、Kimi、智谱 GLM、MiniMax',
       other: '包含 Gemini、Grok、Antigravity、OpenCode 和混合分组'
     },
-    selectGroup: '选择线路',
+    selectGroup: '选择分组',
     statusLabel: '状态',
     selectStatus: '选择状态',
     saving: '保存中...',
@@ -224,7 +210,6 @@ export default {
     keyEnabledSuccess: 'API 密钥已启用',
     keyDisabledSuccess: 'API 密钥已禁用',
     failedToLoad: '加载 API 密钥失败',
-    usageUnavailable: '用量暂未获取',
     failedToSave: '保存 API 密钥失败',
     failedToDelete: '删除 API 密钥失败',
     failedToUpdateStatus: '更新 API 密钥状态失败',
@@ -420,7 +405,6 @@ export default {
 
   // Usage
   usage: {
-    moreFilters: '更多筛选',
     title: '使用记录',
     description: '查看和分析您的 API 使用历史',
     costDetails: '费用明细',
@@ -451,10 +435,7 @@ export default {
     perRequest: '每次请求',
     apiKeyFilter: 'API 密钥',
     allApiKeys: '全部密钥',
-    lineFilter: '线路',
-    allLines: '全部线路',
     timeRange: '时间范围',
-    statGranularity: '统计粒度',
     exportCsv: '导出 CSV',
     exportExcel: '导出 Excel',
     exportingProgress: '正在导出数据...',
@@ -477,8 +458,6 @@ export default {
     requestedReasoningEffort: '请求推理强度',
     endpoint: '端点',
     endpointDistribution: '端点分布',
-    lineDistribution: '线路使用分布',
-    requestDetails: '请求明细',
     inbound: '入站',
     upstream: '上游',
     mapping: '映射',
@@ -896,7 +875,7 @@ export default {
     detail: {
       noModels: '该分组暂未配置模型',
       noPricing: '未配置定价',
-      peakNote: '高峰时段 {window} 计费倍率 {multiplier}x倍率',
+      peakNote: '高峰时段 {window} 计费倍率 ×{multiplier}',
       longContextDisabledNote: '该分组未启用长上下文阶梯计费，超阈值请求仍按基础档计费，官方阶梯仅供参考'
     },
     table: {
@@ -912,15 +891,13 @@ export default {
       tierHintMarginal: '仅超过阈值的部分按该档计价，输出不加价',
       reasoningMultiplierBadge: '{effort} ×{multiplier}',
       reasoningMultiplierHint: '最终转发的思考等级为 {effort} 时，整次请求的计费与额度消耗乘以 {multiplier}；未配置的等级按 1 倍计费',
-      maxReasoningMultiplierBadge: 'Max {multiplier}x倍率',
-      maxReasoningMultiplierHint: '最终转发的推理强度为 max 时，整次请求的计费与额度消耗按 {multiplier}x倍率计算',
       marginalBadge: '超出部分计价',
       timePricingRowHint: '按 {timezone} 时间，在该时段内发起的请求按本行价格计费',
       timePricingRowHintWeekdays:
         '按 {timezone} 时间，仅工作日（周一至周五）在该时段内发起的请求按本行价格计费，周末全天按标准价',
-      timePricingRowHintPeak: '；本行价格未含高峰倍率，与高峰时段 {window} 重叠的部分实付再按 {multiplier}x倍率计算',
+      timePricingRowHintPeak: '；本行价格未含高峰倍率，与高峰时段 {window} 重叠的部分实付再乘 ×{multiplier}',
       timePricingWeekdays: '工作日',
-      timePricingRateHint: '生效 {rate}x倍率 × 时段 {multiplier}x倍率',
+      timePricingRateHint: '生效倍率 {rate} × 时段倍率 {multiplier}',
       paidPrice: '实付价格(折后)',
       officialPrice: '官方价格',
       rate: '折扣倍率',

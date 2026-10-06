@@ -97,15 +97,6 @@ describe('LoginView registration entry', () => {
     getPublicSettingsMock.mockResolvedValue(publicSettings)
   })
 
-  it('keeps the form title without a generic description', async () => {
-    const wrapper = mountLogin()
-    await flushPromises()
-    expect(wrapper.get('h2').text()).toBe('auth.welcomeBack')
-    expect(wrapper.text()).not.toContain('auth.signInToAccount')
-    expect(wrapper.get('h2').element.nextElementSibling).toBeNull()
-    wrapper.unmount()
-  })
-
   it('shows the registration entry when registration is enabled', async () => {
     const wrapper = mountLogin()
     await flushPromises()

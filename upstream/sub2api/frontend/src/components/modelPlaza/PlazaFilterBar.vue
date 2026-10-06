@@ -74,7 +74,7 @@
           :disabled="!rateEnabled(r)"
           @click="$emit('update:rate', r)"
         >
-          {{ formatMultiplierLabel(r) }}
+          {{ r }}x
         </button>
       </div>
     </div>
@@ -115,7 +115,6 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import { platformAccentColor } from '@/utils/platformColors'
-import { formatMultiplierLabel } from '@/utils/formatters'
 import type { GroupPlatform } from '@/types'
 
 const props = defineProps<{

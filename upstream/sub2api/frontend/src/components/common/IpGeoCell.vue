@@ -35,12 +35,12 @@
     </button>
     <button
       type="button"
-      class="btn btn-secondary text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+      class="text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
       :title="t('usage.ipGeo.refreshTitle')"
       @click="handleRefresh"
     >
       <Icon name="refresh" size="xs" />
-    <span>{{ t('common.refresh') }}</span></button>
+    </button>
   </div>
 
   <div v-else-if="entry.status === 'error'" class="mt-0.5 text-xs">

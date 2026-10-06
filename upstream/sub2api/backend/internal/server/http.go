@@ -3,7 +3,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"github.com/Wei-Shaw/sub2api/internal/serverless"
 	"log"
@@ -45,7 +44,6 @@ func ProvideRouter(
 	opsService *service.OpsService,
 	settingService *service.SettingService,
 	compositeResolver *service.CompositeRouteResolver,
-	database *sql.DB,
 	redisClient *redis.Client,
 	lifecycle *Lifecycle,
 ) *gin.Engine {
@@ -107,7 +105,7 @@ func ProvideRouter(
 	lifecycle.onDrain = append(lifecycle.onDrain, manager.Stop)
 	r.Use(manager.Ingress())
 	r.GET("/internal/serverless/probe", manager.ProbeHandler)
-	return SetupRouter(r, handlers, jwtAuth, optionalJWTAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, database, redisClient)
+	return SetupRouter(r, handlers, jwtAuth, optionalJWTAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
 }
 
 func configureTrustedProxies(r *gin.Engine, cfg config.ServerConfig) {

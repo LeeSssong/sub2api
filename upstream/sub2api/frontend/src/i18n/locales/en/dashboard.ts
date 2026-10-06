@@ -1,7 +1,7 @@
 export default {
   dashboard: {
-    title: 'AI Tools',
-    welcomeMessage: 'Choose a tool and compare route availability, stability, and rates.',
+    title: 'Dashboard',
+    welcomeMessage: "Welcome back! Here's an overview of your account.",
     balance: 'Balance',
     apiKeys: 'API Keys',
     todayRequests: 'Today Requests',
@@ -35,6 +35,7 @@ export default {
     noDataAvailable: 'No data available',
     model: 'Model',
     group: 'Group',
+    noGroup: 'No Group',
     requests: 'Requests',
     tokens: 'Tokens',
     actual: 'Actual',
@@ -116,15 +117,6 @@ export default {
 
   // API Keys
   keys: {
-    bulk: {
-      edit: 'Batch edit', selected: '{count} keys selected', cancel: 'Clear selection', hint: 'Only checked fields will change. Selection applies to the current page.',
-      group: 'Line', status: 'Enable / disable', quota: 'Quota', expiry: 'Expiration', rate: 'Rate limits', ip: 'IP restrictions',
-      apply: 'Apply to {count} keys', working: 'Updating…', unchanged: 'Keep unchanged', unlimited: '0 means unlimited quota; an empty expiration means never expires.',
-      whitelist: 'IP whitelist (one IP or CIDR per line)', blacklist: 'IP blacklist (one IP or CIDR per line)', ipHint: 'Checked lists replace existing values. Empty lists clear the corresponding restrictions.',
-      result: '{success} succeeded, {failed} failed.', failed: 'Keys not updated: {ids}. Check fields and permissions, then retry.', retry: 'Retry failed keys',
-      chooseField: 'Select at least one field to change.', chooseGroup: 'Select a line to bind.', invalidNumber: 'Quota and rate limits must be non-negative numbers.', invalidExpiry: 'Choose a future expiration time.',
-      row: 'Select key {name}', rate5h: '5-hour quota (USD)', rate1d: '1-day quota (USD)', rate7d: '7-day quota (USD)',
-    },
     title: 'API Keys',
     description: 'Manage your API keys and access tokens',
     searchPlaceholder: 'Search name or key...',
@@ -135,17 +127,12 @@ export default {
       copiedHint: 'Copied to clipboard',
       clickToCopy: 'Click to copy this endpoint',
       speedTest: 'Speed Test',
-      copyAddress: 'Copy address',
-      instructions: 'Connection instructions',
-      instructionsHint: 'After creating a key, enter the API endpoint and that key in your client. Configuration varies by client.',
-      unavailable: 'Endpoint unavailable',
     },
-    allGroups: 'All lines',
+    allGroups: 'All Groups',
     allStatus: 'All Status',
     columnSettings: 'Column Settings',
     columnAlwaysVisible: 'This column is always visible',
     createKey: 'Create API Key',
-    listHint: 'Keys are masked by default; select a line or edit a key to change its bound line',
     editKey: 'Edit API Key',
     bulkEdit: {
       title: 'Bulk Edit',
@@ -166,7 +153,7 @@ export default {
     deleteConfirmMessage: "Are you sure you want to delete '{name}'? This action cannot be undone.",
     id: 'ID',
     apiKey: 'API Key',
-    group: 'Line',
+    group: 'Group',
     currentConcurrency: 'Current Concurrency',
     concurrencyAndWaiting: 'Concurrency / Waiting',
     concurrencyCount: 'Concurrency',
@@ -186,8 +173,7 @@ export default {
     concurrencyLimitHint: 'Maximum simultaneous requests for this key. 0 means no additional limit; user and account limits still apply.',
     concurrencyLimitInvalid: 'Enter a nonnegative whole number for the concurrency limit.',
     noAdditionalConcurrencyLimit: 'No additional limit',
-    noGroup: 'No line bound',
-    searchLine: 'Search lines...',
+    noGroup: 'No group',
     searchGroup: 'Search groups...',
     noGroupFound: 'No groups found',
     created: 'Created',
@@ -212,7 +198,7 @@ export default {
       domestic: 'Includes DeepSeek, Kimi, Zhipu GLM and MiniMax',
       other: 'Includes Gemini, Grok, Antigravity, OpenCode and mixed groups'
     },
-    selectGroup: 'Select a line',
+    selectGroup: 'Select a group',
     statusLabel: 'Status',
     selectStatus: 'Select status',
     saving: 'Saving...',
@@ -224,7 +210,6 @@ export default {
     keyEnabledSuccess: 'API key enabled successfully',
     keyDisabledSuccess: 'API key disabled successfully',
     failedToLoad: 'Failed to load API keys',
-    usageUnavailable: 'Usage unavailable',
     failedToSave: 'Failed to save API key',
     failedToDelete: 'Failed to delete API key',
     failedToUpdateStatus: 'Failed to update API key status',
@@ -415,7 +400,6 @@ export default {
 
   // Usage
   usage: {
-    moreFilters: 'More filters',
     title: 'Usage Records',
     description: 'View and analyze your API usage history',
     costDetails: 'Cost Breakdown',
@@ -446,10 +430,7 @@ export default {
     perRequest: 'per request',
     apiKeyFilter: 'API Key',
     allApiKeys: 'All API Keys',
-    lineFilter: 'Line',
-    allLines: 'All lines',
     timeRange: 'Time Range',
-    statGranularity: 'Statistics granularity',
     exportCsv: 'Export CSV',
     exportExcel: 'Export Excel',
     exportingProgress: 'Exporting data...',
@@ -472,8 +453,6 @@ export default {
     requestedReasoningEffort: 'Requested reasoning effort',
     endpoint: 'Endpoint',
     endpointDistribution: 'Endpoint Distribution',
-    lineDistribution: 'Line Usage Distribution',
-    requestDetails: 'Request Details',
     inbound: 'Inbound',
     upstream: 'Upstream',
     mapping: 'Mapping',
@@ -895,8 +874,6 @@ export default {
       longContextDisabledNote: 'Long-context tier pricing is disabled for this group: requests above the threshold are billed at the base tier; official tiers are for reference only'
     },
     table: {
-      maxReasoningMultiplierBadge: 'Max {multiplier}x multiplier',
-      maxReasoningMultiplierHint: 'Requests forwarded with max reasoning use a {multiplier}x billing and quota multiplier.',
       model: 'Model',
       input: 'Input',
       output: 'Output',

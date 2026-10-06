@@ -1,16 +1,9 @@
 <template>
   <AppLayout>
-    <div class="user-page max-w-[1180px]">
-      <UserPageHeader title="充值与兑换" />
-      <UserRechargeNav
-        active="redeem"
-        :payment-enabled="appStore.cachedPublicSettings?.payment_enabled !== false"
-        :balance="Number(user?.balance || 0)"
-        :concurrency="Number(user?.concurrency || 0)"
-      />
-      <div class="mt-[22px] space-y-6">
+    <div class="mx-auto max-w-2xl space-y-6">
+      <UserRechargeNav active="redeem" :balance="Number(user?.balance || 0)" />
       <!-- Redeem Form -->
-      <div data-test="redeem-form-card" class="card">
+      <div class="card">
         <div class="p-6">
           <form @submit.prevent="handleRedeem" class="space-y-5">
             <div>
@@ -65,18 +58,29 @@
               {{ submitting ? t('redeem.redeeming') : t('redeem.redeemButton') }}
             </button>
           </form>
-          <div data-test="redeem-feedback">
-            <transition name="fade">
+        </div>
+      </div>
+
+      <!-- Success Message -->
+      <transition name="fade">
+        <div
+          v-if="redeemResult"
+          class="card border-emerald-200 bg-emerald-50 dark:border-emerald-800/50 dark:bg-emerald-900/20"
+        >
+          <div class="p-6">
+            <div class="flex items-start gap-4">
               <div
-                v-if="redeemResult"
-                class="mt-4 rounded-lg border border-emerald-800/50 bg-emerald-900/20 px-4 py-3"
+                class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/30"
               >
-                <h3 class="text-sm font-semibold text-emerald-300">
+                <Icon name="checkCircle" size="md" class="text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div class="flex-1">
+                <h3 class="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
                   {{ t('redeem.redeemSuccess') }}
                 </h3>
-                <div class="mt-1 text-sm text-emerald-400">
+                <div class="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
                   <p>{{ redeemResult.message }}</p>
-                  <div class="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+                  <div class="mt-3 space-y-1">
                     <p v-if="redeemResult.type === 'balance'" class="font-medium">
                       {{ t('redeem.added') }}: ${{ redeemResult.value.toFixed(2) }}
                     </p>
@@ -88,8 +92,10 @@
                       {{ t('redeem.subscriptionAssigned') }}
                       <span v-if="redeemResult.group_name"> - {{ redeemResult.group_name }}</span>
                       <span v-if="redeemResult.validity_days">
-                        ({{ t('redeem.subscriptionDays', { days: redeemResult.validity_days }) }})
-                      </span>
+                        ({{
+                          t('redeem.subscriptionDays', { days: redeemResult.validity_days })
+                        }})</span
+                      >
                     </p>
                     <p v-if="redeemResult.new_balance !== undefined">
                       {{ t('redeem.newBalance') }}:
@@ -97,31 +103,47 @@
                     </p>
                     <p v-if="redeemResult.new_concurrency !== undefined">
                       {{ t('redeem.newConcurrency') }}:
-                      <span class="font-semibold">
-                        {{ redeemResult.new_concurrency }} {{ t('redeem.requests') }}
-                      </span>
+                      <span class="font-semibold"
+                        >{{ redeemResult.new_concurrency }} {{ t('redeem.requests') }}</span
+                      >
                     </p>
                   </div>
                 </div>
               </div>
-            </transition>
+            </div>
+          </div>
+        </div>
+      </transition>
 
-            <transition name="fade">
+      <!-- Error Message -->
+      <transition name="fade">
+        <div
+          v-if="errorMessage"
+          class="card border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20"
+        >
+          <div class="p-6">
+            <div class="flex items-start gap-4">
               <div
-                v-if="errorMessage"
-                class="mt-4 rounded-lg border border-red-800/50 bg-red-900/20 px-4 py-3"
+                class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-red-100 dark:bg-red-900/30"
               >
-                <h3 class="text-sm font-semibold text-red-300">
+                <Icon
+                  name="exclamationCircle"
+                  size="md"
+                  class="text-red-600 dark:text-red-400"
+                />
+              </div>
+              <div class="flex-1">
+                <h3 class="text-sm font-semibold text-red-800 dark:text-red-300">
                   {{ t('redeem.redeemFailed') }}
                 </h3>
-                <p class="mt-1 text-sm text-red-400">
+                <p class="mt-2 text-sm text-red-700 dark:text-red-400">
                   {{ errorMessage }}
                 </p>
               </div>
-            </transition>
+            </div>
           </div>
         </div>
-      </div>
+      </transition>
 
       <!-- Information Card -->
       <div
@@ -186,13 +208,8 @@
             </svg>
           </div>
 
-          <div v-if="historyLoadError" class="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
-            <span>{{ t('common.error') }}</span>
-            <button type="button" class="btn btn-secondary" @click="fetchHistory()"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
-          </div>
-
           <!-- History List -->
-          <div v-if="history.length > 0" class="space-y-3">
+          <div v-else-if="history.length > 0" class="space-y-3">
             <div
               v-for="item in history"
               :key="item.id"
@@ -301,7 +318,7 @@
               {{ t('redeem.historyWillAppear') }}
             </p>
           </div>
-          <div v-if="historyTotal > historyPageSize || historyPage > 1" class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
             <span>{{ t('common.total') }}: {{ historyTotal }} {{ t('pagination.results') }}</span>
             <label>
               {{ t('pagination.perPage') }}
@@ -327,7 +344,6 @@
           </div>
         </div>
       </div>
-      </div>
     </div>
   </AppLayout>
 </template>
@@ -340,7 +356,6 @@ import { useAppStore } from '@/stores/app'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import UserPageHeader from '@/components/user/UserPageHeader.vue'
 import Icon from '@/components/icons/Icon.vue'
 import UserRechargeNav from '@/components/payment/UserRechargeNav.vue'
 import { formatDateTime } from '@/utils/format'
@@ -373,7 +388,6 @@ const historyPageSize = ref(20)
 const historyTotal = ref(0)
 let historyRequest = 0
 let loadedHistoryPageSize = 20
-const historyLoadError = ref(false)
 const contactInfo = ref('')
 
 // Helper functions for history display
@@ -423,7 +437,6 @@ const fetchHistory = async (page = 1) => {
   const request = ++historyRequest
   const pageSize = historyPageSize.value
   loadingHistory.value = true
-  historyLoadError.value = false
   try {
     const result = await redeemAPI.getHistory(page, pageSize)
     if (request !== historyRequest) return
@@ -437,7 +450,6 @@ const fetchHistory = async (page = 1) => {
     historyPageSize.value = loadedHistoryPageSize
     appStore.showError(t('redeem.historyLoadFailed'))
     console.error('Failed to fetch history:', error)
-    historyLoadError.value = true
   } finally {
     if (request === historyRequest) loadingHistory.value = false
   }

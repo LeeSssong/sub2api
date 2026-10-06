@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -19,17 +18,6 @@ func TestAccountMonitorProbeResultRejectsSuccessfulEmptyStream(t *testing.T) {
 	}
 }
 
-func TestAccountMonitorProbeResultAcceptsSuccessfulCompletionWithoutText(t *testing.T) {
-	startedAt := time.Date(2026, 9, 21, 5, 40, 0, 0, time.UTC)
-	observer := &accountMonitorProbeObserver{}
-	observer.observe(TestEvent{Type: "test_complete", Success: true}, startedAt.Add(25*time.Millisecond))
-
-	result := buildAccountMonitorProbeResult(7, "gpt-5.6-sol", startedAt, startedAt.Add(30*time.Millisecond), observer, nil)
-	require.Equal(t, "success", result.Status)
-	require.Empty(t, result.ErrorCode)
-	require.Nil(t, result.TTFTMS)
-}
-
 func TestAccountMonitorProbeResultUsesFirstNonEmptyContentForTTFT(t *testing.T) {
 	startedAt := time.Date(2026, 7, 25, 8, 0, 0, 0, time.UTC)
 	observer := &accountMonitorProbeObserver{}
@@ -37,7 +25,6 @@ func TestAccountMonitorProbeResultUsesFirstNonEmptyContentForTTFT(t *testing.T) 
 	observer.observe(TestEvent{Type: "content", Text: "  "}, startedAt.Add(30*time.Millisecond))
 	observer.observe(TestEvent{Type: "content", Text: "ok"}, startedAt.Add(80*time.Millisecond))
 	observer.observe(TestEvent{Type: "content", Text: "later"}, startedAt.Add(120*time.Millisecond))
-	observer.observe(TestEvent{Type: "test_complete", Success: true}, startedAt.Add(180*time.Millisecond))
 
 	result := buildAccountMonitorProbeResult(7, "gpt-4o-mini", startedAt, startedAt.Add(200*time.Millisecond), observer, nil)
 	if result.Status != "success" || result.ErrorCode != "" || result.TTFTMS == nil || *result.TTFTMS != 80 {
@@ -80,7 +67,6 @@ func TestAccountMonitorProbeResultClassifiesFatalErrorsWithHTTPStatus(t *testing
 		{name: "authentication failed", message: "Chat Completions authentication failed", errorCode: "invalid_auth"},
 		{name: "http server error", message: "Grok Responses API returned 500: upstream unavailable", errorCode: "http_error", httpStatus: 500},
 		{name: "model name is not http status", message: "model gpt-401 unavailable", errorCode: "model_unavailable"},
-		{name: "blocked base url", message: "Invalid base URL: host is not allowed: upstream.example", errorCode: "account_test_error"},
 	}
 
 	for _, tt := range tests {
@@ -104,29 +90,5 @@ func TestAccountMonitorProbeResultClassifiesFatalErrorsWithHTTPStatus(t *testing
 				t.Fatalf("http status = %#v, want %d", result.HTTPStatus, tt.httpStatus)
 			}
 		})
-	}
-}
-
-func TestManualProbeFirstTokenDeadlineStopsAfterContent(t *testing.T) {
-	ctx := context.WithValue(context.Background(), accountMonitorFirstTokenTimeoutKey{}, 10*time.Millisecond)
-	probeCtx, observer, cleanup := newAccountMonitorProbeContext(ctx)
-	defer cleanup()
-	observer.observe(TestEvent{Type: "content", Text: "ok"}, time.Now())
-	select {
-	case <-probeCtx.Done():
-		t.Fatal("first token timer cancelled a response already streaming")
-	case <-time.After(30 * time.Millisecond):
-	}
-}
-func TestManualProbeFirstTokenDeadlineIsExplicit(t *testing.T) {
-	ctx := context.WithValue(context.Background(), accountMonitorFirstTokenTimeoutKey{}, time.Millisecond)
-	probeCtx, observer, cleanup := newAccountMonitorProbeContext(ctx)
-	defer cleanup()
-	observer.observe(TestEvent{Type: "status", Text: "waiting"}, time.Now())
-	select {
-	case <-probeCtx.Done():
-		require.ErrorIs(t, context.Cause(probeCtx), errAccountMonitorFirstTokenTimeout)
-	case <-time.After(time.Second):
-		t.Fatal("first token deadline not enforced")
 	}
 }

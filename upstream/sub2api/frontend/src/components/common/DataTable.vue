@@ -1,5 +1,5 @@
 <template>
-  <div v-if="!isDesktopViewport && !tableOnly" class="space-y-3">
+  <div v-if="!isDesktopViewport" class="space-y-3">
     <template v-if="loading">
       <div v-for="i in 5" :key="i" class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
         <div class="space-y-3">
@@ -430,8 +430,6 @@ onUnmounted(() => {
 })
 
 interface Props {
-  /** Keep compact inventory tables on narrow screens instead of expanding rows to cards. */
-  tableOnly?: boolean
   columns: Column[]
   data: any[]
   loading?: boolean

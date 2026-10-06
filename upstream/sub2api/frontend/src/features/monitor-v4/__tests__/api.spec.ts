@@ -7,7 +7,7 @@ const group = {
   probe_fallback_bucket_count: 5, probe_fallback_request_count: 5,
   ttft_p95_ms: 120, ttft_sample_count: 12, latency_p95_ms: 900, latency_sample_count: 12,
   cache_hit_rate: 0.4,
-  source_updated_at: '2026-08-25T00:00:00Z',
+  source_updated_at: '2026-08-25T00:00:00Z', current_operational: true,
 }
 
 describe('monitor v4 contract', () => {

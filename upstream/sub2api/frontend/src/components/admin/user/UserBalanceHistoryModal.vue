@@ -185,7 +185,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type BalanceHistoryItem, type QuotaSummary } from '@/api/admin'
-import { formatDateTime, formatMoneyFixed } from '@/utils/format'
+import { formatDateTime } from '@/utils/format'
 import type { AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -241,7 +241,14 @@ const loadQuotaSummary = async () => {
   }
 }
 
-const formatBalance = formatMoneyFixed
+const formatBalance = (value: number) => {
+  if (value === 0) return '0.00'
+  const formatted = value.toFixed(8).replace(/\.?0+$/, '')
+  const parts = formatted.split('.')
+  if (parts.length === 1) return formatted + '.00'
+  if (parts[1].length === 1) return formatted + '0'
+  return formatted
+}
 
 const loadHistory = async (page: number) => {
   if (!props.user) return

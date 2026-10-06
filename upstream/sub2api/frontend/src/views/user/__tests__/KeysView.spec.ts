@@ -5,8 +5,6 @@ import { nextTick } from 'vue'
 import type { ApiKey, ApiKeyConcurrencySnapshot } from '@/types'
 import { keysAPI } from '@/api'
 import KeysView from '../KeysView.vue'
-import LineSelect from '@/components/keys/LineSelect.vue'
-import CreateLineKeyDialog from '@/features/ai-tools/CreateLineKeyDialog.vue'
 
 enableAutoUnmount(afterEach)
 
@@ -19,7 +17,6 @@ const {
   getDashboardApiKeysUsage,
   getAvailableGroups,
   getUserGroupRates,
-  getHybridPerformanceSnapshot,
   showError,
   showSuccess,
   copyToClipboard,
@@ -34,7 +31,6 @@ const {
   getDashboardApiKeysUsage: vi.fn(),
   getAvailableGroups: vi.fn(),
   getUserGroupRates: vi.fn(),
-  getHybridPerformanceSnapshot: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
   copyToClipboard: vi.fn(),
@@ -81,13 +77,6 @@ const messages: Record<string, string> = {
   'keys.status.inactive': 'Inactive',
   'keys.status.quota_exhausted': 'Quota exhausted',
   'keys.usage': 'Usage',
-  'keys.usageUnavailable': 'Usage unavailable',
-  'keys.failedToLoad': 'Failed to load API keys',
-  'keys.endpoints.title': 'API endpoint',
-  'keys.endpoints.default': 'Default',
-  'keys.endpoints.copyAddress': 'Copy address',
-  'keys.endpoints.instructions': 'Connection instructions',
-  'keys.endpoints.unavailable': 'Endpoint unavailable',
 }
 
 vi.mock('@/api', () => ({
@@ -110,8 +99,6 @@ vi.mock('@/api', () => ({
     getUserGroupRates,
   },
 }))
-vi.mock('@/api/keys', () => ({ keysAPI: { create: createKey } }))
-vi.mock('@/features/monitor-v4/api', () => ({ getHybridPerformanceSnapshot }))
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
@@ -181,12 +168,10 @@ const AppLayoutStub = {
 }
 
 const TablePageLayoutStub = {
-  props: ['continuous'],
   template: `
-    <div :data-continuous="continuous">
-      <slot name="actions" />
+    <div>
       <slot name="filters" />
-      <slot name="endpoint" />
+      <slot name="actions" />
       <slot name="table" />
       <slot name="pagination" />
     </div>
@@ -195,7 +180,7 @@ const TablePageLayoutStub = {
 
 const DataTableStub = {
   name: 'DataTable',
-  props: { columns: Array, data: Array, selectedKeys: Array, selectable: Boolean, stickyFirstColumn: Boolean },
+  props: { columns: Array, data: Array, selectedKeys: Array, selectable: Boolean },
   emits: ['sort', 'update:selectedKeys'],
   template: `
     <div>
@@ -213,11 +198,9 @@ const DataTableStub = {
         </div>
         <slot name="cell-name" :value="row.name" :row="row" />
         <slot name="cell-actions" :row="row" />
-        <slot name="cell-group" :row="row" />
         <div data-test="current-concurrency">
           <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
         </div>
-        <div data-test="key-usage"><slot name="cell-usage" :row="row" /></div>
         <div
           v-if="columns.some((col) => col.key === 'last_used_ip')"
           data-test="last-used-ip"
@@ -284,7 +267,7 @@ const mountView = async () => {
         EndpointPopover: true,
         GroupBadge: true,
         GroupOptionItem: true,
-        Teleport: { template: '<div><slot /></div>' },
+        Teleport: true,
       },
     },
   })
@@ -329,44 +312,8 @@ describe('user KeysView column settings', () => {
     vi.restoreAllMocks()
   })
 
-  afterEach(() => { vi.useRealTimers() })
-  it('expires inline selector health as time passes', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-10-05T00:00:00Z'))
-    getAvailableGroups.mockResolvedValue([{ id: 12, name: 'GPT', status: 'active', platform: 'openai', rate_multiplier: 1 }])
-    getHybridPerformanceSnapshot.mockResolvedValue({ generated_at: new Date().toISOString(), groups: [{ id: 12, real_request_count: 100, real_success_count: 95 }] })
-    const wrapper = await mountView()
-    await wrapper.get('.keys-line-trigger').trigger('click');await flushPromises()
-    expect(wrapper.get('.keys-line-popup').text()).toContain('正常运行')
-    vi.advanceTimersByTime(8 * 60 * 1000);await nextTick()
-    expect(wrapper.get('.keys-line-popup').text()).not.toContain('正常运行')
-    expect(wrapper.get('.keys-line-popup').text()).toContain('暂无数据')
-    wrapper.unmount()
-  })
-  it('explains inline statistics failure and retries in place', async () => {
-    getHybridPerformanceSnapshot.mockRejectedValueOnce(new Error('offline'))
-    const wrapper = await mountView()
-    await wrapper.get('.keys-line-trigger').trigger('click');await flushPromises()
-    const alert = wrapper.get('.keys-line-popup [role="alert"]')
-    expect(alert.text()).toContain('近 1 小时统计读取失败')
-    await alert.get('button').trigger('click');await flushPromises()
-    expect(wrapper.find('.keys-line-popup [role="alert"]').exists()).toBe(false)
-    expect(getHybridPerformanceSnapshot).toHaveBeenCalledTimes(2)
-    wrapper.unmount()
-  })
-  it('passes statistics failure and retry through the create dialog', async () => {
-    getHybridPerformanceSnapshot.mockRejectedValueOnce(new Error('offline'))
-    const wrapper = await mountView()
-    await getButtonByText(wrapper, 'Create API Key').trigger('click');await flushPromises()
-    const selector = wrapper.getComponent(LineSelect)
-    expect(selector.props('metricsError')).toBe(true)
-    selector.vm.$emit('retry-metrics');await flushPromises()
-    expect(selector.props('metricsError')).toBe(false)
-    wrapper.unmount()
-  })
-
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
     localStorage.clear()
 
@@ -381,7 +328,6 @@ describe('user KeysView column settings', () => {
     getDashboardApiKeysUsage.mockReset()
     getAvailableGroups.mockReset()
     getUserGroupRates.mockReset()
-    getHybridPerformanceSnapshot.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
     copyToClipboard.mockReset()
@@ -399,7 +345,6 @@ describe('user KeysView column settings', () => {
     getDashboardApiKeysUsage.mockResolvedValue({ stats: {} })
     getAvailableGroups.mockResolvedValue([])
     getUserGroupRates.mockResolvedValue({})
-    getHybridPerformanceSnapshot.mockResolvedValue({ groups: [] })
     isCurrentStep.mockReturnValue(false)
   })
 
@@ -440,119 +385,6 @@ describe('user KeysView column settings', () => {
     wrapper.unmount()
   })
 
-  it('uses a bordered line trigger with an expanded state and no redundant selection text', async () => {
-    const key = createApiKey()
-    key.group_id = 12
-    key.group = { id: 12, name: 'GPT-Pro', platform: 'openai', status: 'active', rate_multiplier: 0.3 } as ApiKey['group']
-    listKeys.mockResolvedValue({ items: [key], total: 1, page: 1, page_size: 20, pages: 1 })
-    const wrapper = await mountView()
-    const trigger = wrapper.get('.keys-line-trigger')
-    expect(trigger.attributes('aria-expanded')).toBe('false')
-    expect(trigger.text()).not.toContain('keys.selectGroup')
-    expect(wrapper.getComponent({ name: 'GroupBadge' }).props('rateMultiplier')).toBe(0.3)
-    await trigger.trigger('click')
-    expect(wrapper.get('.keys-line-trigger').attributes('aria-expanded')).toBe('true')
-    await wrapper.get('.keys-line-popup input').trigger('keydown.esc')
-    expect(wrapper.get('.keys-line-trigger').attributes('aria-expanded')).toBe('false')
-  })
-
-  it('keeps the line menu below a low trigger and limits it to available space', async () => {
-    const wrapper = await mountView()
-    const trigger = wrapper.get('.keys-line-trigger')
-    const bottom = window.innerHeight - 130
-    vi.spyOn(trigger.element, 'getBoundingClientRect').mockReturnValue({
-      x: 200, y: bottom - 36, left: 200, top: bottom - 36,
-      right: 400, bottom, width: 200, height: 36, toJSON: () => ({}),
-    })
-    await trigger.trigger('click')
-    const popup = wrapper.get('.keys-line-popup').element as HTMLElement
-    expect(popup.style.top).toBe(String(bottom + 4) + 'px')
-    expect(popup.style.bottom).toBe('')
-    expect(popup.style.maxHeight).toBe('118px')
-  })
-
-  it('opens the inline line popup with real metrics and unknown availability when monitoring is missing', async () => {
-    getAvailableGroups.mockResolvedValue([
-      { id: 12, name: 'GPT Plus', status: 'active', platform: 'openai', rate_multiplier: 1.2 },
-      { id: 13, name: 'Other line', status: 'active', platform: 'openai', rate_multiplier: 1 }
-    ])
-    getUserGroupRates.mockResolvedValue({ 12: 0.8 })
-    getHybridPerformanceSnapshot.mockResolvedValue({ generated_at: new Date().toISOString(), groups: [{ id: 12, real_request_count: 100, real_success_count: 75, success_rate: 75, ttft_p50_ms: 2160, request_count: 10 }] })
-    const wrapper = await mountView()
-    await wrapper.get('button[title="keys.clickToChangeGroup"]').trigger('click')
-    await flushPromises()
-    const popup = wrapper.get('.keys-line-popup')
-    expect(popup.text()).toContain('0.8x')
-    expect(popup.text()).toContain('75%')
-    expect(popup.text()).toContain('波动')
-    expect(popup.text()).toContain('暂无数据')
-    expect(popup.findComponent({ name: 'GroupOptionItem' }).exists()).toBe(false)
-    await popup.get('input').setValue('Other')
-    await flushPromises()
-    await nextTick()
-    expect(wrapper.findAll('.keys-line-popup-option')).toHaveLength(1)
-    await wrapper.get('.keys-line-popup input').trigger('keydown.esc')
-    expect(wrapper.find('.keys-line-popup').exists()).toBe(false)
-  })
-
-  it('uses the shared line selector in the full key management form', async () => {
-    getAvailableGroups.mockResolvedValue([{ id: 12, name: 'GPT Plus', status: 'active', platform: 'openai', rate_multiplier: 1.2 }])
-    getUserGroupRates.mockResolvedValue({ 12: 0.8 })
-    const wrapper = await mountView()
-    await getButtonByText(wrapper, 'Create API Key').trigger('click')
-    const selector = wrapper.getComponent(LineSelect)
-    expect(selector.props('groups')).toHaveLength(1)
-    expect(selector.props('rates')).toEqual({ 12: 0.8 })
-  })
-
-  it('keeps actions, filters, endpoints, list, and pagination in one work surface', async () => {
-    getPublicSettings.mockResolvedValue({ api_base_url: 'https://api.example.test/v1' })
-    const wrapper = await mountView()
-    expect(wrapper.get('[data-continuous]').exists()).toBe(true)
-    const content = wrapper.get('[data-continuous]').html()
-    expect(wrapper.get('[data-test="keys-actions"]').classes()).toContain('justify-between')
-    expect(content.indexOf('Search name or key...')).toBeLessThan(content.indexOf('data-tour="keys-create-btn"'))
-    expect(content.indexOf('Search name or key...')).toBeLessThan(content.indexOf('data-test="keys-endpoint"'))
-    expect(content.indexOf('data-test="keys-endpoint"')).toBeLessThan(content.indexOf('data-test="keys-list-heading"'))
-    expect(content.indexOf('data-test="keys-list-heading"')).toBeLessThan(content.indexOf('data-test="columns"'))
-    expect(content.indexOf('data-test="columns"')).toBeLessThan(content.indexOf('data-test="keys-pagination"'))
-    expect(wrapper.get('[data-test="keys-endpoint"]').text()).toContain('https://api.example.test/v1')
-    expect(wrapper.getComponent({ name: 'DataTable' }).props('stickyFirstColumn')).toBe(false)
-  })
-
-  it('uses the current origin when no public endpoint is configured and copies only that address', async () => {
-    const wrapper = await mountView()
-    expect(wrapper.get('[data-test="keys-endpoint"]').text()).toContain(`${window.location.origin}/v1`)
-    await getButtonByText(wrapper, 'Copy address').trigger('click')
-    expect(copyToClipboard).toHaveBeenCalledWith(`${window.location.origin}/v1`, 'keys.endpoints.copied')
-    expect(copyToClipboard).not.toHaveBeenCalledWith('sk-test-key', expect.anything())
-  })
-
-  it('uses the same complete key form as the AI tool entry when creating a key', async () => {
-    getAvailableGroups.mockResolvedValue([{ id: 12, name: 'GPT Plus', status: 'active', platform: 'openai', rate_multiplier: 1.2 }])
-    const wrapper = await mountView()
-    await getButtonByText(wrapper, 'Create API Key').trigger('click')
-    expect(wrapper.getComponent(CreateLineKeyDialog).props('show')).toBe(true)
-    await wrapper.get('[name="name"]').setValue('new-key')
-    wrapper.getComponent(LineSelect).vm.$emit('update:modelValue', 12)
-    await nextTick()
-    createKey.mockResolvedValue({ id: 7, group_id: 12 })
-    await wrapper.get('#xq-create-line-key').trigger('submit')
-    await flushPromises()
-    expect(createKey).toHaveBeenCalledWith('new-key', 12, undefined, [], [], 0, undefined, {
-      rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0,
-    })
-  })
-
-  it('exposes result count, page size, and navigation in the narrow key footer', async () => {
-    const wrapper = await mountView()
-    const footer = wrapper.get('[data-test="keys-pagination"]')
-    expect(footer.text()).toContain('1')
-    expect(footer.findAll('button')).toHaveLength(2)
-    expect(footer.text()).toContain('5')
-    expect(footer.findComponent({ name: 'Select' }).exists()).toBe(false)
-  })
-
   it('uses the default API key columns with low-frequency columns hidden', async () => {
     const wrapper = await mountView()
 
@@ -563,59 +395,26 @@ describe('user KeysView column settings', () => {
       'current_concurrency',
       'usage',
       'expires_at',
+      'status',
+      'created_at',
       'actions',
     ])
     expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_ip')
     expect(visibleColumnKeys(wrapper)).not.toContain('id')
-    expect(visibleColumnKeys(wrapper)).not.toContain('status')
-    expect(visibleColumnKeys(wrapper)).not.toContain('created_at')
-  })
-
-  it('shows a retryable error instead of the empty state after an initial list failure', async () => {
-    listKeys.mockRejectedValueOnce(new Error('offline'))
-    const wrapper = await mountView()
-
-    expect(wrapper.get('[role="alert"]').text()).toContain('Failed to load API keys')
-    expect(wrapper.text()).not.toContain('keys.noKeysYet')
-
-    await wrapper.get('[role="alert"] button').trigger('click')
-    await flushPromises()
-    expect(listKeys).toHaveBeenCalledTimes(2)
-    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
-  })
-
-  it('keeps existing keys but marks usage unavailable after a usage refresh failure', async () => {
-    getDashboardApiKeysUsage.mockResolvedValueOnce({ stats: { 1: { today_actual_cost: 1.25, total_actual_cost: 2.5 } } })
-    const wrapper = await mountView()
-    getDashboardApiKeysUsage.mockRejectedValueOnce(new Error('offline'))
-
-    await wrapper.get('button[title="Refresh"]').trigger('click')
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('test-key')
-    expect(wrapper.text()).toContain('$1.25')
-    expect(wrapper.find('[data-test="key-usage-error"]').exists()).toBe(true)
-  })
-
-  it('shows an unavailable quota amount rather than a fabricated zero when used quota is missing', async () => {
-    listKeys.mockResolvedValue({ items: [{ ...createApiKey(), quota: 20.1234, quota_used: null }], total: 1, page: 1, page_size: 20, pages: 1 })
-    const wrapper = await mountView()
-    expect(wrapper.get('[data-test="key-usage"]').text()).toContain('— / $20.12')
-    expect(wrapper.get('[data-test="key-usage"]').text()).not.toContain('$0.00 / $20.12')
   })
 
   it('opens bulk editing with only selected visible keys', async () => {
     const wrapper = await mountView()
     const table = wrapper.findComponent({ name: 'DataTable' })
     expect(table.props('selectable')).toBe(true)
-    table.vm.$emit('update:selectedKeys', [1])
+    table.vm.$emit('update:selectedKeys', [1, 99])
     await nextTick()
-    await wrapper.get('.keys-bulk-toolbar .btn-primary').trigger('click')
-    const modal = wrapper.findComponent({ name: 'BulkKeyEditDialog' })
+    await wrapper.get('[data-test="bulk-edit-keys"]').trigger('click')
+    const modal = wrapper.findComponent({ name: 'BulkEditKeysModal' })
     expect(modal.props('show')).toBe(true)
-    expect(modal.props('ids')).toEqual([1])
+    expect(modal.props('selectedKeys').map((key: ApiKey) => key.id)).toEqual([1])
     wrapper.unmount()
   })
 
@@ -627,13 +426,13 @@ describe('user KeysView column settings', () => {
     if (change === 'filter') {
       wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
     } else if (change === 'page size') {
-      await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
+      await wrapper.get('[data-test="page-size-50"]').trigger('click')
     } else {
       table.vm.$emit('sort', 'created_at', 'asc')
     }
     await flushPromises()
     expect(table.props('selectedKeys')).toEqual([])
-    expect(wrapper.find('.keys-bulk-toolbar .btn-primary').exists()).toBe(false)
+    expect(wrapper.find('[data-test="bulk-edit-keys"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -646,8 +445,8 @@ describe('user KeysView column settings', () => {
     const table = wrapper.findComponent({ name: 'DataTable' })
     table.vm.$emit('update:selectedKeys', [1, 2])
     await nextTick()
-    await wrapper.get('.keys-bulk-toolbar .btn-primary').trigger('click')
-    wrapper.findComponent({ name: 'BulkKeyEditDialog' }).vm.$emit('finished', [2])
+    await wrapper.get('[data-test="bulk-edit-keys"]').trigger('click')
+    wrapper.findComponent({ name: 'BulkEditKeysModal' }).vm.$emit('updated', [1])
     await flushPromises()
     expect(listKeys).toHaveBeenCalledTimes(2)
     expect(table.props('selectedKeys')).toEqual([2])
@@ -675,9 +474,9 @@ describe('user KeysView column settings', () => {
 
     expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
     expect(localStorage.getItem('api-key-hidden-columns')).toBe(
-      JSON.stringify(['id', 'last_used_at', 'last_used_ip', 'status', 'created_at'])
+      JSON.stringify(['id', 'last_used_at', 'last_used_ip'])
     )
-    expect(localStorage.getItem('api-key-column-settings-version')).toBe('4')
+    expect(localStorage.getItem('api-key-column-settings-version')).toBe('3')
   })
 
   it('shows the API key ID column when toggled', async () => {
@@ -730,7 +529,7 @@ describe('user KeysView column settings', () => {
     expect(localStorage.getItem('api-key-hidden-columns')).toBe(
       JSON.stringify(['group', 'created_at', 'last_used_ip', 'id'])
     )
-    expect(localStorage.getItem('api-key-column-settings-version')).toBe('4')
+    expect(localStorage.getItem('api-key-column-settings-version')).toBe('3')
   })
 
   it('does not include always-visible columns in the toggleable menu', async () => {
@@ -801,6 +600,21 @@ describe('user KeysView column settings', () => {
     }
   })
 
+  it.each([8, 0, ''])('creates a key with concurrency input %s and resets the form', async (input) => {
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    expect((wrapper.get('#key-concurrency-limit').element as HTMLInputElement).value).toBe('0')
+    await wrapper.get('[data-tour="key-form-name"]').setValue('new-key')
+    await wrapper.getComponent('[data-tour="key-form-group"]').vm.$emit('update:modelValue', 42)
+    await wrapper.get('#key-concurrency-limit').setValue(input)
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(createKey).toHaveBeenCalledWith('new-key', 42, undefined, [], [], 0, undefined,
+      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 }, Number(input))
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    expect((wrapper.get('#key-concurrency-limit').element as HTMLInputElement).value).toBe('0')
+  })
+
   it.each([12, 0, ''])('loads the saved limit and updates concurrency input %s', async (input) => {
     listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), group_id: 42, concurrency_limit: 8 }], total: 1 })
     const wrapper = await mountView()
@@ -813,11 +627,12 @@ describe('user KeysView column settings', () => {
   })
 
   it.each([
-    ['edit', -1], ['edit', 1.5],
+    ['create', -1], ['create', 1.5], ['edit', -1], ['edit', 1.5],
   ])('rejects invalid concurrency in %s mode: %s', async (mode, input) => {
     listKeys.mockResolvedValueOnce({ items: [{ ...createApiKey(), group_id: 42 }], total: 1 })
     const wrapper = await mountView()
     await getButtonByText(wrapper, mode === 'edit' ? 'common.edit' : 'Create API Key').trigger('click')
+    await wrapper.getComponent('[data-tour="key-form-group"]').vm.$emit('update:modelValue', 42)
     await wrapper.get('#key-concurrency-limit').setValue(input)
     expect(wrapper.get('#key-concurrency-limit').attributes('aria-invalid')).toBe('true')
     expect(wrapper.get('#key-concurrency-error').text()).toBe(messages['keys.concurrencyLimitInvalid'])
@@ -861,6 +676,23 @@ describe('user KeysView column settings', () => {
     const payload = updateKey.mock.calls[0][1]
     expect(payload).toHaveProperty('concurrency_limit', 1)
     expect(Object.keys(payload).some(key => /queue|waiting|timeout/.test(key))).toBe(false)
+  })
+
+  it('loads policy without IDs on an empty page and keeps it out of the create payload', async () => {
+    setKeys()
+    getConcurrency.mockResolvedValue({ ...snapshot(), items: [] })
+    const wrapper = await mountView()
+    expect(getConcurrency).toHaveBeenCalledWith([], expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    expect(wrapper.get('#key-queue-policy').text()).toBe('No key-level queue.')
+    await wrapper.get('#key-concurrency-limit').setValue(2)
+    expect(wrapper.get('#key-queue-policy').text()).toContain('7 waiting requests')
+    await wrapper.get('[data-tour="key-form-name"]').setValue('new-key')
+    await wrapper.getComponent('[data-tour="key-form-group"]').vm.$emit('update:modelValue', 42)
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(createKey).toHaveBeenCalledWith('new-key', 42, undefined, [], [], 0, undefined,
+      { rate_limit_5h: 0, rate_limit_1d: 0, rate_limit_7d: 0 }, 2)
   })
 
   it('distinguishes unknown statistics and policy from zero and still permits saving', async () => {
@@ -940,8 +772,6 @@ describe('user KeysView column settings', () => {
     const wrapper = await mountView()
     await getButtonByText(wrapper, 'common.edit').trigger('click')
     await wrapper.get('#key-concurrency-limit').setValue(6)
-    const listCalls = listKeys.mock.calls.length
-    const usageCalls = getDashboardApiKeysUsage.mock.calls.length
     const request = deferred<ApiKeyConcurrencySnapshot>()
     getConcurrency.mockReturnValueOnce(request.promise)
     await vi.advanceTimersByTimeAsync(5000)
@@ -953,8 +783,8 @@ describe('user KeysView column settings', () => {
     expect(wrapper.get('[data-test="current-concurrency"]').text()).toContain('Waiting 4 / 4 · Full')
     expect(wrapper.get('#key-queue-policy').text()).toContain('4 waiting requests')
     expect((wrapper.get('#key-concurrency-limit').element as HTMLInputElement).value).toBe('6')
-    expect(listKeys).toHaveBeenCalledTimes(listCalls)
-    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(usageCalls)
+    expect(listKeys).toHaveBeenCalledTimes(1)
+    expect(getDashboardApiKeysUsage).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(4999)
     expect(getConcurrency).toHaveBeenCalledTimes(2)
     await vi.advanceTimersByTimeAsync(1)
@@ -1013,7 +843,7 @@ describe('user KeysView column settings', () => {
     const signal = getConcurrency.mock.calls[0][1].signal as AbortSignal
     setKeys({ ...createApiKey(), id: 2, concurrency_limit: 2 })
     getConcurrency.mockResolvedValue({ ...snapshot(4), items: [{ id: 2, current_concurrency: 1, current_waiting: 0 }] })
-    await wrapper.get('[data-test="keys-pagination"] button[aria-label="pagination.next"]').trigger('click')
+    await wrapper.get('[data-test="page-2"]').trigger('click')
     await flushPromises()
     expect(signal.aborted).toBe(true)
     expect(getConcurrency).toHaveBeenCalledTimes(1)
@@ -1118,6 +948,8 @@ describe('user KeysView column settings', () => {
     getAvailableGroups.mockResolvedValue([{ id: 42, name: 'OpenAI' }])
     const wrapper = await mountView()
 
+    await wrapper.get('[data-test="page-size-50"]').trigger('click')
+    await flushPromises()
 
     await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('update:modelValue', 'target')
     await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
@@ -1129,7 +961,7 @@ describe('user KeysView column settings', () => {
     await selects[1].vm.$emit('update:modelValue', 'active')
     await flushPromises()
 
-    await wrapper.get('[data-test="keys-pagination"] button[aria-label="pagination.next"]').trigger('click')
+    await wrapper.get('[data-test="page-2"]').trigger('click')
     await flushPromises()
     const table = wrapper.findComponent({ name: 'DataTable' })
     table.vm.$emit('update:selectedKeys', [1])
@@ -1144,7 +976,7 @@ describe('user KeysView column settings', () => {
     expect(table.props('selectedKeys')).toEqual([])
     expect(listKeys).toHaveBeenLastCalledWith(
       1,
-      5,
+      50,
       {
         search: 'target',
         status: 'active',
@@ -1156,4 +988,98 @@ describe('user KeysView column settings', () => {
     )
   })
 
+  describe('create provider selection', () => {
+    const platforms = ['anthropic', 'openai', 'kimi', 'zhipu', 'deepseek', 'minimax', 'gemini', 'grok', 'antigravity', 'composite', 'opencode_go', 'typesafe']
+    const availableGroups = platforms.map((platform, index) => ({
+      id: index + 1,
+      // Deliberately ambiguous names: classification must follow the platform.
+      name: `Shared group ${index + 1}`,
+      platform,
+      rate_multiplier: 1,
+      subscription_type: 'standard',
+    }))
+    const groupSelect = (wrapper: VueWrapper) => wrapper.findComponent('[data-tour="key-form-group"]')
+    const optionIds = (wrapper: VueWrapper) => groupSelect(wrapper).props('options').map((option: { value: number }) => option.value)
+    const chooseProvider = (wrapper: VueWrapper, value: string) => wrapper.get(`input[name="key-provider"][value="${value}"]`).setValue()
+    const openCreate = async () => {
+      const wrapper = await mountView()
+      await wrapper.get('[data-tour="keys-create-btn"]').trigger('click')
+      return wrapper
+    }
+
+    beforeEach(() => {
+      getAvailableGroups.mockResolvedValue(availableGroups)
+    })
+
+    it('classifies all configured platforms and retains the complete table filter', async () => {
+      const wrapper = await openCreate()
+      expect(wrapper.findAll('input[name="key-provider"]')).toHaveLength(4)
+      expect(optionIds(wrapper)).toEqual([1])
+      await chooseProvider(wrapper, 'openai')
+      expect(optionIds(wrapper)).toEqual([2])
+      await chooseProvider(wrapper, 'domestic')
+      expect(optionIds(wrapper)).toEqual([3, 4, 5, 6])
+      await chooseProvider(wrapper, 'other')
+      expect(optionIds(wrapper)).toEqual([7, 8, 9, 10, 11, 12])
+      expect(wrapper.findAllComponents({ name: 'Select' })[0].props('options')).toHaveLength(14)
+    })
+
+    it('clears the previous group on provider change and submits only the newly selected group', async () => {
+      const wrapper = await openCreate()
+      await wrapper.get('[data-tour="key-form-name"]').setValue('My key')
+      await groupSelect(wrapper).vm.$emit('update:modelValue', 1)
+      await chooseProvider(wrapper, 'domestic')
+      expect(groupSelect(wrapper).props('modelValue')).toBeNull()
+      await wrapper.get('#key-form').trigger('submit')
+      expect(keysAPI.create).not.toHaveBeenCalled()
+      expect(showError).toHaveBeenCalledWith('keys.groupRequired')
+
+      await groupSelect(wrapper).vm.$emit('update:modelValue', 5)
+      vi.mocked(keysAPI.create).mockResolvedValue({ ...createApiKey(), group_id: 5 })
+      await wrapper.get('#key-form').trigger('submit')
+      await flushPromises()
+      expect(keysAPI.create).toHaveBeenCalledOnce()
+      expect(vi.mocked(keysAPI.create).mock.calls[0].slice(0, 2)).toEqual(['My key', 5])
+    })
+
+    it('defaults to a provider with available groups and disables empty categories', async () => {
+      getAvailableGroups.mockResolvedValue([availableGroups[5]])
+      const wrapper = await openCreate()
+      expect(wrapper.get<HTMLInputElement>('input[value="domestic"]').element.checked).toBe(true)
+      expect(wrapper.get<HTMLInputElement>('input[value="anthropic"]').element.disabled).toBe(true)
+      expect(optionIds(wrapper)).toEqual([6])
+    })
+
+    it('shows the empty state when no groups are available', async () => {
+      getAvailableGroups.mockResolvedValue([])
+      const wrapper = await openCreate()
+      expect(wrapper.get('[data-tour="key-form-provider"]').text()).toContain('common.noGroupsAvailable')
+      expect(optionIds(wrapper)).toEqual([])
+      expect(wrapper.findAll<HTMLInputElement>('input[name="key-provider"]').every((input) => input.element.disabled)).toBe(true)
+    })
+
+    it('selects an available provider when groups arrive after opening', async () => {
+      let resolveGroups!: (value: typeof availableGroups) => void
+      getAvailableGroups.mockReturnValue(new Promise((resolve) => { resolveGroups = resolve }))
+      const wrapper = await openCreate()
+      resolveGroups([availableGroups[1]])
+      await flushPromises()
+      expect(wrapper.get<HTMLInputElement>('input[value="openai"]').element.checked).toBe(true)
+      expect(optionIds(wrapper)).toEqual([2])
+    })
+
+    it('resets provider and group when reopening create, and preserves edit options', async () => {
+      const wrapper = await openCreate()
+      await chooseProvider(wrapper, 'domestic')
+      await groupSelect(wrapper).vm.$emit('update:modelValue', 5)
+      await wrapper.get('[data-test="close-dialog"]').trigger('click')
+      await wrapper.get('[data-tour="keys-create-btn"]').trigger('click')
+      expect(optionIds(wrapper)).toEqual([1])
+      expect(groupSelect(wrapper).props('modelValue')).toBeNull()
+      await wrapper.get('[data-test="close-dialog"]').trigger('click')
+      await getButtonByText(wrapper, 'common.edit').trigger('click')
+      expect(wrapper.find('[data-tour="key-form-provider"]').exists()).toBe(false)
+      expect(optionIds(wrapper)).toHaveLength(12)
+    })
+  })
 })

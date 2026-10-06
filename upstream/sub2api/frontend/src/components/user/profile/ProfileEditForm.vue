@@ -65,7 +65,6 @@ watch(() => props.initialUsername, (val) => {
 })
 
 const handleUpdateProfile = async () => {
-  if (loading.value) return
   if (!username.value.trim()) {
     appStore.showError(t('profile.usernameRequired'))
     return

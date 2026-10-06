@@ -18,8 +18,7 @@
         </div>
         <button @click="load" :disabled="loading" class="btn btn-secondary" :title="t('common.refresh')">
           <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-        <span>{{ t('common.refresh') }}</span>
-          </button>
+        </button>
       </div>
 
       <DataTable

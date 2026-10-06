@@ -1,42 +1,61 @@
 <template>
   <AppLayout>
-    <div class="user-page user-keys-page">
-      <UserPageHeader title="我的密钥" />
-      <TablePageLayout continuous class="keys-work-surface">
-      <template #actions>
-        <div class="keys-toolbar">
-          <div class="keys-filters">
+    <TablePageLayout>
+      <template #filters>
+        <div class="flex flex-col gap-3">
+          <div class="flex flex-wrap items-center gap-3">
             <SearchInput
               v-model="filterSearch"
               :placeholder="t('keys.searchPlaceholder')"
-              class="keys-search"
+              class="w-full sm:w-64"
               @search="onFilterChange"
             />
             <Select
               :model-value="filterGroupId"
-              brand
-              class="keys-filter-select"
+              class="w-40"
               :options="groupFilterOptions"
               @update:model-value="onGroupFilterChange"
             />
             <Select
               :model-value="filterStatus"
-              brand
-              class="keys-filter-select"
+              class="w-40"
               :options="statusFilterOptions"
               @update:model-value="onStatusFilterChange"
             />
+          </div>
+          <EndpointPopover
+            v-if="publicSettings?.api_base_url || (publicSettings?.custom_endpoints?.length ?? 0) > 0"
+            :api-base-url="publicSettings?.api_base_url || ''"
+            :custom-endpoints="publicSettings?.custom_endpoints || []"
+          />
+          <div v-if="selectedIds.length" class="flex flex-wrap items-center gap-3 text-sm">
+            <span class="text-gray-600 dark:text-gray-300">
+              {{ t('keys.bulkEdit.selectedCount', { count: selectedIds.length }) }}
+            </span>
+            <button
+              class="btn btn-primary btn-sm"
+              :disabled="loading"
+              data-test="bulk-edit-keys"
+              @click="showBulkEditModal = true"
+            >
+              {{ t('keys.bulkEdit.title') }}
+            </button>
+            <button class="btn btn-secondary btn-sm" @click="selectedIds = []">
+              {{ t('keys.bulkEdit.clearSelection') }}
+            </button>
+          </div>
         </div>
-        <div class="flex items-center justify-between gap-3" data-test="keys-actions">
-          <div class="flex items-center gap-3">
+      </template>
+
+      <template #actions>
+        <div class="flex justify-end gap-3">
           <button
             @click="loadApiKeys"
             :disabled="loading"
             class="btn btn-secondary"
             :title="t('common.refresh')"
           >
-            <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
-            <span>{{ t('common.refresh') }}</span>
+            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
           </button>
           <div class="relative" ref="columnDropdownRef">
             <button
@@ -44,8 +63,10 @@
               class="btn btn-secondary px-2 md:px-3"
               :title="t('keys.columnSettings')"
             >
-              <Icon name="grid" size="sm" />
-              <span>{{ t('keys.columnSettings') }}</span>
+              <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
+              </svg>
+              <span class="hidden md:inline">{{ t('keys.columnSettings') }}</span>
             </button>
             <div
               v-if="showColumnDropdown"
@@ -68,65 +89,24 @@
               </button>
             </div>
           </div>
-          </div>
           <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
             <Icon name="plus" size="md" class="mr-2" />
             {{ t('keys.createKey') }}
           </button>
         </div>
-        </div>
-      </template>
-
-      <template #endpoint>
-        <div class="keys-endpoint" data-test="keys-endpoint">
-          <div class="keys-endpoint-summary min-w-0">
-            <div class="keys-endpoint-label">{{ t('keys.endpoints.title') }} <span>{{ t('keys.endpoints.default') }}</span></div>
-            <code>{{ apiEndpoint || t('keys.endpoints.unavailable') }}</code>
-            <EndpointPopover
-              v-if="publicSettings?.custom_endpoints?.length"
-              class="mt-2"
-              api-base-url=""
-              :custom-endpoints="publicSettings.custom_endpoints"
-            />
-          </div>
-          <div class="keys-endpoint-actions">
-            <button type="button" class="btn btn-secondary" :disabled="!apiEndpoint" @click="copyEndpoint">{{ t('keys.endpoints.copyAddress') }}</button>
-            <button type="button" class="btn btn-secondary" @click="showConnectionHelp = true">{{ t('keys.endpoints.instructions') }}</button>
-          </div>
-        </div>
       </template>
 
       <template #table>
-        <div class="keys-list-heading" data-test="keys-list-heading">
-          <h2>{{ t('keys.apiKey') }}</h2>
-          <span>{{ t('keys.listHint') }}</span>
-        </div>
-        <div v-if="listLoadError && apiKeys.length" class="mb-3 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
-          <span>{{ t('keys.failedToLoad') }}</span>
-          <button type="button" class="btn btn-secondary" @click="loadApiKeys"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
-        </div>
-        <div v-if="usageLoadError" data-test="key-usage-error" class="mb-3 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
-          <span>{{ t('keys.usageUnavailable') }}</span>
-          <button type="button" class="btn btn-secondary" @click="loadApiKeys"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
-        </div>
-        <div v-if="selectedKeyIds.length" class="keys-bulk-toolbar" role="region" :aria-label="t('keys.bulk.edit')">
-          <span aria-live="polite">{{ t('keys.bulk.selected', { count: selectedKeyIds.length }) }}</span>
-          <button class="btn btn-primary" type="button" :disabled="loading" @click="showBulkEdit = true">{{ t('keys.bulk.edit') }}</button>
-          <button class="btn btn-secondary" type="button" @click="selectedKeyIds = []">{{ t('keys.bulk.cancel') }}</button>
-        </div>
-        <div ref="inventoryRef" class="keys-inventory" :class="{ 'keys-expanded': columns.length > 7 }">
         <DataTable
-          selectable
-          row-key="id"
-          v-model:selected-keys="selectedKeyIds"
-          :selection-label="(row: ApiKey) => t('keys.bulk.row', { name: row.name })"
-          table-only
           :columns="columns"
           :data="apiKeys"
           :loading="loading"
+          selectable
+          row-key="id"
+          :selected-keys="selectedIds"
+          :selection-label="(key: ApiKey) => t('keys.bulkEdit.selectKey', { name: key.name })"
+          @update:selected-keys="handleSelectionChange"
           :server-side-sort="true"
-          :sticky-first-column="false"
-          :sticky-actions-column="false"
           default-sort-key="created_at"
           default-sort-order="desc"
           @sort="handleSort"
@@ -179,14 +159,11 @@
               <button
                 :ref="(el) => setGroupButtonRef(row.id, el)"
                 @click="openGroupSelector(row)"
-                class="keys-line-trigger"
-                type="button"
-                :aria-expanded="groupSelectorKeyId === row.id"
+                class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
                 :title="t('keys.clickToChangeGroup')"
               >
                 <GroupBadge
                   v-if="row.group"
-                  class="keys-line-trigger-badge"
                   :name="row.group.name"
                   :platform="row.group.platform"
                   :subscription-type="row.group.subscription_type"
@@ -197,12 +174,12 @@
                   :peak-end="row.group.peak_end"
                   :peak-rate-multiplier="row.group.peak_rate_multiplier"
                 />
-                <span v-else class="keys-line-trigger-empty">{{
+                <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
                   t('keys.noGroup')
                 }}</span>
+                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
                 <svg
-                  class="keys-line-trigger-chevron"
-                  aria-hidden="true"
+                  class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -211,7 +188,7 @@
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    d="m6 9 6 6 6-6"
+                    d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"
                   />
                 </svg>
               </button>
@@ -219,11 +196,10 @@
           </template>
 
           <template #cell-current_concurrency="{ row }">
-            <span :title="concurrencyDetail(row.id)" tabindex="0">
             <span
               :title="t('keys.concurrencyCount')"
               :class="[
-                'inline-flex min-w-8 items-center justify-center rounded px-2 py-1 text-sm font-semibold tabular-nums',
+                'inline-flex items-center gap-1 rounded-md px-1.5 py-px text-xs font-normal leading-tight tabular-nums',
                 concurrencyRows[row.id]?.concurrencyFull
                   ? 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-900/25 dark:text-amber-300 dark:ring-amber-800'
                   : (concurrencyRows[row.id]?.current ?? 0) > 0
@@ -232,7 +208,7 @@
               ]"
             >
               <svg
-                class="sr-only"
+                class="h-2.5 w-2.5"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -244,10 +220,10 @@
               <span class="sr-only">{{ t('keys.concurrencyCount') }}{{ ' ' }}</span>
               <span class="whitespace-nowrap font-mono">
                 {{ concurrencyRows[row.id]?.current ?? '—' }}
-                <span v-if="concurrencyRows[row.id]?.limit > 0" class="sr-only">/ {{ concurrencyRows[row.id]?.limit }}</span>
+                <span v-if="concurrencyRows[row.id]?.limit > 0" class="ml-1">/ {{ concurrencyRows[row.id]?.limit }}</span>
               </span>
             </span>
-            <div v-if="concurrencyRows[row.id]?.limit > 0" class="sr-only">
+            <div v-if="concurrencyRows[row.id]?.limit > 0" class="mt-1 text-xs tabular-nums text-gray-500 dark:text-dark-400">
               <template v-if="queuePolicy && concurrencyRows[row.id]?.limit > 0">
                 <span v-if="queuePolicy.max_waiting === 0" class="block">{{ t('keys.queueOff') }}</span>
                 <span v-if="queuePolicy.max_waiting > 0 || (concurrencyRows[row.id]?.waiting ?? 0) > 0"
@@ -260,7 +236,7 @@
                         ? 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
                         : 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
                   ]" :title="t('keys.waitingCount')">
-                    <svg class="sr-only" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
                       <circle cx="12" cy="12" r="9" />
                       <path stroke-linecap="round" d="M12 7v5l3 2" />
                     </svg>
@@ -272,9 +248,8 @@
               </template>
               <span v-else>{{ t(concurrencyState.status === 'loading' ? 'keys.queuePolicyLoading' : 'keys.queuePolicyUnavailable') }}</span>
             </div>
-            <span v-if="concurrencyRows[row.id]?.notice" class="sr-only">
+            <span v-if="concurrencyRows[row.id]?.notice" class="mt-1 block text-xs text-gray-500 dark:text-dark-400">
               {{ concurrencyRows[row.id].notice }}
-            </span>
             </span>
           </template>
 
@@ -283,13 +258,13 @@
               <div class="flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
-                  {{ formatKeyUsage(usageStats[row.id]?.today_actual_cost) }}
+                  ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
                 </span>
               </div>
               <div class="mt-0.5 flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
-                  {{ formatKeyUsage(usageStats[row.id]?.total_actual_cost) }}
+                  ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
                 </span>
               </div>
               <!-- Quota progress (if quota is set) -->
@@ -302,7 +277,7 @@
                     row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
                     'text-gray-900 dark:text-white'
                   ]">
-                    {{ formatUsdMoney(row.quota_used) }} / {{ formatUsdMoney(row.quota) }}
+                    ${{ row.quota_used?.toFixed(2) || '0.00' }} / ${{ row.quota?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -332,7 +307,7 @@
                     row.usage_5h >= row.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    {{ formatUsdMoney(row.usage_5h) }}/{{ formatUsdMoney(row.rate_limit_5h) }}
+                    ${{ row.usage_5h?.toFixed(2) || '0.00' }}/${{ row.rate_limit_5h?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -360,7 +335,7 @@
                     row.usage_1d >= row.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    {{ formatUsdMoney(row.usage_1d) }}/{{ formatUsdMoney(row.rate_limit_1d) }}
+                    ${{ row.usage_1d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_1d?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -388,7 +363,7 @@
                     row.usage_7d >= row.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    {{ formatUsdMoney(row.usage_7d) }}/{{ formatUsdMoney(row.rate_limit_7d) }}
+                    ${{ row.usage_7d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_7d?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -461,11 +436,11 @@
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="keys-row-actions flex items-center gap-1">
+            <div class="flex items-center gap-1">
               <!-- Use Key Button -->
               <button
                 @click="openUseKeyModal(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:text-green-600 dark:hover:text-green-400"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
               >
                 <Icon name="terminal" size="sm" />
                 <span class="text-xs">{{ t('keys.useKey') }}</span>
@@ -474,7 +449,7 @@
               <button
                 v-if="!publicSettings?.hide_ccs_import_button"
                 @click="importToCcswitch(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:text-blue-600 dark:hover:text-blue-400"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
               >
                 <Icon name="upload" size="sm" />
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
@@ -485,8 +460,8 @@
                 :class="[
                   'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
                   row.status === 'active'
-                    ? 'text-gray-500 hover:text-yellow-600 dark:hover:text-yellow-400'
-                    : 'text-gray-500 hover:text-green-600 dark:hover:text-green-400'
+                    ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
+                    : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
                 ]"
               >
                 <Icon v-if="row.status === 'active'" name="ban" size="sm" />
@@ -504,7 +479,7 @@
               <!-- Delete Button -->
               <button
                 @click="confirmDelete(row)"
-                class="keys-action-danger flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:text-red-600 dark:hover:text-red-400"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
                 <Icon name="trash" size="sm" />
                 <span class="text-xs">{{ t('common.delete') }}</span>
@@ -513,12 +488,7 @@
           </template>
 
           <template #empty>
-            <div v-if="listLoadError" class="flex flex-col items-center gap-3 py-8 text-center" role="alert">
-              <p class="text-sm text-red-600 dark:text-red-400">{{ t('keys.failedToLoad') }}</p>
-              <button type="button" class="btn btn-secondary" @click="loadApiKeys"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button>
-            </div>
             <EmptyState
-              v-else
               :title="t('keys.noKeysYet')"
               :description="t('keys.createFirstKey')"
               :action-text="t('keys.createKey')"
@@ -526,51 +496,24 @@
             />
           </template>
         </DataTable>
-        </div>
       </template>
 
       <template #pagination>
-        <div class="keys-pagination" data-test="keys-pagination">
-          <span>{{ t('pagination.of') }} {{ pagination.total }} {{ t('pagination.results') }} · {{ t('pagination.perPage') }} {{ pagination.page_size }}</span>
-          <nav :aria-label="t('pagination.pageOf', { page: pagination.page, total: Math.max(1, pagination.pages) })">
-            <button type="button" :aria-label="t('pagination.previous')" :disabled="loading || pagination.page <= 1" @click="handlePageChange(pagination.page - 1)"><Icon name="chevronLeft" size="sm" /></button>
-            <span>{{ pagination.page }} / {{ Math.max(1, pagination.pages) }}</span>
-            <button type="button" :aria-label="t('pagination.next')" :disabled="loading || pagination.page >= pagination.pages" @click="handlePageChange(pagination.page + 1)"><Icon name="chevronRight" size="sm" /></button>
-          </nav>
-        </div>
+        <Pagination
+          v-if="pagination.total > 0"
+          :page="pagination.page"
+          :total="pagination.total"
+          :page-size="pagination.page_size"
+          @update:page="handlePageChange"
+          @update:pageSize="handlePageSizeChange"
+        />
       </template>
-      </TablePageLayout>
-    </div>
+    </TablePageLayout>
 
-    <BaseDialog :show="showConnectionHelp" :title="t('keys.endpoints.instructions')" width="narrow" @close="showConnectionHelp = false">
-      <p class="text-sm text-gray-600 dark:text-gray-300">{{ t('keys.endpoints.instructionsHint') }}</p>
-      <div class="mt-4 flex flex-wrap items-center gap-3">
-        <code class="break-all text-sm">{{ apiEndpoint || t('keys.endpoints.unavailable') }}</code>
-        <button type="button" class="btn btn-secondary" :disabled="!apiEndpoint" @click="copyEndpoint">{{ t('keys.endpoints.copyAddress') }}</button>
-      </div>
-    </BaseDialog>
-
-    <CreateLineKeyDialog
-      :show="showCreateModal"
-      tool-name="全部"
-      :groups="groups"
-      :rates="userGroupRates"
-      :metrics="lineMetrics"
-      :metrics-generated-at="lineMetricsGeneratedAt"
-      :metrics-error="lineMetricsError"
-      @retry-metrics="loadLineContext"
-      :linked-counts="lineCounts"
-      @close="showCreateModal = false"
-      @created="handleKeyCreated"
-    />
-
-    <!-- Edit Modal -->
-    <BulkKeyEditDialog :show="showBulkEdit" :ids="selectedKeyIds.map(Number)" :groups="groups" @close="showBulkEdit = false" @finished="handleBulkFinished" />
+    <!-- Create/Edit Modal -->
     <BaseDialog
-      :show="showEditModal"
-      :title="t('keys.editKey')"
-      brand-theme
-      panel-class="xq-key-dialog"
+      :show="showCreateModal || showEditModal"
+      :title="showEditModal ? t('keys.editKey') : t('keys.createKey')"
       width="normal"
       @close="closeModals"
     >
@@ -587,22 +530,99 @@
           />
         </div>
 
+        <fieldset v-if="!showEditModal" data-tour="key-form-provider">
+          <legend class="input-label">{{ t('keys.providerLabel') }}</legend>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <label
+              v-for="provider in createProviderOptions"
+              :key="provider.value"
+              class="relative min-w-0"
+              :class="provider.count === 0 ? 'cursor-not-allowed' : 'cursor-pointer'"
+            >
+              <input
+                type="radio"
+                name="key-provider"
+                :value="provider.value"
+                :checked="createProvider === provider.value"
+                :disabled="provider.count === 0"
+                class="peer sr-only"
+                @change="selectCreateProvider(provider.value)"
+              />
+              <span
+                class="flex h-full flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-3 text-center transition-colors peer-checked:border-primary-500 peer-checked:bg-primary-50/60 peer-checked:ring-1 peer-checked:ring-primary-500 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-500 peer-disabled:opacity-40 dark:border-dark-600 dark:bg-dark-800 dark:peer-checked:border-primary-500 dark:peer-checked:bg-primary-500/10"
+                :class="provider.count > 0 && 'hover:border-primary-300 dark:hover:border-primary-700'"
+              >
+                <span class="flex h-8 items-center justify-center gap-1.5" aria-hidden="true">
+                  <span
+                    v-for="platform in KEY_GROUP_PROVIDER_ICONS[provider.value]"
+                    :key="platform"
+                    class="flex h-8 w-8 items-center justify-center rounded-lg"
+                    :class="platformBadgeLightClass(platform)"
+                  >
+                    <PlatformIcon :platform="platform" size="lg" />
+                  </span>
+                </span>
+                <span class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ provider.label }}</span>
+              </span>
+              <span
+                v-if="createProvider === provider.value"
+                class="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-500 text-white"
+                aria-hidden="true"
+              >
+                <Icon name="check" size="xs" :stroke-width="3" />
+              </span>
+            </label>
+          </div>
+          <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400" aria-live="polite">
+            {{ groups.length === 0 ? t('common.noGroupsAvailable') : t(`keys.providerHints.${createProvider}`) }}
+          </p>
+        </fieldset>
 
         <div>
-          <label class="input-label">{{ t('keys.groupLabel') }}</label>
-          <LineSelect
+          <label class="input-label" for="key-form-group">{{ t('keys.groupLabel') }}</label>
+          <Select
+            :key="showEditModal ? 'edit' : createProvider"
+            id="key-form-group"
+            :aria-label="t('keys.groupLabel')"
             v-model="formData.group_id"
-            :groups="groups"
-            :rates="userGroupRates"
-            :metrics="lineMetrics"
-            :metrics-generated-at="lineMetricsGeneratedAt"
-            :metrics-error="lineMetricsError"
-            @retry-metrics="loadLineContext"
-            :linked-counts="lineCounts"
+            :options="formGroupOptions"
             :placeholder="t('keys.selectGroup')"
+            :empty-text="t('common.noGroupsAvailable')"
+            :searchable="true"
             :search-placeholder="t('keys.searchGroup')"
             data-tour="key-form-group"
-          />
+          >
+            <template #selected="{ option }">
+              <GroupBadge
+                v-if="option"
+                :name="(option as unknown as GroupOption).label"
+                :platform="(option as unknown as GroupOption).platform"
+                :subscription-type="(option as unknown as GroupOption).subscriptionType"
+                :rate-multiplier="(option as unknown as GroupOption).rate"
+                :user-rate-multiplier="(option as unknown as GroupOption).userRate"
+                :peak-rate-enabled="(option as unknown as GroupOption).peakRateEnabled"
+                :peak-start="(option as unknown as GroupOption).peakStart"
+                :peak-end="(option as unknown as GroupOption).peakEnd"
+                :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
+              />
+              <span v-else class="text-gray-400">{{ t('keys.selectGroup') }}</span>
+            </template>
+            <template #option="{ option, selected }">
+              <GroupOptionItem
+                :name="(option as unknown as GroupOption).label"
+                :platform="(option as unknown as GroupOption).platform"
+                :subscription-type="(option as unknown as GroupOption).subscriptionType"
+                :rate-multiplier="(option as unknown as GroupOption).rate"
+                :user-rate-multiplier="(option as unknown as GroupOption).userRate"
+                :peak-rate-enabled="(option as unknown as GroupOption).peakRateEnabled"
+                :peak-start="(option as unknown as GroupOption).peakStart"
+                :peak-end="(option as unknown as GroupOption).peakEnd"
+                :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
+                :description="(option as unknown as GroupOption).description"
+                :selected="selected"
+              />
+            </template>
+          </Select>
         </div>
 
         <!-- Custom Key Section (only for create) -->
@@ -644,7 +664,6 @@
             v-model="formData.status"
             :options="statusOptions"
             :placeholder="t('keys.selectStatus')"
-            brand
           />
         </div>
 
@@ -765,11 +784,11 @@
               <div class="flex items-center gap-2">
                 <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700">
                   <span class="font-medium text-gray-900 dark:text-white">
-                    {{ formatUsdMoney(selectedKey.quota_used) }}
+                    ${{ selectedKey.quota_used?.toFixed(4) || '0.0000' }}
                   </span>
                   <span class="mx-2 text-gray-400">/</span>
                   <span class="text-gray-500 dark:text-gray-400">
-                    {{ formatUsdMoney(selectedKey.quota) }}
+                    ${{ selectedKey.quota?.toFixed(2) || '0.00' }}
                   </span>
                 </div>
                 <button
@@ -832,11 +851,11 @@
                       selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      {{ formatUsdMoney(selectedKey.usage_5h) }}
+                      ${{ selectedKey.usage_5h?.toFixed(4) || '0.0000' }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      {{ formatUsdMoney(selectedKey.rate_limit_5h) }}
+                      ${{ selectedKey.rate_limit_5h?.toFixed(2) || '0.00' }}
                     </span>
                   </div>
                 </div>
@@ -878,11 +897,11 @@
                       selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      {{ formatUsdMoney(selectedKey.usage_1d) }}
+                      ${{ selectedKey.usage_1d?.toFixed(4) || '0.0000' }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      {{ formatUsdMoney(selectedKey.rate_limit_1d) }}
+                      ${{ selectedKey.rate_limit_1d?.toFixed(2) || '0.00' }}
                     </span>
                   </div>
                 </div>
@@ -924,11 +943,11 @@
                       selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      {{ formatUsdMoney(selectedKey.usage_7d) }}
+                      ${{ selectedKey.usage_7d?.toFixed(4) || '0.0000' }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      {{ formatUsdMoney(selectedKey.rate_limit_7d) }}
+                      ${{ selectedKey.rate_limit_7d?.toFixed(2) || '0.00' }}
                     </span>
                   </div>
                 </div>
@@ -1076,6 +1095,13 @@
       </template>
     </BaseDialog>
 
+    <BulkEditKeysModal
+      :show="showBulkEditModal"
+      :selected-keys="selectedApiKeys"
+      :groups="groups"
+      @close="showBulkEditModal = false"
+      @updated="handleBulkUpdated"
+    />
 
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
@@ -1093,7 +1119,7 @@
     <ConfirmDialog
       :show="showResetQuotaDialog"
       :title="t('keys.resetQuotaTitle')"
-      :message="t('keys.resetQuotaConfirmMessage', { name: selectedKey?.name, used: formatMoneyFixed(selectedKey?.quota_used) })"
+      :message="t('keys.resetQuotaConfirmMessage', { name: selectedKey?.name, used: selectedKey?.quota_used?.toFixed(4) })"
       :confirm-text="t('keys.reset')"
       :cancel-text="t('common.cancel')"
       :danger="true"
@@ -1175,63 +1201,64 @@
       <div
         v-if="groupSelectorKeyId !== null && dropdownPosition"
         ref="dropdownRef"
-        class="keys-line-popup animate-in fade-in slide-in-from-top-2 fixed z-[100000020] w-max max-w-[calc(100vw-16px)] overflow-hidden duration-200 sm:min-w-[380px]"
+        class="animate-in fade-in slide-in-from-top-2 fixed z-[100000020] w-max max-w-[calc(100vw-16px)] overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5 duration-200 sm:min-w-[380px] dark:bg-dark-800 dark:ring-white/10"
         style="pointer-events: auto !important;"
         :style="{
           top: dropdownPosition.top !== undefined ? dropdownPosition.top + 'px' : undefined,
-          maxHeight: dropdownPosition.maxHeight + 'px',
-          width: dropdownPosition.width + 'px',
+          bottom: dropdownPosition.bottom !== undefined ? dropdownPosition.bottom + 'px' : undefined,
           left: dropdownPosition.left + 'px'
         }"
       >
         <!-- Search box -->
-        <div class="keys-line-popup-search">
+        <div class="border-b border-gray-100 p-2 dark:border-dark-700">
           <div class="relative">
-            <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <svg class="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               v-model="groupSearchQuery"
               type="text"
-              class="keys-line-popup-input w-full py-1.5 pl-9 pr-3 text-sm outline-none"
-              :placeholder="t('keys.searchLine')"
-              :aria-label="t('keys.searchLine')"
-              @keydown.esc="groupSelectorKeyId = null"
+              class="w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-primary-300 focus:ring-1 focus:ring-primary-300 dark:border-dark-600 dark:bg-dark-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-primary-600 dark:focus:ring-primary-600"
+              :placeholder="t('keys.searchGroup')"
               @click.stop
             />
           </div>
         </div>
-        <p v-if="lineMetricsError" class="keys-line-metrics-error" role="alert">近 1 小时统计读取失败，请重试。 <button type="button" class="xq-button" @click.stop="loadLineMetrics">重试</button></p>
         <!-- Group list -->
-        <div class="keys-line-popup-list max-h-80 overflow-y-auto p-1.5">
+        <div class="max-h-80 overflow-y-auto p-1.5">
           <button
             v-for="option in filteredGroupOptions"
             :key="option.value ?? 'null'"
             @click="changeGroup(selectedKeyForGroup!, option.value)"
             :class="[
-              'keys-line-popup-option flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
+              'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
+              'border-b border-gray-100 last:border-0 dark:border-dark-700',
               selectedKeyForGroup?.group_id === option.value ||
               (!selectedKeyForGroup?.group_id && option.value === null)
-                ? 'keys-line-popup-option-selected'
-                : 'hover:bg-transparent'
+                ? 'bg-primary-50 dark:bg-primary-900/20'
+                : 'hover:bg-gray-100 dark:hover:bg-dark-700'
             ]"
             :title="option.description || undefined"
           >
-            <div class="keys-line-popup-content">
-              <div class="keys-line-popup-heading">
-                <img :src="providerIcon(option.platform)" alt="" />
-                <strong>{{ option.label }}</strong>
-                <span class="keys-line-popup-rate">{{ option.rateLabel }}</span>
-                <span class="keys-line-popup-status">
-                  <i :data-status="option.healthKind" aria-hidden="true" />
-                  {{ option.statusLabel }}<template v-if="selectedKeyForGroup?.group_id === option.value"> · 当前线路</template>
-                </span>
-              </div>
-              <div class="keys-line-popup-metrics">近 1 小时成功率 <span :data-tone="option.successTone">{{ option.successLabel }}</span> · 首字 {{ option.ttftLabel }}</div>
-            </div>
+            <GroupOptionItem
+              :name="option.label"
+              :platform="option.platform"
+              :subscription-type="option.subscriptionType"
+              :rate-multiplier="option.rate"
+              :user-rate-multiplier="option.userRate"
+              :peak-rate-enabled="option.peakRateEnabled"
+              :peak-start="option.peakStart"
+              :peak-end="option.peakEnd"
+              :peak-rate-multiplier="option.peakRateMultiplier"
+              :description="option.description"
+              :selected="
+                selectedKeyForGroup?.group_id === option.value ||
+                (!selectedKeyForGroup?.group_id && option.value === null)
+              "
+            />
           </button>
           <!-- Empty state when search has no results -->
-          <div v-if="filteredGroupOptions.length === 0" class="keys-line-popup-empty py-4 text-center text-sm">
+          <div v-if="filteredGroupOptions.length === 0" class="py-4 text-center text-sm text-gray-400 dark:text-gray-500">
             {{ t('keys.noGroupFound') }}
           </div>
         </div>
@@ -1241,19 +1268,20 @@
 </template>
 
 <script setup lang="ts">
-	import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, type ComponentPublicInstance } from 'vue'
+	import { ref, reactive, computed, watch, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
+import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
 const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
-import { buildGatewayUrl } from '@/api/client'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import UserPageHeader from '@/components/user/UserPageHeader.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
 	import DataTable from '@/components/common/DataTable.vue'
+	import Pagination from '@/components/common/Pagination.vue'
 	import BaseDialog from '@/components/common/BaseDialog.vue'
 	import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 	import EmptyState from '@/components/common/EmptyState.vue'
@@ -1263,20 +1291,15 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import UseKeyModal from '@/components/keys/UseKeyModal.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
-	import type { ApiKey, ApiKeyConcurrencySnapshot, Group, PublicSettings, UpdateApiKeyRequest } from '@/types'
-	import { buildLineOptions } from '@/components/keys/lineOptions'
-import { fitKeyRows, placeKeyMenu } from '@/components/keys/keysViewport'
-import { providerIcon } from '@/features/ai-tools/model'
-import LineSelect from '@/components/keys/LineSelect.vue'
-import BulkKeyEditDialog from '@/components/keys/BulkKeyEditDialog.vue'
-import CreateLineKeyDialog from '@/features/ai-tools/CreateLineKeyDialog.vue'
-import { linkedCounts } from '@/features/ai-tools/model'
-import { getHybridPerformanceSnapshot } from '@/features/monitor-v4/api'
-import type { MonitorV4Group } from '@/features/monitor-v4/types'
+	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
+	import type { ApiKey, ApiKeyConcurrencySnapshot, Group, PublicSettings, SubscriptionType, GroupPlatform, UpdateApiKeyRequest } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
-import { formatDateTime, formatMoneyFixed, formatUsdMoney } from '@/utils/format'
+import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
+import PlatformIcon from '@/components/common/PlatformIcon.vue'
+import { platformBadgeLightClass } from '@/utils/platformColors'
+import { KEY_GROUP_PROVIDERS, KEY_GROUP_PROVIDER_ICONS, getKeyGroupProvider, type KeyGroupProvider } from '@/utils/keyGroupProviders'
 import {
   CC_SWITCH_USAGE_SCRIPT,
   buildCcSwitchImportDeeplink,
@@ -1288,6 +1311,20 @@ const formatDateTimeLocal = (isoDate: string): string => {
   const date = new Date(isoDate)
   const pad = (n: number) => n.toString().padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+interface GroupOption {
+  value: number
+  label: string
+  description: string | null
+  rate: number
+  userRate: number | null
+  peakRateEnabled: boolean
+  peakStart: string
+  peakEnd: string
+  peakRateMultiplier: number
+  subscriptionType: SubscriptionType
+  platform: GroupPlatform
 }
 
 const appStore = useAppStore()
@@ -1311,10 +1348,10 @@ const allColumns = computed<Column[]>(() => [
 ])
 
 const ALWAYS_VISIBLE_COLUMNS = new Set(['name', 'actions'])
-const DEFAULT_HIDDEN_COLUMNS = ['id', 'rate_limit', 'last_used_at', 'last_used_ip', 'status', 'created_at']
+const DEFAULT_HIDDEN_COLUMNS = ['id', 'rate_limit', 'last_used_at', 'last_used_ip']
 const HIDDEN_COLUMNS_KEY = 'api-key-hidden-columns'
 const COLUMN_SETTINGS_VERSION_KEY = 'api-key-column-settings-version'
-const COLUMN_SETTINGS_VERSION = 4
+const COLUMN_SETTINGS_VERSION = 3
 const VERSION_NEW_HIDDEN_COLUMNS: Record<number, string[]> = {
   2: ['last_used_ip'],
   3: ['id']
@@ -1384,47 +1421,33 @@ const toggleColumn = (key: string) => {
 
 const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 
-// Native queue statistics remain discoverable without increasing the confirmed row height.
-const concurrencyDetail = (id: number) => {
- const state = concurrencyRows.value[id]
- if (!state) return t('keys.concurrencyUnavailable')
- const pieces = [`${t('keys.concurrencyCount')} ${state.current ?? '—'}${state.limit > 0 ? ` / ${state.limit}` : ''}`]
- if (state.limit > 0) {
-  pieces.push(`${t('keys.waitingCount')} ${state.waiting ?? '—'}${queuePolicy.value?.max_waiting ? ` / ${queuePolicy.value.max_waiting}` : ''}`)
-  if (queuePolicy.value?.max_waiting === 0) pieces.push(t('keys.queueOff'))
-  if (state.full) pieces.push(t('keys.queueFull'))
- }
- if (state.notice) pieces.push(state.notice)
- return pieces.join(' · ')
-}
-
 const columns = computed<Column[]>(() =>
   allColumns.value.filter((col) => ALWAYS_VISIBLE_COLUMNS.has(col.key) || !hiddenColumns.has(col.key))
 )
 
 const apiKeys = ref<ApiKey[]>([])
-const selectedKeyIds = ref<Array<string | number>>([])
-const showBulkEdit = ref(false)
-async function handleBulkFinished(failed: number[]) {
-  selectedKeyIds.value = failed
-  if (!failed.length) appStore.showSuccess(t('keys.keyUpdatedSuccess'))
-  await loadApiKeys(true)
+const selectedIds = ref<number[]>([])
+const showBulkEditModal = ref(false)
+const selectedApiKeys = computed(() => apiKeys.value.filter((key) => selectedIds.value.includes(key.id)))
+
+const handleSelectionChange = (ids: Array<string | number>) => {
+  const visibleIds = new Set(apiKeys.value.map((key) => key.id))
+  selectedIds.value = [...new Set(ids.map(Number))].filter((id) => visibleIds.has(id))
 }
+
+const handleBulkUpdated = (succeededIds: number[]) => {
+  const succeeded = new Set(succeededIds)
+  selectedIds.value = selectedIds.value.filter((id) => !succeeded.has(id))
+  loadApiKeys()
+}
+
 const groups = ref<Group[]>([])
 const loading = ref(false)
-const listLoadError = ref(false)
-const usageLoadError = ref(false)
 const submitting = ref(false)
 const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
-const formatKeyUsage = (value: number | null | undefined) =>
-  value == null || !Number.isFinite(value) ? t('keys.usageUnavailable') : `$${formatMoneyFixed(value)}`
 const userGroupRates = ref<Record<number, number>>({})
-const lineMetrics = ref(new Map<number, MonitorV4Group>())
-const lineMetricsGeneratedAt = ref<string | null>(null)
-const lineMetricsError = ref(false)
-const lineCounts = ref<Map<number, number> | null>(null)
 
 // Policy and counts always belong to one completed refresh, never to editable key data.
 const concurrencyState = ref<{
@@ -1516,11 +1539,10 @@ const handleConcurrencyVisibility = () => {
 
 const pagination = ref({
   page: 1,
-  page_size: 5,
+  page_size: getPersistedPageSize(),
   total: 0,
   pages: 0
 })
-
 const sortState = ref({
   sort_by: 'created_at',
   sort_order: 'desc' as 'asc' | 'desc'
@@ -1539,23 +1561,14 @@ const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
 const showCcsClientSelect = ref(false)
 const showColumnDropdown = ref(false)
-const showConnectionHelp = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
-const apiEndpoint = computed(() => {
-  const configured = publicSettings.value?.api_base_url?.trim()
-  if (configured) return configured
-  return buildGatewayUrl('/v1')
-})
-const copyEndpoint = () => {
-  if (apiEndpoint.value) void clipboardCopy(apiEndpoint.value, t('keys.endpoints.copied'))
-}
 const dropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
-const dropdownPosition = ref<ReturnType<typeof placeKeyMenu> | null>(null)
+const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
 
@@ -1652,7 +1665,7 @@ const statusFilterOptions = computed(() => [
 ])
 
 const onFilterChange = () => {
-  selectedKeyIds.value = []
+  selectedIds.value = []
   pagination.value.page = 1
   loadApiKeys()
 }
@@ -1669,8 +1682,49 @@ const onStatusFilterChange = (value: string | number | boolean | null) => {
 
 // Convert groups to Select options format with rate multiplier and subscription type
 const groupOptions = computed(() =>
-  buildLineOptions(groups.value, userGroupRates.value, lineMetrics.value, lineCounts.value, undefined, lineMetricsGeneratedAt.value, now.value.getTime())
+  groups.value.map((group) => ({
+    value: group.id,
+    label: group.name,
+    description: group.description,
+    rate: group.rate_multiplier,
+    userRate: userGroupRates.value[group.id] ?? null,
+    peakRateEnabled: group.peak_rate_enabled,
+    peakStart: group.peak_start,
+    peakEnd: group.peak_end,
+    peakRateMultiplier: group.peak_rate_multiplier,
+    subscriptionType: group.subscription_type,
+    platform: group.platform
+  }))
 )
+
+const createProvider = ref<KeyGroupProvider>('anthropic')
+const createProviderOptions = computed(() => KEY_GROUP_PROVIDERS.map((value) => ({
+  value,
+  label: t(`keys.providers.${value}`),
+  count: groups.value.filter((group) => getKeyGroupProvider(group.platform) === value).length
+})))
+
+const formGroupOptions = computed(() => showEditModal.value
+  ? groupOptions.value
+  : groupOptions.value.filter((group) => getKeyGroupProvider(group.platform) === createProvider.value)
+)
+
+const selectCreateProvider = (provider: KeyGroupProvider) => {
+  if (createProvider.value === provider) return
+  createProvider.value = provider
+  formData.value.group_id = null
+}
+
+// Also handles groups arriving after the create dialog has already opened.
+watch([showCreateModal, createProviderOptions], ([isOpen, providers], [wasOpen]) => {
+  if (!isOpen) return
+  if (!wasOpen || !providers.some((provider) => provider.value === createProvider.value && provider.count > 0)) {
+    selectCreateProvider(providers.find((provider) => provider.count > 0)?.value ?? 'anthropic')
+  }
+  if (!formGroupOptions.value.some((group) => group.value === formData.value.group_id)) {
+    formData.value.group_id = null
+  }
+})
 
 // Group dropdown search
 const groupSearchQuery = ref('')
@@ -1699,17 +1753,14 @@ const isAbortError = (error: unknown) => {
   return name === 'AbortError' || code === 'ERR_CANCELED'
 }
 
-const loadApiKeys = async (preserveSelection: unknown = false) => {
+const loadApiKeys = async () => {
   concurrencyPageReady = false
   stopConcurrencyRefresh()
-  if (preserveSelection !== true) selectedKeyIds.value = []
   abortController?.abort()
   const controller = new AbortController()
   abortController = controller
   const { signal } = controller
   loading.value = true
-  listLoadError.value = false
-  usageLoadError.value = false
   try {
     // Build filters
     const filters: {
@@ -1730,7 +1781,7 @@ const loadApiKeys = async (preserveSelection: unknown = false) => {
     })
     if (signal.aborted) return
     apiKeys.value = response.items
-    selectedKeyIds.value = selectedKeyIds.value.filter(id => response.items.some(key => key.id === id))
+    handleSelectionChange(selectedIds.value)
     pagination.value.total = response.total
     pagination.value.pages = response.pages
 
@@ -1744,7 +1795,6 @@ const loadApiKeys = async (preserveSelection: unknown = false) => {
       } catch (e) {
         if (!isAbortError(e)) {
           console.error('Failed to load usage stats:', e)
-          usageLoadError.value = true
         }
       }
     }
@@ -1752,7 +1802,6 @@ const loadApiKeys = async (preserveSelection: unknown = false) => {
     if (isAbortError(error)) {
       return
     }
-    listLoadError.value = true
     appStore.showError(t('keys.failedToLoad'))
   } finally {
     if (abortController === controller) {
@@ -1779,40 +1828,6 @@ const loadUserGroupRates = async () => {
   }
 }
 
-async function loadLineMetrics() {
-  try {
-    const snapshot = await getHybridPerformanceSnapshot('1h')
-    lineMetrics.value = new Map(snapshot.groups.map(group => [group.id, group]))
-    lineMetricsGeneratedAt.value = snapshot.generated_at
-    now.value = new Date()
-    lineMetricsError.value = false
-  } catch {
-    lineMetrics.value = new Map()
-    lineMetricsGeneratedAt.value = null
-    lineMetricsError.value = true
-  }
-}
-
-async function loadLineContext() {
-  const [, keys] = await Promise.allSettled([
-    loadLineMetrics(),
-    (async () => {
-      const first = await keysAPI.list(1, 100)
-      const items = [...first.items]
-      for (let page = 2; page <= Math.ceil(first.total / 100); page++) {
-        const next = await keysAPI.list(page, 100)
-        items.push(...next.items)
-      }
-      return items
-    })()
-  ])
-  if (keys.status === 'fulfilled') lineCounts.value = linkedCounts(keys.value)
-}
-
-watch([showCreateModal, showEditModal], ([create, edit]) => {
-  if (create || edit) void loadLineContext()
-})
-
 const loadPublicSettings = async () => {
   try {
     publicSettings.value = await authAPI.getPublicSettings()
@@ -1832,13 +1847,20 @@ const closeUseKeyModal = () => {
 }
 
 const handlePageChange = (page: number) => {
-  selectedKeyIds.value = []
+  selectedIds.value = []
   pagination.value.page = page
   loadApiKeys()
 }
 
+const handlePageSizeChange = (pageSize: number) => {
+  selectedIds.value = []
+  pagination.value.page_size = pageSize
+  pagination.value.page = 1
+  loadApiKeys()
+}
+
 const handleSort = (key: string, order: 'asc' | 'desc') => {
-  selectedKeyIds.value = []
+  selectedIds.value = []
   sortState.value.sort_by = key
   sortState.value.sort_order = order
   pagination.value.page = 1
@@ -1893,14 +1915,29 @@ const openGroupSelector = (key: ApiKey) => {
     const buttonEl = groupButtonRefs.value.get(key.id)
     if (buttonEl) {
       const rect = buttonEl.getBoundingClientRect()
-      dropdownPosition.value = placeKeyMenu(rect, window.innerWidth, window.innerHeight)
+      const dropdownEstHeight = 400 // estimated max dropdown height
+      const dropdownEstWidth = Math.min(380, window.innerWidth - 16)
+      const spaceBelow = window.innerHeight - rect.bottom
+      const spaceAbove = rect.top
+      // 夹取 left，避免窄屏下浮层超出视口右缘
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - dropdownEstWidth - 8))
+
+      if (spaceBelow < dropdownEstHeight && spaceAbove > spaceBelow) {
+        // Not enough space below, pop upward
+        dropdownPosition.value = {
+          bottom: window.innerHeight - rect.top + 4,
+          left
+        }
+      } else {
+        // Default: pop downward
+        dropdownPosition.value = {
+          top: rect.bottom + 4,
+          left
+        }
+      }
     }
     groupSelectorKeyId.value = key.id
     groupSearchQuery.value = ''
-    lineMetrics.value = new Map()
-    lineMetricsGeneratedAt.value = null
-    lineMetricsError.value = false
-    void loadLineMetrics()
   }
 }
 
@@ -2044,15 +2081,6 @@ const handleSubmit = async () => {
   } finally {
     submitting.value = false
   }
-}
-
-const handleKeyCreated = () => {
-  showCreateModal.value = false
-  appStore.showSuccess(t('keys.keyCreatedSuccess'))
-  if (onboardingStore.isCurrentStep('[data-tour="key-form-submit"]')) {
-    onboardingStore.nextStep(500)
-  }
-  void loadApiKeys()
 }
 
 /**
@@ -2235,47 +2263,8 @@ function formatResetTime(resetAt: string | null): string {
   return `${mins}m`
 }
 
-const inventoryRef = ref<HTMLElement | null>(null)
-let inventoryObserver: ResizeObserver | undefined
-let fitFrame = 0
-let measuredRowHeight = 64
-const fitInventory = () => {
-  const inventory = inventoryRef.value
-  if (!inventory || inventory.clientHeight <= 0) return
-  if (!loading.value) {
-    const rows = [...inventory.querySelectorAll('tbody tr')].filter(row => row.children.length > 1)
-    measuredRowHeight = Math.max(64, ...rows.map(row => row.getBoundingClientRect().height))
-  }
-  const headerHeight = inventory.querySelector('thead')?.getBoundingClientRect().height || 44
-  const size = fitKeyRows(inventory.clientHeight, headerHeight, measuredRowHeight)
-  if (size !== pagination.value.page_size) {
-    const firstItem = (pagination.value.page - 1) * pagination.value.page_size
-    pagination.value.page_size = size
-    pagination.value.page = Math.floor(firstItem / size) + 1
-    groupSelectorKeyId.value = null
-    void loadApiKeys(true)
-  }
-}
-const scheduleFitInventory = () => {
-  cancelAnimationFrame(fitFrame)
-  fitFrame = requestAnimationFrame(fitInventory)
-}
-const handleViewportResize = () => {
-  groupSelectorKeyId.value = null
-  scheduleFitInventory()
-}
-watch([loading, columns, selectedKeyIds], () => { void nextTick(scheduleFitInventory) })
-
 onMounted(() => {
-  const requestedGroupId = new URLSearchParams(window.location.search).get('group_id')
-  if (requestedGroupId && /^\d+$/.test(requestedGroupId)) filterGroupId.value = Number(requestedGroupId)
   loadSavedColumns()
-  if (typeof ResizeObserver !== 'undefined') {
-    inventoryObserver = new ResizeObserver(scheduleFitInventory)
-    if (inventoryRef.value) inventoryObserver.observe(inventoryRef.value)
-  }
-  window.addEventListener('resize', handleViewportResize)
-  void nextTick(scheduleFitInventory)
   loadApiKeys()
   loadGroups()
   loadUserGroupRates()
@@ -2291,9 +2280,6 @@ onUnmounted(() => {
   abortController?.abort()
   document.removeEventListener('visibilitychange', handleConcurrencyVisibility)
   document.removeEventListener('click', closeGroupSelector)
-  inventoryObserver?.disconnect()
-  cancelAnimationFrame(fitFrame)
-  window.removeEventListener('resize', handleViewportResize)
   if (resetTimer) clearInterval(resetTimer)
 })
 </script>
@@ -2307,75 +2293,4 @@ onUnmounted(() => {
   flex-shrink: 0;
   margin-left: auto;
 }
-.keys-line-metrics-error{flex-shrink:0;padding:8px 12px;color:var(--xq-warning);font-size:12px;line-height:1.5}
-.keys-inventory :deep(input[type="checkbox"]) { accent-color: var(--xq-accent); }
-.keys-bulk-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--xq-line); color:var(--xq-secondary); font-size:13px; flex-shrink:0; }
-.keys-bulk-toolbar .btn { min-height:32px; padding:4px 12px; font-size:12px; }
-
-.keys-line-popup{display:flex;flex-direction:column;}
-.keys-line-popup-search{flex-shrink:0;}
-.keys-line-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  width: max-content;
-  min-height: 42px;
-  padding: 9px 12px;
-  border: 1px solid var(--xq-border);
-  border-radius: 11px;
-  background: var(--xq-depth);
-  color: var(--xq-text);
-  cursor: pointer;
-}
-.keys-line-trigger:hover,
-.keys-line-trigger[aria-expanded="true"] { border-color: var(--xq-accent); }
-.keys-line-trigger:focus-visible { outline: 2px solid var(--xq-accent); outline-offset: 2px; }
-.keys-line-trigger :deep(.keys-line-trigger-badge) {
-  min-width: 0;
-  padding: 0;
-  gap: 8px;
-  background: transparent;
-  color: var(--xq-text);
-  font-size: 14px;
-  font-weight: 650;
-}
-.keys-line-trigger :deep(.keys-line-trigger-badge > .truncate) { overflow: visible; text-overflow: clip; }
-.keys-line-trigger :deep(.keys-line-trigger-badge > svg) { width: 20px; height: 20px; color: var(--xq-secondary); flex: none; }
-.keys-line-trigger :deep(.keys-line-trigger-badge > span.rounded) {
-  padding: 3px 7px;
-  border-radius: 7px;
-  background: var(--xq-raised);
-  color: var(--xq-accent);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.keys-line-trigger-chevron { width: 14px; height: 14px; flex: none; color: var(--xq-secondary); }
-.keys-line-trigger[aria-expanded="true"] .keys-line-trigger-chevron { transform: rotate(180deg); }
-.keys-line-trigger-empty { color: var(--xq-secondary); font-size: 14px; }
-
-.keys-line-popup{width:420px;max-width:calc(100vw - 16px);border:1px solid var(--xq-border);border-radius:12px;background:var(--xq-surface);color:var(--xq-text);box-shadow:0 16px 40px #0005;}
-.keys-line-popup-search{padding:6px;color:var(--xq-secondary);}
-.keys-line-popup-input{height:42px;border:1px solid var(--xq-border);border-radius:10px;background:var(--xq-depth);color:var(--xq-text);caret-color:var(--xq-accent);}
-.keys-line-popup-input::placeholder{color:var(--xq-secondary);}
-.keys-line-popup-input:focus{border-color:var(--xq-accent);outline:2px solid var(--xq-accent);outline-offset:2px;}
-.keys-line-popup-list{flex:1;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--xq-border) var(--xq-surface);}
-.keys-line-popup-option{border-bottom:1px solid var(--xq-border);text-align:left;color:var(--xq-text);}
-.keys-line-popup-option:hover,.keys-line-popup-option-selected{background:var(--xq-raised);}
-.keys-line-popup-option:focus-visible{outline:2px solid var(--xq-accent);outline-offset:-2px;}
-.keys-line-popup-content{width:100%;min-width:0;}
-.keys-line-popup-heading{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-.keys-line-popup-heading img{width:20px;height:20px;object-fit:contain;}
-.keys-line-popup-heading strong{font-weight:650;overflow-wrap:anywhere;}
-.keys-line-popup-rate{padding:2px 7px;border-radius:7px;background:var(--xq-raised);color:var(--xq-accent);font-size:12px;font-weight:650;white-space:nowrap;}
-.keys-line-popup-status{display:flex;align-items:center;gap:6px;margin-left:auto;color:var(--xq-secondary);font-size:12px;}
-.keys-line-popup-status i{width:6px;height:6px;border-radius:50%;background:var(--xq-secondary);}
-.keys-line-popup-status i[data-status="success"]{background:var(--xq-success);}
-.keys-line-popup-status i[data-status="warning"]{background:var(--xq-warning);}
-.keys-line-popup-status i[data-status="danger"]{background:var(--xq-danger);}
-.keys-line-popup-metrics{margin-top:7px;color:var(--xq-secondary);font-size:12px;}
-.keys-line-popup-metrics span[data-tone="green"]{color:var(--xq-success);}
-.keys-line-popup-metrics span[data-tone="amber"]{color:var(--xq-warning);}
-.keys-line-popup-metrics span[data-tone="red"]{color:var(--xq-danger);}
-.keys-line-popup-empty{color:var(--xq-secondary);}
-@media(max-width:480px){.keys-line-popup-status{margin-left:28px;}.keys-line-popup-metrics{line-height:1.6;}}
 </style>

@@ -156,7 +156,7 @@ describe('RegisterView', () => {
     })
     const wrapper = mountRegister()
     await flushPromises()
-    await wrapper.get('#email').setValue('user@qq.com')
+    await wrapper.get('#email').setValue('user@example.com')
     await wrapper.get('#password').setValue('secret-123')
     await wrapper.get('#confirmPassword').setValue(confirmation)
     await wrapper.get('form').trigger('submit.prevent')
@@ -176,7 +176,7 @@ describe('RegisterView', () => {
     expect(wrapper.get('#confirmPassword').classes()).not.toContain('input-error')
     expect(verifyActionMock).toHaveBeenCalledOnce()
     expect(registerMock).toHaveBeenCalledWith({
-      email: 'user@qq.com',
+      email: 'user@example.com',
       password: 'secret-123',
       turnstile_token: undefined,
       tencent_captcha_ticket: 'ticket',
@@ -195,7 +195,7 @@ describe('RegisterView', () => {
     })
     const wrapper = mountRegister()
     await flushPromises()
-    await wrapper.get('#email').setValue('user@qq.com')
+    await wrapper.get('#email').setValue('user@example.com')
     await wrapper.get('#password').setValue('secret-123')
     await wrapper.get('#confirmPassword').setValue('different-password')
     await wrapper.get('form').trigger('submit.prevent')
@@ -209,20 +209,11 @@ describe('RegisterView', () => {
     await flushPromises()
 
     expect(JSON.parse(sessionStorage.getItem('register_data')!)).toEqual({
-      email: 'user@qq.com',
+      email: 'user@example.com',
       password: 'secret-123'
     })
     expect(pushMock).toHaveBeenCalledWith('/email-verify')
     expect(registerMock).not.toHaveBeenCalled()
-  })
-
-  it('keeps the form title without a generic description', async () => {
-    const wrapper = mountRegister()
-    await flushPromises()
-    expect(wrapper.get('h2').text()).toBe('auth.createAccount')
-    expect(wrapper.text()).not.toContain('auth.signUpToStart')
-    expect(wrapper.get('h2').element.nextElementSibling).toBeNull()
-    wrapper.unmount()
   })
 
   it('keeps the optional affiliate invitation field before Turnstile', async () => {

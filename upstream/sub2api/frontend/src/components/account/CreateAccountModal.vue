@@ -4228,7 +4228,7 @@ const handleUpstreamBillingAutoProbeChange = (enabled: boolean) => {
 const accountMode = ref<CnAccountMode>('payg')
 const openCodeAccountMode = ref<OpenCodeAccountMode>('zen')
 // API 协议决定转发端点与格式：cc=现有转换链，anthropic=原生直通（Claude Code），
-// responses=支持该协议的供应商原生端点（Codex）。与账号类型正交。
+// responses=deepseek 原生 Responses 端点（Codex）。与账号类型正交。
 const apiProtocol = ref<CnApiProtocol>('adaptive')
 const openCodeGoProtocolRules = ref<OpenCodeGoProtocolRule[]>(
   cloneOpenCodeGoProtocolRules(defaultOpenCodeProtocolRules('zen'))
@@ -4266,7 +4266,7 @@ const cnProtocolOptions = computed<Array<{ value: CnApiProtocol; labelKey: strin
     { value: 'chat_completions', labelKey: 'chatCompletions' },
     { value: 'anthropic', labelKey: 'anthropic' }
   ]
-  if (cnSupportsNativeResponses(form.platform)) {
+  if (form.platform === 'deepseek') {
     opts.push({ value: 'responses', labelKey: 'responses' })
   }
   return opts
@@ -4276,7 +4276,7 @@ const cnAdaptiveProtocolOptions = computed<Array<{ value: CnNativeApiProtocol; l
     { value: 'chat_completions', labelKey: 'chatCompletions' },
     { value: 'anthropic', labelKey: 'anthropic' }
   ]
-  if (cnSupportsNativeResponses(form.platform)) opts.push({ value: 'responses', labelKey: 'responses' })
+  if (form.platform === 'deepseek') opts.push({ value: 'responses', labelKey: 'responses' })
   return opts
 })
 
@@ -4408,15 +4408,11 @@ const syncPreviewCredentials = computed(() => {
   const baseUrl = isMultiProtocolPlatform.value && apiProtocol.value === 'adaptive'
     ? adaptiveBaseUrls.value.chat_completions.trim() || apiKeyBaseUrl.value.trim()
     : apiKeyBaseUrl.value.trim()
-  const modelMapping = isOpenAIModelRestrictionDisabled.value
-    ? undefined
-    : buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
   return {
     platform: form.platform,
     type: form.type,
     base_url: baseUrl || undefined,
-    api_key: apiKeyValue.value,
-    ...(modelMapping ? { model_mapping: modelMapping } : {})
+    api_key: apiKeyValue.value
   }
 })
 
@@ -5362,19 +5358,6 @@ const submitCreateAccount = async (payload: CreateAccountRequest) => {
     const account = await adminAPI.accounts.create(
       withAntigravityConfirmFlag(withActiveProbeFlag(payload))
     )
-    if (payload.type === 'apikey' && account.id && (
-      upstreamModelsPreviewed.value ||
-      (modelRestrictionMode.value === 'mapping' && !!payload.credentials?.model_mapping)
-    )) {
-      try {
-        const result = await adminAPI.accounts.syncUpstreamModels(account.id)
-        if (result.warnings?.some(warning => warning.code === 'upstream_model_metadata_incomplete')) {
-          appStore.showWarning(t('admin.accounts.syncUpstreamModelsMetadataIncomplete'))
-        }
-      } catch {
-        appStore.showWarning(t('admin.accounts.syncUpstreamModelsFailed'))
-      }
-    }
     if (
       payload.type === 'apikey' &&
       payload.upstream_billing_probe_enabled === true
@@ -5450,7 +5433,6 @@ const resetForm = () => {
   modelMappings.value = []
   openAICompactModelMappings.value = []
   modelRestrictionMode.value = 'whitelist'
-  upstreamModelsPreviewed.value = false
   allowedModels.value = [...claudeModels] // Default fill related models
 
   antigravityModelRestrictionMode.value = 'mapping'
@@ -6759,7 +6741,6 @@ const handleOpenAIImportCodexPAT = async (accessToken: string) => {
     const extra = buildOpenAICodexImportExtra()
     await adminAPI.accounts.createOpenAICodexPAT({
       ...admissionFields.value,
-      active_probe_enabled: activeProbeEnabled.value,
       access_token: trimmed,
       name: form.name,
       notes: form.notes || null,

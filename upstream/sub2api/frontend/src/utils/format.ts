@@ -59,15 +59,18 @@ export function formatNumber(num: number | null | undefined): string {
  * @returns 格式化后的字符串，如 "$1.25"
  */
 export function formatCurrency(amount: number | null | undefined, currency: string = 'USD'): string {
-  if (amount === null || amount === undefined || !Number.isFinite(amount)) return '—'
+  if (amount === null || amount === undefined) return '$0.00'
 
   const locale = getLocale()
+
+  // For very small amounts, show more decimals
+  const fractionDigits = amount > 0 && amount < 0.01 ? 6 : 2
 
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits
   }).format(amount)
 }
 
@@ -348,20 +351,6 @@ export function formatNumberLocaleString(num: number): string {
  */
 export function formatCostFixed(amount: number, fractionDigits: number = 4): string {
   return amount.toFixed(fractionDigits)
-}
-
-/**
- * 格式化站内金额（固定两位小数，不带货币符号）。
- * 不可用值必须由调用方显式处理，不得伪装成 0.00。
- */
-export function formatMoneyFixed(amount: number | null | undefined): string {
-  if (amount === null || amount === undefined || !Number.isFinite(amount)) return '—'
-  return amount.toFixed(2)
-}
-
-export function formatUsdMoney(amount: number | null | undefined): string {
-  const formatted = formatMoneyFixed(amount)
-  return formatted === '—' ? formatted : `$${formatted}`
 }
 
 /**

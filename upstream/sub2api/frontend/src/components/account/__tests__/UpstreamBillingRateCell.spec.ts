@@ -65,7 +65,6 @@ describe('UpstreamBillingRateCell', () => {
   })
 
   afterEach(() => {
-    document.body.innerHTML = ''
     vi.useRealTimers()
   })
 
@@ -89,11 +88,11 @@ describe('UpstreamBillingRateCell', () => {
       }
     })
 
-    expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.6x倍率')
+    expect(wrapper.text()).toContain('0.60x')
     await wrapper.setProps({ now: Date.parse('2026-07-13T01:00:00Z') })
-    expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.9x倍率')
+    expect(wrapper.text()).toContain('0.90x')
     await wrapper.setProps({ now: Date.parse('2026-07-13T10:00:00Z') })
-    expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.6x倍率')
+    expect(wrapper.text()).toContain('0.60x')
     expect(wrapper.text()).not.toContain('admin.accounts.upstreamBilling.latest')
     expect(wrapper.get('[data-testid="upstream-billing-probe"]').text()).toBe('')
     expect(wrapper.get('[data-testid="upstream-billing-probe"]').attributes('aria-label')).toBe(
@@ -119,7 +118,7 @@ describe('UpstreamBillingRateCell', () => {
       }
     })
     expect(wrapper.get('[data-testid="newapi-rate-registered"]').text()).toContain('registered')
-    expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.17x倍率')
+    expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.17x')
     await wrapper.get('[data-testid="upstream-billing-details"]').trigger('mouseenter')
     await flushPromises()
     const tooltips = document.body.querySelectorAll('[role="tooltip"]')
@@ -164,11 +163,11 @@ describe('UpstreamBillingRateCell', () => {
         }
       })
     })
-    expect(wrapper.text()).toContain('0.6x倍率')
+    expect(wrapper.text()).toContain('0.60x')
     expect(wrapper.text()).toContain('admin.accounts.upstreamBilling.failed')
 
     await wrapper.setProps({ now: Date.parse('2026-07-13T01:00:00Z') })
-    expect(wrapper.text()).toContain('0.9x倍率')
+    expect(wrapper.text()).toContain('0.90x')
     expect(wrapper.text()).not.toContain('admin.accounts.upstreamBilling.stale')
 
     await wrapper.setProps({ now: Date.parse('2026-07-13T01:00:00.001Z') })
@@ -344,7 +343,7 @@ describe('UpstreamBillingRateCell', () => {
     await wrapper.setProps({ account: malformedAccount({}, { received_at: 'not-a-time' }) })
     expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('admin.accounts.upstreamBilling.stale')
     await wrapper.setProps({ account: malformedAccount({}, { received_at: '2026-07-13T00:31:00Z' }) })
-    expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.6x倍率')
+    expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.60x')
     await wrapper.setProps({ account: malformedAccount({}, { received_at: '2026-07-13T00:36:00Z' }) })
     expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('admin.accounts.upstreamBilling.stale')
     await wrapper.setProps({ account: malformedAccount({}, { fresh_until: '2026-07-12T23:59:00Z' }) })
@@ -443,7 +442,7 @@ describe('UpstreamBillingRateCell', () => {
       props: { account: accountWithBalance(balanceSnapshot()), now: Date.now() }
     })
 
-    expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.6x倍率')
+    expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.60x')
     expect(wrapper.get('[data-testid="upstream-balance"]').text()).toContain('admin.accounts.upstreamBilling.balance.label')
     const value = wrapper.get('[data-testid="upstream-balance-value"]')
     expect(value.text()).toContain('12.34')
@@ -512,7 +511,7 @@ describe('UpstreamBillingRateCell', () => {
     expect(value().text()).toContain('12.34')
 
     await wrapper.setProps({ now: Date.parse('2026-07-13T01:00:00.001Z') })
-    expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.9x倍率')
+    expect(wrapper.get('[data-testid="upstream-billing-rate"]').text()).toBe('0.90x')
     expect(value().text()).toBe('admin.accounts.upstreamBilling.stale')
     expect(value().classes()).toContain('text-amber-600')
     expect(line().text()).not.toContain('admin.accounts.upstreamBilling.failed')

@@ -391,8 +391,6 @@ type MonitorV4GroupProjection struct {
 	ProbeFallbackBucketCount  int
 	ProbeFallbackRequestCount int
 	MissingProbeTerminalCount int
-	TTFTP50MS                 *float64
-	LatencyP50MS              *float64
 	TTFTP95MS                 *float64
 	TTFTSampleCount           int
 	LatencyP95MS              *float64
@@ -403,6 +401,7 @@ type MonitorV4GroupProjection struct {
 	CacheCreationTokens       int64
 	CacheHitDenominator       int64
 	SourceUpdatedAt           *time.Time
+	CurrentOperational        bool
 }
 
 // AccountMonitorGroupProbeRepository is the native read path used by Monitor V2.

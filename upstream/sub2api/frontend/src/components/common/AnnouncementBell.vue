@@ -4,11 +4,10 @@
     <button
       @click="openModal"
       class="relative flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-gray-100 hover:scale-105 dark:text-gray-400 dark:hover:bg-dark-800"
-      :class="{ 'text-blue-600 dark:text-blue-400': unreadCount > 0, 'announcement-labelled': showLabel }"
+      :class="{ 'text-blue-600 dark:text-blue-400': unreadCount > 0 }"
       :aria-label="t('announcements.title')"
     >
       <Icon name="bell" size="md" />
-      <span v-if="showLabel">{{ t('announcements.title') }}</span>
       <!-- 未读红点 -->
       <span
         v-if="unreadCount > 0"
@@ -24,7 +23,6 @@
       <Transition name="modal-fade">
         <div
           v-if="isModalOpen"
-          :class="{ 'dark user-announcement-modal': showLabel }"
           class="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-gradient-to-br from-black/70 via-black/60 to-black/70 p-4 pt-[8vh] backdrop-blur-md"
           @click="closeModal"
         >
@@ -185,7 +183,6 @@
       <Transition name="modal-fade">
         <div
           v-if="detailModalOpen && selectedAnnouncement"
-          :class="{ 'dark user-announcement-modal': showLabel }"
           class="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-gradient-to-br from-black/70 via-black/60 to-black/70 p-4 pt-[6vh] backdrop-blur-md"
           @click="closeDetail"
         >
@@ -327,7 +324,6 @@ import type { UserAnnouncement } from '@/types'
 import Icon from '@/components/icons/Icon.vue'
 import '@/styles/announcement-markdown.css'
 
-withDefaults(defineProps<{ showLabel?: boolean }>(), { showLabel: false })
 const { t } = useI18n()
 const appStore = useAppStore()
 const announcementStore = useAnnouncementStore()

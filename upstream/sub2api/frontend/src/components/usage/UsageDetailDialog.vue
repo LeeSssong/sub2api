@@ -212,7 +212,7 @@
             <DetailItem :label="t('usage.detail.actualCost')" :value="formatCost(detail.actual_cost)" numeric emphasized />
             <DetailItem
               :label="t('usage.detail.groupMultiplier')"
-              :value="formatMultiplierLabel(detail.rate_multiplier)"
+              :value="`${formatMultiplier(detail.rate_multiplier ?? 1)}x`"
               numeric
             />
             <DetailItem
@@ -223,13 +223,13 @@
             <DetailItem
               v-if="effectiveInputPrice != null"
               :label="t('usage.detail.effectiveInputPrice')"
-              :value="`${formatUnitPrice(effectiveInputPrice)} ${t('usage.perMillionTokens')}`"
+              :value="`${formatCost(effectiveInputPrice)} ${t('usage.perMillionTokens')}`"
               numeric
             />
             <DetailItem
               v-if="effectiveOutputPrice != null"
               :label="t('usage.detail.effectiveOutputPrice')"
-              :value="`${formatUnitPrice(effectiveOutputPrice)} ${t('usage.perMillionTokens')}`"
+              :value="`${formatCost(effectiveOutputPrice)} ${t('usage.perMillionTokens')}`"
               numeric
             />
           </dl>
@@ -371,8 +371,8 @@ import { adminUsageAPI } from '@/api/admin/usage'
 import { usageAPI } from '@/api/usage'
 import { useClipboard } from '@/composables/useClipboard'
 import type { AdminUsageLog, StreamDiagnosticResponse, UsageCostEvidenceDetail, UserUsageDetail } from '@/types'
-import { formatCostFixed, formatDateTime, formatMoneyFixed, formatReasoningEffort } from '@/utils/format'
-import { formatMultiplierLabel } from '@/utils/formatters'
+import { formatDateTime, formatReasoningEffort } from '@/utils/format'
+import { formatMultiplier } from '@/utils/formatters'
 import { getBillingModeLabel, getDisplayBillingMode } from '@/utils/billingMode'
 import {
   formatImageBillingSize,
@@ -605,12 +605,7 @@ function formatDiagnosticBytes(read: number | undefined, forwarded: number | und
 }
 
 function formatCost(value: number | null | undefined): string {
-  const formatted = formatMoneyFixed(value)
-  return formatted === '—' ? formatted : `$${formatted}`
-}
-
-function formatUnitPrice(value: number): string {
-  return `$${formatCostFixed(value, 6)}`
+  return `$${(Number.isFinite(value) ? value as number : 0).toFixed(6)}`
 }
 
 function requestTypeLabel(row: Pick<UsageDetailRecord, 'request_type' | 'stream' | 'openai_ws_mode'>): string {

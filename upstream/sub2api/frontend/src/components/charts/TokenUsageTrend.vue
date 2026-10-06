@@ -21,7 +21,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { formatUsdMoney } from '@/utils/format'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -76,7 +75,7 @@ const chartData = computed(() => {
     labels: props.trendData.map((d) => d.date),
     datasets: [
       {
-        label: t('usage.in'),
+        label: 'Input',
         data: props.trendData.map((d) => d.input_tokens),
         borderColor: chartColors.value.input,
         backgroundColor: `${chartColors.value.input}20`,
@@ -84,7 +83,7 @@ const chartData = computed(() => {
         tension: 0.3
       },
       {
-        label: t('usage.out'),
+        label: 'Output',
         data: props.trendData.map((d) => d.output_tokens),
         borderColor: chartColors.value.output,
         backgroundColor: `${chartColors.value.output}20`,
@@ -92,7 +91,7 @@ const chartData = computed(() => {
         tension: 0.3
       },
       {
-        label: t('usage.cacheCreationTokensLabel'),
+        label: 'Cache Creation',
         data: props.trendData.map((d) => d.cache_creation_tokens),
         borderColor: chartColors.value.cacheCreation,
         backgroundColor: `${chartColors.value.cacheCreation}20`,
@@ -100,7 +99,7 @@ const chartData = computed(() => {
         tension: 0.3
       },
       {
-        label: t('usage.cacheReadTokensLabel'),
+        label: 'Cache Read',
         data: props.trendData.map((d) => d.cache_read_tokens),
         borderColor: chartColors.value.cacheRead,
         backgroundColor: `${chartColors.value.cacheRead}20`,
@@ -108,7 +107,7 @@ const chartData = computed(() => {
         tension: 0.3
       },
       {
-        label: t('usage.cacheHitRate'),
+        label: 'Cache Hit Rate',
         data: props.trendData.map((d) => {
           const totalPromptTokens = d.input_tokens + d.cache_read_tokens + d.cache_creation_tokens
           return totalPromptTokens > 0 ? (d.cache_read_tokens / totalPromptTokens) * 100 : 0
@@ -156,7 +155,7 @@ const lineOptions = computed(() => ({
           const dataIndex = tooltipItems[0]?.dataIndex
           if (dataIndex !== undefined && props.trendData[dataIndex]) {
             const data = props.trendData[dataIndex]
-            return `${t('usage.detail.actualCost')}: ${formatUsdMoney(data.actual_cost)} | ${t('usage.detail.standardCost')}: ${formatUsdMoney(data.cost)}`
+            return `Actual: $${formatCost(data.actual_cost)} | Standard: $${formatCost(data.cost)}`
           }
           return ''
         }
@@ -216,4 +215,14 @@ const formatTokens = (value: number): string => {
   return value.toLocaleString()
 }
 
+const formatCost = (value: number): string => {
+  if (value >= 1000) {
+    return (value / 1000).toFixed(2) + 'K'
+  } else if (value >= 1) {
+    return value.toFixed(2)
+  } else if (value >= 0.01) {
+    return value.toFixed(3)
+  }
+  return value.toFixed(4)
+}
 </script>

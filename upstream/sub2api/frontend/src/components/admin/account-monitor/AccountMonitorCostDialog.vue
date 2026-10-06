@@ -70,7 +70,6 @@
 import { computed, ref, watch } from 'vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import type { AccountMonitorMultiplier } from '@/api/admin/accountMonitor'
-import { formatMultiplierLabel } from '@/utils/formatters'
 
 type AccountMonitorCostAccount = {
   account_id: number
@@ -138,16 +137,16 @@ watch(() => [props.show, props.account] as const, ([show, account]) => {
 const derivedMultiplier = computed(() => {
   const cost = Number(draftCost.value)
   const quota = Number(draftQuota.value)
-  return Number.isFinite(cost) && Number.isFinite(quota) && cost >= 0 && quota > 0 ? formatMultiplierLabel(Number((cost / quota).toFixed(4))) : '--'
+  return Number.isFinite(cost) && Number.isFinite(quota) && cost >= 0 && quota > 0 ? (cost / quota).toFixed(4) + '×' : '--'
 })
 
 const effectiveCostPreview = computed(() => {
   const rate = Number(draftMultiplier.value)
   if (!Number.isFinite(rate) || rate < 0) return '--'
-  if (draftModel.value === 'direct_multiplier') return formatMultiplierLabel(Number(rate.toFixed(4)))
+  if (draftModel.value === 'direct_multiplier') return rate.toFixed(4) + '×'
   const actual = Number(draftActualCost.value)
   const quota = Number(draftObtainedQuota.value)
-  return Number.isFinite(actual) && actual >= 0 && Number.isFinite(quota) && quota > 0 ? formatMultiplierLabel(Number(((actual / quota) * rate).toFixed(4))) : '--'
+  return Number.isFinite(actual) && actual >= 0 && Number.isFinite(quota) && quota > 0 ? ((actual / quota) * rate).toFixed(4) + '×' : '--'
 })
 
 function save() {

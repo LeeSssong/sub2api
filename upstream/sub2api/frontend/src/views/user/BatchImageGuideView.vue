@@ -23,8 +23,7 @@
               </button>
               <button type="button" class="btn btn-secondary" :disabled="loadingKeys || loadingJobs" :title="t('common.refresh')" @click="refreshPage">
                 <Icon name="refresh" size="md" :class="loadingKeys || loadingJobs ? 'animate-spin' : ''" />
-              <span>{{ t('common.refresh') }}</span>
-          </button>
+              </button>
               <button type="button" class="btn btn-secondary" @click="showGuideModal = true">
                 <Icon name="book" size="md" class="mr-2" />
                 {{ t('batchImage.actions.usageGuide') }}
@@ -755,7 +754,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { formatMoneyFixed } from '@/utils/format'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -2387,8 +2385,8 @@ function friendlyItemError(error: BatchImageItem['error']) {
 }
 
 function formatMoney(value: number | null | undefined) {
-  const formatted = formatMoneyFixed(value)
-  return formatted === '—' ? formatted : `$${formatted}`
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '$0.00'
+  return `$${Number(value).toFixed(2)}`
 }
 
 function terminalZeroCost(job: Pick<BatchImageJob, 'status' | 'actual_cost'>) {
