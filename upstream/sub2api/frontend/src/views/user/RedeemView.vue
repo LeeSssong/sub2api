@@ -11,6 +11,7 @@
       />
       <div class="mt-[22px] space-y-6">
       <div class="redeem-workspace" :class="{ 'redeem-workspace-with-store': storefront }">
+        <div class="redeem-account-column">
         <!-- Redeem Form -->
         <section data-test="redeem-form-card" class="card min-w-0" aria-labelledby="redeem-title">
           <div class="p-6">
@@ -142,9 +143,6 @@
             </details>
           </div>
         </section>
-        <RechargeStorefront v-if="storefront" :url="storefront.url" />
-      </div>
-
       <!-- Recent Activity -->
       <div class="card">
         <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
@@ -312,6 +310,9 @@
             >{{ t('pagination.next') }}</button>
           </div>
         </div>
+      </div>
+        </div>
+        <RechargeStorefront v-if="storefront" :url="storefront.url" />
       </div>
       </div>
     </div>
@@ -497,6 +498,7 @@ onMounted(async () => {
 <style scoped>
 .redeem-page { max-width: 1440px; }
 .redeem-workspace { display: grid; min-width: 0; gap: 24px; }
+.redeem-account-column { display: grid; min-width: 0; gap: 24px; align-content: start; }
 @media (min-width: 1280px) {
   .redeem-workspace-with-store { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: start; }
 }
