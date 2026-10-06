@@ -27,7 +27,7 @@
                   <template v-if="row.tiers[group.index]">
                     <td v-for="(column, index) in contextPriceColumns" :key="column.key" :class="{ 'context-divider': index === 0 }">
                       <span v-if="index === 0 && !group.context && row.tiers[group.index].label" class="model-context context-range">{{ row.tiers[group.index].context }}</span>
-                      <template v-if="column.key === 'cache_write_price' && (row.tiers[group.index].prices.cache_write_price != null || row.tiers[group.index].prices.cache_write_1h_price != null)">
+                      <template v-if="column.key === 'cache_write_price' && row.tiers[group.index].prices.cache_write_1h_price != null && row.tiers[group.index].prices.cache_write_1h_price !== row.tiers[group.index].prices.cache_write_price">
                         <span class="cache-price"><span class="cache-duration">5分钟</span> {{ formatNativePrice(row.tiers[group.index].prices.cache_write_price) }}</span>
                         <span v-if="row.tiers[group.index].prices.cache_write_1h_price != null" class="cache-price"><span class="cache-duration">1小时</span> {{ formatNativePrice(row.tiers[group.index].prices.cache_write_1h_price) }}</span>
                       </template>

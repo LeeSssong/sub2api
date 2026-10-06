@@ -26,6 +26,18 @@ beforeEach(() => {
 enableAutoUnmount(afterEach)
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 describe('原生扣费标准同步', () => {
+  it('shows one cache-write price when native duration fields are equivalent or absent', async () => {
+    mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-6.1-sol', 'native-flat'], official_pricing: {
+      'gpt-6.1-sol': { input_price: 2e-6, output_price: 10e-6, cache_read_price: .1e-6, cache_write_price: 2.5e-6, cache_write_1h_price: 2.5e-6 },
+      'native-flat': { input_price: 1e-6, output_price: 5e-6, cache_read_price: null, cache_write_price: 1.25e-6 },
+    } }])
+    const w = make(); await flushPromises()
+    const table = w.get('.model-pricing-table')
+    expect(table.text()).toContain('$2.50')
+    expect(table.text()).toContain('$1.25')
+    expect(table.text()).not.toContain('5分钟')
+    expect(table.text()).not.toContain('1小时')
+  })
   it('compares short and long context prices under range headers in one model row', async () => {
     mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-5.4'], official_pricing: {
       'gpt-5.4': { input_price: 1e-6, output_price: 2e-6, cache_read_price: null, cache_write_price: null, intervals: [
