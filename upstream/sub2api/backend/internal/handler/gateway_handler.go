@@ -1259,34 +1259,17 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		return
 	}
 
-	if platform == service.PlatformComposite {
-		availableModels := h.compositeAvailableModels(c.Request.Context(), groupID, true)
-		if apiKey != nil && apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
-			source := availableModels
-			if len(source) == 0 {
-				source = defaultModelIDsForPlatform(service.PlatformComposite)
-			}
-			writeAllowlistedModelsList(c, service.PlatformComposite, apiKey.Group.ModelAllowlist.FilterForListing(source))
-			return
-		}
-		if len(availableModels) > 0 {
-			writeModelsList(c, service.PlatformComposite, availableModels)
-			return
-		}
-		writeModelsList(c, service.PlatformComposite, defaultModelIDsForPlatform(service.PlatformComposite))
+	allowlist := service.GroupModelAllowlist{}
+	if apiKey != nil && apiKey.Group != nil {
+		allowlist = apiKey.Group.ModelAllowlist
+	}
+	modelIDs, configured := h.nativeModelIDsForListing(c.Request.Context(), groupID, platform, allowlist)
+	if allowlist.Enabled {
+		writeAllowlistedModelsList(c, platform, modelIDs)
 		return
 	}
-
-	// Get available models from account configurations for the selected group platform.
-	availableModels := h.gatewayService.GetAvailableModels(c.Request.Context(), groupID, platform)
-	if apiKey != nil && apiKey.Group != nil && apiKey.Group.ModelAllowlistEnabled() {
-		source := modelListingSource(platform, availableModels, defaultModelIDsForPlatform(platform))
-		writeAllowlistedModelsList(c, platform, apiKey.Group.ModelAllowlist.FilterForListing(source))
-		return
-	}
-
-	if len(availableModels) > 0 {
-		writeModelsList(c, platform, availableModels)
+	if configured || platform == service.PlatformComposite {
+		writeModelsList(c, platform, modelIDs)
 		return
 	}
 

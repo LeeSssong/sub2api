@@ -1,0 +1,145 @@
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import PricingDialog from '../PricingDialog.vue'
+import type { Group } from '@/types'
+
+const mocks = vi.hoisted(() => ({ groups: vi.fn(), rates: vi.fn(), models: vi.fn() }))
+vi.mock('@/api/groups', () => ({ default: { getAvailable: mocks.groups, getUserGroupRates: mocks.rates } }))
+vi.mock('../api', () => ({ getGroupModels: mocks.models }))
+const group = (id: number, name: string, rate: number, platform = 'openai') => ({ id, name, rate_multiplier: rate, platform, status: 'active' }) as Group
+const pending = <T,>() => {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>(done => { resolve = done })
+  return { promise, resolve }
+}
+const make = () => mount(PricingDialog, {
+  props: { tool: { id: 'codex', label: 'Codex' }, lines: [group(1, '旧分组', 9)], rates: { 1: 8 } },
+  global: { stubs: { BaseDialog: { props: ['show'], template: '<div v-if="show"><slot/></div>' } } },
+})
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.groups.mockResolvedValue([group(1, '最新分组', .2), group(2, '新分组', .3), group(3, 'Claude', 1, 'anthropic')])
+  mocks.rates.mockResolvedValue({ 1: .12 })
+  mocks.models.mockResolvedValue([{ group_id: 1, supported_models: ['gpt-5.4'] }, { group_id: 2, supported_models: ['gpt-image-2'] }, { group_id: 3, supported_models: ['claude-private'] }])
+})
+enableAutoUnmount(afterEach)
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+describe('原生扣费标准同步', () => {
+  it('uses fresh native groups and rates instead of dashboard props', async () => {
+    const w = make(); await flushPromises()
+    expect(mocks.groups).toHaveBeenCalledOnce()
+    expect(mocks.rates).toHaveBeenCalledOnce()
+    expect(w.get('.fee-table').text()).toContain('最新分组')
+    expect(w.get('.fee-table').text()).toContain('新分组')
+    expect(w.get('.fee-table').text()).not.toContain('旧分组')
+    expect(w.get('.fee-table').text()).not.toContain('Claude')
+    const rows = w.findAll('.fee-table tbody tr')
+    expect(rows[0].findAll('td').map(cell => cell.text())).toEqual(['gpt-5.4', '0.12x倍率', '模型基础费用 × 0.12'])
+    expect(rows[1].findAll('td').map(cell => cell.text())).toEqual(['gpt-image-2', '0.3x倍率', '模型基础费用 × 0.3'])
+    expect(w.get('.model-pricing-table').text()).not.toContain('claude-private')
+    w.unmount()
+  })
+  it('refreshes all fields together and retains a zero user multiplier', async () => {
+    const w = make(); await flushPromises()
+    mocks.groups.mockResolvedValue([group(2, '改名分组', .8)])
+    mocks.rates.mockResolvedValue({ 2: 0 })
+    mocks.models.mockResolvedValue([{ group_id: 2, supported_models: ['new-model'] }])
+    await w.get('button[aria-label="刷新价格与扣费标准"]').trigger('click'); await flushPromises()
+    expect(w.findAll('.fee-table tbody tr')).toHaveLength(1)
+    expect(w.get('.fee-table').text()).toContain('改名分组')
+    expect(w.get('.fee-table').text()).toContain('new-model')
+    expect(w.get('.fee-table tbody tr').findAll('td')[1].text()).toBe('0.0x倍率')
+    expect(w.get('.fee-table').text()).toContain('模型基础费用 × 0')
+    expect(mocks.groups).toHaveBeenCalledTimes(2)
+    expect(mocks.rates).toHaveBeenCalledTimes(2)
+    expect(mocks.models).toHaveBeenCalledTimes(2)
+    w.unmount()
+  })
+  it.each(['groups', 'rates', 'models'] as const)('does not display stale fees after the %s request fails', async endpoint => {
+    const w = make(); await flushPromises()
+    mocks[endpoint].mockRejectedValueOnce(new Error('offline'))
+    await w.get('button[aria-label="刷新价格与扣费标准"]').trigger('click'); await flushPromises()
+    expect(w.find('.fee-table').exists()).toBe(false)
+    expect(w.text()).toContain('读取失败')
+    await w.findAll('button').find(button => button.text() === '重试')!.trigger('click'); await flushPromises()
+    expect(w.get('.fee-table').text()).toContain('模型基础费用 × 0.12')
+    w.unmount()
+  })
+  it('shows empty native groups even when the dashboard has an old group', async () => {
+    mocks.groups.mockResolvedValue([])
+    const w = make(); await flushPromises()
+    expect(w.find('.fee-table').exists()).toBe(false)
+    expect(w.text()).toContain('暂无分组')
+    w.unmount()
+  })
+  it('keeps the current cross-platform tool association using fresh native values', async () => {
+    mocks.groups.mockResolvedValue([group(4, '混合新名称', .4, 'composite')])
+    const w = make()
+    await w.setProps({ lines: [group(4, '混合旧名称', 9, 'composite')] }); await flushPromises()
+    expect(w.get('.fee-table').text()).toContain('混合新名称')
+    expect(w.get('.fee-table').text()).toContain('模型基础费用 × 0.4')
+    w.unmount()
+  })
+  it('honors explicit native tool mappings and discovers newly mapped composite groups', async () => {
+    mocks.groups.mockResolvedValue([
+      { ...group(1, '仅 Claude 的 OpenAI 分组', .2), tool_ids: ['claude'] },
+      { ...group(4, '新增混合分组', .4, 'composite'), tool_ids: ['codex'] },
+    ])
+    mocks.models.mockResolvedValue([{ group_id: 4, supported_models: ['native-alias'] }])
+    const w = make(); await flushPromises()
+    expect(w.get('.fee-table').text()).not.toContain('仅 Claude')
+    expect(w.get('.fee-table').text()).toContain('新增混合分组')
+    expect(mocks.models.mock.calls[0][1]).toEqual([4])
+    mocks.groups.mockResolvedValue([{ ...group(4, '新增混合分组', .4, 'composite'), tool_ids: ['claude'] }])
+    await w.get('button[aria-label="刷新价格与扣费标准"]').trigger('click'); await flushPromises()
+    expect(w.find('.fee-table').exists()).toBe(false)
+    expect(w.text()).toContain('暂无分组')
+    w.unmount()
+  })
+  it('polls while open and aborts outstanding work on close', async () => {
+    vi.useFakeTimers()
+    const w = make(); await flushPromises()
+    mocks.rates.mockResolvedValue({ 1: .45 })
+    await vi.advanceTimersByTimeAsync(60_000); await flushPromises()
+    expect(mocks.groups).toHaveBeenCalledTimes(2)
+    expect(w.get('.fee-table').text()).toContain('模型基础费用 × 0.45')
+    const request = pending<Group[]>()
+    mocks.groups.mockReturnValue(request.promise)
+    await vi.advanceTimersByTimeAsync(60_000)
+    const signal = mocks.groups.mock.calls.at(-1)![0] as AbortSignal
+    await w.setProps({ tool: null })
+    expect(signal.aborted).toBe(true)
+    request.resolve([group(9, '晚到分组', 1)]); await flushPromises()
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(mocks.groups).toHaveBeenCalledTimes(3)
+    await w.setProps({ tool: { id: 'codex', label: 'Codex' } }); await flushPromises()
+    expect(mocks.groups).toHaveBeenCalledTimes(4)
+    w.unmount()
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(mocks.groups).toHaveBeenCalledTimes(4)
+  })
+  it('does not accept an older tool response after switching tools', async () => {
+    const request = pending<Group[]>()
+    mocks.groups.mockReturnValueOnce(request.promise)
+    const w = make()
+    await w.setProps({ tool: { id: 'claude', label: 'Claude Code' }, lines: [] }); await flushPromises()
+    request.resolve([group(1, '晚到分组', 9)]); await flushPromises()
+    expect(w.get('.fee-table').text()).toContain('Claude')
+    expect(w.get('.fee-table').text()).not.toContain('晚到分组')
+    expect(w.get('.fee-table').text()).not.toContain('最新分组')
+    w.unmount()
+  })
+  it('pauses background polling and refreshes immediately when visible again', async () => {
+    vi.useFakeTimers()
+    const w = make(); await flushPromises()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(mocks.groups).toHaveBeenCalledOnce()
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
+    document.dispatchEvent(new Event('visibilitychange')); await flushPromises()
+    expect(mocks.groups).toHaveBeenCalledTimes(2)
+    w.unmount()
+    vi.restoreAllMocks()
+  })
+})

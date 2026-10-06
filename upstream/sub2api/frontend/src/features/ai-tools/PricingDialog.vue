@@ -9,8 +9,8 @@
           </div>
         </div>
         <div id="official-pricing-panel" :role="isOpenAiTool ? 'tabpanel' : undefined" :aria-labelledby="isOpenAiTool ? `pricing-tier-${selectedTier}` : 'official-pricing-title'">
-          <p v-if="loading" role="status">正在读取支持模型…</p>
-          <div v-else-if="error" class="pricing-error" role="alert">模型读取失败，请重试。<button type="button" class="btn btn-secondary" @click="loadModels">重试</button></div>
+          <p v-if="loading" role="status">正在读取分组、模型与倍率…</p>
+          <div v-else-if="error" class="pricing-error" role="alert">分组、模型或倍率读取失败，请重试。<button type="button" class="btn btn-secondary" @click="loadPricing">重试</button></div>
           <div v-else-if="allowedModels.length" class="table-scroll model-pricing-table context-pricing-table" tabindex="0" aria-label="模型价格，美元 / 100 万 Token">
             <table>
               <thead>
@@ -20,15 +20,20 @@
               <tbody><tr v-for="model in allowedModels" :key="model"><th scope="row">{{ model }}</th><td v-for="column in priceColumns" :key="column.key">{{ isOpenAiTool ? officialPrice(model, selectedTier, column.key) : '待核对' }}</td></tr></tbody>
             </table>
           </div>
-          <p v-else class="pricing-note" role="status">当前工具的允许模型清单尚未配置，暂不展示模型价格。</p>
+          <p v-else class="pricing-note" role="status">当前工具暂无可用模型，暂不展示模型价格。</p>
         </div>
         <div class="pricing-source"><a :href="source" target="_blank" rel="noopener noreferrer" title="官方参考价格，美元 / 100 万 Token">官方费率来源 <Icon name="externalLink" size="sm" /></a></div>
       </section>
-      <section aria-labelledby="group-pricing-title">
-        <div class="pricing-heading fee-heading"><h3 id="group-pricing-title">星桥 AI Link 扣费标准</h3></div>
-        <div v-if="lines.length" class="table-scroll fee-table" tabindex="0" aria-label="分组扣费标准">
+      <section aria-labelledby="group-pricing-title" :aria-busy="loading">
+        <div class="pricing-heading fee-heading">
+          <h3 id="group-pricing-title">星桥 AI Link 扣费标准</h3>
+          <button type="button" class="btn btn-secondary pricing-refresh" aria-label="刷新价格与扣费标准" :disabled="loading" @click="loadPricing"><Icon name="refresh" size="sm" />{{ loading ? '刷新中…' : '刷新' }}</button>
+        </div>
+        <p v-if="loading" role="status">正在更新扣费标准…</p>
+        <p v-else-if="error" class="pricing-note">分组扣费标准暂不可用，请在上方重试。</p>
+        <div v-else-if="feeRows.length" class="table-scroll fee-table" tabindex="0" aria-label="分组扣费标准">
           <table><thead><tr><th scope="col">分组</th><th scope="col">支持模型</th><th scope="col">倍率</th><th scope="col">扣费标准</th></tr></thead>
-            <tbody><tr v-for="line in lines" :key="line.id"><th scope="row">{{ line.name }}</th><td class="supported-models">{{ groupModels(line.id) }}</td><td>{{ formatLineRate(resolveLineRate(line, rates)) }}</td><td>{{ resolveLineRate(line, rates) == null ? '待配置' : `模型基础费用 × ${resolveLineRate(line, rates)}` }}</td></tr></tbody>
+            <tbody><tr v-for="row in feeRows" :key="row.group.id"><th scope="row">{{ row.group.name }}</th><td class="supported-models">{{ groupModels(row.group.id) }}</td><td>{{ formatLineRate(row.rate) }}</td><td>{{ row.rate == null ? '倍率暂不可用' : `模型基础费用 × ${row.rate}` }}</td></tr></tbody>
           </table>
         </div>
         <p v-else class="pricing-note">当前工具暂无分组。</p>
@@ -38,21 +43,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatLineRate, resolveLineRate } from '@/components/keys/lineOptions'
 import type { Group } from '@/types'
+import userGroupsAPI from '@/api/groups'
 import { getGroupModels, type GroupModels } from './api'
+import { toolIdsForGroup, tools } from './model'
 import { officialPrice, priceColumns, pricingTiers, type PricingTier } from './officialPricing'
 
 const props = defineProps<{ tool: { id: string; label: string } | null; lines: Group[]; rates: Record<number, number> }>()
 const emit = defineEmits<{ close: [] }>()
 const selectedTier = ref<PricingTier>('standard')
 const modelData = ref<GroupModels[]>([])
+const nativeGroups = ref<Group[]>([])
+const nativeRates = ref<Record<number, number>>({})
 const loading = ref(false)
 const error = ref(false)
 let controller: AbortController | undefined
+let refreshTimer: ReturnType<typeof setTimeout> | undefined
+const REFRESH_INTERVAL_MS = 60_000
 const isOpenAiTool = computed(() => props.tool?.id === 'codex')
 const sources: Record<string, string> = {
   codex: 'https://developers.openai.com/api/docs/pricing',
@@ -61,28 +72,59 @@ const sources: Record<string, string> = {
 }
 const source = computed(() => sources[props.tool?.id || 'codex'])
 const modelsByGroup = computed(() => new Map(modelData.value.map(group => [group.group_id, group.supported_models])))
-const allowedModels = computed(() => [...new Set(props.lines.flatMap(line => modelsByGroup.value.get(line.id) || []))].sort())
+function groupsForTool(groups: Group[]) {
+  const platform = tools.find(tool => tool.id === props.tool?.id)?.platform
+  // Native tool associations are authoritative. The dashboard hint is only
+  // a compatibility fallback for responses from an older backend.
+  const crossPlatformGroups = new Map(props.lines.filter(group => group.platform !== platform).map(group => [group.id, group.platform]))
+  return groups.filter(group => group.status === 'active' && (group.tool_ids !== undefined
+    ? toolIdsForGroup(group).includes(props.tool?.id || '')
+    : group.platform === platform || crossPlatformGroups.get(group.id) === group.platform))
+}
+const pricingGroups = computed(() => groupsForTool(nativeGroups.value))
+const feeRows = computed(() => pricingGroups.value.map(group => ({ group, rate: resolveLineRate(group, nativeRates.value) })))
+const allowedModels = computed(() => [...new Set(pricingGroups.value.flatMap(line => modelsByGroup.value.get(line.id) || []))].sort())
 
 function groupModels(id: number) {
-  if (loading.value) return '读取中…'
-  if (error.value) return '读取失败'
-  return modelsByGroup.value.get(id)?.join('、') || '待配置'
+  return modelsByGroup.value.get(id)?.join('、') || '暂无可用模型'
 }
-async function loadModels() {
+function stopRefreshTimer() {
+  if (refreshTimer !== undefined) clearTimeout(refreshTimer)
+  refreshTimer = undefined
+}
+function scheduleRefresh() {
+  stopRefreshTimer()
+  if (props.tool && !document.hidden) refreshTimer = setTimeout(() => { void loadPricing() }, REFRESH_INTERVAL_MS)
+}
+async function loadPricing() {
+  stopRefreshTimer()
   controller?.abort()
   if (!props.tool) return
   const current = new AbortController()
   controller = current
   loading.value = true
   error.value = false
-  modelData.value = []
   try {
-    const data = await getGroupModels(current.signal)
-    if (!current.signal.aborted) modelData.value = data
+    const [groups, rates] = await Promise.all([
+      userGroupsAPI.getAvailable(current.signal),
+      userGroupsAPI.getUserGroupRates(current.signal),
+    ])
+    if (current.signal.aborted) return
+    const groupIDs = groupsForTool(groups).map(group => group.id)
+    // Unrelated pinned catalogues must not block the selected tool's prices.
+    const models = groupIDs.length ? await getGroupModels(current.signal, groupIDs) : []
+    if (!current.signal.aborted) {
+      nativeGroups.value = groups
+      modelData.value = models
+      nativeRates.value = rates
+    }
   } catch {
     if (!current.signal.aborted) error.value = true
   } finally {
-    if (!current.signal.aborted) loading.value = false
+    if (!current.signal.aborted) {
+      loading.value = false
+      scheduleRefresh()
+    }
   }
 }
 function navigateTier(event: KeyboardEvent, tier: PricingTier) {
@@ -95,15 +137,27 @@ function navigateTier(event: KeyboardEvent, tier: PricingTier) {
   const button = event.currentTarget as HTMLElement
   button.parentElement?.querySelectorAll<HTMLButtonElement>('button')[next]?.focus()
 }
-watch(() => [props.tool?.id, props.lines.map(line => line.id).join(',')], () => {
+watch(() => props.tool?.id, () => {
   controller?.abort()
+  stopRefreshTimer()
   selectedTier.value = 'standard'
   modelData.value = []
+  nativeGroups.value = []
+  nativeRates.value = {}
   error.value = false
   loading.value = false
-  if (props.tool) void loadModels()
+  if (props.tool) void loadPricing()
 }, { immediate: true })
-onBeforeUnmount(() => controller?.abort())
+function handleVisibilityChange() {
+  if (document.hidden) stopRefreshTimer()
+  else if (props.tool) void loadPricing()
+}
+onMounted(() => document.addEventListener('visibilitychange', handleVisibilityChange))
+onBeforeUnmount(() => {
+  controller?.abort()
+  stopRefreshTimer()
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+})
 </script>
 
 <style scoped>
@@ -141,6 +195,7 @@ onBeforeUnmount(() => controller?.abort())
 .model-pricing-table tbody tr:nth-child(even) { background:var(--xq-depth); }
 .context-pricing-table thead tr:first-child th:nth-child(3),.context-pricing-table thead tr:nth-child(2) th:nth-child(5),.context-pricing-table tbody td:nth-child(6) { border-left:1px solid var(--xq-border); }
 .fee-heading { margin-bottom:24px; }
+.pricing-refresh { display:inline-flex; align-items:center; gap:6px; flex:0 0 auto; }
 .fee-table table { min-width:720px; table-layout:fixed; }
 .fee-table thead th:nth-child(1) { width:18%; }
 .fee-table thead th:nth-child(2) { width:40%; }
@@ -149,6 +204,7 @@ onBeforeUnmount(() => controller?.abort())
 .fee-table td,.fee-table tbody th { vertical-align:top; }
 .supported-models { overflow-wrap:anywhere; }
 @media (max-width:640px) {
+  .fee-heading { flex-wrap:wrap; }
   .official-pricing-section { padding:16px 12px; }
   .pricing-content h3 { font-size:17px; }
   .pricing-tabs button { min-height:44px; padding:6px 10px; }

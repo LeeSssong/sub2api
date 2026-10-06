@@ -2,7 +2,11 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -13,6 +17,7 @@ import (
 
 type userGroupModelAuthorizer interface {
 	GetAvailableGroups(context.Context, int64) ([]service.Group, error)
+	GetUserGroupDeniedModels(context.Context, int64) (map[int64][]string, error)
 }
 
 type userGroupModels struct {
@@ -21,8 +26,8 @@ type userGroupModels struct {
 }
 
 // UserGroupModels exposes only model names for groups the signed-in user can bind.
-// It reuses native group account discovery and allowlist rules without an API key
-// or an upstream request. Account identities and routing configuration stay private.
+// It reuses ordinary /v1/models discovery (including pinned account catalogues),
+// allowlists and user exclusions without exposing account or routing details.
 func (h *GatewayHandler) UserGroupModels(c *gin.Context) {
 	h.userGroupModels(c, h.apiKeyService)
 }
@@ -33,7 +38,28 @@ func (h *GatewayHandler) userGroupModels(c *gin.Context, authorizer userGroupMod
 		response.Unauthorized(c, "User not authenticated")
 		return
 	}
+	var requested map[int64]bool
+	if values, scoped := c.Request.URL.Query()["group_ids"]; scoped {
+		requested = make(map[int64]bool)
+		if len(values) != 1 {
+			response.BadRequest(c, "分组参数无效")
+			return
+		}
+		for _, value := range strings.Split(values[0], ",") {
+			id, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+			if err != nil || id <= 0 {
+				response.BadRequest(c, "分组参数无效")
+				return
+			}
+			requested[id] = true
+		}
+	}
 	groups, err := authorizer.GetAvailableGroups(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	denied, err := authorizer.GetUserGroupDeniedModels(c.Request.Context(), subject.UserID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -41,34 +67,51 @@ func (h *GatewayHandler) userGroupModels(c *gin.Context, authorizer userGroupMod
 	out := make([]userGroupModels, 0, len(groups))
 	for i := range groups {
 		g := &groups[i]
+		// Requested IDs are intersected with the authorized native group list.
+		if requested != nil && !requested[g.ID] {
+			continue
+		}
 		models := make([]string, 0)
 		if g.Status == service.StatusActive {
-			if g.Platform == service.PlatformComposite {
-				models = h.compositeAvailableModels(c.Request.Context(), &g.ID, true)
-			} else if _, exists := h.gatewayService.GetSchedulablePlatforms(c.Request.Context(), &g.ID)[g.Platform]; exists {
-				configured := h.gatewayService.GetAvailableModels(c.Request.Context(), &g.ID, g.Platform)
-				// Same fallback as the native model listing, only for a group with accounts.
-				// CN providers have no static native catalog: keep their configured names.
-				if service.IsCNProvider(g.Platform) {
-					models = configured
-				} else {
-					models = modelListingSource(g.Platform, configured, defaultModelIDsForPlatform(g.Platform))
+			if g.Platform == service.PlatformOpenAI && g.CodexModelsManifestConfig.Enabled {
+				if h.openAIGatewayService == nil {
+					response.Error(c, http.StatusServiceUnavailable, "模型目录暂不可用")
+					return
 				}
+				catalog, _, err := h.openAIGatewayService.FetchPinnedOpenAIModelsList(c.Request.Context(), g, h.maxAccountSwitches, "")
+				if err != nil {
+					status := http.StatusBadGateway
+					if errors.Is(err, service.ErrNoPinnedCodexModelsAccounts) {
+						status = http.StatusServiceUnavailable
+					}
+					// Do not expose upstream errors or substitute static defaults.
+					response.Error(c, status, "模型目录读取失败，请重试")
+					return
+				}
+				var body struct {
+					Data []struct {
+						ID string `json:"id"`
+					} `json:"data"`
+				}
+				if json.Unmarshal(catalog.Body, &body) != nil || body.Data == nil {
+					response.Error(c, http.StatusBadGateway, "模型目录读取失败，请重试")
+					return
+				}
+				for _, model := range body.Data {
+					models = append(models, model.ID)
+				}
+			} else {
+				models, _ = h.nativeModelIDsForListing(c.Request.Context(), &g.ID, g.Platform, g.ModelAllowlist)
 			}
-			models = g.ModelAllowlist.FilterForListing(models)
+			models = service.FilterUserGroupDeniedModelIDs(models, denied[g.ID])
 		}
-		clean := make([]string, 0, len(models))
-		seen := make(map[string]bool, len(models))
-		for _, model := range models {
-			model = strings.TrimSpace(model)
-			// Mapping wildcards are routing patterns, not callable model IDs.
-			if model != "" && !strings.Contains(model, "*") && !seen[model] {
-				seen[model] = true
-				clean = append(clean, model)
-			}
+		// Keep exactly the native catalogue IDs; applying a second, panel-only
+		// mapping filter would make the user's two lists disagree again.
+		if models == nil {
+			models = []string{}
 		}
-		sort.Strings(clean)
-		out = append(out, userGroupModels{GroupID: g.ID, SupportedModels: clean})
+		sort.Strings(models)
+		out = append(out, userGroupModels{GroupID: g.ID, SupportedModels: models})
 	}
 	response.Success(c, out)
 }

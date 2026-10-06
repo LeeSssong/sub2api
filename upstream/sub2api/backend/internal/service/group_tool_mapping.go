@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"sort"
 	"time"
@@ -17,6 +18,20 @@ type GroupToolMapping struct {
 type GroupToolMappingRepository interface {
 	ReadGroupToolMappings(context.Context, []int64) (map[int64]GroupToolMapping, error)
 	ReplaceGroupToolMapping(context.Context, int64, []string, int64) (GroupToolMapping, error)
+}
+
+// GetGroupToolMappings lets the native user group response reuse the same
+// associations as the dashboard, after its caller has authorized the group IDs.
+func (s *APIKeyService) GetGroupToolMappings(ctx context.Context, groupIDs []int64) (map[int64]GroupToolMapping, error) {
+	repo, ok := s.groupRepo.(GroupToolMappingRepository)
+	if !ok || len(groupIDs) == 0 {
+		return nil, nil
+	}
+	mappings, err := repo.ReadGroupToolMappings(ctx, groupIDs)
+	if err != nil {
+		return nil, fmt.Errorf("get group tool mappings: %w", err)
+	}
+	return mappings, nil
 }
 
 func NormalizeGroupToolIDs(ids []string) ([]string, error) {

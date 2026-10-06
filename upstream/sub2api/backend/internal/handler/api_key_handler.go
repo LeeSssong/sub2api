@@ -322,6 +322,11 @@ func (h *APIKeyHandler) Delete(c *gin.Context) {
 	response.Success(c, gin.H{"message": "API key deleted successfully"})
 }
 
+type availableKeyGroupWithTools struct {
+	*dto.Group
+	ToolIDs []string `json:"tool_ids"`
+}
+
 // GetAvailableGroups 获取用户可以绑定的分组列表
 // GET /api/v1/groups/available
 func (h *APIKeyHandler) GetAvailableGroups(c *gin.Context) {
@@ -337,9 +342,22 @@ func (h *APIKeyHandler) GetAvailableGroups(c *gin.Context) {
 		return
 	}
 
-	out := make([]dto.Group, 0, len(groups))
+	groupIDs := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		groupIDs = append(groupIDs, group.ID)
+	}
+	mappings, err := h.apiKeyService.GetGroupToolMappings(c.Request.Context(), groupIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	out := make([]availableKeyGroupWithTools, 0, len(groups))
 	for i := range groups {
-		out = append(out, *dto.GroupFromService(&groups[i]))
+		toolIDs := mappings[groups[i].ID].ToolIDs
+		if toolIDs == nil {
+			toolIDs = []string{}
+		}
+		out = append(out, availableKeyGroupWithTools{Group: dto.GroupFromService(&groups[i]), ToolIDs: toolIDs})
 	}
 	response.Success(c, out)
 }

@@ -23,10 +23,19 @@ previous=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sour
 update_worker=${TEST_STATION_UPDATE_WORKER:-false}
 [[ "$update_worker" == true || "$update_worker" == false ]] || fail 'invalid worker update flag'
 # Monitor service changes require the same new binary in API and singleton worker.
+# Native group catalogue handlers and their read-only tool mapping can update API only.
 # Runtime dependency, migration and other backend changes remain excluded.
 while IFS= read -r path; do
   case "$path" in
     upstream/sub2api/frontend/src/*|docs/*|ops/*|tests/*|artifacts/*) ;;
+    upstream/sub2api/backend/internal/handler/api_key_handler.go|\
+    upstream/sub2api/backend/internal/handler/gateway_handler.go|\
+    upstream/sub2api/backend/internal/handler/gateway_user_models.go|\
+    upstream/sub2api/backend/internal/handler/gateway_model_catalog.go|\
+    upstream/sub2api/backend/internal/handler/gateway_user_models_test.go|\
+    upstream/sub2api/backend/internal/handler/api_key_available_groups_tools_test.go|\
+    upstream/sub2api/backend/internal/service/group_tool_mapping.go|\
+    upstream/sub2api/backend/internal/service/api_key_group_tool_mapping_test.go) ;;
     upstream/sub2api/backend/internal/service/monitor_v4*.go)
       [[ "$update_worker" == true ]] || fail 'monitor backend changes require a worker update' ;;
     *) fail "release excludes unsupported runtime changes: $path" ;;

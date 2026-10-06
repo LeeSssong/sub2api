@@ -4,6 +4,8 @@ import contextlib
 import io
 import json
 import tempfile
+import subprocess
+import os
 from unittest.mock import patch
 from pathlib import Path
 
@@ -11,6 +13,36 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location('release', ROOT / 'ops/deploy-sub2api-test-station-api.py')
 release = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(release)
+
+
+class ReleaseScopeTests(unittest.TestCase):
+    def check_scope(self, paths, update_worker=False):
+        shell = (ROOT / 'ops/release-sub2api-test-station-api.sh').read_text()
+        gate = shell[shell.index('while IFS= read -r path; do'):shell.index('binary_commit=$commit')]
+        script = 'fail(){ echo "$1" >&2; exit 1; }; git(){ printf "%s\\n" "$CHANGED_PATHS"; }; ' + gate
+        return subprocess.run(['bash', '-c', script], capture_output=True, text=True,
+            env=dict(os.environ, CHANGED_PATHS='\n'.join(paths), update_worker=str(update_worker).lower(), previous='old'))
+
+    def test_native_group_catalog_changes_allow_api_only_release(self):
+        paths = ['internal/handler/' + name for name in (
+            'api_key_handler.go', 'gateway_handler.go', 'gateway_user_models.go',
+            'gateway_model_catalog.go', 'gateway_user_models_test.go', 'api_key_available_groups_tools_test.go')]
+        paths += ['internal/service/group_tool_mapping.go', 'internal/service/api_key_group_tool_mapping_test.go']
+        result = self.check_scope(['upstream/sub2api/backend/' + path for path in paths])
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_dependency_migration_and_unreviewed_backend_changes_remain_excluded(self):
+        for path in ['go.mod', 'migrations/999.sql', 'internal/handler/auth_handler.go',
+                     'internal/service/billing_service.go', 'internal/repository/group_repo.go']:
+            with self.subTest(path=path):
+                result = self.check_scope(['upstream/sub2api/backend/' + path])
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('unsupported runtime changes', result.stderr)
+
+    def test_monitor_changes_still_require_worker_update(self):
+        paths = ['upstream/sub2api/backend/internal/service/monitor_v4.go']
+        self.assertNotEqual(self.check_scope(paths).returncode, 0)
+        self.assertEqual(self.check_scope(paths, True).returncode, 0)
 
 
 class APIReleaseTests(unittest.TestCase):

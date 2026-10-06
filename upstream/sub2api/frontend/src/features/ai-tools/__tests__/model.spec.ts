@@ -25,6 +25,10 @@ describe('AI线路真实口径', () => {
     expect(toolIdsForGroup(anthropicGroup, metric({ tool_ids: [] }))).toEqual(['claude'])
     expect(toolIdsForGroup(openaiGroup, metric({ tool_ids: ['grok'] }))).toEqual(['grok'])
   })
+  it('prefers current native tool mapping over the older monitor snapshot', () => {
+    expect(toolIdsForGroup({ ...group(1), tool_ids: ['claude'] }, metric({ tool_ids: ['codex'] }))).toEqual(['claude'])
+    expect(toolIdsForGroup({ ...group(1), tool_ids: [] }, metric({ tool_ids: ['claude'] }))).toEqual(['codex'])
+  })
   it.each([[900,1000,'正常运行'],[8999,10000,'波动'],[700,1000,'波动'],[6999,10000,'异常'],[0,10,'异常']])('classifies real counts %s/%s without rounding', (success,requests,text) => {
     expect(availability(group(1),metric({real_request_count:requests,real_success_count:success}),now,new Date(now).toISOString()).text).toBe(text)
   })
