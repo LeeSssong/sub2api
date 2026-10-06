@@ -12,10 +12,13 @@
               <div class="tool-card-identity"><h3 class="tool-title"><img class="provider-logo" :src="providerIcon(tool.platform)" alt="" /><span>{{ tool.label }}</span></h3><span class="tool-type">{{ tool.type }}</span></div>
               <button type="button" class="pricing-entry" :aria-label="`${tool.label} 价格与扣费说明`" @click="openPricing(tool)">扣费说明 <Icon name="externalLink" size="sm" /></button>
             </header>
-            <div class="tool-status" :class="`status-${tool.statusKind}`">
-              <span v-for="item in tool.healthItems" :key="item.kind" class="health-pill" :data-health-count="item.kind" :data-status="item.kind"><span class="dot" :class="item.kind"></span>{{ item.text }} {{ item.count }}</span>
-              <button class="xq-button icon-btn" :aria-label="`${tool.label} 线路详情`" @click="openDetails(tool)"><img src="/xingqiao/info.svg" alt="" /></button>
-            </div>
+            <button type="button" class="tool-status" :aria-label="`${tool.label} 线路详情`" :title="tool.healthSummary" aria-haspopup="dialog" :aria-expanded="selectedTool?.id===tool.id && !createTool" @click="openDetails(tool)">
+              <span v-if="tool.healthItems.length" class="tool-status-grid">
+                <span v-for="item in tool.healthItems" :key="item.kind" class="tool-status-value" :data-health-count="item.kind"><span class="dot" :class="item.kind" aria-hidden="true"></span><span>{{ item.text }}</span><span class="tool-status-count">{{ item.count }}</span></span>
+              </span>
+              <span v-else class="tool-status-value"><span class="dot muted" aria-hidden="true"></span>暂无线路</span>
+              <Icon class="tool-status-arrow" name="chevronRight" size="sm" />
+            </button>
             <div class="card-bottom">
               <div class="tool-best"><small>最佳线路</small><strong class="best" :class="{muted:!tool.best}">{{ tool.best?.name || '暂无请求数据' }}</strong></div>
               <button class="xq-button" :disabled="!tool.active.length" @click="openCreate(tool)">关联密钥</button>
@@ -91,7 +94,7 @@ import keysAPI from '@/api/keys'
 import { getHybridPerformanceSnapshot } from '@/features/monitor-v4/api'
 import { formatLineRate, resolveLineRate } from '@/components/keys/lineOptions'
 import { checkLines, type LineCheck } from '@/features/ai-tools/api'
-import { tools, linkedCounts, configuredLines, routeHealth, aggregateRouteHealth, routeHealthTone, routeSuccessLabel, compareQuality, metricLabel, providerIcon, platformLabel, toolIdsForGroup } from '@/features/ai-tools/model'
+import { tools, linkedCounts, configuredLines, routeHealth, routeHealthTone, routeSuccessLabel, compareQuality, metricLabel, providerIcon, platformLabel, toolIdsForGroup } from '@/features/ai-tools/model'
 import { getDashboardWorkspaceSnapshot, setDashboardWorkspaceSnapshot } from '@/features/ai-tools/workspaceCache'
 import type { ApiKey, Group } from '@/types'
 import type { MonitorV4Group, MonitorV4Window } from '@/features/monitor-v4/types'
@@ -125,15 +128,15 @@ const allGroups=computed(()=>{const all=new Map(groups.value.map(g=>[g.id,g]));f
 const sort=(list:Group[], ms=metricsById.value)=>[...list].sort((a,b)=>compareQuality(a,b,ms,rates.value,clock.value,metricsGeneratedAt.value))
 const stateOf=(g:Group)=>routeHealth(statsFailed.value?undefined:metricsById.value.get(g.id),clock.value,metricsGeneratedAt.value)
 const HEALTH_ORDER=['success','warning','danger','muted'] as const
-const HEALTH_LABELS={success:'正常运行',warning:'波动',danger:'异常',muted:'暂无数据'} as const
+const HEALTH_LABELS={success:'正常',warning:'波动',danger:'异常',muted:'无数据'} as const
 const toolCards=computed(()=>tools.map(tool=>{
   const matching=sort(allGroups.value.filter(g=>toolIdsForGroup(g,metricsById.value.get(g.id)).includes(tool.id)))
   const active=matching.filter(g=>g.status==='active')
-  const health=aggregateRouteHealth(matching.map(g=>statsFailed.value?undefined:metricsById.value.get(g.id)),clock.value,metricsGeneratedAt.value)
   const healthCounts={success:0,warning:0,danger:0,muted:0}
   for(const group of matching) healthCounts[stateOf(group).kind] += 1
   const healthItems=HEALTH_ORDER.map(kind=>({kind,text:HEALTH_LABELS[kind],count:healthCounts[kind]})).filter(item=>item.count>0)
-  return {...tool,groups:matching,active,best:active.find(g=>stateOf(g).rate!==null),statusKind:health.kind,statusText:health.text,healthItems}
+  const healthSummary=healthItems.map(item=>`${item.text} ${item.count} 条`).join('，')||'暂无线路'
+  return {...tool,groups:matching,active,best:active.find(g=>stateOf(g).rate!==null),healthItems,healthSummary}
 }))
 type ToolCard=typeof toolCards.value[number]
 const pricingTool=ref<ToolCard|null>(null)
