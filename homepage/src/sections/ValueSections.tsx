@@ -7,7 +7,7 @@ interface ValueSectionsProps {
   config: SiteConfig
 }
 
-export function ValueSections({ config: _config }: ValueSectionsProps) {
+export function ValueSections({ config }: ValueSectionsProps) {
   return (
     <section className="value-band grid-surface stack-panel" id="value" aria-labelledby="value-title">
       <div className="section-inner">
@@ -23,7 +23,7 @@ export function ValueSections({ config: _config }: ValueSectionsProps) {
               <Network aria-hidden="true" />
               <div><h3>一条 API，接住所有模型</h3><p>请求通过星桥网关路由到健康上游，接口与官方 SDK 保持兼容。</p></div>
             </div>
-            <ModelFlow />
+            <ModelFlow siteLogo={config.siteLogo} />
           </Reveal>
 
           <Reveal as="article" animation="scale-in" delay={90} className="value-card value-card--wide security-card">

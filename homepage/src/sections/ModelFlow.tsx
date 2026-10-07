@@ -2,10 +2,11 @@ import { Radio } from 'lucide-react'
 import { motion, useScroll, useTransform } from 'motion/react'
 import { useRef } from 'react'
 import { useReducedMotionPreference } from '../hooks/useReducedMotion'
+import { BrandLogo } from '../components/BrandLogo'
 
 const models = ['OpenAI', 'Claude', 'Gemini', 'DeepSeek', 'Qwen', 'GLM']
 
-export function ModelFlow() {
+export function ModelFlow({ siteLogo }: { siteLogo?: string }) {
   const root = useRef<HTMLDivElement>(null)
   const reduced = useReducedMotionPreference()
   const { scrollYProgress } = useScroll({ target: root, offset: ['start .92', 'start .45'] })
@@ -20,7 +21,7 @@ export function ModelFlow() {
       <motion.i style={reduced ? { scaleX: 1 } : { scaleX: requestFill }} />
       <motion.b style={reduced ? { opacity: 0 } : { opacity: requestGlow }} />
     </span>
-    <span className="gateway-chip"><img src="/home-assets/xingqiao-logo-256-v1.webp" alt="" />星桥</span>
+    <span className="gateway-chip"><BrandLogo src={siteLogo} />星桥</span>
     <span className="flow-line" data-flow-segment="gateway-to-models" data-scroll-range="0.58-1" aria-hidden="true">
       <motion.i style={reduced ? { scaleX: 1 } : { scaleX: modelFill }} />
       <motion.b style={reduced ? { opacity: 0 } : { opacity: modelGlow }} />

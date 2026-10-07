@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { DEFAULT_SITE_CONFIG, loadSiteConfig, type SiteConfig } from '../domain/siteConfig'
+import { updateFavicon } from '../domain/branding'
 
 function initialConfig(): SiteConfig {
   return {
@@ -20,6 +21,10 @@ export function useSiteConfig() {
     })
     return () => { active = false }
   }, [])
+
+  useEffect(() => {
+    updateFavicon(config.siteLogo)
+  }, [config.siteLogo])
 
   return config
 }
