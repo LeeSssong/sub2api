@@ -4380,7 +4380,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { formatUsdMoney } from "@/utils/format";
 import { formatMultiplierLabel } from "@/utils/formatters";
 import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
@@ -4494,6 +4493,13 @@ import {
   serializeVideoModelPrices,
   videoModelPriceFamilyRows,
 } from "./groupsVideoModelPricing";
+
+const formatUsdNativeGroup = (cost: number | null | undefined): string => {
+  if (cost == null || !Number.isFinite(cost)) return '—';
+  if (cost >= 1000) return `$${cost.toFixed(0)}`;
+  if (cost >= 100) return `$${cost.toFixed(1)}`;
+  return `$${cost.toFixed(2)}`;
+};
 
 const supportsLivePlatform = (platform: string): boolean =>
   platform === "openai" || platform === "composite";
@@ -5773,7 +5779,7 @@ const loadGroups = async () => {
 };
 
 const formatUsd = (cost: number | null | undefined): string =>
-  formatUsdMoney(cost);
+  formatUsdNativeGroup(cost);
 
 const getQuotaUsageClass = (
   used: number,

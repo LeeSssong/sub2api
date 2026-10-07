@@ -302,7 +302,7 @@
                     row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
                     'text-gray-900 dark:text-white'
                   ]">
-                    {{ formatUsdMoney(row.quota_used) }} / {{ formatUsdMoney(row.quota) }}
+                    {{ formatUsdMoney(row.quota_used, 2) }} / {{ formatUsdMoney(row.quota, 2) }}
                   </span>
                 </div>
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -332,7 +332,7 @@
                     row.usage_5h >= row.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    {{ formatUsdMoney(row.usage_5h) }}/{{ formatUsdMoney(row.rate_limit_5h) }}
+                    {{ formatUsdMoney(row.usage_5h, 2) }}/{{ formatUsdMoney(row.rate_limit_5h, 2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -360,7 +360,7 @@
                     row.usage_1d >= row.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    {{ formatUsdMoney(row.usage_1d) }}/{{ formatUsdMoney(row.rate_limit_1d) }}
+                    {{ formatUsdMoney(row.usage_1d, 2) }}/{{ formatUsdMoney(row.rate_limit_1d, 2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -388,7 +388,7 @@
                     row.usage_7d >= row.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    {{ formatUsdMoney(row.usage_7d) }}/{{ formatUsdMoney(row.rate_limit_7d) }}
+                    {{ formatUsdMoney(row.usage_7d, 2) }}/{{ formatUsdMoney(row.rate_limit_7d, 2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -765,11 +765,11 @@
               <div class="flex items-center gap-2">
                 <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700">
                   <span class="font-medium text-gray-900 dark:text-white">
-                    {{ formatUsdMoney(selectedKey.quota_used) }}
+                    {{ formatUsdMoney(selectedKey.quota_used, 4) }}
                   </span>
                   <span class="mx-2 text-gray-400">/</span>
                   <span class="text-gray-500 dark:text-gray-400">
-                    {{ formatUsdMoney(selectedKey.quota) }}
+                    {{ formatUsdMoney(selectedKey.quota, 2) }}
                   </span>
                 </div>
                 <button
@@ -832,11 +832,11 @@
                       selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      {{ formatUsdMoney(selectedKey.usage_5h) }}
+                      {{ formatUsdMoney(selectedKey.usage_5h, 4) }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      {{ formatUsdMoney(selectedKey.rate_limit_5h) }}
+                      {{ formatUsdMoney(selectedKey.rate_limit_5h, 2) }}
                     </span>
                   </div>
                 </div>
@@ -878,11 +878,11 @@
                       selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      {{ formatUsdMoney(selectedKey.usage_1d) }}
+                      {{ formatUsdMoney(selectedKey.usage_1d, 4) }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      {{ formatUsdMoney(selectedKey.rate_limit_1d) }}
+                      {{ formatUsdMoney(selectedKey.rate_limit_1d, 2) }}
                     </span>
                   </div>
                 </div>
@@ -924,11 +924,11 @@
                       selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      {{ formatUsdMoney(selectedKey.usage_7d) }}
+                      {{ formatUsdMoney(selectedKey.usage_7d, 4) }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      {{ formatUsdMoney(selectedKey.rate_limit_7d) }}
+                      {{ formatUsdMoney(selectedKey.rate_limit_7d, 2) }}
                     </span>
                   </div>
                 </div>
@@ -1093,7 +1093,7 @@
     <ConfirmDialog
       :show="showResetQuotaDialog"
       :title="t('keys.resetQuotaTitle')"
-      :message="t('keys.resetQuotaConfirmMessage', { name: selectedKey?.name, used: formatMoneyFixed(selectedKey?.quota_used) })"
+      :message="t('keys.resetQuotaConfirmMessage', { name: selectedKey?.name, used: formatMoneyFixed(selectedKey?.quota_used, 4) })"
       :confirm-text="t('keys.reset')"
       :cancel-text="t('common.cancel')"
       :danger="true"
@@ -1419,7 +1419,7 @@ const now = ref(new Date())
 let resetTimer: ReturnType<typeof setInterval> | null = null
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
 const formatKeyUsage = (value: number | null | undefined) =>
-  value == null || !Number.isFinite(value) ? t('keys.usageUnavailable') : `$${formatMoneyFixed(value)}`
+  value == null || !Number.isFinite(value) ? t('keys.usageUnavailable') : `$${formatMoneyFixed(value, 4)}`
 const userGroupRates = ref<Record<number, number>>({})
 const lineMetrics = ref(new Map<number, MonitorV4Group>())
 const lineMetricsGeneratedAt = ref<string | null>(null)

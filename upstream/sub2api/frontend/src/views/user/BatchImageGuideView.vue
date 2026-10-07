@@ -2387,7 +2387,7 @@ function friendlyItemError(error: BatchImageItem['error']) {
 }
 
 function formatMoney(value: number | null | undefined) {
-  const formatted = formatMoneyFixed(value)
+  const formatted = formatMoneyFixed(value, 2)
   return formatted === '—' ? formatted : `$${formatted}`
 }
 

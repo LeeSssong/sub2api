@@ -62,7 +62,6 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { CNProviderBalanceEntry, CNProviderBalanceResult } from '@/api/admin/cnProviders'
 import type { Account } from '@/types'
-import { formatMoneyFixed } from '@/utils/format'
 import { platformTextClass } from '@/utils/platformColors'
 import { cnBalanceCellVisible } from './credentialsBuilder'
 
@@ -122,7 +121,8 @@ const currentEntries = computed<CNProviderBalanceEntry[]>(() => {
 })
 
 const formatEntry = (entry: CNProviderBalanceEntry): string => {
-  return `${entry.currency || '¥'} ${formatMoneyFixed(entry.balance)}`
+  const fixed = entry.balance >= 100 ? entry.balance.toFixed(0) : entry.balance.toFixed(2)
+  return `${entry.currency || '¥'} ${fixed}`
 }
 
 const balanceLabel = computed(() => {

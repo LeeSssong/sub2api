@@ -182,8 +182,8 @@
           <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
             <DetailItem :label="t('usage.detail.billingMode')" :value="billingModeLabel(detail)" />
             <DetailItem :label="t('usage.detail.billingType')" :value="billingTypeLabel(detail.billing_type)" />
-            <DetailItem :label="t('usage.detail.inputCost')" :value="formatCost(detail.input_cost)" numeric />
-            <DetailItem :label="t('usage.detail.outputCost')" :value="formatCost(detail.output_cost)" numeric />
+            <DetailItem :label="t('usage.detail.inputCost')" :value="formatCost(detail.input_cost, 6)" numeric />
+            <DetailItem :label="t('usage.detail.outputCost')" :value="formatCost(detail.output_cost, 6)" numeric />
             <DetailItem
               v-if="detail.cache_creation_cost > 0"
               :label="t('usage.detail.cacheCreationCost')"
@@ -604,8 +604,8 @@ function formatDiagnosticBytes(read: number | undefined, forwarded: number | und
   return `${(read ?? 0).toLocaleString()} / ${(forwarded ?? 0).toLocaleString()}`
 }
 
-function formatCost(value: number | null | undefined): string {
-  const formatted = formatMoneyFixed(value)
+function formatCost(value: number | null | undefined, fractionDigits = 6): string {
+  const formatted = formatMoneyFixed(value, fractionDigits)
   return formatted === '—' ? formatted : `$${formatted}`
 }
 
