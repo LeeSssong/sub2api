@@ -9,6 +9,15 @@ afterEach(() => {
 })
 
 describe('useSiteConfig branding', () => {
+  it('keeps the server favicon while public settings are loading', () => {
+    document.head.innerHTML = '<link rel="icon" href="/favicon.ico">'
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
+
+    renderHook(() => useSiteConfig())
+
+    expect(document.querySelector('link[rel="icon"]')).toHaveAttribute('href', '/favicon.ico')
+  })
+
   it.each([
     ['data:image/png;base64,aGVsbG8=', 'image/png'],
     ['/uploads/brand.svg', 'image/svg+xml'],

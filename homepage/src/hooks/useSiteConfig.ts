@@ -13,18 +13,22 @@ function initialConfig(): SiteConfig {
 
 export function useSiteConfig() {
   const [config, setConfig] = useState<SiteConfig>(initialConfig)
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     let active = true
     loadSiteConfig(fetch, window.location.origin).then((next) => {
-      if (active) setConfig(next)
+      if (active) {
+        setConfig(next)
+        setLoaded(true)
+      }
     })
     return () => { active = false }
   }, [])
 
   useEffect(() => {
-    updateFavicon(config.siteLogo)
-  }, [config.siteLogo])
+    if (loaded) updateFavicon(config.siteLogo)
+  }, [config.siteLogo, loaded])
 
   return config
 }
