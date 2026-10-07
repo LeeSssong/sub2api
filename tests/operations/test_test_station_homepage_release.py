@@ -64,7 +64,7 @@ class HomepageReleaseTests(unittest.TestCase):
                 if args[:3] == ['docker', 'ps', '-q']:
                     return 'edge'
                 if args[-2:] == ['cat', '/etc/caddy/Caddyfile']:
-                    return old_config
+                    return ':80 {\n  # stale bind-mounted inode\n}\n'
                 if 'adapt' in args or args[-1] == 'http://127.0.0.1:2019/config/':
                     return '{}'
                 if args[:3] == ['docker', 'image', 'inspect']:

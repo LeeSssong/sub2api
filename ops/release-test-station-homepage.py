@@ -104,8 +104,8 @@ def deploy(bundle):
     commit, tree = manifest['source_commit'], manifest['source_tree']
     if not all(re.fullmatch('[a-f0-9]{40}', value) for value in (commit, tree)):
         raise ValueError('invalid source identity')
-    image = PROJECT + '-homepage:' + commit
-    if manifest['image_tag'] != image or hashlib.sha256((bundle / 'image.tar').read_bytes()).hexdigest() != manifest['image_archive_sha256']:
+    image = manifest['image_tag']
+    if not re.fullmatch(PROJECT + r'-homepage:[a-f0-9]{40}', image) or hashlib.sha256((bundle / 'image.tar').read_bytes()).hexdigest() != manifest['image_archive_sha256']:
         raise ValueError('image checksum mismatch')
     previous = json.loads((ROOT / 'release-state.json').read_text())
     if previous['source_commit'] != manifest['previous_commit']:
@@ -118,9 +118,10 @@ def deploy(bundle):
     path = Path(next(m['Source'] for m in caddy['Mounts'] if m['Destination'] == '/etc/caddy/Caddyfile'))
     if path.is_symlink() or not str(path).startswith(str(ROOT / 'releases') + '/'):
         raise ValueError('unsafe Caddy config path')
-    old_config = run(['docker', 'exec', cid, 'cat', '/etc/caddy/Caddyfile'])
-    if old_config != path.read_text():
-        raise ValueError('mounted Caddy file differs from host')
+    # Earlier API releases atomically replaced this bind-mounted file. The
+    # container can retain an old inode while Caddy correctly uses stdin reload.
+    # Gate on the restart config matching the live admin API, not the stale inode.
+    old_config = path.read_text()
     # Confirm that the file also describes the currently loaded configuration.
     adapted = json.loads(run(['docker', 'exec', '-i', cid, 'caddy', 'adapt', '--config', '-', '--adapter', 'caddyfile'], old_config.encode()))
     loaded = json.loads(run(['docker', 'exec', cid, 'wget', '-qO-', 'http://127.0.0.1:2019/config/']))
@@ -167,7 +168,7 @@ def deploy(bundle):
             f.write(config)
             f.flush()
             os.fsync(f.fileno())
-        if run(['docker', 'exec', cid, 'cat', '/etc/caddy/Caddyfile']) != config:
+        if path.read_text() != config:
             raise ValueError('persistent routing mismatch')
         previous['homepage'] = {'source_commit': commit, 'source_tree': tree, 'image_id': manifest['image_id'],
                                 'release_dir': str(release), 'service': service}
@@ -184,7 +185,7 @@ def deploy(bundle):
         raise
 
 
-def publish():
+def publish(reuse=None):
     root = Path.cwd()
     if not (root / '.git').is_dir() or run(['git', 'branch', '--show-current']).strip() != 'main' or run(['git', 'status', '--porcelain']).strip():
         raise ValueError('use the clean root main checkout')
@@ -198,22 +199,22 @@ def publish():
     previous = json.loads(run(SSH + ['sudo -n cat /opt/sub2api-test-station/release-state.json']))
     stage = root / '.release' / ('homepage-' + commit)
     stage.mkdir(parents=True)
-    subprocess.run(['npm', 'run', 'build'], cwd=root / 'homepage', check=True)
+    if reuse:
+        reuse = Path(reuse).resolve()
+        if reuse.parent != root / '.release' or reuse.is_symlink():
+            raise ValueError('reuse requires a local release artifact')
+        artifact = json.loads((reuse / 'manifest.json').read_text())
+        original_commit = artifact.get('artifact_source_commit', artifact['source_commit'])
+        run(['git', 'diff', '--exit-code', original_commit, 'HEAD', '--', 'homepage', 'infra/independent-test-station/Dockerfile.homepage'])
+        if hashlib.sha256((reuse / 'image.tar').read_bytes()).hexdigest() != artifact['image_archive_sha256']:
+            raise ValueError('reused artifact checksum mismatch')
+        shutil.copyfile(reuse / 'image.tar', stage / 'image.tar')
+        manifest = dict(artifact, source_commit=commit, source_tree=tree, previous_commit=previous['source_commit'],
+                        artifact_source_commit=original_commit, artifact_source_tree=artifact.get('artifact_source_tree', artifact['source_tree']))
+    else:
+        manifest = build_artifact(root, stage, commit, tree, previous)
     if run(['git', 'status', '--porcelain']).strip() or commit != run(['git', 'rev-parse', 'HEAD']).strip():
         raise ValueError('source changed while building')
-    dist = stage / 'dist'
-    dist.mkdir()
-    shutil.copyfile(root / 'homepage/dist/index.html', dist / 'index.html')
-    shutil.copytree(root / 'homepage/dist/home-assets', dist / 'home-assets')
-    (stage / 'Caddyfile').write_text(':80 {\n root * /srv/home\n @home path / /home /home/\n header @home Cache-Control "no-store, max-age=0"\n rewrite @home /index.html\n @config path /home-assets/site-config.json\n header @config Cache-Control "no-store, max-age=0"\n @assets path /home-assets/*\n header @assets Cache-Control "public, max-age=31536000, immutable"\n file_server\n}\n')
-    shutil.copyfile(root / 'infra/independent-test-station/Dockerfile.homepage', stage / 'Dockerfile')
-    image = PROJECT + '-homepage:' + commit
-    subprocess.run(['docker', 'buildx', 'build', '--platform', 'linux/amd64', '--load', '-t', image, str(stage)], check=True)
-    image_id = run(['docker', 'image', 'inspect', '--format', '{{.Id}}', image]).strip()
-    run(['docker', 'save', '-o', str(stage / 'image.tar'), image])
-    manifest = {'source_commit': commit, 'source_tree': tree, 'previous_commit': previous['source_commit'],
-                'image_tag': image, 'image_id': image_id, 'image_archive_sha256': hashlib.sha256((stage / 'image.tar').read_bytes()).hexdigest(),
-                'checksums': {str(path.relative_to(dist)): hashlib.sha256(path.read_bytes()).hexdigest() for path in dist.rglob('*') if path.is_file()}}
     save(stage / 'manifest.json', manifest)
     shutil.copyfile(__file__, stage / 'deploy.py')
     with tarfile.open(stage / 'bundle.tar.gz', 'w:gz') as archive:
@@ -228,6 +229,24 @@ def publish():
     print(run(SSH + [command]), end='')
 
 
+def build_artifact(root, stage, commit, tree, previous):
+    subprocess.run(['npm', 'run', 'build'], cwd=root / 'homepage', check=True)
+    dist = stage / 'dist'
+    dist.mkdir()
+    shutil.copyfile(root / 'homepage/dist/index.html', dist / 'index.html')
+    shutil.copytree(root / 'homepage/dist/home-assets', dist / 'home-assets')
+    (stage / 'Caddyfile').write_text(':80 {\n root * /srv/home\n @home path / /home /home/\n header @home Cache-Control "no-store, max-age=0"\n rewrite @home /index.html\n @config path /home-assets/site-config.json\n header @config Cache-Control "no-store, max-age=0"\n @assets path /home-assets/*\n header @assets Cache-Control "public, max-age=31536000, immutable"\n file_server\n}\n')
+    shutil.copyfile(root / 'infra/independent-test-station/Dockerfile.homepage', stage / 'Dockerfile')
+    image = PROJECT + '-homepage:' + commit
+    subprocess.run(['docker', 'buildx', 'build', '--platform', 'linux/amd64', '--load', '-t', image, str(stage)], check=True)
+    image_id = run(['docker', 'image', 'inspect', '--format', '{{.Id}}', image]).strip()
+    run(['docker', 'save', '-o', str(stage / 'image.tar'), image])
+    manifest = {'source_commit': commit, 'source_tree': tree, 'previous_commit': previous['source_commit'],
+                'image_tag': image, 'image_id': image_id, 'image_archive_sha256': hashlib.sha256((stage / 'image.tar').read_bytes()).hexdigest(),
+                'checksums': {str(path.relative_to(dist)): hashlib.sha256(path.read_bytes()).hexdigest() for path in dist.rglob('*') if path.is_file()}}
+    return manifest
+
+
 if __name__ == '__main__':
     if sys.argv[1:] and sys.argv[1] == 'deploy':
         bundle = Path(sys.argv[2]).resolve()
@@ -237,4 +256,6 @@ if __name__ == '__main__':
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         deploy(bundle)
     else:
-        publish()
+        if sys.argv[1:] and (len(sys.argv) != 3 or sys.argv[1] != '--reuse'):
+            raise ValueError('usage: release-test-station-homepage.py [--reuse LOCAL_ARTIFACT]')
+        publish(sys.argv[2] if len(sys.argv) == 3 else None)
