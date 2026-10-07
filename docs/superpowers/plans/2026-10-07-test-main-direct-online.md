@@ -4,7 +4,7 @@
 
 约束：不停止公网 API 服务；不复制测试站数据/凭据；保留旧实例连接最长 300 秒排空和回滚入口；发布仅来自根目录干净且已推送、与 origin/main 相同 commit/tree 的 main。
 
-设计调整：241_remove_monitor_v4_operational_flag.sql 保持原文及 checksum，移到不被 embed 的 deferred 子目录。其余四个增量迁移及新增 265_monitor_v4_legacy_default.sql 进入生产集合，目标 hash 94e7d3f18b82168089015e41e69b3f4d9f2f6b3d4fe9f493c5eb1b67dd87e44d。旧 NOT NULL 字段保留，新增迁移仅在字段存在时设 FALSE 默认值；新快照写入方式保持测试站代码，兼容有／无旧字段两种结构。新 UI/健康统计不使用该字段。
+设计调整：241_remove_monitor_v4_operational_flag.sql 保持原文及 checksum，移到不被 embed 的 deferred 子目录。其余四个增量迁移及新增 265_monitor_v4_legacy_default.sql 进入生产集合，目标 hash a592b530565edf347647a8e1e16b466c28d0a183ef02b7572431cb6a54e3826c。旧 NOT NULL 字段保留，新增迁移仅在字段存在时设 FALSE 默认值；新快照写入方式保持测试站代码，兼容有／无旧字段两种结构。新 UI/健康统计不使用该字段。
 
 ## Task 1：完整应用整合及数据库兼容
 
