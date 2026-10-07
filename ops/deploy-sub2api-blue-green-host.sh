@@ -1979,6 +1979,9 @@ if [[ "$migrations_hash" != "$state_migrations_hash" ]]; then
            ( "$state_migrations_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ) ||
            ( "$state_migrations_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" ) || ( "$state_migrations_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" ) || ( "$state_migrations_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" ) || ( "$state_migrations_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" ) || ( "$state_migrations_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" ) || ( "$state_migrations_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" && "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ) ]]; then
     online_migration_transition=true
+  elif [[ "$state_migrations_hash" == "$MONITOR_V4_OLD_MIGRATIONS_HASH" \
+      && "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ]]; then
+    online_migration_transition=true
   elif [[ "$maintenance_authorized" == true \
       && "$maintenance_from_hash" == "$state_migrations_hash" ]] \
       && approved_maintenance_transition "$state_migrations_hash" "$migrations_hash"; then
