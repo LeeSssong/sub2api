@@ -155,8 +155,7 @@ CREATE TABLE ops_error_logs(id bigserial PRIMARY KEY,group_id bigint,account_id 
     restored=rows(bind(load_snapshot,['1h']))[0]
     check('production snapshot INSERT and SELECT preserve P50 separately',restored['ttft_p50_ms']==300 and restored['latency_p50_ms']==4000 and restored['ttft_p95_ms']==425)
     check('snapshot preserves real request counts without operational flag', restored['real_request_count'] == 3 and restored['real_success_count'] == 3 and 'current_operational' not in restored)
-    sql('ALTER TABLE account_monitor_v4_snapshots ADD COLUMN current_operational BOOLEAN NOT NULL DEFAULT FALSE;')
-    check('rollback column restoration preserves snapshot counts', sql('SELECT real_request_count=3 AND real_success_count=3 AND NOT current_operational FROM account_monitor_v4_snapshots;') == 't')
+    check('rollback legacy reader keeps snapshot counts and compatibility default', sql('SELECT real_request_count=3 AND real_success_count=3 AND NOT current_operational FROM account_monitor_v4_snapshots;') == 't')
     results['passed']=True
 except Exception as exc:
     results['passed']=False
