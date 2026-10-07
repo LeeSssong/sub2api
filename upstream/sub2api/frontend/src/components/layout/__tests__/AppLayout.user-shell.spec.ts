@@ -1,25 +1,21 @@
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { mount } from '@vue/test-utils'
+import { describe, expect, it, vi } from 'vitest'
+import AppLayout from '../AppLayout.vue'
 
-import { describe, expect, it } from 'vitest'
-
-const source = readFileSync(
-  resolve(dirname(fileURLToPath(import.meta.url)), '../AppLayout.vue'),
-  'utf8',
-)
+const state = vi.hoisted(() => ({ user: { role: 'user' } }))
+vi.mock('@/stores', () => ({ useAppStore: () => ({ sidebarCollapsed: false }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => state }))
+vi.mock('@/stores/onboarding', () => ({ useOnboardingStore: () => ({ setReplayCallback: vi.fn() }) }))
+vi.mock('@/composables/useOnboardingTour', () => ({ useOnboardingTour: () => ({ replayTour: vi.fn() }) }))
 
 describe('AppLayout regular user shell', () => {
-  it('keeps the full header for admins and a mobile menu trigger for users', () => {
-    expect(source).toContain('<AppHeader v-if="isAdmin" />')
-    expect(source).toContain('v-else class="sticky top-0')
-    expect(source).toContain('@click="appStore.toggleMobileSidebar()"')
-    expect(source).toContain('lg:hidden')
-  })
-
-  it('restores the native locale switcher on the user mobile header', () => {
-    expect(source).toContain("import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'")
-    expect(source).toContain('data-testid="user-mobile-locale"')
-    expect(source).toContain('<LocaleSwitcher />')
+  it('renders the fixed user header and the admin header in their respective roles', () => {
+    for (const role of ['user', 'admin']) {
+      state.user.role = role
+      const wrapper = mount(AppLayout, { global: { stubs: { AppSidebar: true, AppHeader: true, UserHeader: true } } })
+      expect(wrapper.find('app-header-stub').exists()).toBe(role === 'admin')
+      expect(wrapper.find('user-header-stub').exists()).toBe(role === 'user')
+      wrapper.unmount()
+    }
   })
 })

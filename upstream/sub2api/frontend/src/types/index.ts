@@ -568,6 +568,8 @@ export interface ReasoningEffortMapping {
 
 export interface Group {
   id: number
+  // Current native tool association; an empty list uses the platform default.
+  tool_ids?: string[]
   name: string
   description: string | null
   platform: GroupPlatform

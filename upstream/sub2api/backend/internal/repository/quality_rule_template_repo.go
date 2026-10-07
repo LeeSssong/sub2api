@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -230,20 +231,27 @@ func (r *qualityRuleTemplateRepository) CreateLinkedPlan(ctx context.Context, t 
 		}
 	}()
 	var current int64
+	var group sql.NullString
 	err = tx.QueryRowContext(ctx, `
-		SELECT id FROM quality_rule_templates WHERE id = $1 AND enabled AND updated_at = $2 FOR SHARE
-	`, t.ID, t.UpdatedAt).Scan(&current)
+		SELECT id, account_filter->>'group' FROM quality_rule_templates WHERE id = $1 AND enabled AND updated_at = $2 FOR SHARE
+	`, t.ID, t.UpdatedAt).Scan(&current, &group)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = service.ErrQualityTemplateSkipped
 	}
 	if err != nil {
 		return nil, err
 	}
+	// Snapshot the locked template, not caller input or current account membership.
+	// Later filter edits intentionally leave every existing link's route unchanged.
+	var testedGroupID *int64
+	if id, parseErr := strconv.ParseInt(strings.TrimSpace(group.String), 10, 64); group.Valid && parseErr == nil && id > 0 {
+		testedGroupID = &id
+	}
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO quality_rule_template_accounts (template_id, account_id)
-		SELECT $1, id FROM accounts WHERE id = $2 AND deleted_at IS NULL
+		INSERT INTO quality_rule_template_accounts (template_id, account_id, tested_group_id)
+		SELECT $1, id, $3::bigint FROM accounts WHERE id = $2 AND deleted_at IS NULL
 		ON CONFLICT DO NOTHING
-	`, t.ID, plan.AccountID)
+	`, t.ID, plan.AccountID, testedGroupID)
 	if err != nil {
 		return nil, err
 	}

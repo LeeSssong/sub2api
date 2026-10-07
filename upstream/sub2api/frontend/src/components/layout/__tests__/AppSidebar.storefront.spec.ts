@@ -20,10 +20,10 @@ let wrapper: VueWrapper | undefined
 
 afterEach(() => { wrapper?.unmount() })
 
-async function setup(items = [storefront]) {
+async function setup(items = [storefront], paymentEnabled = false) {
   const pinia = createPinia()
   const app = useAppStore(pinia)
-  app.$patch({ publicSettingsLoaded: true, cachedPublicSettings: { custom_menu_items: items } })
+  app.$patch({ publicSettingsLoaded: true, cachedPublicSettings: { custom_menu_items: items, payment_enabled: paymentEnabled } })
   const router = createRouter({ history: createMemoryHistory(), routes: [
     { path: '/:pathMatch(.*)*', component: { template: '<div />' } },
   ] })
@@ -37,33 +37,28 @@ async function setup(items = [storefront]) {
 }
 
 describe('regular user storefront menu', () => {
-  it('restores the configured storefront after keys and navigates to its original embedded page', async () => {
-    const { sidebar, router } = await setup([
-      { ...storefront, id: 'xingqiao-support', label: '联系客服', url: 'md:support' },
-      storefront,
-    ])
+  it.each([false, true])('keeps only the bottom recharge entry when payments are enabled=%s', async (paymentEnabled) => {
+    const { sidebar, router } = await setup([storefront], paymentEnabled)
     expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual([
-      '/dashboard', '/usage', '/keys', '/custom/xingqiao-storefront',
+      '/dashboard', '/usage', '/keys',
     ])
-    const link = sidebar.get('a[href="/custom/xingqiao-storefront"]')
-    expect(link.text()).toBe('云猫兑换码充值')
-    expect(link.find('svg rect').exists()).toBe(true)
-    expect(link.attributes('target')).toBeUndefined()
+    expect(sidebar.find('nav a[href="/redeem"]').exists()).toBe(false)
+    expect(sidebar.find('nav a[href="/custom/xingqiao-storefront"]').exists()).toBe(false)
+    const link = sidebar.get('[data-testid="user-sidebar-recharge"]')
+    expect(link.attributes('href')).toBe(paymentEnabled ? '/purchase' : '/redeem')
     await link.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/custom/xingqiao-storefront')
-    expect(link.classes()).toContain('sidebar-link-active')
+    expect(router.currentRoute.value.path).toBe(paymentEnabled ? '/purchase' : '/redeem')
   })
 
-  it('follows loaded settings, role visibility and collapsed tooltip without inventing a menu', async () => {
+  it('does not restore a duplicate menu when storefront settings load or visibility changes', async () => {
     const { sidebar, app } = await setup([])
-    expect(sidebar.find('a[href="/custom/xingqiao-storefront"]').exists()).toBe(false)
-    app.$patch({ cachedPublicSettings: { custom_menu_items: [storefront] }, sidebarCollapsed: true })
-    await nextTick()
-    expect(sidebar.get('a[href="/custom/xingqiao-storefront"]').attributes('title')).toBe('云猫兑换码充值')
-    app.$patch({ cachedPublicSettings: { custom_menu_items: [{ ...storefront, visibility: 'admin' }] } })
-    await nextTick()
-    expect(sidebar.find('a[href="/custom/xingqiao-storefront"]').exists()).toBe(false)
+    for (const visibility of ['user', 'admin'] as const) {
+      app.$patch({ cachedPublicSettings: { custom_menu_items: [{ ...storefront, visibility }] } })
+      await nextTick()
+      expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys'])
+      expect(sidebar.get('[data-testid="user-sidebar-recharge"]').exists()).toBe(true)
+    }
   })
 
   it('mounts intelligence tests only through configured user menus', async () => {
@@ -72,8 +67,12 @@ describe('regular user storefront menu', () => {
     app.$patch({cachedPublicSettings:{custom_menu_items:[item],pelican_showcase_enabled:true}})
     await nextTick()
     expect(sidebar.get('a[href="/intelligence-test"]').text()).toBe('智商监测')
+    expect(sidebar.get('a[href="/intelligence-test"]').find('svg rect').exists()).toBe(true)
+    expect(sidebar.get('a[href="/intelligence-test"]').find('img[src*="undefined"]').exists()).toBe(false)
     expect(sidebar.find('a[href="/pelican-showcase"]').exists()).toBe(false)
     app.$patch({cachedPublicSettings:{custom_menu_items:[{...item,visibility:'admin'}]}})
     await nextTick();expect(sidebar.find('a[href="/intelligence-test"]').exists()).toBe(false)
   })
+
+
 })

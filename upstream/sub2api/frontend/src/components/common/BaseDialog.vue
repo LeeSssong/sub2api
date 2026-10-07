@@ -1,10 +1,10 @@
 <template>
   <Teleport to="body">
-    <Transition name="modal">
+    <Transition name="modal" @after-enter="emit('opened')">
       <div
         v-if="show"
         class="modal-overlay"
-        :class="{ 'drawer-overlay': placement === 'right' }"
+        :class="{ 'drawer-overlay': placement === 'right', 'user-app-shell xq-dialog': branded }"
         :style="zIndexStyle"
         :aria-labelledby="dialogId"
         role="dialog"
@@ -14,7 +14,7 @@
         @click.self="handleClose"
       >
         <!-- Modal panel -->
-        <div ref="dialogRef" :class="['modal-content', widthClasses, contentClass, { 'drawer-content': placement === 'right', 'modal-fullscreen': fullscreen }]" @click.stop>
+        <div ref="dialogRef" :class="['modal-content', widthClasses, contentClass, panelClass, { 'drawer-content': placement === 'right', 'modal-fullscreen': fullscreen }]" @click.stop>
           <!-- Header -->
           <div class="modal-header">
             <h3 :id="dialogId" class="modal-title">
@@ -24,7 +24,7 @@
               v-if="showCloseButton"
               @click="emit('close')"
               class="-mr-2 rounded-xl p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 focus-visible:ring-offset-2 dark:text-dark-500 dark:hover:bg-dark-700 dark:hover:text-dark-300 dark:focus-visible:ring-offset-dark-900"
-              aria-label="Close modal"
+              :aria-label="branded ? '关闭' : 'Close modal'"
             >
               <Icon name="x" size="md" />
             </button>
@@ -51,10 +51,11 @@ const openDialogs = new Set<string>()
 </script>
 
 <script setup lang="ts">
-import { computed, watch, onMounted, onUnmounted, ref, nextTick } from 'vue'
+import { computed, watch, onMounted, onUnmounted, ref, nextTick, inject } from 'vue'
 import Icon from '@/components/icons/Icon.vue'
+const userTheme = inject('starbridge-user', ref(false))
 
-// 生成唯一ID以避免多个对话框时ID冲突
+// Each instance must own a unique accessible title.
 const dialogId = `modal-title-${++dialogIdCounter}`
 
 // 焦点管理
@@ -65,6 +66,7 @@ let previousActiveElement: HTMLElement | null = null
 type DialogWidth = 'narrow' | 'normal' | 'wide' | 'extra-wide' | 'full'
 
 interface Props {
+  panelClass?: string
   show: boolean
   title: string
   width?: DialogWidth
@@ -77,15 +79,18 @@ interface Props {
   /** Optional per-dialog layout overrides; native defaults stay unchanged. */
   contentClass?: string
   bodyClass?: string
+  brandTheme?: boolean
 }
 
 interface Emits {
   (e: 'close'): void
+  (e: 'opened'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   width: 'normal',
   placement: 'center',
+  panelClass: '',
   closeOnEscape: true,
   closeOnClickOutside: false,
   showCloseButton: true,
@@ -94,6 +99,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+const branded = computed(() => props.brandTheme || userTheme.value)
 
 // Custom z-index style (overrides the default z-50 from CSS)
 const zIndexStyle = computed(() => {
@@ -137,6 +143,14 @@ const handleClose = () => {
 }
 
 const handleEscape = (event: KeyboardEvent) => {
+  if (!props.show || [...openDialogs].at(-1) !== dialogId) return
+  if (branded.value && event.key === 'Tab' && dialogRef.value) {
+    const elements = [...dialogRef.value.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')]
+    const first = elements[0], last = elements.at(-1)
+    if (!dialogRef.value.contains(document.activeElement)) { event.preventDefault(); first?.focus() }
+    else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+  }
   if (props.show && props.closeOnEscape && event.key === 'Escape') {
     emit('close')
   }

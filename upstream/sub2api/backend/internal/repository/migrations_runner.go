@@ -367,6 +367,13 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 		if err != nil {
 			return fmt.Errorf("begin migration %s: %w", name, err)
 		}
+		switch name {
+		case "238_monitor_v4_p50.sql", "239_group_tool_mappings.sql", "240_manual_probe_group_scope.sql", "264_quality_rule_tested_group.sql", "265_monitor_v4_legacy_default.sql":
+			if _, err := tx.ExecContext(ctx, "SET LOCAL lock_timeout = '100ms'; SET LOCAL statement_timeout = '2s'"); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("bound online migration %s: %w", name, err)
+			}
+		}
 
 		// 执行迁移 SQL
 		if _, err := tx.ExecContext(ctx, content); err != nil {

@@ -1,5 +1,10 @@
 <template>
-  <div class="relative" ref="dropdownRef" data-testid="locale-switcher">
+  <div v-if="compact" class="user-locale-switch" role="group" :aria-label="locale === 'zh' ? '语言' : 'Language'">
+    <button v-for="option in [...availableLocales].reverse()" :key="option.code" type="button"
+      :aria-pressed="option.code === currentLocaleCode" :disabled="switching"
+      @click="selectLocale(option.code)">{{ option.code === 'zh' ? '中文' : 'EN' }}</button>
+  </div>
+  <div v-else class="relative" ref="dropdownRef" data-testid="locale-switcher">
     <button
       @click="toggleDropdown"
       :disabled="switching"

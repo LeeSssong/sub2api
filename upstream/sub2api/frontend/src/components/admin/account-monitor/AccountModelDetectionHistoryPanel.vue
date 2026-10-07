@@ -22,7 +22,7 @@
         </div>
 
         <div v-if="loading && !items.length" class="py-10 text-center text-xs text-slate-400" role="status">{{ t('admin.accounts.modelDetection.loading') }}</div>
-        <div v-else-if="loadError" class="py-10 text-center text-xs text-rose-300" data-test="detection-history-error" role="alert"><p>{{ t('admin.accounts.modelDetection.historyLoadError') }}</p><button class="btn btn-secondary mt-3" type="button" @click="load()">{{ t('common.refresh') }}</button></div>
+        <div v-else-if="loadError" class="py-10 text-center text-xs text-rose-300" data-test="detection-history-error" role="alert"><p>{{ t('admin.accounts.modelDetection.historyLoadError') }}</p><button class="btn btn-secondary mt-3" type="button" @click="load()"><Icon name="refresh" size="sm" aria-hidden="true" /> {{ t('common.refresh') }}</button></div>
         <div v-else-if="!items.length" class="py-10 text-center text-xs text-slate-400" data-test="detection-history-empty">{{ t('admin.accounts.modelDetection.historyEmpty') }}</div>
         <div v-else class="mt-4 min-h-0 flex-1 overflow-y-auto">
           <div class="hidden overflow-x-auto rounded-lg border border-slate-600 md:block" data-test="detection-history-table">

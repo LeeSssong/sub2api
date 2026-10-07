@@ -1,0 +1,134 @@
+/* Xingqiao daylight: the same ocean-blue hierarchy, translated into mist and ice. */
+:root {
+  --xq-void: #e4eded; --xq-canvas: #eaf1f1; --xq-depth: #dce8e9;
+  --xq-surface: #f0f5f4; --xq-raised: #d1e7e7; --xq-border: #b7cecf;
+  --xq-line: #cddddd; --xq-text: #183b45; --xq-secondary: #486670;
+  --xq-muted: #59747c; --xq-accent: #287f87; --xq-core: #143e53;
+  --xq-success: #16765b; --xq-warning: #976112; --xq-danger: #bd4350;
+}
+.dark {
+  --xq-void: #040a12;
+  --xq-canvas: #071421;
+  --xq-depth: #091a2b;
+  --xq-surface: #0d2235;
+  --xq-raised: #10283d;
+  --xq-border: #1b4055;
+  --xq-line: #153246;
+  --xq-text: #f1f9f9;
+  --xq-secondary: #a1b8c2;
+  --xq-muted: #708c9e;
+  --xq-accent: #61c9d9;
+  --xq-core: #eaf9f9;
+  --xq-success: #8cdfc4;
+  --xq-warning: #d9b86d;
+  --xq-danger: #d47e7e;
+}
+/* Shared primitives also reach dialogs and selects teleported to body. */
+.brand-admin-shell { background: var(--xq-void); color: var(--xq-text); }
+.brand-admin-shell > .bg-mesh-gradient { display: none; }
+.brand-admin-shell main { padding-top: 20px; padding-bottom: 24px; }
+.brand-admin-shell :is(.card,.glass-card,.card-glass) { border: 1px solid var(--xq-border); border-radius: 12px; background: var(--xq-surface); box-shadow: none; }
+.brand-admin-shell .card-hover:hover { transform: none; border-color: var(--xq-accent); }
+.btn, .input, .select-trigger { border-radius: 8px; }
+.dark :is(.input,.select-trigger) { background: var(--xq-depth); color: var(--xq-text); border-color: var(--xq-border); }
+.dark .input-error, .dark .select-trigger-error { border-color: var(--xq-danger); }
+.dark .btn-primary { background: var(--xq-core); color: var(--xq-void); border: 1px solid var(--xq-core); box-shadow: none; }
+.dark .btn-secondary { background: var(--xq-depth); color: var(--xq-secondary); border-color: var(--xq-border); box-shadow: none; }
+.dark .btn-secondary:hover { color: var(--xq-text); border-color: var(--xq-accent); }
+.modal-content { border-radius: 12px; }
+.dark .modal-content { background: var(--xq-surface); border: 1px solid var(--xq-border); }
+.dark :is(.modal-header,.modal-footer) { border-color: var(--xq-line); background: var(--xq-surface); }
+.brand-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+@media(max-width:700px) {
+  .brand-header-actions { gap: 4px; }
+  .brand-admin-shell main { padding: 12px 14px 18px; }
+}
+
+.brand-admin-shell .select-trigger { border-radius: 8px; }
+.dark .brand-admin-shell .select-trigger { background: var(--xq-depth); border-color: var(--xq-border); color: var(--xq-text); }
+.dark .brand-admin-shell .select-trigger-error { border-color: var(--xq-danger); }
+.dark .brand-admin-shell .select-trigger:focus-visible { border-color: var(--xq-accent); }
+.brand-admin-shell thead { background: var(--xq-depth); color: var(--xq-secondary); }
+.brand-admin-shell .btn { box-shadow: none; }
+
+.modal-content > .modal-header { border-radius: 11px 11px 0 0; }
+.modal-content > .modal-footer { border-radius: 0 0 11px 11px; }
+
+.brand-admin-shell { --xq-header-height: 64px; --xq-bottom-gutter: 24px; }
+.admin-main-frame { margin-left: 242px; height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.admin-workspace { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+@media (min-width: 701px) and (max-width: 1050px) { .admin-main-frame { margin-left: 200px; } }
+@media (min-width: 701px) { .admin-main-collapsed { margin-left: 76px; } }
+@media (max-width: 700px) {
+  .brand-admin-shell { --xq-header-height: 56px; --xq-bottom-gutter: 18px; }
+  .admin-main-frame { margin-left: 76px; }
+}
+
+/* Brand controls use the same roles in light and dark mode. */
+.brand-admin-shell :is(.input, .select-trigger) {
+  background: var(--xq-surface); color: var(--xq-text); border-color: var(--xq-border);
+}
+.brand-admin-shell :is(.input, .select-trigger):hover { border-color: var(--xq-accent); }
+.brand-admin-shell :is(.input, .select-trigger):focus-visible { border-color: var(--xq-accent); outline-color: var(--xq-accent); }
+.brand-admin-shell :is(.input-error, .select-trigger-error) { border-color: var(--xq-danger); }
+.brand-admin-shell .btn-secondary { background: var(--xq-surface); color: var(--xq-secondary); border-color: var(--xq-border); }
+.brand-admin-shell .btn-secondary:hover { background: var(--xq-raised); border-color: var(--xq-accent); color: var(--xq-text); }
+.brand-admin-shell .btn-primary { background: var(--xq-core); color: var(--xq-void); border-color: var(--xq-core); }
+.modal-content { background: var(--xq-surface); color: var(--xq-text); border: 1px solid var(--xq-border); }
+.modal-header, .modal-footer { background: var(--xq-surface); border-color: var(--xq-line); }
+
+/* Light mode keeps the brand's blue atmosphere instead of neutral white panels. */
+:root:not(.dark) .brand-admin-shell .admin-workspace {
+  background: radial-gradient(ellipse at 85% 0%, rgb(97 201 217 / 14%), transparent 55%), var(--xq-void);
+}
+:root:not(.dark) .brand-admin-shell :is(.text-gray-900, .text-gray-800, .text-gray-700) { color: var(--xq-text); }
+:root:not(.dark) .brand-admin-shell :is(.text-gray-600, .text-gray-500, .text-gray-400) { color: var(--xq-muted); }
+:root:not(.dark) .brand-admin-shell :is(.bg-gray-50, .bg-gray-100) { background-color: var(--xq-depth); }
+
+/* Daylight study derived from the brand's S1/S2 roles, not a new brand standard. */
+:root:not(.dark) .admin-dashboard { --reading-divider: var(--xq-line); }
+:root:not(.dark) .admin-dashboard .dashboard-readings {
+  gap: 0; padding-block: 8px;
+  border-bottom: 1px solid var(--reading-divider);
+}
+:root:not(.dark) .admin-dashboard .dashboard-readings > .card {
+  border: 0; border-radius: 0; background: transparent; padding: 16px 20px;
+}
+:root:not(.dark) .admin-dashboard .dashboard-readings > .card + .card { border-left: 1px solid var(--reading-divider); }
+:root:not(.dark) .admin-dashboard .dashboard-readings .rounded-lg {
+  padding: 0; background: none;
+}
+:root:not(.dark) .admin-dashboard .dashboard-readings .rounded-lg svg { color: var(--xq-muted); width: 18px; height: 18px; }
+:root:not(.dark) .admin-dashboard .dashboard-readings .text-xl { font-size: 24px; font-weight: 600; line-height: 1.4; font-variant-numeric: tabular-nums; }
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px;
+  border: 0; border-radius: 0; background: transparent; padding: 0 20px;
+}
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts > .mb-3 { margin: 0; }
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts > .grid { display: flex; flex-wrap: wrap; gap: 16px; }
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts button { background: transparent; padding: 8px 0; }
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts button:hover { color: var(--xq-accent); }
+:root:not(.dark) .admin-dashboard .dashboard-shortcuts button > .rounded-lg {
+  background: transparent; color: var(--xq-accent); width: 24px; height: 24px;
+}
+:root:not(.dark) .admin-dashboard .dashboard-analysis {
+  background: var(--xq-surface); border: 1px solid var(--xq-border); border-radius: 14px;
+  padding: 20px; margin-top: 32px;
+}
+:root:not(.dark) .admin-dashboard .dashboard-analysis .card {
+  background: transparent; border: 0; border-radius: 0;
+}
+:root:not(.dark) .admin-dashboard .dashboard-analysis-toolbar { border-bottom: 1px solid var(--xq-line); padding: 0 0 20px; }
+:root:not(.dark) .admin-dashboard .dashboard-analysis > .grid > :first-child { border-right: 1px solid var(--xq-line); }
+:root:not(.dark) .admin-dashboard .dashboard-analysis > .card { border-top: 1px solid var(--xq-line); }
+@media (max-width: 1023px) {
+  :root:not(.dark) .admin-dashboard .dashboard-readings > .card:nth-child(odd) { border-left: 0; }
+  :root:not(.dark) .admin-dashboard .dashboard-readings > .card:nth-child(n+3) { border-top: 1px solid var(--xq-line); }
+  :root:not(.dark) .admin-dashboard .dashboard-analysis > .grid > :first-child { border-right: 0; border-bottom: 1px solid var(--xq-line); }
+}
+@media (max-width: 479px) {
+  :root:not(.dark) .admin-dashboard .dashboard-readings > .card + .card { border-left: 0; border-top: 1px solid var(--xq-line); }
+  :root:not(.dark) .admin-dashboard .dashboard-readings > .card { padding: 12px 8px; }
+  :root:not(.dark) .admin-dashboard .dashboard-analysis { padding: 12px; }
+  :root:not(.dark) .admin-dashboard .dashboard-shortcuts { padding: 0 8px; }
+}

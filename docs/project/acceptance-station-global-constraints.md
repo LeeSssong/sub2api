@@ -8,9 +8,11 @@
 
 ## 当前环境身份
 
+以下身份按用户 2026-10-07 指令更新；本次仅更新规则并核对本地 SSH 路由，不构成重新部署或服务器运行态验证。
+
 - 当前主站/生产服务器：`64.83.10.67`，SSH alias `sub2api-prod`，连接身份 `root@64.83.10.67:22`。
-- 腾讯云旧主站：`43.133.75.82`，现为备用服务器和恢复来源，SSH alias `sub2api-prod-legacy`，连接身份 `ubuntu@43.133.75.82:2222`。除非用户明确指定旧服务器、备用服务器或该 alias，不得在旧机执行生产操作。
-- 独立测试站：`49.51.203.200`，SSH alias `sub2api-test-station`，连接身份 `ubuntu@49.51.203.200:22`。
+- 独立测试站：`43.133.75.82`，SSH alias `sub2api-test-station`，连接身份 `ubuntu@43.133.75.82:22`。
+- `43.133.75.82` 的旧主站／备用服务器身份及 `49.51.203.200` 的旧测试站身份仅属于历史记录，不得作为当前环境身份或操作目标。
 - 无额外限定的“服务器”“主站”“生产服务器”均指当前主站 `64.83.10.67`。历史记录中的旧 IP 是当时事实，不据此改变当前操作目标。
 - 当前生产域名为 `api.xingqiaolab.top` 和 `codex.xingqiaolab.top`；两者均应解析到当前主站，实际代理模式以 Cloudflare DNS 实时状态为准。
 
@@ -20,12 +22,12 @@
 
 固定入口与运行身份：
 
-- 公网入口：`http://49.51.203.200/`（当前只保证 IPv4；IPv6 80 端口因宿主 Docker 绑定冲突暂未启用）
-- 健康入口：`http://49.51.203.200/health`；就绪入口：`http://49.51.203.200/readyz`
+- 公网入口：`http://43.133.75.82/`（当前登记 IPv4 入口；IPv6 状态以宿主实时核验为准）
+- 健康入口：`http://43.133.75.82/health`；就绪入口：`http://43.133.75.82/readyz`
 - 根路径：独立站根路径 `/`，不经过主站域名、主站 Caddy 或 `/admin/lab` 路径
 - 验收 API/登录入口：由独立站自身根路径提供，必须以该站页面和 API 实际响应为准；不得拼接旧 `/admin/lab/api/v1` 前缀
 - 主站管理员页面：`https://api.xingqiaolab.top/admin/accounts`；该路径继续走主站，不属于验收站
-- 宿主 SSH alias：`sub2api-test-station`（`ubuntu@49.51.203.200:22`）
+- 宿主 SSH alias：`sub2api-test-station`（`ubuntu@43.133.75.82:22`）
 - 验收宿主目录：`/opt/sub2api-test-station/`
 - 当前活动 release：由宿主 `/opt/sub2api-test-station/release-state.json` 的 `source_commit/source_tree`、发布记录与运行容器 Compose 标签实时解析；不得在规则文档中固定可能过时的 release SHA
 - Compose 文件：`<active-release>/infra/independent-test-station/compose.yaml`
@@ -42,7 +44,7 @@
 任何线程需要登录、查看日志、执行验收发布或宿主运维时，使用以下受保护文件；不得把其中的密码、token、私钥、API key、支付密钥、上游 key 或 webhook 写入 Git、规格书、聊天消息、发布证据或普通日志：
 
 - 测试站 SSH 私钥：`/Users/awen/.ssh/tencent_lighthouse_seoul_sub2api`，权限必须为 `0600`
-- 测试站 SSH known_hosts：`/Users/awen/.config/sub2api/known_hosts`，权限必须为 `0600`，且必须包含 `49.51.203.200` 的可信 host key
+- 测试站 SSH known_hosts：`/Users/awen/.config/sub2api/known_hosts`，权限必须为 `0600`，且必须包含 `43.133.75.82` 的可信 host key
 - 测试站运行 env：服务器 `/opt/sub2api-test-station/.env`，权限必须为 `0600`
 - 旧验收 env：`/Users/awen/.config/sub2api/acceptance-20260827.env`，仅历史参考，不得用于新独立测试站
 
@@ -72,8 +74,8 @@ $acceptance_ssh 'sudo -n sh -c '\''config=$(docker ps --filter label=com.docker.
   --env-file "$release/.env" -f "$config" logs --tail=200 test-station-api'\''
 
 # 验收入口与健康检查
-curl --fail --silent --show-error http://49.51.203.200/health
-curl --fail --silent --show-error http://49.51.203.200/readyz
+curl --fail --silent --show-error http://43.133.75.82/health
+curl --fail --silent --show-error http://43.133.75.82/readyz
 ```
 
 允许查看独立测试站容器、Caddy、PostgreSQL、Redis 的运行状态和日志；涉及数据库时只做只读查询。禁止执行 `docker compose down -v`、删除 `sub2api-test-station-*` volume、复制主站数据或用主站 env/旧验收 env 覆盖测试站 env。
