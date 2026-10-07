@@ -3,7 +3,7 @@
     <form v-if="user" id="balance-form" @submit.prevent="handleBalanceSubmit" class="space-y-5">
       <div class="flex items-center gap-3 rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
         <div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100"><span class="text-lg font-medium text-primary-700">{{ user.email.charAt(0).toUpperCase() }}</span></div>
-        <div class="flex-1"><p class="font-medium text-gray-900 dark:text-gray-100">{{ user.email }}</p><p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.users.currentSpendableBalance') }}: {{ summary ? `$${formatBalance(Number(summary.total_quota_balance_usd))}` : '—' }}</p><p v-if="summary" class="text-xs text-gray-400">{{ t('admin.users.paidQuota') }} ${{ formatBalance(Number(summary.paid_quota_balance_usd)) }} · {{ t('admin.users.giftQuota') }} ${{ formatBalance(Number(summary.gift_quota_balance_usd)) }}</p></div>
+        <div class="flex-1"><p class="font-medium text-gray-900 dark:text-gray-100">{{ user.email }}</p><p class="text-sm text-gray-500 dark:text-gray-400">{{ t('admin.users.currentSpendableBalance') }}: {{ summary ? `$${formatBalance(Number(summary.total_quota_balance_usd))}` : '—' }}</p><p v-if="summary" class="text-xs text-gray-400">{{ t('admin.users.paidQuota') }} ${{ summary.paid_quota_balance_usd }} · {{ t('admin.users.giftQuota') }} ${{ summary.gift_quota_balance_usd }}</p></div>
       </div>
       <div>
         <label class="input-label">{{ operation === 'add' ? t('admin.users.giftAmount') : t('admin.users.deductAmount') }}</label>
@@ -16,8 +16,8 @@
       <div v-if="form.amount > 0 && summary" class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
         <div class="flex items-center justify-between text-sm"><span class="text-gray-700 dark:text-gray-300">{{ t('admin.users.newBalance') }}:</span><span class="font-bold text-gray-900 dark:text-gray-100">${{ formatBalance(calculateNewBalance()) }}</span></div>
         <div class="mt-2 grid grid-cols-2 gap-3 text-xs text-gray-600 dark:text-gray-400">
-          <span>{{ t('admin.users.paidQuota') }} ${{ formatBalance(Number(summary.paid_quota_balance_usd)) }}</span>
-          <span>{{ t('admin.users.giftQuota') }} ${{ formatBalance(Number(summary.gift_quota_balance_usd) + (operation === 'add' ? form.amount : -form.amount)) }}</span>
+          <span>{{ t('admin.users.paidQuota') }} ${{ summary.paid_quota_balance_usd }}</span>
+          <span>{{ t('admin.users.giftQuota') }} ${{ Number(summary.gift_quota_balance_usd) + (operation === 'add' ? form.amount : -form.amount) }}</span>
         </div>
       </div>
     </form>
@@ -38,7 +38,7 @@ import { adminAPI, type QuotaSummary } from '@/api/admin'
 import type { AdminUser } from '@/types'
 import { extractApiErrorCode, extractApiErrorMessage } from '@/utils/apiError'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import { formatMoneyFixed } from '@/utils/format'
+import { formatBalanceFixed } from '@/utils/format'
 
 const props = defineProps<{ show: boolean, user: AdminUser | null, operation: 'add' | 'subtract' }>()
 const emit = defineEmits(['close', 'success']); const { t } = useI18n(); const appStore = useAppStore()
@@ -53,7 +53,7 @@ const generateAdminTradeNo = () => {
 watch(() => props.show, (v) => { if(v) { form.amount = 0; form.giftQuota = 0; form.paymentTradeNo = props.operation === 'add' ? generateAdminTradeNo() : ''; form.notes = ''; summary.value = null; if (props.user) void loadSummary(props.user.id) } })
 const loadSummary = async (id: number) => { try { summary.value = await adminAPI.users.getUserQuotaSummary(id) } catch { summary.value = null } }
 
-const formatBalance = formatMoneyFixed
+const formatBalance = formatBalanceFixed
 
 // 填入全部余额
 const fillAllBalance = () => {

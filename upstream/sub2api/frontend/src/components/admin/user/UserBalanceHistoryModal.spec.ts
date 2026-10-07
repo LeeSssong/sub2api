@@ -14,7 +14,7 @@ vi.mock('vue-i18n', () => ({
   createI18n: () => ({ global: { t: (key: string) => key } }),
   useI18n: () => ({ t: (key: string) => key }),
 }))
-vi.mock('@/utils/format', () => ({ formatDateTime: (value: string) => value, formatMoneyFixed: (value: number) => value.toFixed(2) }))
+vi.mock('@/utils/format', () => ({ formatDateTime: (value: string) => value, formatBalanceFixed: (value: number) => value.toFixed(2) }))
 
 import UserBalanceHistoryModal from './UserBalanceHistoryModal.vue'
 

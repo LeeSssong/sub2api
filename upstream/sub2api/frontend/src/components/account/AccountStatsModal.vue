@@ -486,7 +486,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { formatMoneyFixed as formatCost } from '@/utils/format'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -506,6 +505,13 @@ import EndpointDistributionChart from '@/components/charts/EndpointDistributionC
 import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api/admin'
 import type { Account, AccountUsageStatsResponse } from '@/types'
+
+const formatCost = (value: number): string => {
+  if (value >= 1000) return (value / 1000).toFixed(2) + 'K'
+  if (value >= 1) return value.toFixed(2)
+  if (value >= 0.01) return value.toFixed(3)
+  return value.toFixed(4)
+}
 
 ChartJS.register(
   CategoryScale,
@@ -711,6 +717,7 @@ const handleClose = () => {
 
 // Format helpers
 const formatUsd = (value: number | null | undefined): string => {
+  if (value == null || !Number.isFinite(value)) return '—'
   const formatted = formatCost(value)
   return formatted === '—' ? formatted : `$${formatted}`
 }

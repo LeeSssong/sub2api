@@ -40,11 +40,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { formatMoneyFixed as formatCost } from '@/utils/format'
 import type { Account } from '@/types'
 import AccountConcurrencyProgress from './AccountConcurrencyProgress.vue'
 import CapacityBadge from '@/components/account/CapacityBadge.vue'
 import QuotaBadge from '@/components/account/QuotaBadge.vue'
+
+const formatCost = (value: number | null | undefined) => {
+  if (value === null || value === undefined) return '0'
+  return value.toFixed(2)
+}
 
 const props = defineProps<{
   account: Account

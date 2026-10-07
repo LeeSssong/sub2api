@@ -11,7 +11,7 @@ vi.mock('vue-i18n', async () => ({
 vi.mock('vue-chartjs', () => ({ Line: { template: '<div />' } }))
 
 describe('admin account statistics money display', () => {
-  it('uses fixed two-decimal amounts for small and large costs including chart labels', async () => {
+  it('uses native amounts for small and large costs including chart labels', async () => {
     getStats.mockResolvedValueOnce({
       summary: {
         total_cost: 1234.5, total_user_cost: 0.001, total_standard_cost: 0,
@@ -33,11 +33,11 @@ describe('admin account statistics money display', () => {
     await wrapper.setProps({ show: true })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('$1234.50')
-    expect(wrapper.text()).toContain('$0.00')
-    expect(wrapper.text()).toContain('$0.01')
+    expect(wrapper.text()).toContain('$1.23K')
+    expect(wrapper.text()).toContain('$0.0010')
+    expect(wrapper.text()).toContain('$0.0050')
     const options = (wrapper.vm as any).$?.setupState.lineChartOptions
-    expect(options.scales.y.ticks.callback(0.001)).toBe('$0.00')
+    expect(options.scales.y.ticks.callback(0.001)).toBe('$0.0010')
     wrapper.unmount()
   })
 })

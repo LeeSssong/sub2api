@@ -130,7 +130,7 @@ const limit = ref(50)
 let reqSeq = 0
 
 const fmtTokens = (v: number) => formatCompactNumber(v)
-const fmtCost = formatMoneyFixed
+const fmtCost = (value: number) => formatMoneyFixed(value, 4)
 
 const setSort = (key: SortKey) => {
   if (sortBy.value === key) return

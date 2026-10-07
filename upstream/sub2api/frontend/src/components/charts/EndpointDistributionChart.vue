@@ -107,10 +107,10 @@
                   {{ formatTokens(item.total_tokens) }}
                 </td>
                 <td class="py-1.5 text-right text-green-600 dark:text-green-400">
-                  {{ formatUsdMoney(item.actual_cost) }}
+                  {{ formatUsdCost(item.actual_cost) }}
                 </td>
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
-                  {{ formatUsdMoney(item.cost) }}
+                  {{ formatUsdCost(item.cost) }}
                 </td>
               </tr>
               <tr v-if="expandedKey === item.endpoint">
@@ -135,13 +135,16 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { formatMoneyFixed as formatCost, formatUsdMoney } from '@/utils/format'
+import { formatUsdCost } from '@/utils/format'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UserBreakdownSubTable from './UserBreakdownSubTable.vue'
 import type { EndpointStat, UserBreakdownItem } from '@/types'
+
 import { getUserBreakdown } from '@/api/admin/dashboard'
+
+const formatCost = (value: number): string => value >= 1000 ? `${(value / 1000).toFixed(2)}K` : value >= 1 ? value.toFixed(2) : value >= 0.01 ? value.toFixed(3) : value.toFixed(4)
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
