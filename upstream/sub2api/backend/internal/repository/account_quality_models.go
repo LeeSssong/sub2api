@@ -35,9 +35,9 @@ func cooldownEntryUntil(entry any) time.Time {
 	return until
 }
 
-// Native/manual expiry cleanup can remove the live entry before a probe runs.
-// Relinquish only expired snapshots that are absent or still exactly ours.
-// An active snapshot or a replacement entry remains protected by ownership.
+// Manual cleanup can remove a legacy entry before a probe runs. Relinquish
+// only expired snapshots that are absent. Live entries remain owned until a
+// passing probe restores them; the timestamp alone cannot establish recovery.
 func pruneExpiredQualityModels(account *service.Account, state *qualityState, now time.Time) {
 	limits, _ := account.Extra["model_rate_limits"].(map[string]any)
 	for model, applied := range state.ModelApplied {
@@ -50,7 +50,9 @@ func pruneExpiredQualityModels(account *service.Account, state *qualityState, no
 			continue
 		}
 		current := limits[model]
-		if current != nil && !cooldownEntryEqual(current, applied) {
+		// Existing entries owned by a quality rule stay isolated until a passing
+		// probe restores them. Expiry alone only relinquishes absent legacy state.
+		if current != nil {
 			continue
 		}
 		delete(limits, model)

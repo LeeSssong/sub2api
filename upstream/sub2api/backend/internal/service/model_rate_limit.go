@@ -20,6 +20,9 @@ const (
 
 // isRateLimitActiveForKey 检查指定 key 的限流是否生效
 func (a *Account) isRateLimitActiveForKey(key string) bool {
+	if a.isQualityModelCooldownForKey(key) {
+		return true
+	}
 	resetAt := a.modelRateLimitResetAt(key)
 	return resetAt != nil && time.Now().Before(*resetAt)
 }
@@ -34,7 +37,22 @@ func (a *Account) getRateLimitRemainingForKey(key string) time.Duration {
 	if remaining > 0 {
 		return remaining
 	}
+	if a.isQualityModelCooldownForKey(key) {
+		// A positive scheduling wait keeps retries gated while the recovery probe
+		// is pending. The stored timestamp is the next probe, not restoration.
+		return time.Minute
+	}
 	return 0
+}
+
+func (a *Account) isQualityModelCooldownForKey(key string) bool {
+	if a == nil {
+		return false
+	}
+	limits, _ := a.Extra[modelRateLimitsKey].(map[string]any)
+	entry, _ := limits[key].(map[string]any)
+	reason, _ := entry["reason"].(string)
+	return strings.HasPrefix(reason, "quality_rule:")
 }
 
 func (a *Account) isModelRateLimitedWithContext(ctx context.Context, requestedModel string) bool {

@@ -455,7 +455,11 @@ function resultTone(result: ScheduledTestResult) {
   return result.status === 'success' ? 'tone-success' : 'tone-danger'
 }
 function resultContent(result: ScheduledTestResult) {
-  if (result.status === 'skipped') return t(result.error_message === 'model_catalog_unavailable' ? 'qualityOps.catalogSkipHelp' : 'qualityOps.unsupportedSkipHelp')
+  if (result.status === 'skipped') {
+    const help = t(result.error_message === 'model_catalog_unavailable' ? 'qualityOps.catalogSkipHelp' : 'qualityOps.unsupportedSkipHelp')
+    const original = result.error_message?.startsWith('model_unsupported: ') ? result.error_message.slice('model_unsupported: '.length) : ''
+    return original ? `${help}\n\n${original}` : help
+  }
   return result.response_text || result.error_message || t('qualityOps.noAnswer')
 }
 function defaults() {

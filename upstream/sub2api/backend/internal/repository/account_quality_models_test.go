@@ -170,10 +170,10 @@ func TestQualityModelRecoveryRemovesOnlyExpiredOwnedEntries(t *testing.T) {
 	require.NotEqual(t, "restore_conflict", action)
 	require.NotContains(t, state.ModelRateLimits, "gpt-6-astra")
 	require.Contains(t, state.ModelRateLimits, "gpt-5.6-sol")
-	require.NotContains(t, state.ModelRateLimits, "gpt-6.1-sol")
+	require.Contains(t, state.ModelRateLimits, "gpt-6.1-sol", "an untested peer must remain isolated")
 	require.Equal(t, manual, limits["gpt-5.6-sol"])
 	require.NotContains(t, limits, "gpt-6-astra")
-	require.NotContains(t, limits, "gpt-6.1-sol")
+	require.Contains(t, limits, "gpt-6.1-sol")
 }
 
 func TestQualityModelActiveEntryDeletionStillConflicts(t *testing.T) {
@@ -187,4 +187,22 @@ func TestQualityModelActiveEntryDeletionStillConflicts(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "restore_conflict", action)
 	require.Contains(t, state.ModelRateLimits, "gpt-6-astra")
+}
+
+func TestQualityModelHoldSurvivesRetryTimeUntilPassed(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	a := &service.Account{Platform: service.PlatformOpenAI, Status: "active", Schedulable: true, Type: service.AccountTypeAPIKey, Extra: map[string]any{}}
+	state := qualityState{}
+	_, err := transitionQualityModels(a, &state, 7, []string{"gpt-6-astra"}, now.Add(-time.Minute), "failed", true, now.Add(-time.Hour))
+	require.NoError(t, err)
+	require.False(t, a.IsSchedulableForModel("gpt-6-astra"), "retry time must not restore an unverified model")
+	require.True(t, a.IsSchedulableForModel("gpt-6.1-sol"))
+	_, err = transitionQualityModels(a, &state, 7, []string{"gpt-6-astra"}, now.Add(-time.Second), "inconclusive", true, now)
+	require.NoError(t, err)
+	require.False(t, a.IsSchedulableForModel("gpt-6-astra"), "unknown result must retain isolation")
+	action, err := transitionQualityModels(a, &state, 7, []string{"gpt-6-astra"}, now.Add(time.Minute), "passed", true, now)
+	require.NoError(t, err)
+	require.Equal(t, "restored", action)
+	require.True(t, a.IsSchedulableForModel("gpt-6-astra"))
+	require.Empty(t, state.ModelApplied)
 }

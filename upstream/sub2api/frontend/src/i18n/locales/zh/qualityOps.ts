@@ -1,11 +1,12 @@
 export default {
+  "waitingForPass": "等待检测通过",
   "cooldownPerModelHint": "冷却与恢复按每个模型自己的检测结果处理：仅冷却检测失败的模型；通过的模型不受其他模型影响，未检测或不支持的模型不新增冷却。5xx 先降低账号并发，等待检测结果后决定模型冷却。",
 
   "skipped": "已跳过",
   "modelUnsupportedSkipped": "账号不支持，已跳过",
   "skippedCount": "跳过 {n} 个",
   "skipReason": "跳过原因",
-  "unsupportedSkipHelp": "该账号暂不支持此模型，本轮未检测，也未因跳过而新增冷却。",
+  "unsupportedSkipHelp": "模型未在账号当前列表中，或上游近期拒绝了该模型，本轮已跳过且未新增冷却。上游拒绝记录 5 分钟后失效，后续按规则重新检测。",
   "catalogSkipHelp": "暂时无法读取账号的可用模型列表，本轮未检测。稍后将按规则再次检测。",
   "roundModelAction": "本轮模型处理",
   "newCooldown": "本轮新增冷却",
@@ -14,7 +15,7 @@ export default {
   "cooldownNotRecorded": "旧记录未提供",
   "cooldownUnconfirmed": "处理结果未确认",
   "cooldownTargets": "冷却适用模型",
-  "cooldownTargetsHint": "仅检测异常的模型会被冷却；未检测或跳过的模型不新增冷却。",
+  "cooldownTargetsHint": "仅检测异常的模型会被隔离，检测通过后才恢复；等待重测期间保持隔离。未检测或跳过的模型不新增冷却。",
   "catalogUnavailable": "模型列表读取失败，已跳过",
 
   "tooManyModelSamples": "最多选择 50 个模型，每轮最多 100 个样本；请减少模型或每模型并行数。",
