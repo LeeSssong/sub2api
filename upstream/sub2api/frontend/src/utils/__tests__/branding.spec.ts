@@ -13,6 +13,14 @@ describe('updateFavicon', () => {
     expect(link?.href).toBe('https://example.com/custom-logo.png')
   })
 
+  it('re-registers an injected icon even when its URL already matches', () => {
+    document.head.innerHTML = '<link rel="icon" href="/branding/favicon/02039e14">'
+    const previous = document.querySelector('link[rel="icon"]')
+    updateFavicon('data:image/png;base64,AA==')
+    expect(previous?.isConnected).toBe(false)
+    expect(document.querySelector('link[rel="icon"]')?.getAttribute('href')).toBe('/branding/favicon/02039e14')
+  })
+
   it.each([
     ['https://example.com/logo.png?v=2', 'image/png'],
     ['/uploads/logo.jpeg', 'image/jpeg'],

@@ -17,12 +17,10 @@ export function updateFavicon(logoUrl: string): void {
   if (!sanitizedLogoUrl) return
 
   const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="shortcut icon"]'))
-  let link = links.shift()
-  if (!link) {
-    link = document.createElement('link')
-    document.head.appendChild(link)
-  }
-  links.forEach((duplicate) => duplicate.remove())
+  // Reinsert the declaration: Safari can retain its page icon when an existing
+  // link is only assigned the same URL as the server-injected declaration.
+  links.forEach((previous) => previous.remove())
+  const link = document.createElement('link')
   link.rel = 'icon'
   const dataMime = sanitizedLogoUrl.match(/^data:(image\/[a-z0-9.+-]+)[;,]/i)?.[1]
   const extension = new URL(sanitizedLogoUrl, document.baseURI).pathname.split('.').pop()?.toLowerCase()
@@ -34,4 +32,5 @@ export function updateFavicon(logoUrl: string): void {
   if (mime) link.type = mime
   else link.removeAttribute('type')
   link.href = faviconUrl(sanitizedLogoUrl)
+  document.head.appendChild(link)
 }

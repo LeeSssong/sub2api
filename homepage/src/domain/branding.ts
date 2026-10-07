@@ -14,8 +14,9 @@ export function resolveSiteLogo(value: unknown): string {
 
 export function updateFavicon(logo: string): void {
   const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="shortcut icon"]'))
-  const link = links.shift() ?? document.createElement('link')
-  links.forEach((duplicate) => duplicate.remove())
+  // Register a fresh declaration so Safari notices even an unchanged URL.
+  links.forEach((previous) => previous.remove())
+  const link = document.createElement('link')
   link.rel = 'icon'
   const dataMime = logo.match(/^data:(image\/[a-z0-9.+-]+)[;,]/i)?.[1]
   const extension = new URL(logo, document.baseURI).pathname.split('.').pop()?.toLowerCase()
@@ -33,5 +34,5 @@ export function updateFavicon(logo: string): void {
     href = `/branding/favicon/${(hash >>> 0).toString(16).padStart(8, '0')}`
   }
   link.setAttribute('href', href)
-  if (!link.isConnected) document.head.appendChild(link)
+  document.head.appendChild(link)
 }
