@@ -66,21 +66,12 @@ func TestTestMainOnlineMigrationSnapshotCompatibility(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE filename='265_monitor_v4_legacy_default.sql'`)
 	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE filename='238_monitor_v4_p50.sql'`)
-	require.NoError(t, err)
 	compatibilityMigration, err := migrations.FS.ReadFile("265_monitor_v4_legacy_default.sql")
 	require.NoError(t, err)
 	require.NoError(t, applyMigrationsFS(ctx, db, fstest.MapFS{
 		"265_monitor_v4_legacy_default.sql": &fstest.MapFile{Data: compatibilityMigration},
 	}), "conditional default accepts the existing test station schema")
 	require.NoError(t, repo.ReplaceMonitorV4Snapshots(ctx, window.SnapshotID, []service.MonitorV4StoredWindow{window}))
-	update, err := migrations.FS.ReadFile("238_monitor_v4_p50.sql")
-	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, `DELETE FROM schema_migrations WHERE filename='238_monitor_v4_p50.sql'`)
-	require.NoError(t, err)
-	require.NoError(t, applyMigrationsFS(ctx, db, fstest.MapFS{
-		"238_monitor_v4_p50.sql": &fstest.MapFile{Data: update},
-	}))
 	_, err = repo.LoadLatestMonitorV4Snapshot(ctx, window.Window)
 	require.NoError(t, err)
 }

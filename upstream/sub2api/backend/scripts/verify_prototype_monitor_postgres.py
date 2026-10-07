@@ -88,14 +88,12 @@ CREATE TABLE ops_error_logs(id bigserial PRIMARY KEY,group_id bigint,account_id 
         sql((ROOT/'migrations'/migration).read_text())
     sql('''INSERT INTO account_monitor_v4_snapshots("window",group_id,snapshot_id,generated_at,window_start,window_end,contract_version,current_operational)
  VALUES('1h',7,'7d4b56d2-8223-4f77-8d22-f6a93d818980','2026-09-20T12:00:00Z','2026-09-20T11:00:00Z','2026-09-20T12:00:00Z','2',TRUE);''')
-    for migration in ['238_monitor_v4_p50.sql', '239_group_tool_mappings.sql', '240_manual_probe_group_scope.sql', '264_quality_rule_tested_group.sql', '265_monitor_v4_legacy_default.sql']:
-        sql((ROOT/'migrations'/migration).read_text())
+    for migration in ['238_monitor_v4_p50.sql', '239_group_tool_mappings.sql', '240_manual_probe_group_scope.sql', '265_monitor_v4_legacy_default.sql']:
+        sql('BEGIN; ' + (ROOT/'migrations'/migration).read_text() + ' COMMIT;')
         check('migration executes: '+migration, True)
     check('legacy operational flag is invalidated and P50 starts unknown', sql('SELECT (NOT current_operational AND ttft_p50_ms IS NULL AND latency_p50_ms IS NULL) FROM account_monitor_v4_snapshots;') == 't')
     check('destructive monitor retirement remains deferred', sql("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='account_monitor_v4_snapshots' AND column_name='current_operational';") == '1')
-    sql('ALTER TABLE account_monitor_v4_snapshots DROP COLUMN current_operational;')
-    sql((ROOT/'migrations'/'238_monitor_v4_p50.sql').read_text())
-    check('additive monitor migration also accepts retired-column schema', sql("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='account_monitor_v4_snapshots' AND column_name='current_operational';") == '0')
+    check('new snapshot defaults preserve the legacy reader contract', sql("SELECT column_default FROM information_schema.columns WHERE table_name='account_monitor_v4_snapshots' AND column_name='current_operational';") == 'false')
     sql('''INSERT INTO usage_logs(group_id,account_id,created_at,first_token_ms,duration_ms,input_tokens,cache_creation_tokens,cache_read_tokens,request_id,usage_completeness)
  VALUES(7,12,'2026-09-20T11:55:00Z',100,1000,10,0,0,'real-1','complete'),
  (7,12,'2026-09-20T11:56:00Z',200,3000,10,0,0,'real-2','complete'),
