@@ -124,7 +124,7 @@ september28_old_worker_compatible() {
   if [[ "${migrations_hash:-${current_hash:-}}" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" ]]; then return 0; fi
   if [[ "${migrations_hash:-${current_hash:-}}" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" ]]; then return 0; fi
   if [[ "${migrations_hash:-${current_hash:-}}" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" ]]; then return 0; fi
-  if [[ "${migrations_hash:-${current_hash:-}}" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ]]; then
+  if [[ "${migrations_hash:-${current_hash:-}}" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "${migrations_hash:-${current_hash:-}}" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ]]; then
     result=$(docker exec "$1" sh -c \
       'exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' september28-compat \
       "SELECT NOT EXISTS (SELECT 1 FROM accounts WHERE deleted_at IS NULL AND platform='typesafe') AND NOT EXISTS (SELECT 1 FROM groups WHERE deleted_at IS NULL AND platform='typesafe') AND NOT EXISTS (SELECT 1 FROM settings WHERE key='RECHARGE_BONUS_TIERS' AND value NOT IN ('','[]','null')) AND NOT EXISTS (SELECT 1 FROM payment_orders WHERE bonus_amount > 0 AND status IN ('pending','paid','fulfilling'))") || return 1
@@ -2169,7 +2169,7 @@ jq -e --arg service "sub2api-$candidate_slot" --arg active_service "sub2api-$sta
 partial_path="$record_root/$attempt_id.partial"
 write_partial preflight_complete
 
-if [[ "$online_migration_transition" == true && ( "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
+if [[ "$online_migration_transition" == true && ( "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
   # Existing upgraded streams use the OLD proxy handler's cleanup policy.
   # Merely putting a delay in the incoming file cannot preserve them.
   "${compose_current[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ |
@@ -2432,7 +2432,7 @@ failure_reason=caddy_validate_failed
 run_caddy_config_command "$candidate_upstream" validate >/dev/null
 write_partial caddy_validated
 
-if [[ "$preserve_worker" == false && "$maintenance_transition" == false && ( "$online_migration_transition" == false || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
+if [[ "$preserve_worker" == false && "$maintenance_transition" == false && ( "$online_migration_transition" == false || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
   failure_reason=worker_drain_failed
   write_partial worker_updating
   stop_worker_after_schedule_drain "$postgres_id" "$(resolve_container_id sub2api-worker)" 90 \
@@ -2476,7 +2476,7 @@ write_partial state_persisted
 [[ "$(live_caddy_upstream)" == "$candidate_upstream" ]] || fail 'persisted route does not match live Caddy upstream'
 
 failure_reason=worker_update_failed
-if [[ "$preserve_worker" == false && ( "$maintenance_transition" == true || ( "$online_migration_transition" == true && "$migrations_hash" != "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_01_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_02_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ) ]]; then
+if [[ "$preserve_worker" == false && ( "$maintenance_transition" == true || ( "$online_migration_transition" == true && "$migrations_hash" != "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_01_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_02_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_03_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ]]; then
   reauth_lifecycle pause || fail 'reauth could not drain before worker replacement'
   worker_update_started=true
   write_partial worker_updating

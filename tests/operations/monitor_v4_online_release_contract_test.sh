@@ -22,6 +22,9 @@ grep -Fq 'RELEASE_PRESERVE_WORKER:-false' "$RELEASE" || fail 'controller does no
 grep -Fq 'RELEASE_PRESERVE_DETECTOR:-false' "$RELEASE" || fail 'controller does not expose detector preservation gate'
 grep -Fq 'preserve_worker=${PRESERVE_WORKER:-false}' "$HOST" || fail 'host does not expose worker replacement gate'
 grep -Fq 'preserve_detector=${PRESERVE_DETECTOR:-false}' "$HOST" || fail 'host does not expose detector preservation gate'
+grep -Fq '"$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH"' "$HOST" || fail 'host worker promotion path omits monitor-v4 target'
+grep -Fq '"$migrations_hash" != "$MONITOR_V4_NEW_MIGRATIONS_HASH"' "$HOST" || fail 'host post-cutover worker path omits monitor-v4 target'
+grep -Fq '"$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) )' "$HOST" || fail 'host stream retention preflight omits monitor-v4 target'
 
 # The destructive monitor retirement migration is deferred and must never be
 # part of the executable migration directory or release allowlist.
@@ -32,7 +35,8 @@ grep -Fq 'deferred' "$HOST" || fail 'host script does not document deferred dest
 ! grep -Fq '241_remove_monitor_v4_operational_flag.sql' "$HOST" || fail 'host script executes destructive monitor migration'
 
 # Keep explicit evidence that API stop is maintenance-only, never online.
-awk '/if \[\[ "\$online_migration_transition" == true \]\]; then/{online=1} online && /stop sub2api-blue sub2api-green sub2api-worker/{exit 1} END{exit 0}' "$HOST" \
-  || fail 'online migration path stops the active API'
+if sed -n '/if \[\[ "\$online_migration_transition" == true \]\]; then/,/failure_reason=candidate_pull_failed/p' "$HOST" | grep -Fq 'stop sub2api-blue sub2api-green sub2api-worker'; then
+  fail 'online migration path stops the active API'
+fi
 grep -Fq 'docker stop --time 300' "$HOST" || fail 'rollback/candidate drain no longer has the 300s bound'
 printf 'PASS: monitor-v4 online release contract\n'
