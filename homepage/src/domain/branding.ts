@@ -26,6 +26,12 @@ export function updateFavicon(logo: string): void {
   const mime = dataMime || mimeByExtension[extension || '']
   if (mime) link.type = mime
   else link.removeAttribute('type')
-  link.setAttribute('href', logo)
+  let href = logo
+  if (/^data:image\//i.test(logo)) {
+    let hash = 2166136261
+    for (const byte of new TextEncoder().encode(logo)) hash = Math.imul(hash ^ byte, 16777619)
+    href = `/branding/favicon/${(hash >>> 0).toString(16).padStart(8, '0')}`
+  }
+  link.setAttribute('href', href)
   if (!link.isConnected) document.head.appendChild(link)
 }

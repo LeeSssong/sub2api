@@ -26,9 +26,16 @@ update_worker=${TEST_STATION_UPDATE_WORKER:-false}
 # Native group catalogue handlers and their read-only tool mapping can update API only.
 # The reviewed user popularity projection reuses native read-only aggregates, API only.
 # Runtime dependency, migration and other backend changes remain excluded.
+# Homepage files are deployed independently and are not inputs to the API binary.
+# The embedded brand icon handler only reads existing public settings.
 while IFS= read -r path; do
   case "$path" in
     upstream/sub2api/frontend/src/*|upstream/sub2api/frontend/DESIGN.md|docs/*|ops/*|tests/*|artifacts/*) ;;
+    homepage/*|infra/independent-test-station/Dockerfile.homepage|\
+    upstream/sub2api/backend/internal/web/embed_on.go|\
+    upstream/sub2api/backend/internal/web/embed_test.go|\
+    upstream/sub2api/backend/internal/web/favicon.go|\
+    upstream/sub2api/backend/internal/web/favicon_test.go) ;;
     upstream/sub2api/backend/internal/handler/usage_handler.go|\
     upstream/sub2api/backend/internal/handler/usage_model_popularity.go|\
     upstream/sub2api/backend/internal/handler/usage_model_popularity_test.go|\

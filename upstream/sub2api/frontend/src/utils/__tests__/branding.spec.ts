@@ -30,6 +30,14 @@ describe('updateFavicon', () => {
     expect(document.querySelector('link[rel="icon"]')?.getAttribute('href')).toBe(DEFAULT_SITE_LOGO)
   })
 
+  it('serves uploaded favicons through versioned HTTP URLs for Safari', () => {
+    updateFavicon('data:image/png;base64,AA==')
+    const first = document.querySelector('link[rel="icon"]')?.getAttribute('href')
+    expect(first).toBe('/branding/favicon/02039e14')
+    updateFavicon('data:image/png;base64,AQ==')
+    expect(document.querySelector('link[rel="icon"]')?.getAttribute('href')).not.toBe(first)
+  })
+
   it('removes competing icons and lets the browser detect unknown MIME types', () => {
     document.head.innerHTML += '<link rel="shortcut icon" href="/old.ico">'
     updateFavicon('/uploads/image?id=2')

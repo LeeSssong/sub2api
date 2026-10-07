@@ -23,7 +23,8 @@ describe('useSiteConfig branding', () => {
 
     renderHook(() => useSiteConfig())
 
-    await waitFor(() => expect(document.querySelector('link[rel="icon"]')).toHaveAttribute('href', siteLogo))
+    const expectedHref = siteLogo.startsWith('data:') ? '/branding/favicon/f7154e57' : siteLogo
+    await waitFor(() => expect(document.querySelector('link[rel="icon"]')).toHaveAttribute('href', expectedHref))
     expect(document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]')).toHaveLength(1)
     expect(document.querySelector('link[rel="icon"]')?.getAttribute('type')).toBe(mime)
   })

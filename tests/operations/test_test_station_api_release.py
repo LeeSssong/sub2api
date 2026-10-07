@@ -64,6 +64,14 @@ class ReleaseScopeTests(unittest.TestCase):
         self.assertNotEqual(self.check_scope(paths).returncode, 0)
         self.assertEqual(self.check_scope(paths, True).returncode, 0)
 
+    def test_brand_icon_http_and_separate_homepage_allow_api_only_release(self):
+        paths = ['upstream/sub2api/backend/internal/web/' + name for name in
+                 ['embed_on.go', 'embed_test.go', 'favicon.go', 'favicon_test.go']]
+        paths += ['homepage/src/domain/branding.ts', 'infra/independent-test-station/Dockerfile.homepage']
+        result = self.check_scope(paths)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.check_scope(['infra/independent-test-station/compose.yaml']).returncode, 0)
+
 
 class APIReleaseTests(unittest.TestCase):
     def test_clones_only_api_and_keeps_dependencies_and_old_service(self):
