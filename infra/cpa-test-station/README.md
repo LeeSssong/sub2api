@@ -10,6 +10,8 @@ CPA 管理入口为 `http://43.133.75.82:8317/management.html`；完整 CPAMP �
 
 ## 初始化
 
+插件页面兼容补丁 `ticket-gateway-ui.html` 来自已校验 Ticket Gateway v1.4.0 Linux AMD64 制品的 `/v0/resource/plugins/cliproxy-ticket-gateway/ui`，保留原页面和业务逻辑，仅增加 CPAMP v1.14.4 `enc::v2::` 原生会话格式读取。原始页面 SHA256 见发布记录。将该文件与 Caddyfile 一起安装到 edge 目录，边缘仅替换这一资源路径；插件 API 和后端鉴权继续由 Manager/CPA 提供，不另存管理凭据。插件仍要求原生登录时启用记住凭证。回归命令：`node --test tests/infra/ticket-plugin-session.test.cjs`。
+
 只从已推送、干净且与 `origin/main` commit/tree 一致的根目录 main 推广 Compose 和 `infra/cpa-production/config.example.yaml`。将模板中的管理密钥替换为测试站独立随机密钥。使用全新 auths、插件状态目录、Manager 数据卷和独立密钥，密钥文件权限为 0600，目录权限为 0700。
 
 先拉取固定镜像，准备并校验管理页和插件，再导入 CPA 连接：
