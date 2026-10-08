@@ -25,6 +25,7 @@ update_worker=${TEST_STATION_UPDATE_WORKER:-false}
 # Monitor service changes require the same new binary in API and singleton worker.
 # Native group catalogue handlers and their read-only tool mapping can update API only.
 # The reviewed user popularity projection reuses native read-only aggregates, API only.
+# The reviewed manual check admission only affects API handlers; worker work is unchanged.
 # Runtime dependencies and unreviewed backend changes remain excluded.
 # The exact production integration files require the serialized worker update.
 # Embedded migrations must already be applied with identical checksums on the host.
@@ -45,6 +46,9 @@ while IFS= read -r path; do
     upstream/sub2api/backend/internal/server/middleware/line_check_rate_limit.go|\
     upstream/sub2api/backend/internal/server/middleware/panel_rate_limit.go|\
     upstream/sub2api/backend/internal/server/routes/monitor_v4_check_rate_limit_test.go|\
+    upstream/sub2api/backend/internal/service/monitor_v4.go|\
+    upstream/sub2api/backend/internal/service/monitor_v4_check.go|\
+    upstream/sub2api/backend/internal/service/monitor_v4_check_test.go|\
     upstream/sub2api/backend/internal/server/routes/user.go|\
     upstream/sub2api/backend/internal/handler/api_key_handler.go|\
     upstream/sub2api/backend/internal/handler/gateway_handler.go|\

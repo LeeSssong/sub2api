@@ -31,7 +31,9 @@ func (s *lineCheckRouteService) Check(context.Context, int64, []int64) ([]servic
 	return []service.MonitorV4CheckResult{}, nil
 }
 
-func lineCheckRateLimitRouter(client *redis.Client, checker *lineCheckRouteService) *gin.Engine {
+func lineCheckRateLimitRouter(client *redis.Client, checker interface {
+	Snapshot(context.Context, int64, service.MonitorV4Window, time.Time) (*service.MonitorV4Snapshot, error)
+}) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	jwt := middleware.JWTAuthMiddleware(func(c *gin.Context) {
@@ -141,4 +143,39 @@ func TestLineCheckRateLimitRedisFailureStopsProbe(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, w.Code)
 	require.Contains(t, w.Body.String(), "LINE_CHECK_UNAVAILABLE")
 	require.Zero(t, checker.calls.Load())
+}
+
+// Exercise the real service admission policy, replacing only external upstream IO.
+type lineCheckNativeProbe struct{ calls atomic.Int64 }
+
+func (*lineCheckNativeProbe) ProjectMonitorV4Groups(context.Context, []int64, time.Time, time.Time, time.Duration) (map[int64]service.MonitorV4GroupProjection, error) {
+	return nil, nil
+}
+func (s *lineCheckNativeProbe) CheckMonitorGroup(context.Context, int64) (service.AccountMonitorProbeResult, error) {
+	s.calls.Add(1)
+	ttft := 80.0
+	return service.AccountMonitorProbeResult{Status: "success", TTFTMS: &ttft, CheckedAt: time.Now()}, nil
+}
+
+type lineCheckAvailableGroups struct{}
+
+func (lineCheckAvailableGroups) GetAvailableGroups(context.Context, int64) ([]service.Group, error) {
+	return []service.Group{{ID: 7, Status: service.StatusActive}, {ID: 8, Status: service.StatusActive}}, nil
+}
+func TestLineCheckRateLimitWithRealServiceAllowsThirtySequentialChecks(t *testing.T) {
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	native := &lineCheckNativeProbe{}
+	svc := service.NewMonitorV4Service(nil, lineCheckAvailableGroups{}, native, nil, nil)
+	router := lineCheckRateLimitRouter(client, svc)
+	for i := 0; i < 30; i++ {
+		w := requestLineCheck(router, 42)
+		require.Equal(t, http.StatusOK, w.Code, "sequential check %d: %s", i+1, w.Body.String())
+		require.Contains(t, w.Body.String(), `"status":"success"`)
+	}
+	w := requestLineCheck(router, 42)
+	require.Equal(t, http.StatusTooManyRequests, w.Code)
+	require.Contains(t, w.Body.String(), "LINE_CHECK_RATE_LIMITED")
+	require.EqualValues(t, 60, native.calls.Load(), "two requested groups per batch; denied check must not probe")
 }
