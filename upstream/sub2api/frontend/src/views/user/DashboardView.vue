@@ -152,7 +152,7 @@ function openPricing(tool:ToolCard){pricingTrigger=document.activeElement as HTM
 function closePricing(){pricingTool.value=null;nextTick(()=>pricingTrigger?.focus())}
 const selectedTool=ref<ToolCard|null>(null), createTool=ref<ToolCard|null>(null),createGroupId=ref<number>()
 const routeRows=computed(()=>sort(configuredLines(groups.value,keys.value)))
-const detailRows=computed(()=>sort(selectedTool.value?.groups||[],detailMetrics.value))
+const detailRows=computed(()=>[...(selectedTool.value?.groups||[])].sort((a,b)=>(resolveLineRate(a,rates.value)??Infinity)-(resolveLineRate(b,rates.value)??Infinity)))
 const detailBest=computed(()=>toolCards.value.find(tool=>tool.id===selectedTool.value?.id)?.best)
 const periods=[{value:'1h' as const,label:'近 1 小时'},{value:'24h' as const,label:'近 24 小时'},{value:'7d' as const,label:'近 7 天'}]
 const rateLabel=(g:Group)=>formatLineRate(resolveLineRate(g,rates.value))

@@ -17,6 +17,34 @@ const deferred=<T,>()=>{let resolve!:(value:T)=>void;let reject!:(reason?:unknow
 const make=()=>mount(Dashboard,{global:{plugins:[createI18n({legacy:false,locale:'zh',messages:{}})],stubs:{AppLayout:{template:'<div><slot/></div>'},BaseDialog:{props:['show','title'],template:'<div v-if="show" role="dialog"><h3>{{title}}</h3><slot/><slot name="footer"/></div>'},CreateLineKeyDialog:{name:'CreateLineKeyDialog',props:['show','initialGroupId'],template:'<div v-if="show" data-testid="create-key">{{initialGroupId}}</div>'}}}})
 beforeEach(()=>{vi.clearAllMocks();clearDashboardWorkspaceSnapshot();mocks.models.mockResolvedValue([{group_id:1,supported_models:['gpt-5.4','gpt-5.2'],official_pricing:{'gpt-5.4':{input_price:2.5e-6,cache_read_price:.25e-6,output_price:15e-6}}},{group_id:2,supported_models:['gpt-5.4','custom-model']},{group_id:99,supported_models:['private-model']}]);mocks.groups.mockResolvedValue(groups);mocks.rates.mockResolvedValue({});mocks.keys.mockResolvedValue({items:[{id:1,group_id:1,status:'inactive',group:groups[0]}],total:1});mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))});mocks.check.mockResolvedValue([{group_id:1,status:'success',ttft_ms:1230}])})
 describe('原型AI工具交互',()=>{
+ it('orders detail cards by effective multiplier across periods without changing the best route',async()=>{
+  const candidates=[
+   {id:1,name:'高倍率最佳线路',platform:'openai',rate_multiplier:1,status:'active'},
+   {id:2,name:'专属低倍率',platform:'openai',rate_multiplier:.8,status:'active'},
+   {id:3,name:'同倍率正常线路',platform:'openai',rate_multiplier:.2,status:'active'},
+   {id:4,name:'同倍率异常线路',platform:'openai',rate_multiplier:.2,status:'inactive'},
+   {id:5,name:'未知倍率',platform:'openai',rate_multiplier:NaN,status:'active'},
+   {id:6,name:'零倍率',platform:'openai',rate_multiplier:1,status:'active'},
+  ]
+  mocks.groups.mockResolvedValue(candidates)
+  mocks.keys.mockResolvedValue({items:[],total:0})
+  mocks.rates.mockResolvedValue({2:.1,6:0})
+  mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:candidates.map(g=>({
+   ...metric(g.id),cache_hit_rate:.5,ttft_p50_ms:1000,
+   real_success_count:g.id===1?100:g.id===3?90:20,
+  }))})
+  const w=make();await flushPromises()
+  expect(w.get('.tool-card .tool-best .best').text()).toBe('高倍率最佳线路')
+  await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
+  for(const period of ['近 24 小时','近 1 小时','近 7 天']){
+   await w.findAll('.detail-period-segment button').find(b=>b.text()===period)!.trigger('click');await flushPromises()
+   const cards=w.findAll('.route-detail-card')
+   expect(cards.map(card=>card.get('h3').text())).toEqual(['零倍率','专属低倍率','同倍率正常线路','同倍率异常线路','高倍率最佳线路','未知倍率'])
+   expect(cards.slice(0,5).map(card=>card.get('.rate-badge').text())).toEqual(['0.0x倍率','0.1x倍率','0.2x倍率','0.2x倍率','1.0x倍率'])
+   expect(cards.find(card=>card.find('.best-route-badge').exists())!.get('h3').text()).toBe('高倍率最佳线路')
+  }
+  w.unmount()
+ })
  it('reveals request counts only on success-rate hover or focus and associates the selected route',async()=>{
   const w=make();await flushPromises()
   await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
