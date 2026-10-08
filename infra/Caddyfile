@@ -315,6 +315,38 @@
 	}
 }
 
+# CPA and CPA Manager Plus share this management-only public origin. Model
+# inference remains private on the Docker network for the future Sub2API
+# upstream connection.
+cpa.xingqiaolab.top {
+	encode zstd gzip
+
+	@cpa_public_inference path /v1 /v1/* /v1beta /v1beta/* /responses /chat/completions /messages
+	respond @cpa_public_inference 404
+
+	@cpa_usage path /usage-service/*
+	reverse_proxy @cpa_usage cpa-manager:18317
+
+	reverse_proxy cpa-gateway:8317 {
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 2m
+			keepalive 30s
+		}
+	}
+
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # Independent codex2api HTTPS entry. Keep the nip.io hostname as a recovery
 # path and suppress HTTP/3 advertisement because this host does not publish
 # UDP/443 for this service.

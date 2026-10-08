@@ -1,0 +1,43 @@
+plugins:
+  enabled: true
+  dir: "plugins"
+  configs:
+    cliproxy-ticket-gateway:
+      enabled: true
+      priority: 100
+      gateway_url: ""
+      ticket_mode: personal
+
+config-version: 8
+
+access:
+  api-keys: []
+
+requests:
+  streaming:
+    keepalive-seconds: 5
+    bootstrap-retries: 0
+  nonstream-keepalive-interval: 5
+
+server:
+  host: "0.0.0.0"
+  port: 8317
+
+management:
+  allow-remote: true
+  secret-key: "__CPA_MANAGEMENT_KEY__"
+  disable-control-panel: false
+  disable-auto-update-panel: true
+  panel-github-repository: "https://github.com/seakee/CPA-Manager-Plus"
+
+oauth:
+  auth-dir: "/root/.cli-proxy-api"
+
+observability:
+  usage:
+    usage-statistics-enabled: true
+    redis-usage-queue-retention-seconds: 60
+
+routing:
+  retry:
+    request-retry: 0
