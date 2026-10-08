@@ -1,0 +1,24 @@
+{
+	auto_https disable_redirects
+}
+
+cpa-test.xingqiaolab.top {
+	tls {
+		issuer acme {
+			disable_http_challenge
+		}
+	}
+	encode zstd gzip
+	redir / /management.html 302
+	reverse_proxy cpa-manager:18317 {
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 2m
+		}
+	}
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+	}
+}

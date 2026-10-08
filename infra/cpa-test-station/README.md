@@ -6,6 +6,8 @@
 
 CPA 管理入口为 `http://43.133.75.82:8317/management.html`；完整 CPAMP 管理入口为 `http://43.133.75.82:18317/management.html`。分别使用 CPA Management Key 与 CPAMP Admin Key。服务器及云防火墙需要允许这两个 TCP 端口。
 
+域名入口为 `https://cpa-test.xingqiaolab.top/`，使用 CPAMP Admin Key 登录，管理页和插件 API 均由已配置的 Manager Server 提供。独立 `compose.edge.yaml` 使用既有 Caddy v2.10.2 制品、仅发布 443，并通过 CPA 专用网络访问 Manager。DNS A 记录指向 43.133.75.82；首次签发证书时使用 DNS only，让 ACME TLS-ALPN-01 直接验证 443。证书和续期状态保存在独立卷内。将 Caddyfile 放到 `/opt/cpa-test-station/edge/Caddyfile` 后启动 edge project，原有 Sub2API 的 80 端口服务可继续运行。域名入口不依赖新增 8317/18317 公网端口。
+
 ## 初始化
 
 只从已推送、干净且与 `origin/main` commit/tree 一致的根目录 main 推广 Compose 和 `infra/cpa-production/config.example.yaml`。将模板中的管理密钥替换为测试站独立随机密钥。使用全新 auths、插件状态目录、Manager 数据卷和独立密钥，密钥文件权限为 0600，目录权限为 0700。
