@@ -26,6 +26,7 @@ update_worker=${TEST_STATION_UPDATE_WORKER:-false}
 # Native group catalogue handlers and their read-only tool mapping can update API only.
 # The reviewed user popularity projection reuses native read-only aggregates, API only.
 # The reviewed manual check admission only affects API handlers; worker work is unchanged.
+# Route SLA timeline and admin raw counts are read-only API queries, not worker jobs.
 # Runtime dependencies and unreviewed backend changes remain excluded.
 # The exact production integration files require the serialized worker update.
 # Embedded migrations must already be applied with identical checksums on the host.
@@ -49,6 +50,14 @@ while IFS= read -r path; do
     upstream/sub2api/backend/internal/service/monitor_v4.go|\
     upstream/sub2api/backend/internal/service/monitor_v4_check.go|\
     upstream/sub2api/backend/internal/service/monitor_v4_check_test.go|\
+    upstream/sub2api/backend/internal/service/monitor_v4_timeline.go|\
+    upstream/sub2api/backend/internal/service/monitor_v4_timeline_test.go|\
+    upstream/sub2api/backend/internal/handler/monitor_v4_handler_test.go|\
+    upstream/sub2api/backend/internal/repository/monitor_v4_timeline.go|\
+    upstream/sub2api/backend/internal/repository/ops_repo_dashboard.go|\
+    upstream/sub2api/backend/internal/repository/ops_sla_sql.go|\
+    upstream/sub2api/backend/internal/repository/route_sla_timeline_postgres_test.go|\
+    upstream/sub2api/backend/scripts/verify_prototype_monitor_postgres.py|\
     upstream/sub2api/backend/internal/server/routes/user.go|\
     upstream/sub2api/backend/internal/handler/api_key_handler.go|\
     upstream/sub2api/backend/internal/handler/gateway_handler.go|\
@@ -83,8 +92,7 @@ while IFS= read -r path; do
     upstream/sub2api/backend/migrations/265_monitor_v4_legacy_default.sql|\
     upstream/sub2api/backend/migrations/241_remove_monitor_v4_operational_flag.sql|\
     upstream/sub2api/backend/migrations/deferred/241_remove_monitor_v4_operational_flag.sql|\
-    upstream/sub2api/backend/migrations/deferred/README.md|\
-    upstream/sub2api/backend/scripts/verify_prototype_monitor_postgres.py)
+    upstream/sub2api/backend/migrations/deferred/README.md)
       [[ "$update_worker" == true ]] || fail 'production integration requires a worker update' ;;
     *) fail "release excludes unsupported runtime changes: $path" ;;
   esac

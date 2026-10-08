@@ -82,6 +82,19 @@ class ReleaseScopeTests(unittest.TestCase):
         self.assertNotEqual(self.check_scope(paths).returncode, 0)
         self.assertEqual(self.check_scope(paths, True).returncode, 0)
 
+    def test_route_sla_read_queries_allow_api_only_without_widening_worker_scope(self):
+        paths = ['internal/service/monitor_v4_timeline.go', 'internal/service/monitor_v4_timeline_test.go',
+                 'internal/handler/monitor_v4_handler_test.go', 'internal/repository/monitor_v4_timeline.go',
+                 'internal/repository/ops_repo_dashboard.go', 'internal/repository/ops_sla_sql.go',
+                 'internal/repository/route_sla_timeline_postgres_test.go',
+                 'scripts/verify_prototype_monitor_postgres.py']
+        result = self.check_scope(['upstream/sub2api/backend/' + path for path in paths])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/service/monitor_v4_refresh.go']).returncode, 0)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/repository/account_monitor_repo.go']).returncode, 0)
+
     def test_account_probe_event_fix_requires_worker_update(self):
         paths = ['upstream/sub2api/backend/internal/service/' + name for name in (
             'account_test_service.go', 'account_test_service_openai_test.go',
