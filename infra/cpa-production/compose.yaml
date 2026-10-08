@@ -1,0 +1,75 @@
+name: xingqiao-cpa
+
+services:
+  cpa-gateway:
+    image: eceasy/cli-proxy-api@sha256:0c59d29e962089bec30e5cdf174ef29024693bb3af7fb2a7c111dfab664b84c5
+    restart: unless-stopped
+    volumes:
+      - ./cliproxyapi/config.yaml:/CLIProxyAPI/config.yaml
+      - ./cliproxyapi/auths:/root/.cli-proxy-api
+      - ./cliproxyapi/logs:/CLIProxyAPI/logs
+      - ./cliproxyapi/plugins:/CLIProxyAPI/plugins
+      - ./cliproxyapi/ticket-gateway-data:/var/lib/cliproxy-ticket-gateway
+    networks:
+      internal: {}
+      sub2api:
+        aliases: [cpa-gateway]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          /usr/bin/timeout 5 /usr/bin/bash -ec 'exec 3<>/dev/tcp/127.0.0.1/8317;
+          printf "GET /management.html HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3;
+          IFS= read -r status <&3; [[ "$$status" == *" 200 "* ]]'
+      interval: 10s
+      timeout: 6s
+      retries: 12
+      start_period: 20s
+
+  cpa-manager:
+    image: seakee/cpa-manager-plus@sha256:37933b2b64dd60c7a1696096d738ad7cf9f0a7475fd7bc12c2eb7a0124b2f7f9
+    restart: unless-stopped
+    environment:
+      HTTP_ADDR: "0.0.0.0:18317"
+      USAGE_DB_PATH: "/data/usage.sqlite"
+      CPA_MANAGER_DATA_KEY_PATH: "/data/data.key"
+      CPA_MANAGER_ADMIN_KEY_FILE: "/run/secrets/cpamp_admin_key"
+      USAGE_COLLECTOR_MODE: "auto"
+      USAGE_RESP_QUEUE: "usage"
+      USAGE_RESP_POP_SIDE: "right"
+      USAGE_BATCH_SIZE: "100"
+      USAGE_POLL_INTERVAL_MS: "500"
+      USAGE_QUERY_LIMIT: "50000"
+      USAGE_CORS_ORIGINS: "https://cpa.xingqiaolab.top"
+    volumes:
+      - cpa-manager-data:/data
+    secrets:
+      - cpamp_admin_key
+    networks:
+      internal: {}
+      sub2api:
+        aliases: [cpa-manager]
+    depends_on:
+      cpa-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:18317/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+networks:
+  internal:
+    name: xingqiao-cpa-internal
+  sub2api:
+    external: true
+    name: sub2api_default
+
+volumes:
+  cpa-manager-data:
+    name: xingqiao-cpa-manager-data
+
+secrets:
+  cpamp_admin_key:
+    file: ./secrets/cpamp-admin-key
