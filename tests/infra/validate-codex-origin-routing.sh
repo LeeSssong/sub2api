@@ -11,7 +11,7 @@ CADDY=infra/Caddyfile
 
 require 'codex.xingqiaolab.top, 64-83-10-67.nip.io {' "$CADDY"
 require 'Alt-Svc "clear"' "$CADDY"
-require 'reverse_proxy 172.18.0.1:18080 {' "$CADDY"
+require 'reverse_proxy 172.18.0.1:18087 {' "$CADDY"
 require 'header_up X-Forwarded-Proto {scheme}' "$CADDY"
 require 'header_up X-Forwarded-Host {host}' "$CADDY"
 require 'header_down Alt-Svc "clear"' "$CADDY"
