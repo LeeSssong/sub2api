@@ -27,7 +27,7 @@
           </article>
         </div>
         <section class="lines-panel" aria-labelledby="routes-title">
-          <div class="panel-head"><h2 id="routes-title">我的 AI 线路</h2><button class="xq-button route-check-button" aria-label="检查线路" title="检查线路" :disabled="checking || !routeRows.some(g=>g.status==='active')" @click="runChecks"><img src="/xingqiao/refresh.svg" alt="" :class="{'is-checking':checking}" /><span>检查线路</span></button></div>
+          <div class="panel-head"><h2 id="routes-title">我的 AI 线路</h2><button class="xq-button route-check-button" aria-label="检查线路" title="每分钟最多检查 30 次" :disabled="checking || checkCooldown || !routeRows.some(g=>g.status==='active')" @click="runChecks"><img src="/xingqiao/refresh.svg" alt="" :class="{'is-checking':checking}" /><span>检查线路</span></button></div>
           <div v-if="checkError" class="workspace-error" role="alert">{{ checkError }}</div>
           <div class="route-table-scroll">
             <div class="route-table" role="table" aria-label="我的 AI 线路">
@@ -237,15 +237,29 @@ function closeCreate(){
   if(!selectedTool.value)nextTick(()=>createTrigger?.focus())
 }
 async function keyCreated(key:ApiKey){keys.value=[...keys.value.filter(k=>k.id!==key.id),key];createTool.value=null;await loadWorkspace();if(selectedTool.value)await loadDetails(detailWindow.value)}
+const checkCooldown=ref(false)
+let checkCooldownTimer:ReturnType<typeof setTimeout>|undefined
 async function runChecks(){
-  if(checking.value)return
+  if(checking.value||checkCooldown.value)return
   const ids=routeRows.value.filter(g=>g.status==='active').map(g=>g.id);if(!ids.length)return
   checking.value=true;checkError.value='';checkController=new AbortController()
   try{const results=await checkLines(ids,checkController.signal);if(checkController.signal.aborted)return;for(const id of ids)checks.value[id]=results.find(r=>r.group_id===id)||{group_id:id,status:'failed',ttft_ms:null,checked_at:''};await loadWorkspace()}
-  catch{if(!checkController.signal.aborted){checkError.value='线路检查请求未完成，请稍后重试。'}}
+  catch(error:unknown){if(!checkController.signal.aborted){
+    const failure=error as {status?:number;code?:string;metadata?:{retry_after_seconds?:unknown}}|null
+    if(failure?.status===429&&failure.code==='LINE_CHECK_RATE_LIMITED'){
+      const retry=Number(failure.metadata?.retry_after_seconds)
+      const seconds=Number.isFinite(retry)?Math.max(1,Math.min(60,Math.ceil(retry))):60
+      checkError.value=`每分钟最多检查 30 次，请在 ${seconds} 秒后重试。`
+      checkCooldown.value=true
+      clearTimeout(checkCooldownTimer)
+      checkCooldownTimer=setTimeout(()=>{checkCooldown.value=false;checkError.value=''},seconds*1000)
+    }else if(failure?.status===429){checkError.value='检查过于频繁，请稍后重试。'}
+    else if(failure?.code==='LINE_CHECK_UNAVAILABLE'){checkError.value='线路检查暂不可用，请稍后重试。'}
+    else{checkError.value='线路检查请求未完成，请稍后重试。'}
+  }}
   finally{checking.value=false}
 }
 function openGroupKeys(id:number){void router.push({path:'/keys',query:{group_id:String(id)}})}
 onMounted(()=>{void loadWorkspace();freshnessTimer=setInterval(()=>{clock.value=Date.now()},30000)})
-onBeforeUnmount(()=>{clearInterval(freshnessTimer);loadController?.abort();detailController?.abort();checkController?.abort()})
+onBeforeUnmount(()=>{clearTimeout(checkCooldownTimer);clearInterval(freshnessTimer);loadController?.abort();detailController?.abort();checkController?.abort()})
 </script>

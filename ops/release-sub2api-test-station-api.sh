@@ -41,6 +41,10 @@ while IFS= read -r path; do
     upstream/sub2api/backend/internal/handler/usage_handler.go|\
     upstream/sub2api/backend/internal/handler/usage_model_popularity.go|\
     upstream/sub2api/backend/internal/handler/usage_model_popularity_test.go|\
+    upstream/sub2api/backend/internal/middleware/line_check_rate_limiter.go|\
+    upstream/sub2api/backend/internal/server/middleware/line_check_rate_limit.go|\
+    upstream/sub2api/backend/internal/server/middleware/panel_rate_limit.go|\
+    upstream/sub2api/backend/internal/server/routes/monitor_v4_check_rate_limit_test.go|\
     upstream/sub2api/backend/internal/server/routes/user.go|\
     upstream/sub2api/backend/internal/handler/api_key_handler.go|\
     upstream/sub2api/backend/internal/handler/gateway_handler.go|\

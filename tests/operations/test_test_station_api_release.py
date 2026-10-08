@@ -59,6 +59,16 @@ class ReleaseScopeTests(unittest.TestCase):
         result = self.check_scope(['upstream/sub2api/backend/' + path for path in paths])
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_line_check_rate_limit_allows_only_reviewed_api_files(self):
+        paths = ['internal/middleware/line_check_rate_limiter.go',
+                 'internal/server/middleware/line_check_rate_limit.go',
+                 'internal/server/middleware/panel_rate_limit.go',
+                 'internal/server/routes/monitor_v4_check_rate_limit_test.go']
+        result = self.check_scope(['upstream/sub2api/backend/' + path for path in paths])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/server/middleware/auth.go']).returncode, 0)
+
     def test_monitor_changes_still_require_worker_update(self):
         paths = ['upstream/sub2api/backend/internal/service/monitor_v4.go']
         self.assertNotEqual(self.check_scope(paths).returncode, 0)

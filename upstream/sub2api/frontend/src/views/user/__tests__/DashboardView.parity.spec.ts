@@ -17,6 +17,25 @@ const deferred=<T,>()=>{let resolve!:(value:T)=>void;let reject!:(reason?:unknow
 const make=()=>mount(Dashboard,{global:{plugins:[createI18n({legacy:false,locale:'zh',messages:{}})],stubs:{AppLayout:{template:'<div><slot/></div>'},BaseDialog:{props:['show','title'],template:'<div v-if="show" role="dialog"><h3>{{title}}</h3><slot/><slot name="footer"/></div>'},CreateLineKeyDialog:{name:'CreateLineKeyDialog',props:['show','initialGroupId'],template:'<div v-if="show" data-testid="create-key">{{initialGroupId}}</div>'}}}})
 beforeEach(()=>{vi.clearAllMocks();clearDashboardWorkspaceSnapshot();mocks.models.mockResolvedValue([{group_id:1,supported_models:['gpt-5.4','gpt-5.2'],official_pricing:{'gpt-5.4':{input_price:2.5e-6,cache_read_price:.25e-6,output_price:15e-6}}},{group_id:2,supported_models:['gpt-5.4','custom-model']},{group_id:99,supported_models:['private-model']}]);mocks.groups.mockResolvedValue(groups);mocks.rates.mockResolvedValue({});mocks.keys.mockResolvedValue({items:[{id:1,group_id:1,status:'inactive',group:groups[0]}],total:1});mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))});mocks.check.mockResolvedValue([{group_id:1,status:'success',ttft_ms:1230}])})
 describe('原型AI工具交互',()=>{
+ it('shows the line check limit and allows retry after the server cooldown',async()=>{
+  vi.useFakeTimers()
+  const w=make()
+  try {
+   await flushPromises()
+   mocks.check.mockRejectedValueOnce({status:429,code:'LINE_CHECK_RATE_LIMITED',metadata:{retry_after_seconds:3}})
+   const button=w.get('button[aria-label="检查线路"]')
+   await button.trigger('click');await flushPromises()
+   expect(w.text()).toContain('每分钟最多检查 30 次，请在 3 秒后重试。')
+   expect(button.attributes('disabled')).toBeDefined()
+   await button.trigger('click');await flushPromises()
+   expect(mocks.check).toHaveBeenCalledTimes(1)
+   await vi.advanceTimersByTimeAsync(3000);await flushPromises()
+   expect(button.attributes('disabled')).toBeUndefined()
+   await button.trigger('click');await flushPromises()
+   expect(mocks.check).toHaveBeenCalledTimes(2)
+   expect(w.text()).not.toContain('每分钟最多检查')
+  } finally { w.unmount();vi.useRealTimers() }
+ })
  it('orders detail cards by effective multiplier across periods without changing the best route',async()=>{
   const candidates=[
    {id:1,name:'高倍率最佳线路',platform:'openai',rate_multiplier:1,status:'active'},
