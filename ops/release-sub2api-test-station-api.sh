@@ -54,6 +54,8 @@ while IFS= read -r path; do
     upstream/sub2api/backend/internal/service/monitor_v4_timeline_test.go|\
     upstream/sub2api/backend/internal/handler/monitor_v4_handler_test.go|\
     upstream/sub2api/backend/internal/repository/monitor_v4_timeline.go|\
+    upstream/sub2api/backend/internal/repository/monitor_v4_timeline_test.go|\
+    upstream/sub2api/backend/internal/repository/route_cache_timeline_postgres_test.go|\
     upstream/sub2api/backend/internal/repository/ops_repo_dashboard.go|\
     upstream/sub2api/backend/internal/repository/ops_sla_sql.go|\
     upstream/sub2api/backend/internal/repository/route_sla_timeline_postgres_test.go|\

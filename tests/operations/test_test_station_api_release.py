@@ -104,6 +104,14 @@ class ReleaseScopeTests(unittest.TestCase):
         self.assertNotEqual(self.check_scope([
             'upstream/sub2api/backend/internal/service/account_service.go'], True).returncode, 0)
 
+    def test_route_stream_cache_query_and_tests_allow_api_only_release(self):
+        paths = ['upstream/sub2api/backend/internal/repository/' + name for name in
+                 ('monitor_v4_timeline.go', 'monitor_v4_timeline_test.go', 'route_cache_timeline_postgres_test.go')]
+        result = self.check_scope(paths)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/repository/account_monitor_repo.go']).returncode, 0)
+
     def test_brand_icon_http_and_separate_homepage_allow_api_only_release(self):
         paths = ['upstream/sub2api/backend/internal/web/' + name for name in
                  ['embed_on.go', 'embed_test.go', 'favicon.go', 'favicon_test.go']]
