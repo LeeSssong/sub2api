@@ -64,6 +64,15 @@ class ReleaseScopeTests(unittest.TestCase):
         self.assertNotEqual(self.check_scope(paths).returncode, 0)
         self.assertEqual(self.check_scope(paths, True).returncode, 0)
 
+    def test_account_probe_event_fix_requires_worker_update(self):
+        paths = ['upstream/sub2api/backend/internal/service/' + name for name in (
+            'account_test_service.go', 'account_test_service_openai_test.go',
+            'account_monitor_probe_test.go', 'account_probe_cost_test.go')]
+        self.assertNotEqual(self.check_scope(paths).returncode, 0)
+        self.assertEqual(self.check_scope(paths, True).returncode, 0)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/service/account_service.go'], True).returncode, 0)
+
     def test_brand_icon_http_and_separate_homepage_allow_api_only_release(self):
         paths = ['upstream/sub2api/backend/internal/web/' + name for name in
                  ['embed_on.go', 'embed_test.go', 'favicon.go', 'favicon_test.go']]

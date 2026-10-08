@@ -52,6 +52,10 @@ while IFS= read -r path; do
     upstream/sub2api/backend/internal/service/model_plaza_service_test.go|\
     upstream/sub2api/backend/internal/service/group_tool_mapping.go|\
     upstream/sub2api/backend/internal/service/api_key_group_tool_mapping_test.go) ;;
+    upstream/sub2api/backend/internal/service/account_test_service.go|\
+    upstream/sub2api/backend/internal/service/account_test_service_openai_test.go|\
+    upstream/sub2api/backend/internal/service/account_monitor_probe_test.go|\
+    upstream/sub2api/backend/internal/service/account_probe_cost_test.go|\
     upstream/sub2api/backend/internal/service/monitor_v4*.go)
       [[ "$update_worker" == true ]] || fail 'monitor backend changes require a worker update' ;;
     *) fail "release excludes unsupported runtime changes: $path" ;;
