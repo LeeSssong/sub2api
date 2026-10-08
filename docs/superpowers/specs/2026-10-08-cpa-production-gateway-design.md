@@ -128,6 +128,8 @@ Codex2API
 
 Caddyfile 必须先在候选文件上通过 `caddy validate`，然后原子替换并执行平滑 reload。若证书、路由或健康验证失败，立即恢复备份并 reload。
 
+生产实时核对显示当前由 `sub2api-caddy-1` 直接发布宿主 80/443，未运行仓库中的 `nginx-tls-front`。本轮只适配这一实际活动入口，不重建边缘容器。仓库保留的 Nginx TLS front 目前只装载 `SITE_ADDRESS` 单域名证书；未来若恢复该拓扑，必须先为 `cpa.xingqiaolab.top` 增加独立证书和 SNI vhost，否则不得执行相应 Sub2API Compose 发布。
+
 ## 9. 部署顺序
 
 1. 从已提交并推送的干净 `main` 准备 Compose、Caddy 和发布记录输入。

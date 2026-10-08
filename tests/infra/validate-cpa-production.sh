@@ -37,6 +37,8 @@ jq -e '
   ] and
   (.services["cpa-manager"].volumes | map(.target)) == ["/data"] and
   .services["cpa-gateway"].healthcheck.test[0] == "CMD-SHELL" and
+  (.services["cpa-gateway"].healthcheck.test[1] | contains("/usr/bin/bash") and contains("/dev/tcp/127.0.0.1/8317") and contains(" 200 ")) and
+  (.services["cpa-gateway"].healthcheck.test[1] | contains("wget") or contains("curl") | not) and
   .services["cpa-manager"].healthcheck.test[0] == "CMD" and
   .services["cpa-manager"].secrets[0].source == "cpamp_admin_key"
 ' <<<"$compose_json" >/dev/null || fail 'Compose isolation contract failed'
