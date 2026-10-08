@@ -33,8 +33,8 @@ import { computed, ref, watch } from 'vue'
 import type { RouteTimelinePoint } from './routeTimeline'
 const props = defineProps<{points:RouteTimelinePoint[];loading:boolean;error:boolean}>()
 type Metric = 'cache'|'success'|'ttft'|'degradation'
-const series: {key:Metric;label:string}[] = [{key:'cache',label:'缓存命中率'},{key:'success',label:'请求成功率'},{key:'ttft',label:'首字 P50'},{key:'degradation',label:'疑似降智率'}]
-const tooltipSeries=[series[1]!,series[0]!,series[3]!,series[2]!]
+const series: {key:Metric;label:string}[] = [{key:'success',label:'请求成功率'},{key:'ttft',label:'首字 P50'},{key:'cache',label:'缓存命中率'},{key:'degradation',label:'疑似降智率'}]
+const tooltipSeries=series
 const enabled=ref<Record<Metric,boolean>>({cache:true,success:true,ttft:true,degradation:true})
 const visibleSeries=computed(()=>series.filter(s=>enabled.value[s.key]))
 const tooltipOpen=ref(false)
@@ -77,9 +77,9 @@ function navigate(event:KeyboardEvent,i:number){
 }
 </script>
 <style scoped>
-.route-history{min-width:0;--chart-cache:#b49aee;color:var(--xq-secondary);font-size:12px}
-:global(:root:not(.dark) .route-history){--chart-cache:#7651b5}
-.cache{color:var(--chart-cache)}.success{color:var(--xq-success)}.ttft,.seconds{color:var(--xq-warning)}
+.route-history{min-width:0;--chart-cache:#b49aee;--chart-ttft:#82b7f3;color:var(--xq-secondary);font-size:12px}
+:global(:root:not(.dark) .route-history){--chart-cache:#7651b5;--chart-ttft:#326ea9}
+.cache{color:var(--chart-cache)}.success{color:var(--xq-success)}.ttft{color:var(--chart-ttft)}
 .degradation{color:var(--xq-danger)}
 .chart-legend{display:flex;flex-wrap:wrap;gap:4px 16px;margin-bottom:20px;font-size:11px}
 .chart-legend button{font:inherit;color:var(--xq-secondary);min-height:36px;background:transparent;border:0;border-radius:4px;padding:6px 0;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
@@ -90,7 +90,7 @@ function navigate(event:KeyboardEvent,i:number){
 .chart-legend i{width:14px;flex-shrink:0;border-top:2px solid currentColor}
 .chart-legend .cache i{color:var(--chart-cache);border-top-style:dashed}
 .chart-legend .success i{color:var(--xq-success)}
-.chart-legend .ttft i{color:var(--xq-warning)}
+.chart-legend .ttft i{color:var(--chart-ttft)}
 .chart-legend .degradation i{color:var(--xq-danger)}
 .chart-legend button[aria-pressed="false"] .legend-label{text-decoration:line-through;text-decoration-thickness:1px}
 .chart-legend button[aria-pressed="false"] i{color:var(--xq-secondary);opacity:.4}
