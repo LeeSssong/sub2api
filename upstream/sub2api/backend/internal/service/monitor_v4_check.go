@@ -13,8 +13,6 @@ import (
 type monitorV4ProbeGroupKey struct{}
 type accountMonitorConnectionModelOverrideKey struct{}
 
-const monitorV4CheckCooldown = 30 * time.Second
-
 type MonitorV4CheckResult struct {
 	GroupID   int64     `json:"group_id"`
 	Status    string    `json:"status"`
@@ -53,23 +51,17 @@ func (s *APIKeyService) LinkedMonitorGroups(ctx context.Context, userID int64) (
 	return groups, nil
 }
 
-func (s *MonitorV4Service) beginCheck(userID int64, now time.Time) error {
+// Frequency admission is enforced by the shared Redis limiter at the API route.
+// This guard bounds active probe batches without imposing a second cooldown.
+func (s *MonitorV4Service) beginCheck(userID int64) error {
 	s.checkMu.Lock()
 	defer s.checkMu.Unlock()
-	if s.checkNext == nil {
-		s.checkNext = map[int64]time.Time{}
+	if s.checkActive == nil {
 		s.checkActive = map[int64]bool{}
 	}
-	if s.checkActive[userID] || now.Before(s.checkNext[userID]) || s.checkCount >= 4 {
+	if s.checkActive[userID] || s.checkCount >= 4 {
 		return infraerrors.TooManyRequests("LINE_CHECK_RATE_LIMIT", "线路检查进行中或过于频繁，请稍后重试")
 	}
-	for id, next := range s.checkNext {
-		if !s.checkActive[id] && !now.Before(next) {
-			delete(s.checkNext, id)
-			delete(s.checkActive, id)
-		}
-	}
-	s.checkNext[userID] = now.Add(monitorV4CheckCooldown)
 	s.checkActive[userID] = true
 	s.checkCount++
 	return nil
@@ -77,7 +69,7 @@ func (s *MonitorV4Service) beginCheck(userID int64, now time.Time) error {
 func (s *MonitorV4Service) finishCheck(userID int64) {
 	s.checkMu.Lock()
 	defer s.checkMu.Unlock()
-	s.checkActive[userID] = false
+	delete(s.checkActive, userID)
 	s.checkCount--
 }
 
@@ -121,7 +113,7 @@ func (s *MonitorV4Service) Check(ctx context.Context, userID int64, ids []int64)
 		}
 		seen[id] = true
 	}
-	if err := s.beginCheck(userID, time.Now()); err != nil {
+	if err := s.beginCheck(userID); err != nil {
 		return nil, err
 	}
 	defer s.finishCheck(userID)

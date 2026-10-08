@@ -69,8 +69,16 @@ class ReleaseScopeTests(unittest.TestCase):
         self.assertNotEqual(self.check_scope([
             'upstream/sub2api/backend/internal/server/middleware/auth.go']).returncode, 0)
 
+    def test_manual_check_admission_changes_allow_api_only_release(self):
+        paths = ['upstream/sub2api/backend/internal/service/' + name for name in
+                 ('monitor_v4.go', 'monitor_v4_check.go', 'monitor_v4_check_test.go')]
+        result = self.check_scope(paths)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/service/monitor_v4_runtime.go']).returncode, 0)
+
     def test_monitor_changes_still_require_worker_update(self):
-        paths = ['upstream/sub2api/backend/internal/service/monitor_v4.go']
+        paths = ['upstream/sub2api/backend/internal/service/monitor_v4_runtime.go']
         self.assertNotEqual(self.check_scope(paths).returncode, 0)
         self.assertEqual(self.check_scope(paths, True).returncode, 0)
 
