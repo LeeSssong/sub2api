@@ -75,10 +75,10 @@ describe('CNProviderBalanceCell', () => {
     })
     const wrapper = mount(CNProviderBalanceCell, { props: { account: largeAccount } })
 
-    expect(wrapper.get('[data-test="cn-provider-balance-value"]').text()).toBe('CNY 1234.50')
+    expect(wrapper.get('[data-test="cn-provider-balance-value"]').text()).toBe('CNY 1235')
     await wrapper.get('[data-test="cn-provider-balance-probe"]').trigger('click')
     await flushPromises()
-    expect(wrapper.get('[data-test="cn-provider-balance-value"]').text()).toBe('CNY 100.00 · USD 0.00')
+    expect(wrapper.get('[data-test="cn-provider-balance-value"]').text()).toBe('CNY 100 · USD 0.00')
   })
 
   it('keeps the snapshot balance visible when a query fails', async () => {

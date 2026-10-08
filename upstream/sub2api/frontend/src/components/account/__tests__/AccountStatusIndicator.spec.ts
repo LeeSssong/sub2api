@@ -51,6 +51,17 @@ function makeAccount(overrides: Partial<Account>): Account {
 }
 
 describe('AccountStatusIndicator', () => {
+  it('keeps quality isolation visible after the next probe time', () => {
+    const wrapper = mount(AccountStatusIndicator, {
+      props: { account: makeAccount({ platform: 'openai', extra: { model_rate_limits: {
+        'gpt-6-astra': { rate_limited_at: '2026-01-01T00:00:00Z', rate_limit_reset_at: '2026-01-01T00:05:00Z', reason: 'quality_rule:139' },
+        'gpt-6.1-sol': { rate_limited_at: '2026-01-01T00:00:00Z', rate_limit_reset_at: '2026-01-01T00:05:00Z', reason: 'upstream_429' }
+      } } }) }, global: { stubs: { Icon: true } }
+    })
+    expect(wrapper.text()).toContain('gpt-6-astra')
+    expect(wrapper.text()).toContain('qualityOps.waitingForPass')
+    expect(wrapper.text()).not.toContain('gpt-6.1-sol')
+  })
   it.each([
     [{}, 'active'],
     [{ status: 'error', error_message: 'Upstream unavailable' }, 'error'],

@@ -21,7 +21,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { formatUsdMoney } from '@/utils/format'
+import { formatUsdCost } from '@/utils/format'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -156,7 +156,7 @@ const lineOptions = computed(() => ({
           const dataIndex = tooltipItems[0]?.dataIndex
           if (dataIndex !== undefined && props.trendData[dataIndex]) {
             const data = props.trendData[dataIndex]
-            return `${t('usage.detail.actualCost')}: ${formatUsdMoney(data.actual_cost)} | ${t('usage.detail.standardCost')}: ${formatUsdMoney(data.cost)}`
+            return `${t('usage.detail.actualCost')}: ${formatUsdCost(data.actual_cost)} | ${t('usage.detail.standardCost')}: ${formatUsdCost(data.cost)}`
           }
           return ''
         }

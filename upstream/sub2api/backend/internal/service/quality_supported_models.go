@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
@@ -16,6 +17,20 @@ import (
 
 func qualityUnsupportedModelKey(model string) string {
 	return fmt.Sprintf("quality_unsupported_model_%x", sha256.Sum256([]byte(model)))
+}
+
+const qualityUnsupportedModelRetryDelay = 5 * time.Minute
+
+// Legacy string markers have no expiry and cannot establish current access.
+// A runtime rejection only suppresses probes briefly before rediscovery.
+func qualityUnsupportedModelActive(extra map[string]any, model string, now time.Time) bool {
+	marker, ok := extra[qualityUnsupportedModelKey(model)].(map[string]any)
+	if !ok || marker["model"] != model {
+		return false
+	}
+	raw, _ := marker["retry_at"].(string)
+	retryAt, err := time.Parse(time.RFC3339, raw)
+	return err == nil && now.Before(retryAt)
 }
 
 // Discovery is shared with the account test picker. An unavailable catalog is
@@ -71,7 +86,7 @@ func (s *ScheduledTestService) accountQualityModels(ctx context.Context, id int6
 	}
 	supported := models[:0]
 	for _, model := range models {
-		if account.Extra[qualityUnsupportedModelKey(model)] == nil {
+		if !qualityUnsupportedModelActive(account.Extra, model, time.Now()) {
 			supported = append(supported, model)
 		}
 	}
@@ -112,7 +127,7 @@ func (s *ScheduledTestService) supportedQualityModels(ctx context.Context, plan 
 				found = true
 			}
 		}
-		if blocked[qualityUnsupportedModelKey(model)] != nil {
+		if qualityUnsupportedModelActive(blocked, model, time.Now()) {
 			found = false
 		}
 		if found {
@@ -161,11 +176,17 @@ func qualityModelUnsupported(message string) bool {
 			return true
 		}
 	}
+	// Invalid request options do not establish that a model is inaccessible.
+	for _, option := range []string{"reasoning", "tool", "temperature", "top_p", "response_format", "max_output_tokens"} {
+		if strings.Contains(lower, option) {
+			return false
+		}
+	}
 	if !strings.Contains(lower, "model") && !strings.Contains(lower, "模型") {
 		return false
 	}
 	return qualityUnsupportedModelMessage.MatchString(lower) || strings.Contains(lower, "model is not supported") || strings.Contains(lower, "model not supported") ||
-		strings.Contains(lower, "does not support this model") || strings.Contains(lower, "not supported with") ||
+		strings.Contains(lower, "does not support this model") ||
 		strings.Contains(lower, "not supported by any configured account") || strings.Contains(lower, "model") && strings.Contains(lower, "does not exist") ||
 		strings.Contains(lower, "不支持该模型") || strings.Contains(lower, "模型不支持") || strings.Contains(lower, "模型不存在")
 }
@@ -176,5 +197,7 @@ func (s *ScheduledTestService) rememberUnsupportedQualityModel(ctx context.Conte
 	}
 	// Independent keys use the native atomic Extra merge, so concurrent rules
 	// cannot overwrite each other's observations or unrelated account settings.
-	return s.accountTests.accountRepo.UpdateExtra(ctx, id, map[string]any{qualityUnsupportedModelKey(model): model})
+	return s.accountTests.accountRepo.UpdateExtra(ctx, id, map[string]any{qualityUnsupportedModelKey(model): map[string]any{
+		"model": model, "retry_at": time.Now().Add(qualityUnsupportedModelRetryDelay).UTC().Format(time.RFC3339),
+	}})
 }

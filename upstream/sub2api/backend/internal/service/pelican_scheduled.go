@@ -221,7 +221,7 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 						logger.LegacyPrintf("service.scheduled_test_runner", "quality model exclusion could not be saved: account=%d", plan.AccountID)
 					}
 					result.Status = "skipped"
-					result.ErrorMessage = "model_unsupported"
+					result.ErrorMessage = "model_unsupported: " + result.ErrorMessage
 					result.QualityJudgment = nil
 				}
 				results[index] = result

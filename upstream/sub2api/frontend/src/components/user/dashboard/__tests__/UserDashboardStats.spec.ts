@@ -71,7 +71,7 @@ function quota(over: Partial<PlatformQuotaItem> & { platform: string }): Platfor
 
 function mountStats(stats: UserStatsType, platformQuotas: PlatformQuotaItem[] | null = null, isSimple = false) {
   return mount(UserDashboardStats, {
-    props: { stats, balance: 0, isSimple, platformQuotas },
+    props: { stats, balance: 0, isSimple, platformQuotas, showPlatformBreakdown: true },
     global: { stubs: { Icon: true } },
   })
 }
@@ -82,6 +82,12 @@ function cardPlatforms(w: VueWrapper): string[] {
 }
 
 describe('UserDashboardStats 按平台拆分', () => {
+  it('keeps the user balance at two decimals and costs at native four decimals', () => {
+    const wrapper = mountStats(makeStats({ today_actual_cost: 0.01146136 }))
+    expect(wrapper.text()).toContain('$0.0115')
+    expect(wrapper.text()).toContain('$0.00')
+  })
+
   it('只有用量的平台才产生卡片；三档全空的限额记录不产生卡片', () => {
     const w = mountStats(
       makeStats({ total_actual_cost: 0.03, today_actual_cost: 0.03, by_platform: [usage('grok', 0.03)] }),

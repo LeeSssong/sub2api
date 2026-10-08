@@ -30,7 +30,7 @@ describe('account cost display', () => {
     expect(wrapper.text()).not.toContain('emerald')
   })
 
-  it('renders summary and chart tooltip costs in two decimals and leaves failed loads without zero cost cards', async () => {
+  it('renders summary and chart tooltip costs in native precision and leaves failed loads without zero cost cards', async () => {
     const account = { id: 1, name: 'Test', status: 'active' } as any
     getStats.mockResolvedValueOnce({
       summary: { total_cost: 1234.5, total_user_cost: -1.2, total_standard_cost: 0.001, total_requests: 3, total_tokens: 100, avg_daily_cost: 0, avg_daily_user_cost: 0, avg_daily_requests: 1, avg_daily_tokens: 10, avg_duration_ms: 10, days: 30, actual_days_used: 1, today: null, highest_cost_day: null, highest_request_day: null },
@@ -40,14 +40,14 @@ describe('account cost display', () => {
     const wrapper = mount(AccountStatsModal, { props: { show: false, account }, global: { stubs } })
     await wrapper.setProps({ show: true })
     await flushPromises()
-    expect(wrapper.text()).toContain('$1234.50')
-    expect(wrapper.text()).toContain('$-1.20')
+    expect(wrapper.text()).toContain('$1.23K')
+    expect(wrapper.text()).toContain('$-1.2000')
     expect(wrapper.text()).toContain('$0.00')
     expect(wrapper.text()).toContain('usage.accountBilled—')
     expect(wrapper.text()).toContain('usage.userBilled—')
     const options = (wrapper.vm as any).$?.setupState.lineChartOptions
-    expect(options.plugins.tooltip.callbacks.label({ dataset: { label: 'Cost (USD)' }, raw: 0.001 })).toBe('Cost (USD): $0.00')
-    expect(options.scales.y.ticks.callback(1234.5)).toBe('$1234.50')
+    expect(options.plugins.tooltip.callbacks.label({ dataset: { label: 'Cost (USD)' }, raw: 0.001 })).toBe('Cost (USD): $0.0010')
+    expect(options.scales.y.ticks.callback(1234.5)).toBe('$1.23K')
     getStats.mockRejectedValueOnce(new Error('offline'))
     const failed = mount(AccountStatsModal, { props: { show: false, account }, global: { stubs } })
     await failed.setProps({ show: true })

@@ -144,6 +144,9 @@ describe('ContactSupportDialog', () => {
     const mounted = mountDialog()
     const overlay = document.body.querySelector<HTMLElement>('.modal-overlay')
 
+    expect(overlay).not.toBeNull()
+    overlay?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    overlay?.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
     overlay?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await nextTick()
 

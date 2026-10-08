@@ -114,19 +114,19 @@
                   <span
                     class="text-green-600 dark:text-green-400"
                     :title="t('admin.dashboard.actual')"
-                    >{{ formatUsdMoney(stats.today_actual_cost) }}</span
+                    >{{ formatUsdCost(stats.today_actual_cost) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-orange-500 dark:text-orange-400"
                     :title="t('admin.dashboard.accountCost')"
-                    >{{ formatUsdMoney(stats.today_account_cost) }}</span
+                    >{{ formatUsdCost(stats.today_account_cost) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-gray-400 dark:text-gray-500"
                     :title="t('admin.dashboard.standard')"
-                    >{{ formatUsdMoney(stats.today_cost) }}</span
+                    >{{ formatUsdCost(stats.today_cost) }}</span
                   >
                 </p>
               </div>
@@ -150,19 +150,19 @@
                   <span
                     class="text-green-600 dark:text-green-400"
                     :title="t('admin.dashboard.actual')"
-                    >{{ formatUsdMoney(stats.total_actual_cost) }}</span
+                    >{{ formatUsdCost(stats.total_actual_cost) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-orange-500 dark:text-orange-400"
                     :title="t('admin.dashboard.accountCost')"
-                    >{{ formatUsdMoney(stats.total_account_cost) }}</span
+                    >{{ formatUsdCost(stats.total_account_cost) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-gray-400 dark:text-gray-500"
                     :title="t('admin.dashboard.standard')"
-                    >{{ formatUsdMoney(stats.total_cost) }}</span
+                    >{{ formatUsdCost(stats.total_cost) }}</span
                   >
                 </p>
               </div>
@@ -382,7 +382,7 @@ import {
   Filler
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
-import { formatUsdMoney } from '@/utils/format'
+import { formatUsdCost } from '@/utils/format'
 
 // Register Chart.js components
 ChartJS.register(
@@ -581,7 +581,7 @@ const userTrendChartData = computed(() => {
 
 // Format helpers
 const formatUserTrendValue = (value: number): string =>
-  userTrendMetric.value === 'tokens' ? formatTokens(value) : formatUsdMoney(value)
+  userTrendMetric.value === 'tokens' ? formatTokens(value) : formatUsdCost(value)
 
 const formatTokens = (value: number | undefined): string => {
   if (value === undefined || value === null) return '0'

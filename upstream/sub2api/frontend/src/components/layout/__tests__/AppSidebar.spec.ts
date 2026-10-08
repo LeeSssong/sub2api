@@ -73,7 +73,7 @@ describe('AppSidebar user navigation structure', () => {
   it('keeps only the confirmed primary entries for regular users', () => {
     const userItemsSource = componentSource.slice(
       componentSource.indexOf('function buildUserNavItems'),
-      componentSource.indexOf('// Personal navigation items'),
+      componentSource.indexOf('// The management console links'),
     )
 
     expect(userItemsSource).toContain("{ path: '/dashboard', label: userNavLabel('aiTools', 'AI 工具'), icon: DashboardIcon }")

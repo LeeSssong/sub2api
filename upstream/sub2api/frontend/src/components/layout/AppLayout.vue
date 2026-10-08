@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen" :class="isAdmin ? 'brand-admin-shell bg-gray-50 dark:bg-dark-950' : 'user-app-shell'">
+  <div class="min-h-screen" :class="isUserSurface ? 'user-app-shell' : 'brand-admin-shell bg-gray-50 dark:bg-dark-950'">
     <!-- Background Decoration -->
     <div class="pointer-events-none fixed inset-0 bg-mesh-gradient"></div>
 
@@ -9,15 +9,15 @@
     <!-- Main Content Area -->
     <div
       class="relative min-h-screen transition-all duration-300"
-      :class="isAdmin ? ['admin-main-frame', { 'admin-main-collapsed': sidebarCollapsed }] : 'user-main-frame'"
+      :class="isUserSurface ? 'user-main-frame' : ['admin-main-frame', { 'admin-main-collapsed': sidebarCollapsed }]"
     >
       <!-- Header -->
-      <AppHeader v-if="isAdmin || showDesktopHeader" />
+      <AppHeader v-if="!isUserSurface || showDesktopHeader" />
 
       <UserHeader v-else />
 
       <!-- Main Content -->
-      <main class="p-4 md:p-6 lg:p-8" :class="{ 'user-workspace': !isAdmin, 'admin-workspace': isAdmin }">
+      <main class="p-4 md:p-6 lg:p-8" :class="{ 'user-workspace': isUserSurface, 'admin-workspace': !isUserSurface }">
         <slot />
       </main>
     </div>
@@ -32,6 +32,7 @@ import '@/styles/xingqiao-ai.css'
 import { computed, onMounted, provide } from 'vue'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
+import { useAppSurface } from '@/composables/useAppSurface'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useOnboardingStore } from '@/stores/onboarding'
 import AppSidebar from './AppSidebar.vue'
@@ -42,13 +43,13 @@ withDefaults(defineProps<{ showDesktopHeader?: boolean }>(), { showDesktopHeader
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const { isUserSurface } = useAppSurface()
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
-const isAdmin = computed(() => authStore.user?.role === 'admin')
-provide('starbridge-user', computed(() => !isAdmin.value))
+provide('starbridge-user', isUserSurface)
 
 const { replayTour } = useOnboardingTour({
-  storageKey: isAdmin.value ? 'admin_guide' : 'user_guide',
-  autoStart: true
+  storageKey: authStore.isAdmin ? 'admin_guide' : 'user_guide',
+  autoStart: !isUserSurface.value
 })
 
 const onboardingStore = useOnboardingStore()

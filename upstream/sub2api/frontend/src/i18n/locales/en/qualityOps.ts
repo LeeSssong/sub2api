@@ -1,11 +1,12 @@
 export default {
+  "waitingForPass": "Awaiting a passing test",
   "cooldownPerModelHint": "Each model is cooled or restored using its own test verdict. Passing peers stay available; untested or unsupported models receive no new cooldown. A 5xx lowers account concurrency first, then test verdicts determine model cooldowns.",
 
   "skipped": "Skipped",
   "modelUnsupportedSkipped": "Unsupported model · skipped",
   "skippedCount": "{n} skipped",
   "skipReason": "Reason for skipping",
-  "unsupportedSkipHelp": "This account does not currently support this model. It was not tested and skipping did not add a cooldown.",
+  "unsupportedSkipHelp": "The model is absent from the current account catalog or was recently rejected upstream. This test was skipped without adding a cooldown. Upstream rejection records expire after 5 minutes; later runs retry discovery and testing.",
   "catalogSkipHelp": "The account's available model list could not be read. No test was run; the rule will try again on its next run.",
   "roundModelAction": "Model actions this round",
   "newCooldown": "Cooldown added this round",
@@ -14,7 +15,7 @@ export default {
   "cooldownNotRecorded": "Not available in older records",
   "cooldownUnconfirmed": "Action result unconfirmed",
   "cooldownTargets": "Models eligible for cooldown",
-  "cooldownTargetsHint": "Only models with adverse test results are cooled. Untested and skipped models receive no new cooldown.",
+  "cooldownTargetsHint": "Failed models stay isolated while recovery tests run and return only after passing. Untested and skipped models receive no new cooldown.",
   "catalogUnavailable": "Model list unavailable · skipped",
 
   "tooManyModelSamples": "Select up to 50 models and 100 samples per round. Reduce the model count or samples per model.",

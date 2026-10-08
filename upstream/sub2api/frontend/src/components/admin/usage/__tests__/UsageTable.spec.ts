@@ -288,7 +288,7 @@ describe('admin UsageTable tooltip', () => {
     expect(text).toContain('$0.09')
     expect(text).toContain('$5.0000 / 1M tokens')
     expect(text).toContain('$30.0000 / 1M tokens')
-    expect(text).toContain('$0.07')
+    expect(text).toContain('$0.06956800')
   })
 
   it('prefers the final account cost snapshot over the legacy multiplier formula', () => {
@@ -343,10 +343,10 @@ describe('admin UsageTable tooltip', () => {
     await triggers[triggers.length - 1].trigger('mouseenter')
     const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text())
     expect(amounts).toEqual(expect.arrayContaining([
-      '$0.00', '$0.00', '$0.00', '$0.00',
-      '$0.00', '$0.00', '$0.00', '$0.00', '$0.00',
+      '$0.00000001', '$0.00000002', '$0.00000003', '$0.00000004',
+      '$0.00000005', '$0.00000006', '$0.00000022', '$0.00000042', '$0.00000018',
     ]))
-    if (billingMode === 'image') expect(amounts).toContain('$0.00')
+    if (billingMode === 'image') expect(amounts).toContain('$0.00000011')
     wrapper.unmount()
   })
 
@@ -362,7 +362,7 @@ describe('admin UsageTable tooltip', () => {
     const triggers = wrapper.findAll('.group.relative')
     await triggers[triggers.length - 1].trigger('mouseenter')
     const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text()).filter(text => text.startsWith('$'))
-    expect(amounts).toEqual(['$0.00'])
+    expect(amounts).toEqual(['$0.00000000'])
     wrapper.unmount()
   })
 

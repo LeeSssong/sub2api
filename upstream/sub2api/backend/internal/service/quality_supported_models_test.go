@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/stretchr/testify/require"
 	"testing"
+	"time"
 )
 
 func TestQualitySupportedModelsRejectSingleAccountConfiguration(t *testing.T) {
@@ -103,7 +104,11 @@ func TestQualitySupportedModelsRememberRuntimeRejectionAcrossRules(t *testing.T)
 		return &QualityJudgment{Verdict: "correct"}
 	}
 	require.True(t, runner.runOnePlan(context.Background(), multiModelQualityPlan(t, `["gpt-6-astra", "gpt-6-sol"]`)))
-	require.Equal(t, "gpt-6-astra", accounts.account.Extra[qualityUnsupportedModelKey("gpt-6-astra")])
+	marker := accounts.account.Extra[qualityUnsupportedModelKey("gpt-6-astra")].(map[string]any)
+	require.Equal(t, "gpt-6-astra", marker["model"])
+	retryAt, err := time.Parse(time.RFC3339, marker["retry_at"].(string))
+	require.NoError(t, err)
+	require.WithinDuration(t, time.Now().Add(5*time.Minute), retryAt, 2*time.Second)
 	require.Equal(t, []string{"passed"}, plans.outcomes)
 	catalog, err := svc.accountQualityModels(context.Background(), 42)
 	require.NoError(t, err)
@@ -122,7 +127,7 @@ func TestQualitySupportedModelsRememberRuntimeRejectionAcrossRules(t *testing.T)
 }
 
 func TestQualitySupportedModelsWildcardDoesNotReenableRejectedModel(t *testing.T) {
-	accounts := &qualitySupportAccounts{account: &Account{ID: 42, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Credentials: map[string]any{"model_mapping": map[string]any{"gpt-*": "*"}}, Extra: map[string]any{qualityUnsupportedModelKey("gpt-6-astra"): "gpt-6-astra"}}}
+	accounts := &qualitySupportAccounts{account: &Account{ID: 42, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Credentials: map[string]any{"model_mapping": map[string]any{"gpt-*": "*"}}, Extra: map[string]any{qualityUnsupportedModelKey("gpt-6-astra"): map[string]any{"model": "gpt-6-astra", "retry_at": time.Now().Add(time.Minute).UTC().Format(time.RFC3339)}}}}
 	svc := NewScheduledTestService(nil, nil)
 	svc.accountTests = &AccountTestService{accountRepo: accounts}
 	svc.qualityModels = svc.accountQualityModels
@@ -169,4 +174,44 @@ func TestQualitySupportedModelsTemplateSkipsAccountWithNoSupportedModels(t *test
 	require.NoError(t, err)
 	require.Zero(t, created)
 	require.Empty(t, plans.plans)
+}
+
+func TestQualitySupportedModelsRetriesLegacyAndExpiredRejections(t *testing.T) {
+	for _, marker := range []any{
+		"gpt-6-astra",
+		map[string]any{"model": "gpt-6-astra", "retry_at": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)},
+		map[string]any{"model": "gpt-6-astra", "retry_at": "invalid"},
+	} {
+		accounts := &qualitySupportAccounts{account: &Account{ID: 42, Extra: map[string]any{qualityUnsupportedModelKey("gpt-6-astra"): marker}}}
+		svc := NewScheduledTestService(nil, nil)
+		svc.accountTests = &AccountTestService{accountRepo: accounts}
+		svc.qualityModels = func(context.Context, int64) ([]string, error) { return []string{"gpt-6-astra"}, nil }
+		supported, unsupported, err := svc.supportedQualityModels(context.Background(), multiModelQualityPlan(t, `["gpt-6-astra"]`))
+		require.NoError(t, err)
+		require.Equal(t, []string{"gpt-6-astra"}, supported)
+		require.Empty(t, unsupported)
+	}
+}
+
+func TestQualityUnsupportedRejectionKeepsOriginalError(t *testing.T) {
+	plans, saved := &qualityPlanRepo{}, &pelicanResults{}
+	svc := NewScheduledTestService(plans, saved)
+	svc.qualityModels = func(context.Context, int64) ([]string, error) { return []string{"gpt-6-astra"}, nil }
+	runner := &ScheduledTestRunnerService{planRepo: plans, scheduledSvc: svc}
+	runner.runPelican = func(context.Context, int64, string, *PelicanTestConfig) (*ScheduledTestResult, error) {
+		return nil, errors.New("API returned 400: model_not_supported: original detail")
+	}
+	require.True(t, runner.runOnePlan(context.Background(), multiModelQualityPlan(t, `["gpt-6-astra"]`)))
+	require.Equal(t, "skipped", saved.results[0].Status)
+	require.Contains(t, saved.results[0].ErrorMessage, "original detail")
+}
+
+func TestQualityUnsupportedDoesNotConfuseRequestOptionsWithModelAccess(t *testing.T) {
+	for _, message := range []string{
+		"reasoning effort ultra is not supported with this model",
+		"tools are not supported with this model",
+		"model gpt-6-astra: tool_choice is not supported",
+	} {
+		require.False(t, qualityModelUnsupported(message), message)
+	}
 }

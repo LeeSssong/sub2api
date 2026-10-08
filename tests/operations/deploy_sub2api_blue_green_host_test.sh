@@ -1334,6 +1334,48 @@ test_online_official_028_migrations_keep_old_api_running() {
   assert_no_mutation online_migrations_retired_data
 }
 
+test_monitor_v4_online_transition() {
+  local old_hash=406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b
+  local new_hash=94e7d3f18b82168089015e41e69b3f4d9f2f6b3d4fe9f493c5eb1b67dd87e44d
+  setup_case monitor_v4_online
+  write_meminfo
+  MIGRATIONS_HASH=$new_hash
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  EXPECTED_MIGRATIONS_HASH=$new_hash ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash \
+    run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=drain_empty >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "monitor-v4 online release failed: $(cat "$CASE_DIR/stderr")"
+  grep -q 'run --rm --no-deps --user 1000:1000 --entrypoint /app/sub2api sub2api-worker -migrate-only' "$EVENT_LOG" \
+    || fail 'monitor-v4 did not run the standalone migrator'
+  grep -q 'up --no-deps -d --force-recreate sub2api-worker' "$EVENT_LOG" \
+    || fail 'monitor-v4 did not promote the new worker'
+  ! grep -q 'maintenance stop api-worker' "$EVENT_LOG" || fail 'monitor-v4 stopped the active API'
+  ! grep -q ' stop sub2api-blue sub2api-green sub2api-worker' "$EVENT_LOG" || fail 'monitor-v4 stopped the active API/worker'
+  grep -q 'docker stop --time 60 worker-id' "$EVENT_LOG" || fail 'monitor-v4 did not drain the old worker'
+  "$REAL_JQ" -e --arg hash "$new_hash" '.migrations_hash == $hash and .active_slot == "green"' "$CASE_DIR/state.json" >/dev/null \
+    || fail 'monitor-v4 did not persist the additive schema and candidate promotion'
+
+  setup_case monitor_v4_wrong_target
+  write_meminfo
+  MIGRATIONS_HASH=$(printf '0%.0s' {1..64})
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  EXPECTED_MIGRATIONS_HASH=$MIGRATIONS_HASH ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash \
+    expect_failure monitor_v4_wrong_target run_executor PRESERVE_DETECTOR=true
+  ! grep -q ' -migrate-only' "$EVENT_LOG" || fail 'wrong monitor-v4 target reached migration execution'
+  assert_no_mutation monitor_v4_wrong_target
+
+  setup_case monitor_v4_public_failure
+  write_meminfo
+  MIGRATIONS_HASH=$new_hash
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  EXPECTED_MIGRATIONS_HASH=$new_hash ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash \
+    expect_failure monitor_v4_public_failure run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=fusion_public_failure
+  ! grep -q 'maintenance stop api-worker' "$EVENT_LOG" || fail 'monitor-v4 public failure stopped active API'
+  grep -q 'stop --time 300 green-id' "$EVENT_LOG" || fail 'monitor-v4 rollback did not drain candidate for 300 seconds'
+}
+
 test_successful_release_can_rollback_without_stopping_current_api() {
   setup_case successful_release_rollback
   write_meminfo
@@ -3735,7 +3777,8 @@ case "${ONLY_TEST:-all}" in
 	maintenance-official-027-transition) test_official_027_maintenance_transition_allowlist ;;
 	maintenance-turn-state-scheduler-retirement-transition) test_turn_state_and_scheduler_retirement_maintenance_transition_allowlist ;;
 	maintenance-official-028-transition) test_official_028_maintenance_transition_allowlist ;;
-	online-migrations) test_online_official_028_migrations_keep_old_api_running ;;
+  online-migrations) test_online_official_028_migrations_keep_old_api_running ;;
+  monitor-v4-online) test_monitor_v4_online_transition ;;
   post-success-rollback) test_successful_release_can_rollback_without_stopping_current_api; test_online_migration_release_can_rollback_to_previous_schema_reader; test_failed_rollback_restoration_keeps_exclusive_lock; test_failed_rollback_state_write_restores_release_env ;;
 	caddy-identity) test_caddy_identity_refresh_without_maintenance ;;
 	drain) test_preserve_worker_and_drain; test_fusion_retain_drain ;;

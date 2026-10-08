@@ -36,11 +36,11 @@
             <div class="quota-summary-secondary-row mt-2 grid grid-cols-2 gap-4 border-t border-gray-200/60 pt-2 dark:border-dark-600/60">
               <div>
                 <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.users.paidQuota') }}</p>
-                <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ quotaSummary ? `$${formatBalance(Number(quotaSummary.paid_quota_balance_usd))}` : '—' }}</p>
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ quotaSummary ? `$${formatQuotaBalance(Number(quotaSummary.paid_quota_balance_usd))}` : '—' }}</p>
               </div>
               <div>
                 <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.users.giftQuota') }}</p>
-                <p class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{{ quotaSummary ? `$${formatBalance(Number(quotaSummary.gift_quota_balance_usd))}` : '—' }}</p>
+                <p class="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{{ quotaSummary ? `$${formatQuotaBalance(Number(quotaSummary.gift_quota_balance_usd))}` : '—' }}</p>
               </div>
             </div>
           </div>
@@ -185,7 +185,7 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type BalanceHistoryItem, type QuotaSummary } from '@/api/admin'
-import { formatDateTime, formatMoneyFixed } from '@/utils/format'
+import { formatBalanceFixed, formatDateTime } from '@/utils/format'
 import type { AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -241,7 +241,16 @@ const loadQuotaSummary = async () => {
   }
 }
 
-const formatBalance = formatMoneyFixed
+const formatBalance = formatBalanceFixed
+
+const formatQuotaBalance = (value: number) => {
+  if (value === 0) return '0.00'
+  const formatted = value.toFixed(8).replace(/\.?0+$/, '')
+  const parts = formatted.split('.')
+  if (parts.length === 1) return formatted + '.00'
+  if (parts[1].length === 1) return formatted + '0'
+  return formatted
+}
 
 const loadHistory = async (page: number) => {
   if (!props.user) return
