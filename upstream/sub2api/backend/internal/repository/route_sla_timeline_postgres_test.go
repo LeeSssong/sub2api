@@ -26,7 +26,7 @@ func TestRouteSLATimelinePostgres(t *testing.T) {
 	db.SetMaxOpenConns(1)
 	ctx := context.Background()
 	_, err = db.ExecContext(ctx, `
- CREATE TEMP TABLE usage_logs(id bigserial,group_id bigint,account_id bigint,created_at timestamptz,usage_completeness text,first_token_ms double precision,duration_ms double precision,input_tokens bigint,output_tokens bigint,cache_creation_tokens bigint,cache_read_tokens bigint,logical_request_id text,request_id text);
+ CREATE TEMP TABLE usage_logs(id bigserial,group_id bigint,account_id bigint,created_at timestamptz,usage_completeness text,first_token_ms double precision,duration_ms double precision,input_tokens bigint,output_tokens bigint,cache_creation_tokens bigint,cache_read_tokens bigint,logical_request_id text,request_id text,request_type smallint DEFAULT 2,stream boolean DEFAULT true,openai_ws_mode boolean DEFAULT false);
  CREATE TEMP TABLE ops_error_logs(id bigserial,group_id bigint,account_id bigint,created_at timestamptz,status_code int,is_count_tokens boolean DEFAULT false,is_business_limited boolean DEFAULT false,error_owner text,error_phase text,error_source text,error_type text,error_message text,error_body text,upstream_error_message text,upstream_error_detail text,upstream_status_code int,request_id text,client_request_id text);
  CREATE TEMP TABLE quality_rule_template_accounts(plan_id bigint,tested_group_id bigint);
  CREATE TEMP TABLE scheduled_test_results(id bigint,plan_id bigint,quality_round_id text,finished_at timestamptz,status text,error_message text,pelican_config jsonb,quality_judgment jsonb,response_text text);`)
@@ -98,9 +98,9 @@ func TestRouteSLATimelinePostgres(t *testing.T) {
 	}
 	points, err := repo.ReadMonitorV4Timeline(ctx, []int64{7}, start, end, 5*time.Minute)
 	require.NoError(t, err)
-	// Cache and P50 continue to use the successful deduplicated real events,
-	// not the four SLA success rows (partial/unknown/duplicate included).
-	require.InDelta(t, 0.5, *points[0].CacheHitRate, 1e-9)
+	// Cache uses all four stream usage rows (partial/unknown/duplicate included),
+	// while P50 continues to use successful deduplicated real events.
+	require.InDelta(t, 200.0/402, *points[0].CacheHitRate, 1e-9)
 	require.Equal(t, 400.0, *points[0].TTFTP50MS)
 	require.Equal(t, 600.0, *points[1].TTFTP50MS)
 	require.Equal(t, 0.0, *points[1].CacheHitRate)
@@ -111,5 +111,6 @@ func TestRouteSLATimelinePostgres(t *testing.T) {
 	historical, err := repo.ReadMonitorV4Timeline(ctx, []int64{7}, historicStart, historicStart.Add(time.Hour), time.Hour)
 	require.NoError(t, err)
 	require.Equal(t, 1, historical[0].SuccessCount, "SLA does not apply real metric historical exclusions")
+	require.InDelta(t, 0.5, *historical[0].CacheHitRate, 1e-9, "cache follows admin usage without historical exclusions")
 	require.Nil(t, historical[0].TTFTP50MS)
 }

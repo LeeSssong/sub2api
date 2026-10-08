@@ -194,7 +194,21 @@ func (r *accountMonitorRepository) ReadMonitorV4Timeline(ctx context.Context, id
 			return nil, fmt.Errorf("invalid timeline group")
 		}
 	}
-	rows, err := r.db.QueryContext(ctx, monitorV4RealEventsSQL+`, sla_events AS (
+	// Cache follows the admin stream trend's raw usage rows. Keep completeness,
+	// logical-request deduplication and error exclusions specific to real metrics.
+	streamFilter, streamArgs := buildRequestTypeFilterConditionWithAlias(7, int16(service.RequestTypeStream), "u")
+	args := append([]any{start.UTC(), end.UTC(), step.String(), pq.Array([]int64{}), pq.Array([]int64{}), pq.Array(ids)}, streamArgs...)
+	rows, err := r.db.QueryContext(ctx, monitorV4RealEventsSQL+`, stream_cache_usage AS (
+ SELECT u.group_id,
+        date_bin($3::interval, u.created_at, $1::timestamptz) AS bucket_start,
+        SUM(COALESCE(u.input_tokens, 0))::double precision AS input_tokens,
+        SUM(COALESCE(u.cache_creation_tokens, 0))::double precision AS cache_creation_tokens,
+        SUM(COALESCE(u.cache_read_tokens, 0))::double precision AS cache_read_tokens
+ FROM usage_logs u JOIN groups g ON g.group_id=u.group_id
+ WHERE u.created_at >= $1::timestamptz AND u.created_at < $2::timestamptz
+   AND `+streamFilter+`
+ GROUP BY u.group_id, bucket_start
+), sla_events AS (
  SELECT u.group_id, u.created_at AS observed_at, TRUE AS successful
  FROM usage_logs u JOIN groups g ON g.group_id=u.group_id
  WHERE u.created_at >= $1::timestamptz AND u.created_at < $2::timestamptz
@@ -209,19 +223,20 @@ func (r *accountMonitorRepository) ReadMonitorV4Timeline(ctx context.Context, id
  FROM sla_events GROUP BY group_id,bucket_start
 ), real_metrics AS (
  SELECT group_id, date_bin($3::interval, observed_at, $1::timestamptz) AS bucket_start,
- SUM(cache_read_tokens) FILTER (WHERE successful)
- / NULLIF(SUM(input_tokens + cache_creation_tokens + cache_read_tokens) FILTER (WHERE successful), 0) AS cache_hit_rate,
  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY first_token_ms)
  FILTER (WHERE successful AND first_token_ms IS NOT NULL) AS ttft_p50_ms
  FROM real_events GROUP BY 1,2
 )
  SELECT g.group_id, series.bucket_start,
- COALESCE(s.request_count,0) AS request_count, COALESCE(s.success_count,0) AS success_count, m.cache_hit_rate, m.ttft_p50_ms
+ COALESCE(s.request_count,0) AS request_count, COALESCE(s.success_count,0) AS success_count,
+ cu.cache_read_tokens / NULLIF(cu.input_tokens + cu.cache_creation_tokens + cu.cache_read_tokens, 0) AS cache_hit_rate,
+ m.ttft_p50_ms
  FROM groups g CROSS JOIN LATERAL generate_series($1::timestamptz,$2::timestamptz-$3::interval,$3::interval) AS series(bucket_start)
  LEFT JOIN sla_counts s ON s.group_id=g.group_id AND s.bucket_start=series.bucket_start
+ LEFT JOIN stream_cache_usage cu ON cu.group_id=g.group_id AND cu.bucket_start=series.bucket_start
  LEFT JOIN real_metrics m ON m.group_id=g.group_id AND m.bucket_start=series.bucket_start
  ORDER BY g.group_id,series.bucket_start
- `, start.UTC(), end.UTC(), step.String(), pq.Array([]int64{}), pq.Array([]int64{}), pq.Array(ids))
+ `, args...)
 	if err != nil {
 		return nil, err
 	}
