@@ -81,6 +81,25 @@ class ReleaseScopeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotEqual(self.check_scope(['infra/independent-test-station/compose.yaml']).returncode, 0)
 
+    def test_production_sync_requires_worker_and_preserves_dependency_gate(self):
+        paths = ['upstream/sub2api/backend/internal/repository/intelligence_rules.go',
+                 'upstream/sub2api/backend/internal/service/quality_supported_models.go',
+                 'upstream/sub2api/backend/migrations/265_monitor_v4_legacy_default.sql',
+                 'upstream/sub2api/backend/migrations/deferred/241_remove_monitor_v4_operational_flag.sql',
+                 'upstream/sub2api/Dockerfile']
+        self.assertNotEqual(self.check_scope(paths).returncode, 0)
+        self.assertEqual(self.check_scope(paths, True).returncode, 0)
+
+
+class MigrationPreflightTests(unittest.TestCase):
+    def test_applied_unchanged_migrations_accept_retained_history(self):
+        release.verify_migration_checksums({'265.sql': 'a'*64}, '265.sql|'+'a'*64+'\n241.sql|'+'b'*64+'\n')
+
+    def test_missing_or_changed_migration_refuses_before_candidate(self):
+        for rows in ['', '265.sql|'+'b'*64+'\n']:
+            with self.subTest(rows=rows), self.assertRaises(ValueError):
+                release.verify_migration_checksums({'265.sql': 'a'*64}, rows)
+
 
 class APIReleaseTests(unittest.TestCase):
     def test_clones_only_api_and_keeps_dependencies_and_old_service(self):
@@ -156,7 +175,7 @@ class APIReleaseTests(unittest.TestCase):
 
 
 class HostFlowTests(unittest.TestCase):
-    def exercise(self, fail_probe=False, update_worker=False, fail_worker=False, fail_rollback_probe=False):
+    def exercise(self, fail_probe=False, update_worker=False, fail_worker=False, fail_rollback_probe=False, fail_migration=False):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / 'station'
             old_release = root / 'releases' / ('b' * 40)
@@ -174,7 +193,7 @@ class HostFlowTests(unittest.TestCase):
             bundle.mkdir()
             (bundle / 'sub2api').write_bytes(b'binary')
             (bundle / 'manifest.json').write_text(json.dumps({'source_commit': 'a' * 40, 'source_tree': 'd' * 40,
-                'previous_commit': 'b' * 40, 'base_image_id': 'base', 'update_worker': update_worker, 'binary_sha256': release.hashlib.sha256(b'binary').hexdigest()}))
+                'previous_commit': 'b' * 40, 'base_image_id': 'base', 'update_worker': update_worker, 'migration_checksums': {'265.sql': 'a'*64}, 'migration_set_sha256': 'c'*64, 'binary_sha256': release.hashlib.sha256(b'binary').hexdigest()}))
             config = {'services': {'test-station-api': {'image': 'old', 'environment': {'SERVER_PROCESS_ROLE': 'api'}, 'networks': ['test-station']},
                 'test-station-worker': {'image': 'old-worker-image', 'environment': {'SERVER_PROCESS_ROLE': 'worker'}, 'volumes': ['app:/app/data']}, 'test-station-detector': {'image': 'old'}},
                 'networks': {'test-station': {'name': 'sub2api-test-station-network'}}}
@@ -188,6 +207,8 @@ class HostFlowTests(unittest.TestCase):
                     worker_restored = "previous-worker-compose.json" in " ".join(args)
                 if args[-3:] == ["ps", "-q", "test-station-worker"]:
                     return "new-worker"
+                if 'psql' in ' '.join(args):
+                    return '' if fail_migration else '265.sql|'+'a'*64+'\n'
                 if args[:3] == ['docker', 'ps', '-q']:
                     return 'caddy' if 'label=com.docker.compose.service=test-station-caddy' in args else 'restored-worker' if 'label=com.docker.compose.service=test-station-worker' in args and worker_restored else 'new-worker' if 'label=com.docker.compose.service=test-station-worker' in args and worker_started else 'old-worker' if 'label=com.docker.compose.service=test-station-worker' in args else 'old-api'
                 if args[-3:] == ['config', '--format', 'json']:
@@ -218,6 +239,13 @@ class HostFlowTests(unittest.TestCase):
                  patch.object(release, 'inspect', side_effect=inspected), \
                  patch.object(release, 'healthy', side_effect=readiness), patch.object(release, 'reload_caddy') as reloads, \
                  patch.object(release, 'public_probes', side_effect=probes), contextlib.redirect_stdout(io.StringIO()):
+                if fail_migration:
+                    with self.assertRaises(ValueError):
+                        release.deploy(bundle)
+                    self.assertFalse(any('up' in call.args[0] or 'build' in call.args[0] for call in commands.call_args_list))
+                    self.assertEqual(json.loads((root / 'release-state.json').read_text()), previous)
+                    self.assertFalse((root / 'releases' / ('a'*40)).exists())
+                    return
                 if fail_probe or fail_worker:
                     with self.assertRaises(RuntimeError):
                         release.deploy(bundle)
@@ -253,6 +281,9 @@ class HostFlowTests(unittest.TestCase):
                         self.assertEqual(state['active_worker_container'], 'new-worker')
                 else:
                     self.assertEqual(len(starts), 1)
+
+    def test_pending_migration_refuses_before_build_or_start(self):
+        self.exercise(fail_migration=True)
 
     def test_ready_candidate_then_route_then_drain_without_restarting_jobs(self):
         self.exercise()

@@ -25,7 +25,9 @@ update_worker=${TEST_STATION_UPDATE_WORKER:-false}
 # Monitor service changes require the same new binary in API and singleton worker.
 # Native group catalogue handlers and their read-only tool mapping can update API only.
 # The reviewed user popularity projection reuses native read-only aggregates, API only.
-# Runtime dependency, migration and other backend changes remain excluded.
+# Runtime dependencies and unreviewed backend changes remain excluded.
+# The exact production integration files require the serialized worker update.
+# Embedded migrations must already be applied with identical checksums on the host.
 # Homepage files are deployed independently and are not inputs to the API binary.
 # The embedded brand icon handler only reads existing public settings.
 while IFS= read -r path; do
@@ -58,6 +60,24 @@ while IFS= read -r path; do
     upstream/sub2api/backend/internal/service/account_probe_cost_test.go|\
     upstream/sub2api/backend/internal/service/monitor_v4*.go)
       [[ "$update_worker" == true ]] || fail 'monitor backend changes require a worker update' ;;
+    upstream/sub2api/Dockerfile|\
+    upstream/sub2api/backend/internal/repository/account_quality_models.go|\
+    upstream/sub2api/backend/internal/repository/account_quality_models_test.go|\
+    upstream/sub2api/backend/internal/repository/intelligence_rules.go|\
+    upstream/sub2api/backend/internal/repository/intelligence_rules_integration_test.go|\
+    upstream/sub2api/backend/internal/repository/migrations_runner.go|\
+    upstream/sub2api/backend/internal/repository/migrations_test_main_online_test.go|\
+    upstream/sub2api/backend/internal/repository/pelican_group_tests_repo.go|\
+    upstream/sub2api/backend/internal/service/model_rate_limit.go|\
+    upstream/sub2api/backend/internal/service/pelican_scheduled.go|\
+    upstream/sub2api/backend/internal/service/quality_supported_models.go|\
+    upstream/sub2api/backend/internal/service/quality_supported_models_test.go|\
+    upstream/sub2api/backend/migrations/265_monitor_v4_legacy_default.sql|\
+    upstream/sub2api/backend/migrations/241_remove_monitor_v4_operational_flag.sql|\
+    upstream/sub2api/backend/migrations/deferred/241_remove_monitor_v4_operational_flag.sql|\
+    upstream/sub2api/backend/migrations/deferred/README.md|\
+    upstream/sub2api/backend/scripts/verify_prototype_monitor_postgres.py)
+      [[ "$update_worker" == true ]] || fail 'production integration requires a worker update' ;;
     *) fail "release excludes unsupported runtime changes: $path" ;;
   esac
 done < <(git diff --name-only "$previous" HEAD)
@@ -98,6 +118,12 @@ root=pathlib.Path(sys.argv[1]); previous=json.loads((root/'previous-state.json')
 manifest={'source_commit':sys.argv[2],'source_tree':sys.argv[3], 'previous_commit':previous['source_commit'],
           'base_image_id':previous['image_id'],'binary_sha256':hashlib.sha256((root/'sub2api').read_bytes()).hexdigest(),
           'binary_source_commit':sys.argv[4], 'binary_source_tree':sys.argv[5], 'update_worker':sys.argv[6]=='true'}
+migrations=root.parents[1]/'upstream/sub2api/backend/migrations'
+manifest['migration_checksums']={p.name:hashlib.sha256(p.read_text().strip().encode()).hexdigest() for p in sorted(migrations.glob('*.sql')) if p.read_text().strip()}
+digest=hashlib.sha256()
+for name, checksum in sorted(manifest['migration_checksums'].items()):
+    digest.update((name+'\0'+checksum+'\n').encode())
+manifest['migration_set_sha256']=digest.hexdigest()
 (root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 PY
 [[ -z $(git status --porcelain) && "$commit" == $(git rev-parse HEAD) ]] || fail 'source changed during build'
