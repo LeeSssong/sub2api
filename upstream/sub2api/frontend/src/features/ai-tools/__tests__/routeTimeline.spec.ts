@@ -3,9 +3,13 @@ import { getRouteTimeline } from '../routeTimeline'
 const get = vi.hoisted(() => vi.fn())
 vi.mock('@/api/client', () => ({ apiClient: { get } }))
 const base = {group_id:7,start:'2026-10-06T10:00:00Z',end:'2026-10-06T10:05:00Z',request_count:0,success_count:0,cache_hit_rate:null,ttft_p50_ms:null}
-function response(counts:Record<string,unknown>) {get.mockResolvedValue({data:{window:'1h',points:[{...base,...counts}]}})}
+function response(counts:Record<string,unknown>) {get.mockResolvedValue({data:{window:'1h',success_rate_basis:'ops_sla',points:[{...base,...counts}]}})}
 describe('route patrol count contract', () => {
  beforeEach(() => get.mockReset())
+ it.each([undefined,'logical_request'])('rejects a response without the SLA basis: %s',async basis=>{
+  get.mockResolvedValue({data:{window:'1h',success_rate_basis:basis,points:[base]}})
+  await expect(getRouteTimeline('1h',new AbortController().signal)).rejects.toThrow('Invalid timeline success rate basis')
+ })
  it('accepts zero scored rounds and legacy responses without score fields', async () => {
   response({graded_round_count:0,suspected_degraded_round_count:0})
   expect((await getRouteTimeline('1h',new AbortController().signal))[0]?.graded_round_count).toBe(0)

@@ -36,6 +36,7 @@ func TestMonitorV4TimelineVisibilityAndWindows(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, []int64{7}, native.ids)
 			require.Equal(t, end, result.GeneratedAt)
+			require.Equal(t, "ops_sla", result.SuccessRateBasis)
 			require.Equal(t, start, native.start)
 			counts := map[MonitorV4Window]int{MonitorV4Window1H: 12, MonitorV4Window24H: 24, MonitorV4Window7D: 168}
 			require.Equal(t, counts[w], int(end.Sub(start)/native.step))

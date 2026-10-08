@@ -4,7 +4,7 @@
  <p v-else-if="error" role="status">线路走势读取失败，请重新选择统计范围重试。</p>
  <p v-else-if="!points.length">暂无历史统计</p>
  <template v-else>
-  <div class="chart-legend" role="group" aria-label="切换指标曲线"><button v-for="s in series" :key="s.key" type="button" :class="s.key" :aria-pressed="enabled[s.key]" :title="`${enabled[s.key] ? '隐藏' : '显示'}${s.label}${s.key==='degradation' ? '：评分未达标轮次／有效评分轮次；报错、超时、判题失败及未完成轮次不计入' : ''}`" @click="enabled[s.key]=!enabled[s.key]"><span class="legend-check" aria-hidden="true"><svg v-if="enabled[s.key]" viewBox="0 0 16 16" fill="none"><path d="m3.5 8 3 3 6-6" /></svg></span><i aria-hidden="true"></i><span class="legend-label">{{ s.label }}</span></button></div>
+  <div class="chart-legend" role="group" aria-label="切换指标曲线"><button v-for="s in series" :key="s.key" type="button" :class="s.key" :aria-pressed="enabled[s.key]" :title="`${enabled[s.key] ? '隐藏' : '显示'}${s.label}${s.key==='degradation' ? '：评分未达标轮次／有效评分轮次；报错、超时、判题失败及未完成轮次不计入' : s.key==='success' ? '：后台对应分组 SLA，排除业务限制及客户端取消' : ''}`" @click="enabled[s.key]=!enabled[s.key]"><span class="legend-check" aria-hidden="true"><svg v-if="enabled[s.key]" viewBox="0 0 16 16" fill="none"><path d="m3.5 8 3 3 6-6" /></svg></span><i aria-hidden="true"></i><span class="legend-label">{{ s.label }}</span></button></div>
   <div class="chart-layout">
    <div class="chart-axis"><span>100%</span><span>50%</span><span>0%</span></div>
    <div class="chart-plot" @mouseleave="tooltipOpen=false" @focusout="tooltipOpen=false" @keydown.esc="tooltipOpen=false">

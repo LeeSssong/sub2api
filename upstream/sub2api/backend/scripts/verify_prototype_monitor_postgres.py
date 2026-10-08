@@ -81,7 +81,7 @@ CREATE TABLE usage_logs(id bigserial PRIMARY KEY,group_id bigint,account_id bigi
  first_token_ms double precision,duration_ms double precision,input_tokens bigint,cache_creation_tokens bigint,
  cache_read_tokens bigint,logical_request_id text,request_id text,usage_completeness text);
 CREATE TABLE ops_error_logs(id bigserial PRIMARY KEY,group_id bigint,account_id bigint,created_at timestamptz,
- status_code int,is_count_tokens boolean,request_id text,client_request_id text,error_owner text,error_phase text,
+ status_code int,is_count_tokens boolean,is_business_limited boolean DEFAULT FALSE,request_id text,client_request_id text,error_owner text,error_phase text,
  error_source text,error_type text,error_message text,error_body text,upstream_error_message text,upstream_error_detail text);
 ''')
     for migration in ['187_account_monitor.sql', '230_account_monitor_bucket_terminals.sql', '232_monitor_v4_snapshots.sql', '233_monitor_v4_windows_1h.sql', '235_account_monitor_usage.sql']:
@@ -121,13 +121,18 @@ CREATE TABLE ops_error_logs(id bigserial PRIMARY KEY,group_id bigint,account_id 
     v2_by_group = {row['group_id']:row for row in v2_rows}
     check('V2 latest status also respects manual group scope', v2_by_group[7]['current_status']=='operational' and v2_by_group[8]['current_status']=='unavailable')
     shared_source=(ROOT/'internal/repository/monitor_v4_timeline.go').read_text()
+    sla_predicate=(ROOT/'internal/repository/ops_sla_sql.go').read_text().split('const opsSLAErrorPredicate = `',1)[1].split('`',1)[0]
+    shared_source=re.sub(r'`\s*\+\s*opsSLAErrorPredicate\s*\+\s*`',lambda _:sla_predicate,shared_source)
     cte=shared_source.split('const monitorV4RealEventsSQL = `',1)[1].split('`',1)[0]
     tail=shared_source.split('monitorV4RealEventsSQL+`',1)[-1] if 'monitorV4RealEventsSQL+`' in shared_source else shared_source.split('monitorV4RealEventsSQL + `',1)[1]
     timeline_sql=cte+tail.split('`',1)[0]
     timeline=rows(bind(timeline_sql,['2026-09-20T11:00:00Z','2026-09-20T12:00:00Z','5 minutes',[],[],[7,8]]))
     check('timeline returns every group and empty time bucket',len(timeline)==24)
-    aggregate=rows(bind(projection,['2026-09-20T11:00:00Z','2026-09-20T12:00:00Z','5 minutes',[7,7,8],[1,2,3],[7,8]]))
-    check('timeline counts equal aggregate real counts',all(sum(p['request_count'] for p in timeline if p['group_id']==g['group_id'])==g['real_request_count'] and sum(p['success_count'] for p in timeline if p['group_id']==g['group_id'])==g['real_success_count'] for g in aggregate))
+    sla=rows(bind('''SELECT g.id AS group_id,
+ (SELECT COUNT(*) FROM usage_logs u WHERE u.group_id=g.id AND u.created_at >= $1::timestamptz AND u.created_at < $2::timestamptz) AS success_count,
+ (SELECT COUNT(*) FROM ops_error_logs o WHERE o.group_id=g.id AND o.created_at >= $1::timestamptz AND o.created_at < $2::timestamptz AND o.is_count_tokens=FALSE AND '''+sla_predicate+''') AS failure_count
+ FROM groups g''',['2026-09-20T11:00:00Z','2026-09-20T12:00:00Z']))
+    check('timeline counts equal raw admin SLA counts',all(sum(p['request_count'] for p in timeline if p['group_id']==g['group_id'])==g['success_count']+g['failure_count'] and sum(p['success_count'] for p in timeline if p['group_id']==g['group_id'])==g['success_count'] for g in sla))
     populated = next(p for p in timeline if p['group_id']==7 and p['request_count']==3)
     check('timeline P50 is median of successful real requests', populated['ttft_p50_ms']==200)
     check('timeline zero cache hits is zero, empty bucket is null', populated['cache_hit_rate']==0 and all(p['cache_hit_rate'] is None and p['ttft_p50_ms'] is None for p in timeline if p['request_count']==0))

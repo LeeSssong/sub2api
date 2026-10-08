@@ -144,7 +144,7 @@ type monitorTimelineStub struct {
 func (s *monitorTimelineStub) TimelineWithGranularity(_ context.Context, id int64, w service.MonitorV4Window, _ string, _ time.Time) (*service.MonitorV4Timeline, error) {
 	s.user = id
 	s.window = w
-	return &service.MonitorV4Timeline{Window: w, Points: []service.MonitorV4TimelinePoint{}}, nil
+	return &service.MonitorV4Timeline{Window: w, SuccessRateBasis: "ops_sla", Points: []service.MonitorV4TimelinePoint{}}, nil
 }
 func TestMonitorV4TimelineHandlerAuthAndWindow(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -166,6 +166,7 @@ func TestMonitorV4TimelineHandlerAuthAndWindow(t *testing.T) {
 		if tc.code == 200 {
 			require.Equal(t, tc.user, stub.user)
 			require.Equal(t, service.MonitorV4Window24H, stub.window)
+			require.Contains(t, rr.Body.String(), `"success_rate_basis":"ops_sla"`)
 		} else {
 			require.Zero(t, stub.user)
 		}

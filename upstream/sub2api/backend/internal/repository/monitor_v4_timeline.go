@@ -194,16 +194,33 @@ func (r *accountMonitorRepository) ReadMonitorV4Timeline(ctx context.Context, id
 			return nil, fmt.Errorf("invalid timeline group")
 		}
 	}
-	rows, err := r.db.QueryContext(ctx, monitorV4RealEventsSQL+`
+	rows, err := r.db.QueryContext(ctx, monitorV4RealEventsSQL+`, sla_events AS (
+ SELECT u.group_id, u.created_at AS observed_at, TRUE AS successful
+ FROM usage_logs u JOIN groups g ON g.group_id=u.group_id
+ WHERE u.created_at >= $1::timestamptz AND u.created_at < $2::timestamptz
+ UNION ALL
+ SELECT o.group_id, o.created_at AS observed_at, FALSE AS successful
+ FROM ops_error_logs o JOIN groups g ON g.group_id=o.group_id
+ WHERE o.created_at >= $1::timestamptz AND o.created_at < $2::timestamptz
+   AND o.is_count_tokens=FALSE AND `+opsSLAErrorPredicate+`
+), sla_counts AS (
+ SELECT group_id, date_bin($3::interval, observed_at, $1::timestamptz) AS bucket_start,
+ COUNT(*) AS request_count, COUNT(*) FILTER (WHERE successful) AS success_count
+ FROM sla_events GROUP BY group_id,bucket_start
+), real_metrics AS (
+ SELECT group_id, date_bin($3::interval, observed_at, $1::timestamptz) AS bucket_start,
+ SUM(cache_read_tokens) FILTER (WHERE successful)
+ / NULLIF(SUM(input_tokens + cache_creation_tokens + cache_read_tokens) FILTER (WHERE successful), 0) AS cache_hit_rate,
+ PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY first_token_ms)
+ FILTER (WHERE successful AND first_token_ms IS NOT NULL) AS ttft_p50_ms
+ FROM real_events GROUP BY 1,2
+)
  SELECT g.group_id, series.bucket_start,
- COUNT(e.observed_at) AS request_count, COUNT(e.observed_at) FILTER (WHERE e.successful) AS success_count,
- SUM(e.cache_read_tokens) FILTER (WHERE e.successful)
- / NULLIF(SUM(e.input_tokens + e.cache_creation_tokens + e.cache_read_tokens) FILTER (WHERE e.successful), 0) AS cache_hit_rate,
- PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY e.first_token_ms)
- FILTER (WHERE e.successful AND e.first_token_ms IS NOT NULL) AS ttft_p50_ms
+ COALESCE(s.request_count,0) AS request_count, COALESCE(s.success_count,0) AS success_count, m.cache_hit_rate, m.ttft_p50_ms
  FROM groups g CROSS JOIN LATERAL generate_series($1::timestamptz,$2::timestamptz-$3::interval,$3::interval) AS series(bucket_start)
- LEFT JOIN real_events e ON e.group_id=g.group_id AND e.observed_at>=series.bucket_start AND e.observed_at<series.bucket_start+$3::interval
- GROUP BY g.group_id,series.bucket_start ORDER BY g.group_id,series.bucket_start
+ LEFT JOIN sla_counts s ON s.group_id=g.group_id AND s.bucket_start=series.bucket_start
+ LEFT JOIN real_metrics m ON m.group_id=g.group_id AND m.bucket_start=series.bucket_start
+ ORDER BY g.group_id,series.bucket_start
  `, start.UTC(), end.UTC(), step.String(), pq.Array([]int64{}), pq.Array([]int64{}), pq.Array(ids))
 	if err != nil {
 		return nil, err

@@ -64,9 +64,9 @@
             </header>
             <div class="detail-card-quality">
               <div class="detail-quality-value detail-success-hover" tabindex="0" role="group" :aria-describedby="`detail-request-sample-${group.id}`" @mouseenter="detailSampleGroup=group.id" @mouseleave="detailSampleGroup=null" @focusin="detailSampleGroup=group.id" @focusout="detailSampleGroup=null" @click="detailSampleGroup=group.id" @keydown.esc.stop="detailSampleGroup=null">
-                <span class="detail-quality-label">请求成功率</span>
-                <strong class="success-rate success-rate-tone" :data-tone="successTone(group,detailMetrics,false)">{{ successLabel(group,detailMetrics,false) }}</strong>
-                <span v-show="detailSampleGroup===group.id" :id="`detail-request-sample-${group.id}`" class="detail-request-sample" role="tooltip">{{ detailMetrics.get(group.id)?.real_success_count ?? '—' }} / {{ detailMetrics.get(group.id)?.real_request_count ?? '—' }} 次请求成功</span>
+                <span class="detail-quality-label" title="与后台对应分组的 SLA 一致，排除业务限制及客户端取消">请求成功率</span>
+                <strong class="success-rate success-rate-tone" :data-tone="routeHealthTone(detailSLAHealth(group))">{{ timelineLoading || timelineError ? '—' : routeSuccessLabel(detailSLAHealth(group)) }}</strong>
+                <span v-show="detailSampleGroup===group.id" :id="`detail-request-sample-${group.id}`" class="detail-request-sample" role="tooltip">{{ detailSLACounts.get(group.id)?.success_count ?? '—' }} / {{ detailSLACounts.get(group.id)?.request_count ?? '—' }} 次请求成功（后台 SLA，排除业务限制）</span>
               </div>
             </div>
             <RouteHistoryStrip :points="timelinePoints.filter(point=>point.group_id===group.id)" :loading="timelineLoading" :error="timelineError" />
@@ -89,14 +89,14 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import CreateLineKeyDialog from '@/features/ai-tools/CreateLineKeyDialog.vue'
 import RouteHistoryStrip from '@/features/ai-tools/RouteHistoryStrip.vue'
-import { getRouteTimeline, type RouteTimelinePoint } from '@/features/ai-tools/routeTimeline'
+import { aggregateRouteSLACounts, getRouteTimeline, type RouteTimelinePoint } from '@/features/ai-tools/routeTimeline'
 import PricingDialog from '@/features/ai-tools/PricingDialog.vue'
 import userGroupsAPI from '@/api/groups'
 import keysAPI from '@/api/keys'
 import { getHybridPerformanceSnapshot } from '@/features/monitor-v4/api'
 import { formatLineRate, resolveLineRate } from '@/components/keys/lineOptions'
 import { checkLines, type LineCheck } from '@/features/ai-tools/api'
-import { tools, linkedCounts, configuredLines, routeHealth, routeHealthTone, routeSuccessLabel, compareQuality, rankWeightedRoutes, metricLabel, providerIcon, platformLabel, toolIdsForGroup } from '@/features/ai-tools/model'
+import { tools, linkedCounts, configuredLines, routeCountHealth, routeHealth, routeHealthTone, routeSuccessLabel, compareQuality, rankWeightedRoutes, metricLabel, providerIcon, platformLabel, toolIdsForGroup } from '@/features/ai-tools/model'
 import { getDashboardWorkspaceSnapshot, setDashboardWorkspaceSnapshot } from '@/features/ai-tools/workspaceCache'
 import type { ApiKey, Group } from '@/types'
 import type { MonitorV4Group, MonitorV4Window } from '@/features/monitor-v4/types'
@@ -128,7 +128,8 @@ let detailsTrigger:HTMLElement|null=null, createTrigger:HTMLElement|null=null
 const counts=computed(()=>linkedCounts(keys.value))
 const metricsById=computed(()=>new Map(metrics.value.map(m=>[m.id,m])))
 const rankingMetricsById=computed(()=>new Map(rankingMetrics.value.map(m=>[m.id,m])))
-const detailMetrics=computed(()=>new Map(detailData.value.map(m=>[m.id,m])))
+const detailSLACounts=computed(()=>timelineLoading.value || timelineError.value ? new Map<number,{request_count:number;success_count:number}>() : aggregateRouteSLACounts(timelinePoints.value))
+function detailSLAHealth(group:Group){const counts=detailSLACounts.value.get(group.id);return routeCountHealth(counts?.success_count,counts?.request_count)}
 const allGroups=computed(()=>{const all=new Map(groups.value.map(g=>[g.id,g]));for(const g of configuredLines(groups.value,keys.value))all.set(g.id,g);return [...all.values()]})
 const sort=(list:Group[], ms=metricsById.value)=>[...list].sort((a,b)=>compareQuality(a,b,ms,rates.value,clock.value,metricsGeneratedAt.value))
 const stateOf=(g:Group)=>routeHealth(statsFailed.value?undefined:metricsById.value.get(g.id),clock.value,metricsGeneratedAt.value)

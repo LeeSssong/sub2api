@@ -18,10 +18,11 @@ type MonitorV4TimelinePoint struct {
 	SuccessCount                int       `json:"success_count"`
 }
 type MonitorV4Timeline struct {
-	Granularity string                   `json:"granularity"`
-	Window      MonitorV4Window          `json:"window"`
-	GeneratedAt time.Time                `json:"generated_at"`
-	Points      []MonitorV4TimelinePoint `json:"points"`
+	SuccessRateBasis string                   `json:"success_rate_basis"`
+	Granularity      string                   `json:"granularity"`
+	Window           MonitorV4Window          `json:"window"`
+	GeneratedAt      time.Time                `json:"generated_at"`
+	Points           []MonitorV4TimelinePoint `json:"points"`
 }
 type MonitorV4TimelineReader interface {
 	ReadMonitorV4Timeline(context.Context, []int64, time.Time, time.Time, time.Duration) ([]MonitorV4TimelinePoint, error)
@@ -71,5 +72,5 @@ func (s *MonitorV4Service) TimelineWithGranularity(ctx context.Context, userID i
 	if err != nil {
 		return nil, err
 	}
-	return &MonitorV4Timeline{Granularity: granularity, Window: window, GeneratedAt: snapshot.GeneratedAt, Points: points}, nil
+	return &MonitorV4Timeline{SuccessRateBasis: "ops_sla", Granularity: granularity, Window: window, GeneratedAt: snapshot.GeneratedAt, Points: points}, nil
 }
