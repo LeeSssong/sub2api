@@ -3,7 +3,7 @@
     <header>
       <div>
         <h3>检测规则</h3>
-        <p>逻辑题抽样复用质量运维结果，绘图每 30 分钟执行一次。</p>
+        <p>糖果题按各分组 Cron 真实检测，绘图每 30 分钟执行一次。</p>
       </div>
       <button
         v-if="showCreate"
@@ -15,7 +15,7 @@
       </button>
     </header>
     <p v-if="!rules.length" class="rules-empty">
-      创建第一条规则，选择质量来源、绘图配置和生效分组。
+      创建第一条规则，配置糖果题、检测模型和各分组频率。
     </p>
     <article v-for="rule in rules" :key="rule.id" class="rule-row">
       <div>
@@ -88,7 +88,7 @@
                 maxlength="100"
                 placeholder="gpt-6-astra"
                 data-testid="intelligence-model" /></label
-            ><label>绘图频率<input class="input" value="每 30 分钟" disabled data-testid="intelligence-cron" /><small class="rule-help">逻辑题按相同时段抽样展示已完成的质量检测。</small></label>
+            ><label>绘图频率<input class="input" value="每 30 分钟" disabled data-testid="intelligence-cron" /></label>
             <label
               >推理强度<select v-model="draft.reasoning_effort" class="input">
                 <option
@@ -107,20 +107,25 @@
             >
           </div>
           <fieldset class="rule-section">
-            <legend>逻辑题来源</legend>
-            <p class="rule-help">每个展示时段从所选质量规则中抽样，保留原判定和检测时间。缺失结果不会补测。</p>
-            <label>逻辑题模型（每行一项）<textarea v-model="candyModels" class="input" rows="2" required data-testid="intelligence-candy-models" /></label>
-            <p v-if="templatesLoading" role="status">正在加载质量规则…</p>
-            <p v-if="templatesError" role="alert">质量规则加载失败 <button type="button" @click="loadTemplates">重试</button></p>
-            <label v-for="id in draft.group_ids" :key="id" class="quality-source-choice">
-              {{ groups.find(g => g.id === id)?.name || `分组 #${id}` }} 的质量来源
-              <select v-model.number="sourceSelections[id]" class="input" required :data-testid="`intelligence-source-${id}`">
-                <option :value="0" disabled>选择质量规则</option>
-                <option v-for="template in sourceCandidates(id)" :key="template.id" :value="template.id">规则 #{{ template.id }} · {{ template.cron_expression }}</option>
-              </select>
-              <small v-if="!sourceCandidates(id).length" class="rule-help">暂无匹配分组且包含所选模型的质量规则，请先在质量运维中配置。</small>
-            </label>
-            <p v-if="!draft.group_ids.length" class="rule-help">先在下方选择生效分组。</p>
+            <legend>糖果题配置</legend>
+            <p class="rule-help">每轮通过分组调度分别调用各模型，记录实际回复与判定。</p>
+            <div class="rule-fields">
+              <label>检测模型（每行一项）<textarea v-model="candyModels" class="input" rows="2" required data-testid="intelligence-candy-models" /></label>
+              <label>糖果题推理强度<select v-model="draft.candy_reasoning_effort" class="input"><option v-for="effort in ['minimal', 'low', 'medium', 'high', 'xhigh']" :key="effort">{{ effort }}</option></select></label>
+            </div>
+            <label class="candy-field">题目<textarea v-model.trim="draft.candy_prompt" class="input" rows="6" maxlength="32000" required data-testid="intelligence-candy" /></label>
+            <div class="rule-fields candy-field">
+              <label>参考答案<input v-model.trim="draft.expected_answer" class="input" required maxlength="4000" data-testid="intelligence-answer" /></label>
+              <label>判题方式<select v-model="useJudge" class="input"><option :value="false">内置糖果题校验</option><option :value="true">判题模型</option></select></label>
+            </div>
+            <p class="rule-help">内置校验适用于默认糖果题及参考答案 21；自定义题目请配置判题模型。</p>
+            <template v-if="useJudge">
+              <div class="rule-fields candy-field">
+                <label>判题分组<select v-model.number="judge.group_id" class="input" required><option :value="0" disabled>选择分组</option><option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option></select></label>
+                <label>判题模型<input v-model.trim="judge.model_id" class="input" required maxlength="100" /></label>
+              </div>
+              <label class="candy-field">判题提示词<textarea v-model.trim="judge.prompt" class="input" rows="3" maxlength="16000" required /></label>
+            </template>
           </fieldset>
           <fieldset class="rule-section">
             <legend>画图配置</legend>
@@ -164,20 +169,19 @@
             </div>
           </fieldset>
           <fieldset class="rule-section">
-            <legend>生效分组</legend>
+            <legend>生效分组与糖果题频率</legend>
+            <p class="rule-help">五字段 Cron：分 时 日 月 周。例如 */5 * * * * 为每 5 分钟，15 * * * * 为每小时第 15 分钟；时区与质量运维一致。</p>
             <p v-if="groupsLoading">正在加载分组…</p>
             <p v-if="groupsError" role="alert">
               分组加载失败
               <button type="button" @click="loadGroups">重试</button>
             </p>
-            <label v-for="g in groups" :key="g.id" class="group-choice"
-              ><input
-                v-model="draft.group_ids"
-                type="checkbox"
-                :value="g.id"
-                :data-testid="`intelligence-group-${g.id}`"
-              />{{ g.name }}</label
-            >
+            <div v-for="g in groups" :key="g.id" class="group-schedule-row">
+              <label class="group-choice"><input v-model="draft.group_ids" type="checkbox" :value="g.id" :data-testid="`intelligence-group-${g.id}`" />{{ g.name }}</label>
+              <label v-if="draft.group_ids.includes(g.id)" class="group-cron">糖果题 Cron
+                <input v-model.trim="candySchedules[g.id]" class="input font-mono" required placeholder="*/30 * * * *" :data-testid="`intelligence-candy-cron-${g.id}`" />
+              </label>
+            </div>
             <p v-for="id in missingGroups" :key="id" class="text-amber-600">
               已选分组 #{{ id }} 当前不可用
               <button
@@ -209,7 +213,7 @@
           form="intelligence-rule-form"
           type="submit"
           class="btn btn-primary"
-          :disabled="busy || groupsLoading || groupsError || templatesLoading || templatesError"
+          :disabled="busy || groupsLoading || groupsError"
           data-testid="intelligence-save"
         >
           {{ busy ? "正在保存…" : "保存规则" }}
@@ -239,13 +243,14 @@ import {
 import {
   intelligenceRulesAPI,
   type IntelligenceRuleInput,
+  type IntelligenceJudge,
 } from "@/api/admin/intelligenceRules";
 import {
   intelligenceRuleDefaults,
   intelligenceRuleFromPlans,
   INTELLIGENCE_DRAWING_PROMPT,
 } from "@/utils/intelligenceRules";
-import { listQualityTemplates, type QualityRuleTemplate } from "@/api/admin/accountQuality";
+
 const props = withDefaults(
   defineProps<{ plans: PelicanGroupTestPlan[]; showCreate?: boolean }>(),
   { showCreate: true },
@@ -269,28 +274,15 @@ const editing = ref("");
 const actions = ref("");
 const scenes = ref("");
 const candyModels = ref("");
-const templates = ref<QualityRuleTemplate[]>([]);
-const templatesLoading = ref(false);
-const templatesError = ref(false);
-const sourceSelections = ref<Record<number, number>>({});
+const candySchedules = ref<Record<number, string>>({});
+const useJudge = ref(false);
+const judge = ref<IntelligenceJudge>({group_id: 0, model_id: "", prompt: "比较参考答案与模型回复，忽略单位、标点与措辞差异。"});
 const modelList = computed(() => [...new Set(candyModels.value.split("\n").map(m => m.trim()).filter(Boolean))]);
-function sourceCandidates(groupId: number) {
-  return templates.value.filter(t => t.enabled && t.pelican_config.question_kind === "candy" && !!t.pelican_config.quality && t.account_filter.group === String(groupId) && modelList.value.every(m => (t.pelican_config.model_ids?.length ? t.pelican_config.model_ids : [t.model_id]).includes(m)));
-}
-function syncSources() {
+watch(() => draft.value?.group_ids.join(","), () => {
   for (const id of draft.value?.group_ids || []) {
-    const candidates = sourceCandidates(id);
-    if (!candidates.some(t => t.id === sourceSelections.value[id])) sourceSelections.value[id] = candidates.length === 1 ? candidates[0].id : 0;
+    if (candySchedules.value[id] == null) candySchedules.value[id] = "*/30 * * * *";
   }
-}
-watch(() => [draft.value?.group_ids.join(","), candyModels.value], syncSources);
-async function loadTemplates() {
-  templatesLoading.value = true;
-  templatesError.value = false;
-  try { templates.value = await listQualityTemplates(); syncSources(); }
-  catch { templatesError.value = true; }
-  finally { templatesLoading.value = false; }
-}
+});
 const groups = ref<AdminGroup[]>([]);
 const groupsLoading = ref(false);
 const groupsError = ref(false);
@@ -334,8 +326,9 @@ function open(plans?: PelicanGroupTestPlan[]) {
   actions.value = draft.value.actions.join("\n");
   scenes.value = draft.value.scenes.join("\n");
   candyModels.value = draft.value.candy_models.join("\n");
-  sourceSelections.value = Object.fromEntries(draft.value.quality_sources.map(s => [s.group_id, s.template_id]));
-  void loadTemplates();
+  candySchedules.value = Object.fromEntries(draft.value.candy_schedules.map(s => [s.group_id, s.cron_expression]));
+  useJudge.value = !!draft.value.judge;
+  judge.value = draft.value.judge ? {...draft.value.judge} : { group_id: 0, model_id: "", prompt: "比较参考答案与模型回复，忽略单位、标点与措辞差异。" };
   formError.value = "";
   void loadGroups();
 }
@@ -353,8 +346,11 @@ async function save() {
     return;
   }
   if (!modelList.value.length) { formError.value = "请选择逻辑题模型"; return; }
-  if (templatesLoading.value || templatesError.value || draft.value.group_ids.some(id => !sourceCandidates(id).some(t => t.id === sourceSelections.value[id]))) {
-    formError.value = "请为每个生效分组选择有效的质量规则来源"; return;
+  if (draft.value.group_ids.some(id => (candySchedules.value[id] || "").trim().split(/\s+/).length !== 5)) {
+    formError.value = "请为每个分组填写五字段 Cron 表达式"; return;
+  }
+  if (useJudge.value && (!judge.value.group_id || !judge.value.model_id || !judge.value.prompt)) {
+    formError.value = "请填写判题分组、模型与提示词"; return;
   }
   if (
     !draft.value.drawing_prompt.includes("{动作}") ||
@@ -377,7 +373,8 @@ async function save() {
           .map((s) => s.trim())
           .filter(Boolean),
         candy_models: [...modelList.value],
-        quality_sources: draft.value.group_ids.map(group_id => ({ group_id, template_id: sourceSelections.value[group_id] })),
+        candy_schedules: draft.value.group_ids.map(group_id => ({ group_id, cron_expression: candySchedules.value[group_id].trim() })),
+        judge: useJudge.value ? { ...judge.value } : undefined,
         cron_expression: "*/30 * * * *",
       },
       editing.value || undefined,
@@ -557,5 +554,8 @@ async function remove() {
 </style>
 
 <style scoped>
-.quality-source-choice { display: grid; gap: 6px; margin-top: 14px; }
+.candy-field { margin-top: 16px; }
+.group-schedule-row { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 18px; padding: 10px 0; border-bottom: 1px solid rgb(148 163 184 / 0.15); }
+.group-cron { min-width: 0; }
+@media (max-width: 500px) { .group-schedule-row { grid-template-columns: 1fr; gap: 4px; } }
 </style>

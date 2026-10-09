@@ -46,7 +46,7 @@ func TestIntelligenceRuleAtomicFanoutAndTimeline(t *testing.T) {
 	now := time.Now()
 	for _, kind := range []string{"candy", "pelican"} {
 		for i := 0; i < 4; i++ {
-			_, err = repo.CreateResult(ctx, &service.PelicanGroupTestResult{PlanID: ids[0], Status: "failed", ErrorMessage: "answer_mismatch", StartedAt: now, FinishedAt: now, PelicanConfig: &service.PelicanTestConfig{QuestionKind: kind, ModelID: "model", IntelligenceResult: &service.IntelligenceResultMetadata{Action: "雪橇", Source: "quality_ops"}}})
+			_, err = repo.CreateResult(ctx, &service.PelicanGroupTestResult{PlanID: ids[0], Status: "failed", ErrorMessage: "answer_mismatch", StartedAt: now, FinishedAt: now, PelicanConfig: &service.PelicanTestConfig{QuestionKind: kind, ModelID: "model", IntelligenceResult: &service.IntelligenceResultMetadata{Action: "雪橇", Source: "intelligence_live"}}})
 			require.NoError(t, err)
 		}
 	}
@@ -76,7 +76,7 @@ func TestIntelligenceSingleResultVisibility(t *testing.T) {
 	var oldest int64
 	now := time.Now()
 	for i := 0; i < 3; i++ {
-		r, e := repo.CreateResult(ctx, &service.PelicanGroupTestResult{PlanID: p.ID, Status: "success", ResponseText: "21", StartedAt: now.Add(time.Duration(i) * time.Second), FinishedAt: now, PelicanConfig: &service.PelicanTestConfig{QuestionKind: "candy", ModelID: p.ModelID, IntelligenceResult: &service.IntelligenceResultMetadata{Source: "quality_ops"}}})
+		r, e := repo.CreateResult(ctx, &service.PelicanGroupTestResult{PlanID: p.ID, Status: "success", ResponseText: "21", StartedAt: now.Add(time.Duration(i) * time.Second), FinishedAt: now, PelicanConfig: &service.PelicanTestConfig{QuestionKind: "candy", ModelID: p.ModelID, IntelligenceResult: &service.IntelligenceResultMetadata{Source: "intelligence_live"}}})
 		require.NoError(t, e)
 		if i == 0 {
 			oldest = r.ID
@@ -93,7 +93,7 @@ func TestIntelligenceSingleResultVisibility(t *testing.T) {
 	require.NoError(t, e)
 	hidden, e := repo.GetIntelligenceResult(ctx, legacy.ID, 512, now.Add(-time.Hour))
 	require.NoError(t, e)
-	require.Nil(t, hidden, "independent legacy candy is not exposed as quality ops")
+	require.Nil(t, hidden, "legacy candy is not exposed as a new live result")
 
 	_, err = integrationDB.ExecContext(ctx, `UPDATE groups SET status='disabled' WHERE id=$1`, g.ID)
 	require.NoError(t, err)
@@ -324,4 +324,44 @@ func TestIntelligenceRuleSerializesLegacyActivation(t *testing.T) {
 			require.Equal(t, 1, enabled, "concurrent operations leave exactly one enabled schedule")
 		})
 	}
+}
+
+func TestIntelligenceLiveClaimPersistsIndependentCursors(t *testing.T) {
+	ctx := context.Background()
+	repo := NewPelicanGroupTestRepository(integrationDB).(*pelicanGroupTestRepository)
+	g := createPelicanGroupTestGroups(t, "iq-cursors")[0]
+	now := time.Now().Truncate(time.Microsecond)
+	due := now.Add(-time.Minute)
+	p := newPelicanGroupTestPlan(g.ID, true, due)
+	p.PelicanConfig.Intelligence = &service.IntelligenceRuleConfig{ID: "cursors", CandyCronExpression: "*/5 * * * *", CandyNextRunAt: &due, DrawingNextRunAt: &due}
+	p, err := repo.CreatePlan(ctx, p)
+	require.NoError(t, err)
+	stale, err := repo.GetPlan(ctx, p.ID)
+	require.NoError(t, err)
+	nextCandy, nextDrawing, lease := now.Add(5*time.Minute), now.Add(30*time.Minute), now.Add(15*time.Minute)
+	p.PelicanConfig.Intelligence.CandyNextRunAt = &nextCandy
+	p.PelicanConfig.Intelligence.DrawingNextRunAt = &nextDrawing
+	p.PelicanConfig.Intelligence.RunningKinds = []string{"candy"}
+	claimed, err := repo.Claim(ctx, p, now, lease, &nextCandy)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	saved, err := repo.GetPlan(ctx, p.ID)
+	require.NoError(t, err)
+	require.Equal(t, nextCandy.UnixMicro(), saved.PelicanConfig.Intelligence.CandyNextRunAt.UnixMicro())
+	require.Equal(t, nextDrawing.UnixMicro(), saved.PelicanConfig.Intelligence.DrawingNextRunAt.UnixMicro())
+	require.Equal(t, []string{"candy"}, saved.PelicanConfig.Intelligence.RunningKinds)
+	require.NoError(t, repo.Finish(ctx, p.ID, lease, now))
+	// Even after another interval is due, a stale worker cannot overwrite the cursors.
+	claimed, err = repo.Claim(ctx, stale, now.Add(6*time.Minute), lease, &nextDrawing)
+	require.NoError(t, err)
+	require.False(t, claimed)
+	manualLease := now.Add(16 * time.Minute)
+	claimed, err = repo.Claim(ctx, saved, now, manualLease, nil)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	afterManual, err := repo.GetPlan(ctx, p.ID)
+	require.NoError(t, err)
+	require.Equal(t, nextCandy.UnixMicro(), afterManual.NextRunAt.UnixMicro())
+	require.Equal(t, nextDrawing.UnixMicro(), afterManual.PelicanConfig.Intelligence.DrawingNextRunAt.UnixMicro())
+	require.ElementsMatch(t, []string{"candy", "pelican"}, afterManual.PelicanConfig.Intelligence.RunningKinds)
 }

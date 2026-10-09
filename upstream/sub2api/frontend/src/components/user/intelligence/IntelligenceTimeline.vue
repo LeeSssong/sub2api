@@ -68,8 +68,8 @@
           :class="[slot.status, { selected: slot.result.id === selected }]"
           :aria-label="`${slotTime(slot)} ${intelligenceVerdictLabel[slot.result.verdict]}`"
           :aria-pressed="slot.result.id === selected"
-          :title="`${slotTime(slot)} · ${intelligenceVerdictLabel[slot.result.verdict]}`"
-          @click="$emit('select', slot.result)"
+          :title="`${slotTime(slot)} · ${slotSamples(slot).length} 次检测 · 最近一次：${intelligenceVerdictLabel[slot.result.verdict]}`"
+          @click="selectSlot(slot)"
         />
         <span
           v-else
@@ -80,6 +80,9 @@
         />
       </template>
     </div>
+    <div v-if="expandedSamples.length > 1" class="iq-slot-results" aria-label="时段内全部检测">
+      <button v-for="r in expandedSamples" :key="r.id" class="iq-slot-result" :class="r.verdict" @click="emit('select', r)">{{ intelligenceDate(r.started_at) }} · {{ intelligenceVerdictLabel[r.verdict] }}</button>
+    </div>
     <div class="iq-axis">
       <span>{{ slots[0] ? slotTime(slots[0]) : "—" }}</span
       ><span>现在</span>
@@ -87,11 +90,14 @@
   </section>
 </template>
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import Icon from "@/components/icons/Icon.vue";
 import type { IntelligenceResult } from "@/api/intelligenceTests";
 import {
   intelligenceSlots,
+  intelligenceWindow,
+  intelligenceTimeline,
+  intelligenceResultStale,
   intelligenceStats,
   intelligenceDate,
   intelligenceDuration,
@@ -112,7 +118,7 @@ const props = withDefaults(
   }>(),
   { hours: 24 },
 );
-defineEmits<{ select: [result: IntelligenceResult] }>();
+const emit = defineEmits<{ select: [result: IntelligenceResult] }>();
 const slots = computed(() =>
   intelligenceSlots(
     props.samples,
@@ -123,11 +129,23 @@ const slots = computed(() =>
   ),
 );
 const completed = computed(() =>
-  slots.value.flatMap((s) => (s.result ? [s.result] : [])),
+  intelligenceTimeline(intelligenceWindow(props.samples, props.now, props.hours), props.kind),
 );
+const expandedSlot = ref<number | null>(null);
+function slotSamples(slot: IntelligenceSlot) {
+  return completed.value.filter(r => Date.parse(r.started_at) >= slot.timestamp && Date.parse(r.started_at) < slot.timestamp + 30 * 60 * 1000);
+}
+const expandedSamples = computed(() => {
+  const slot = slots.value.find(s => s.timestamp === expandedSlot.value);
+  return slot ? slotSamples(slot) : [];
+});
+function selectSlot(slot: IntelligenceSlot) {
+  if (slotSamples(slot).length > 1) expandedSlot.value = expandedSlot.value === slot.timestamp ? null : slot.timestamp;
+  else if (slot.result) { expandedSlot.value = null; emit('select', slot.result); }
+}
 const stats = computed(() => intelligenceStats(completed.value));
 const latest = computed(() => completed.value.at(-1));
-const isStale = computed(() => !!latest.value && props.now - Date.parse(latest.value.started_at) >= 60 * 60 * 1000);
+const isStale = computed(() => !!latest.value && intelligenceResultStale(latest.value, props.now));
 const isRunning = computed(() =>
   slots.value.some((s) => s.status === "running"),
 );
@@ -147,3 +165,8 @@ const ago = computed(() => {
       : `${Math.floor(m / 60)} 小时前`;
 });
 </script>
+
+<style scoped>
+.iq-slot-results { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.iq-slot-result { padding: 5px 8px; border: 1px solid var(--xq-border); border-radius: 8px; font-size: 12px; }
+</style>

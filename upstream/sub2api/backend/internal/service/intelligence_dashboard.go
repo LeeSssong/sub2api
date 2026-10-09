@@ -11,36 +11,39 @@ type IntelligenceResultRepository interface {
 	ListIntelligenceResults(context.Context, []int64, int, time.Time) ([]*PelicanGroupTestResult, error)
 }
 type IntelligenceResult struct {
-	ID              int64     `json:"id"`
-	GroupID         int64     `json:"group_id"`
-	ModelID         string    `json:"model_id"`
-	Kind            string    `json:"kind"`
-	Verdict         string    `json:"verdict"`
-	ErrorKind       string    `json:"error_kind,omitempty"`
-	Prompt          string    `json:"prompt,omitempty"`
-	ExpectedAnswer  string    `json:"expected_answer,omitempty"`
-	ResponseText    string    `json:"response_text,omitempty"`
-	ReasoningEffort string    `json:"reasoning_effort"`
-	LatencyMs       int64     `json:"latency_ms"`
-	Attempts        int       `json:"attempts"`
-	StartedAt       time.Time `json:"started_at"`
+	ValidUntil      *time.Time `json:"valid_until,omitempty"`
+	ID              int64      `json:"id"`
+	GroupID         int64      `json:"group_id"`
+	ModelID         string     `json:"model_id"`
+	Kind            string     `json:"kind"`
+	Verdict         string     `json:"verdict"`
+	ErrorKind       string     `json:"error_kind,omitempty"`
+	Prompt          string     `json:"prompt,omitempty"`
+	ExpectedAnswer  string     `json:"expected_answer,omitempty"`
+	ResponseText    string     `json:"response_text,omitempty"`
+	ReasoningEffort string     `json:"reasoning_effort"`
+	LatencyMs       int64      `json:"latency_ms"`
+	Attempts        int        `json:"attempts"`
+	StartedAt       time.Time  `json:"started_at"`
 	*IntelligenceResultMetadata
 }
 type IntelligenceGroup struct {
-	CandyModelIDs       []string              `json:"candy_model_ids"`
-	QualityTemplateID   int64                 `json:"quality_template_id,omitempty"`
-	QualitySourceStatus string                `json:"quality_source_status,omitempty"`
-	NextRunAt           *time.Time            `json:"next_run_at,omitempty"`
-	RunningStartedAt    *time.Time            `json:"running_started_at,omitempty"`
-	ID                  int64                 `json:"id"`
-	Name                string                `json:"name"`
-	Description         string                `json:"description"`
-	Platform            string                `json:"platform"`
-	RateMultiplier      float64               `json:"rate_multiplier"`
-	ModelID             string                `json:"model_id"`
-	ReasoningEffort     string                `json:"reasoning_effort"`
-	ExpectedAnswer      string                `json:"expected_answer"`
-	Results             []*IntelligenceResult `json:"results"`
+	CandyCronExpression   string                `json:"candy_cron_expression"`
+	CandyRunningStartedAt *time.Time            `json:"candy_running_started_at,omitempty"`
+	CandyModelIDs         []string              `json:"candy_model_ids"`
+	QualityTemplateID     int64                 `json:"quality_template_id,omitempty"`
+	QualitySourceStatus   string                `json:"quality_source_status,omitempty"`
+	NextRunAt             *time.Time            `json:"next_run_at,omitempty"`
+	RunningStartedAt      *time.Time            `json:"running_started_at,omitempty"`
+	ID                    int64                 `json:"id"`
+	Name                  string                `json:"name"`
+	Description           string                `json:"description"`
+	Platform              string                `json:"platform"`
+	RateMultiplier        float64               `json:"rate_multiplier"`
+	ModelID               string                `json:"model_id"`
+	ReasoningEffort       string                `json:"reasoning_effort"`
+	ExpectedAnswer        string                `json:"expected_answer"`
+	Results               []*IntelligenceResult `json:"results"`
 }
 type IntelligenceDashboard struct {
 	Enabled     bool                 `json:"enabled"`
@@ -125,17 +128,6 @@ func (s *PelicanGroupTestService) IntelligenceDashboard(ctx context.Context) (*I
 			}
 			groups[p.GroupID] = g
 		}
-		// First use can copy retained historical slots; every path is DB-only.
-		if repo, ok := s.repo.(interface {
-			BackfillIntelligenceQuality(context.Context, *PelicanGroupTestPlan, time.Time) error
-		}); ok {
-			_ = repo.BackfillIntelligenceQuality(ctx, p, s.now())
-		}
-		// GET materializes only the current display slot from stored quality data;
-		// this repository path cannot contact or grade an upstream.
-		if repo, ok := s.repo.(IntelligenceQualityRepository); ok {
-			_ = repo.SnapshotIntelligenceQuality(ctx, p, s.now().Truncate(30*time.Minute))
-		}
 		ids = append(ids, p.ID)
 		k := key(g.ID, p.ModelID)
 		if blocks[k] == nil {
@@ -144,17 +136,13 @@ func (s *PelicanGroupTestService) IntelligenceDashboard(ctx context.Context) (*I
 				b.ReasoningEffort = p.PelicanConfig.ReasoningEffort
 				rule := p.PelicanConfig.Intelligence
 				b.CandyModelIDs, _ = normalizeIntelligenceModels(rule.CandyModels)
-				b.QualityTemplateID = rule.QualityTemplateID
-				b.QualitySourceStatus = "missing"
-				if repo, ok := s.repo.(IntelligenceQualityRepository); ok {
-					if source, e := repo.ResolveIntelligenceQualitySource(ctx, p.GroupID, rule.QualityTemplateID, b.CandyModelIDs); e == nil {
-						b.QualityTemplateID = source.ID
-						b.QualitySourceStatus = "ready"
-						if source.PelicanConfig != nil && source.PelicanConfig.Quality != nil {
-							b.ExpectedAnswer = source.PelicanConfig.Quality.ExpectedAnswer
-						}
-					}
+				b.CandyCronExpression = rule.CandyCronExpression
+				if b.CandyCronExpression == "" {
+					b.CandyCronExpression = pelicanGroupTestDefaultCron
 				}
+				candy := intelligenceCandyConfig(rule)
+				b.ExpectedAnswer = candy.Quality.ExpectedAnswer
+
 			}
 			blocks[k] = b
 			if p.Enabled {
@@ -162,7 +150,13 @@ func (s *PelicanGroupTestService) IntelligenceDashboard(ctx context.Context) (*I
 			}
 			if p.RunningUntil != nil && p.RunningUntil.After(s.now()) {
 				started := p.RunningUntil.Add(-pelicanGroupTestLease)
-				b.RunningStartedAt = &started
+				kinds := p.PelicanConfig.Intelligence.RunningKinds
+				if len(kinds) == 0 || containsString(kinds, "pelican") {
+					b.RunningStartedAt = &started
+				}
+				if len(kinds) == 0 || containsString(kinds, "candy") {
+					b.CandyRunningStartedAt = &started
+				}
 			}
 			view.Groups = append(view.Groups, b)
 		}
@@ -175,7 +169,7 @@ func (s *PelicanGroupTestService) IntelligenceDashboard(ctx context.Context) (*I
 		return nil, fmt.Errorf("intelligence result repository unavailable")
 	}
 	since := s.now().Add(-72 * time.Hour)
-	results, err := repo.ListIntelligenceResults(ctx, ids, 512, since)
+	results, err := repo.ListIntelligenceResults(ctx, ids, 5000, since)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +186,14 @@ func (s *PelicanGroupTestService) IntelligenceDashboard(ctx context.Context) (*I
 			blocks[k] = b
 			view.Groups = append(view.Groups, b)
 		}
+		expression := pelicanGroupTestDefaultCron
+		if dto.Kind == "candy" {
+			expression = b.CandyCronExpression
+		}
+		if next, err := intelligenceNextRun(expression, r.StartedAt); err == nil {
+			validUntil := next.Add(pelicanGroupTestRunTimeout)
+			dto.ValidUntil = &validUntil
+		}
 		b.Results = append(b.Results, dto)
 	}
 	return view, nil
@@ -201,7 +203,7 @@ func (s *PelicanGroupTestService) IntelligenceResult(ctx context.Context, id int
 	if repo, ok := s.repo.(interface {
 		GetIntelligenceResult(context.Context, int64, int, time.Time) (*PelicanGroupTestResult, error)
 	}); ok {
-		r, err := repo.GetIntelligenceResult(ctx, id, 512, since)
+		r, err := repo.GetIntelligenceResult(ctx, id, 5000, since)
 		if err != nil {
 			return nil, err
 		}

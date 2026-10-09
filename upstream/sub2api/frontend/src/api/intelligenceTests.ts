@@ -1,6 +1,7 @@
 import { apiClient } from "./client";
 export interface IntelligenceResult {
-  source?: "quality_ops";
+  source?: "quality_ops" | "intelligence_live";
+  valid_until?: string;
   source_result_id?: number;
   source_template_id?: number;
   source_started_at?: string;
@@ -25,6 +26,8 @@ export interface IntelligenceResult {
   output_tokens?: number;
 }
 export interface IntelligenceGroup {
+  candy_cron_expression?: string;
+  candy_running_started_at?: string;
   candy_model_ids?: string[];
   quality_template_id?: number;
   quality_source_status?: string;

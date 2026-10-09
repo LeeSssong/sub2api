@@ -39,14 +39,14 @@ export function intelligenceGroupStatus(results: IntelligenceResult[], models?: 
   const present = latest.filter((r): r is IntelligenceResult => !!r);
   if (!present.length) return "empty";
   // Current or immediately preceding display slot may still be in flight.
-  if (now != null && present.some(r => !Number.isFinite(Date.parse(r.started_at)) || now - Date.parse(r.started_at) >= 2 * INTELLIGENCE_SLOT_MS)) return "stale";
+  if (now != null && present.some(r => !Number.isFinite(Date.parse(r.started_at)) || intelligenceResultStale(r, now))) return "stale";
   if (present.some(r => r.verdict === "incorrect")) return "incorrect";
   if (present.some(r => r.verdict === "abnormal" || r.verdict === "unknown")) return "abnormal";
   if (sourceStatus === "missing") return "partial";
   return required.length > 0 && present.length === latest.length ? "passed" : "partial";
 }
 export function intelligenceCandySamples(results: IntelligenceResult[], models: string[], now: number, hours: 24 | 72) {
-  return models.flatMap(model => intelligenceSlots(intelligenceTimeline(results, "candy", model), "candy", now, hours).flatMap(s => s.result ? [s.result] : []));
+  return intelligenceWindow(results, now, hours).filter(r => r.kind === "candy" && models.includes(r.model_id));
 }
 export function intelligenceDuration(ms?: number | null) {
   if (ms == null || ms <= 0) return "—";
@@ -110,7 +110,7 @@ export function intelligenceSlots(
       (!slot.result || Date.parse(slot.result.started_at) < started)
     ) {
       slot.status = "running";
-      slot.result = undefined;
+      // Keep completed evidence inspectable while a later sample runs.
     }
   }
   return slots;
@@ -126,4 +126,9 @@ export function intelligenceWindow(
   return results.filter(
     (r) => Date.parse(r.started_at) >= first && Date.parse(r.started_at) <= now,
   );
+}
+
+export function intelligenceResultStale(result: IntelligenceResult, now: number) {
+  const until = Date.parse(result.valid_until || "");
+  return Number.isFinite(until) ? now >= until : now - Date.parse(result.started_at) >= 2 * INTELLIGENCE_SLOT_MS;
 }

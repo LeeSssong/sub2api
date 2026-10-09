@@ -38,7 +38,7 @@
             <div>
               <h2>模型真的是满血在跑吗？</h2>
               <p>
-                逻辑题按模型抽样展示质量运维的已有结果，绘图每半小时检测一次。点击色块查看原检测时间与脱敏记录。
+                逻辑题按分组配置定时真实调用各模型，绘图每半小时检测一次。点击色块查看题目、实际回复与判定。
               </p>
               <div class="iq-group-totals">
                 <span class="passed">● {{ groupCounts.passed }} 智力正常</span
@@ -54,7 +54,7 @@
           </div>
           <div class="iq-overview-stat">
             <span
-              >逻辑题抽样通过率 · 最近 {{ hours === 24 ? "24 小时" : "3 天" }}</span
+              >逻辑题检测通过率 · 最近 {{ hours === 24 ? "24 小时" : "3 天" }}</span
             ><strong
               >{{ summary.percentage
               }}<template v-if="summary.total">%</template></strong
@@ -145,7 +145,7 @@ const summary = computed(() =>
 const groupCounts = computed(() => {
   const counts = { passed: 0, incorrect: 0, abnormal: 0, empty: 0 };
   for (const g of windowGroups.value) {
-    const state = intelligenceGroupStatus(g.results, g.candy_model_ids?.length ? g.candy_model_ids : INTELLIGENCE_CANDY_MODELS, now.value, g.quality_source_status);
+    const state = intelligenceGroupStatus(g.results, g.candy_model_ids?.length ? g.candy_model_ids : INTELLIGENCE_CANDY_MODELS, now.value);
     if (state === "passed" || state === "incorrect" || state === "abnormal")
       counts[state]++;
     else counts.empty++;

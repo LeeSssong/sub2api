@@ -28,6 +28,17 @@ describe("intelligence timeline rendering", () => {
     expect(wrapper.get(".iq-model").text()).toBe("actual-model");
     wrapper.unmount();
   });
+  it("counts and exposes every real result in a shared half-hour cell", async () => {
+    const earlier = {...result, id: 2, verdict: "passed" as const, started_at: "2026-10-05T02:01:00+08:00"};
+    const wrapper = mount(Timeline, {props: {kind: "candy", samples: [result, earlier], expectedAnswer: "21", now, hours: 24}});
+    expect(wrapper.get('.iq-stats').text()).toContain('1/2');
+    await wrapper.get('button.iq-bar').trigger('click');
+    const items = wrapper.findAll('.iq-slot-result');
+    expect(items).toHaveLength(2);
+    await items[0].trigger('click');
+    expect(wrapper.emitted('select')?.[0]).toEqual([result]);
+    wrapper.unmount();
+  });
   it("renders 47 empty cells and one clickable result in a fixed 48 column grid", async () => {
     const wrapper = mount(Timeline, {
       props: {
