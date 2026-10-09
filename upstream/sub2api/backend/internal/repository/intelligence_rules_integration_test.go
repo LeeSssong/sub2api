@@ -170,3 +170,151 @@ func TestIntelligenceRuleEditAndPauseDuringRun(t *testing.T) {
 	require.True(t, claimed)
 	require.Equal(t, "updated drawing prompt", resumed.PelicanConfig.Prompt)
 }
+
+func TestIntelligenceRuleReplacesLegacySchedule(t *testing.T) {
+	ctx := context.Background()
+	repo := NewPelicanGroupTestRepository(integrationDB).(*pelicanGroupTestRepository)
+	g := createPelicanGroupTestGroups(t, "iq-legacy")[0]
+	now := time.Now().Truncate(time.Microsecond)
+	legacy, err := repo.CreatePlan(ctx, newPelicanGroupTestPlan(g.ID, true, now.Add(-time.Minute)))
+	require.NoError(t, err)
+	otherModel := newPelicanGroupTestPlan(g.ID, true, now)
+	otherModel.ModelID = "other-model"
+	otherModel, err = repo.CreatePlan(ctx, otherModel)
+	require.NoError(t, err)
+	history, err := repo.CreateResult(ctx, &service.PelicanGroupTestResult{PlanID: legacy.ID, Status: "success", ResponseText: "legacy drawing", StartedAt: now, FinishedAt: now})
+	require.NoError(t, err)
+	input := newPelicanGroupTestPlan(g.ID, false, now)
+	input.PelicanConfig.Intelligence = &service.IntelligenceRuleConfig{ID: "replace-legacy", Name: "rule"}
+	require.NoError(t, repo.SaveIntelligenceRule(ctx, "replace-legacy", []*service.PelicanGroupTestPlan{input}))
+	unchanged, err := repo.GetPlan(ctx, legacy.ID)
+	require.NoError(t, err)
+	require.False(t, unchanged.Enabled, "saving even a paused rule retires the legacy schedule")
+	input.Enabled = true
+	require.NoError(t, repo.SaveIntelligenceRule(ctx, "replace-legacy", []*service.PelicanGroupTestPlan{input}))
+	paused, err := repo.GetPlan(ctx, legacy.ID)
+	require.NoError(t, err)
+	require.False(t, paused.Enabled, "enabling the dual-question rule pauses the matching legacy plan")
+	require.True(t, paused.UpdatedAt.After(legacy.UpdatedAt), "stale scheduled snapshots are invalidated")
+	preserved, err := repo.GetResult(ctx, history.ID)
+	require.NoError(t, err)
+	require.Equal(t, "legacy drawing", preserved.ResponseText)
+	other, err := repo.GetPlan(ctx, otherModel.ID)
+	require.NoError(t, err)
+	require.True(t, other.Enabled, "a different model keeps its schedule")
+	legacy.Enabled = true
+	_, err = repo.UpdatePlan(ctx, legacy)
+	require.Error(t, err, "the legacy endpoint cannot re-enable the conflicting plan")
+	_, err = repo.CreatePlan(ctx, newPelicanGroupTestPlan(g.ID, true, now))
+	require.Error(t, err, "the legacy endpoint cannot create another enabled plan")
+	claimed, err := repo.Claim(ctx, paused, now, now.Add(15*time.Minute), nil)
+	require.Error(t, err, "manual runs cannot bypass the active intelligence rule")
+	require.False(t, claimed)
+}
+
+func TestIntelligenceRuleLegacyTakeoverIsAtomic(t *testing.T) {
+	ctx := context.Background()
+	repo := NewPelicanGroupTestRepository(integrationDB).(*pelicanGroupTestRepository)
+	groups := createPelicanGroupTestGroups(t, "iq-atomic-a", "iq-atomic-b")
+	now := time.Now().Truncate(time.Microsecond)
+	legacy := make([]*service.PelicanGroupTestPlan, 2)
+	inputs := make([]*service.PelicanGroupTestPlan, 2)
+	for i, g := range groups {
+		var err error
+		legacy[i], err = repo.CreatePlan(ctx, newPelicanGroupTestPlan(g.ID, true, now))
+		require.NoError(t, err)
+		inputs[i] = newPelicanGroupTestPlan(g.ID, true, now)
+		inputs[i].PelicanConfig.Intelligence = &service.IntelligenceRuleConfig{ID: "atomic-legacy", Name: "rule"}
+	}
+	lease := now.Add(15 * time.Minute)
+	claimed, err := repo.Claim(ctx, legacy[1], now, lease, nil)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.Error(t, repo.SaveIntelligenceRule(ctx, "atomic-legacy", inputs), "a running legacy plan must finish before takeover")
+	for _, p := range legacy {
+		original, err := repo.GetPlan(ctx, p.ID)
+		require.NoError(t, err)
+		require.True(t, original.Enabled, "a conflict rolls back every group's pause")
+	}
+	var count int
+	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT count(*) FROM pelican_group_test_plans WHERE pelican_config->'intelligence'->>'id'='atomic-legacy'`).Scan(&count))
+	require.Zero(t, count, "failed takeover does not create any part of the rule")
+	require.NoError(t, repo.Finish(ctx, legacy[1].ID, lease, now))
+	require.NoError(t, repo.SaveIntelligenceRule(ctx, "atomic-legacy", inputs))
+	for _, p := range legacy {
+		paused, err := repo.GetPlan(ctx, p.ID)
+		require.NoError(t, err)
+		require.False(t, paused.Enabled)
+	}
+}
+
+func TestPelicanLegacyClaimRejectsExistingIntelligenceOverlap(t *testing.T) {
+	ctx := context.Background()
+	repo := NewPelicanGroupTestRepository(integrationDB).(*pelicanGroupTestRepository)
+	g := createPelicanGroupTestGroups(t, "iq-existing-overlap")[0]
+	now := time.Now().Truncate(time.Microsecond)
+	legacy, err := repo.CreatePlan(ctx, newPelicanGroupTestPlan(g.ID, true, now.Add(-time.Minute)))
+	require.NoError(t, err)
+	// Reproduce existing data from before the fix without using the new save path.
+	_, err = integrationDB.ExecContext(ctx, `INSERT INTO pelican_group_test_plans(group_id,model_id,enabled,pelican_config) VALUES($1,$2,true,'{"intelligence":{"id":"existing-rule"}}')`, g.ID, legacy.ModelID)
+	require.NoError(t, err)
+	for _, scheduled := range []bool{false, true} {
+		var next *time.Time
+		if scheduled {
+			n := now.Add(30 * time.Minute)
+			next = &n
+		}
+		claimed, err := repo.Claim(ctx, legacy, now, now.Add(15*time.Minute), next)
+		require.Error(t, err, "existing overlap cannot issue another legacy request")
+		require.False(t, claimed)
+	}
+}
+
+func TestIntelligenceRuleSerializesLegacyActivation(t *testing.T) {
+	for _, operation := range []string{"create", "enable", "claim"} {
+		t.Run(operation, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			repo := NewPelicanGroupTestRepository(integrationDB).(*pelicanGroupTestRepository)
+			g := createPelicanGroupTestGroups(t, "iq-race-"+operation)[0]
+			now := time.Now().Truncate(time.Microsecond)
+			legacy, err := repo.CreatePlan(ctx, newPelicanGroupTestPlan(g.ID, operation == "claim", now.Add(-time.Minute)))
+			require.NoError(t, err)
+			input := newPelicanGroupTestPlan(g.ID, true, now)
+			key := "iq-race-" + operation
+			input.PelicanConfig.Intelligence = &service.IntelligenceRuleConfig{ID: key, Name: "rule"}
+			start := make(chan struct{})
+			ruleDone := make(chan error, 1)
+			legacyDone := make(chan error, 1)
+			go func() {
+				<-start
+				ruleDone <- repo.SaveIntelligenceRule(ctx, key, []*service.PelicanGroupTestPlan{input})
+			}()
+			go func() {
+				<-start
+				var err error
+				switch operation {
+				case "create":
+					_, err = repo.CreatePlan(ctx, newPelicanGroupTestPlan(g.ID, true, now))
+				case "enable":
+					legacy.Enabled = true
+					_, err = repo.UpdatePlan(ctx, legacy)
+				case "claim":
+					next := now.Add(30 * time.Minute)
+					_, err = repo.Claim(ctx, legacy, now, now.Add(15*time.Minute), &next)
+				}
+				legacyDone <- err
+			}()
+			close(start)
+			ruleErr, legacyErr := <-ruleDone, <-legacyDone
+			if operation == "claim" && ruleErr != nil {
+				require.NoError(t, legacyErr, "only a successful claim may block takeover")
+			} else {
+				require.NoError(t, ruleErr)
+			}
+			var enabled int
+			require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT count(*) FROM pelican_group_test_plans WHERE group_id=$1 AND model_id=$2 AND enabled=true`, g.ID, input.ModelID).Scan(&enabled))
+			require.Equal(t, 1, enabled, "concurrent operations leave exactly one enabled schedule")
+		})
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
@@ -65,20 +66,33 @@ func (r *pelicanGroupTestRepository) GetPlan(ctx context.Context, id int64) (*se
 }
 
 func (r *pelicanGroupTestRepository) CreatePlan(ctx context.Context, plan *service.PelicanGroupTestPlan) (*service.PelicanGroupTestPlan, error) {
+	tx, err := r.planWriteTx(ctx, plan, plan.Enabled)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
 	var id int64
-	if err := r.db.QueryRowContext(ctx, `INSERT INTO pelican_group_test_plans
+	if err := tx.QueryRowContext(ctx, `INSERT INTO pelican_group_test_plans
  (group_id, model_id, cron_expression, enabled, pelican_config, next_run_at)
  VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
 		plan.GroupID, plan.ModelID, plan.CronExpression, plan.Enabled, marshalPelicanConfig(plan.PelicanConfig), plan.NextRunAt).Scan(&id); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return r.GetPlan(ctx, id)
 }
 
 func (r *pelicanGroupTestRepository) UpdatePlan(ctx context.Context, plan *service.PelicanGroupTestPlan) (*service.PelicanGroupTestPlan, error) {
-	result, err := r.db.ExecContext(ctx, `UPDATE pelican_group_test_plans
+	tx, err := r.planWriteTx(ctx, plan, plan.Enabled)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, `UPDATE pelican_group_test_plans
  SET model_id = $2, cron_expression = $3, enabled = $4, pelican_config = $5, next_run_at = $6, updated_at = NOW()
- WHERE id = $1`,
+ WHERE id = $1 AND pelican_config->'intelligence'->>'id' IS NULL`,
 		plan.ID, plan.ModelID, plan.CronExpression, plan.Enabled, marshalPelicanConfig(plan.PelicanConfig), plan.NextRunAt)
 	if err != nil {
 		return nil, err
@@ -86,7 +100,42 @@ func (r *pelicanGroupTestRepository) UpdatePlan(ctx context.Context, plan *servi
 	if affected, err := result.RowsAffected(); err != nil || affected == 0 {
 		return nil, err
 	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
 	return r.GetPlan(ctx, plan.ID)
+}
+
+// Legacy writes and claims share the group lock used by SaveIntelligenceRule.
+// Checking overlap without this lock allows a concurrent rule save to miss a
+// newly enabled legacy plan. Pausing a legacy plan is always allowed.
+func (r *pelicanGroupTestRepository) planWriteTx(ctx context.Context, plan *service.PelicanGroupTestPlan, checkOverlap bool) (*sql.Tx, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	if plan.PelicanConfig != nil && plan.PelicanConfig.Intelligence != nil {
+		return tx, nil
+	}
+	var gid int64
+	if err = tx.QueryRowContext(ctx, `SELECT id FROM groups WHERE id=$1 FOR UPDATE`, plan.GroupID).Scan(&gid); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if checkOverlap {
+		var overlap bool
+		err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM pelican_group_test_plans
+ WHERE group_id=$1 AND model_id=$2 AND enabled=true AND id<>$3
+ AND pelican_config->'intelligence'->>'id' IS NOT NULL)`, plan.GroupID, plan.ModelID, plan.ID).Scan(&overlap)
+		if err == nil && overlap {
+			err = infraerrors.Conflict("INTELLIGENCE_RULE_OVERLAP", "同一分组和模型已有启用的智商检测规则，不能同时启用或运行旧绘图计划")
+		}
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+	return tx, nil
 }
 
 func (r *pelicanGroupTestRepository) DeletePlan(ctx context.Context, id int64) (bool, error) {
@@ -119,13 +168,17 @@ func (r *pelicanGroupTestRepository) ListDue(ctx context.Context, now time.Time)
 }
 
 func (r *pelicanGroupTestRepository) Claim(ctx context.Context, plan *service.PelicanGroupTestPlan, now, until time.Time, next *time.Time) (bool, error) {
+	tx, err := r.planWriteTx(ctx, plan, true)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
 	var result sql.Result
-	var err error
 	if next == nil {
-		result, err = r.db.ExecContext(ctx, `UPDATE pelican_group_test_plans SET running_until = $3
+		result, err = tx.ExecContext(ctx, `UPDATE pelican_group_test_plans SET running_until = $3
  WHERE id = $1 AND (running_until IS NULL OR running_until < $2) AND updated_at = $4`, plan.ID, now, until, plan.UpdatedAt)
 	} else {
-		result, err = r.db.ExecContext(ctx, `UPDATE pelican_group_test_plans SET running_until = $3, next_run_at = $4
+		result, err = tx.ExecContext(ctx, `UPDATE pelican_group_test_plans SET running_until = $3, next_run_at = $4
  WHERE id = $1 AND enabled = true AND next_run_at <= $2 AND (running_until IS NULL OR running_until < $2) AND updated_at = $5`,
 			plan.ID, now, until, *next, plan.UpdatedAt)
 	}
@@ -133,7 +186,13 @@ func (r *pelicanGroupTestRepository) Claim(ctx context.Context, plan *service.Pe
 		return false, err
 	}
 	affected, err := result.RowsAffected()
-	return affected == 1, err
+	if err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return affected == 1, nil
 }
 
 func (r *pelicanGroupTestRepository) Finish(ctx context.Context, id int64, until, finished time.Time) error {

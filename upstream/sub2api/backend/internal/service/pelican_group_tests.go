@@ -197,6 +197,9 @@ func (s *PelicanGroupTestService) UpdatePlan(ctx context.Context, id int64, inpu
 	if current == nil {
 		return nil, ErrPelicanGroupTestPlanNotFound
 	}
+	if current.PelicanConfig != nil && current.PelicanConfig.Intelligence != nil {
+		return nil, infraerrors.Conflict("INTELLIGENCE_RULE_EDIT_REQUIRED", "智商检测计划请通过检测规则编辑，不能使用旧绘图计划接口")
+	}
 	plan, err := s.planFromInput(ctx, input, current)
 	if err != nil {
 		return nil, err
