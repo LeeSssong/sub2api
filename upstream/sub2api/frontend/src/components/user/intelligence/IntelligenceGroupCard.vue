@@ -9,13 +9,13 @@
     <section class="iq-logic-region" aria-label="逻辑题测试">
       <div class="iq-test-heading">
         <span class="iq-test-name"><Icon name="grid" size="md" />逻辑题测试</span>
-        <span class="iq-muted">质量运维抽样 · {{ group.quality_source_status === 'missing' ? '来源不可用' : group.quality_template_id ? `规则 #${group.quality_template_id}` : '来源待配置' }}</span>
+        <span class="iq-muted">分组真实检测 · {{ group.candy_cron_expression || '*/30 * * * *' }}</span>
       </div>
       <div class="iq-legend iq-logic-legend">
         <span><i class="passed" />通过</span><span><i class="incorrect" />失败</span><span><i class="abnormal" />异常</span><span><i class="unknown" />未知</span><span><i class="empty" />暂无数据</span>
-        <span class="iq-legend-hint">每 30 分钟展示一个抽样结果</span>
+        <span class="iq-legend-hint">每格 30 分钟，展示最近一次；点击查看时段内检测</span>
       </div>
-      <IntelligenceTimeline v-for="model in candyModels" :key="model" kind="candy" :samples="candyFor(model)" expected-answer="" :model-id="model" compact :selected="selected?.id" :now="now" :hours="hours" @select="select" />
+      <IntelligenceTimeline v-for="model in candyModels" :key="model" kind="candy" :samples="candyFor(model)" expected-answer="" :model-id="model" compact :selected="selected?.id" :now="now" :hours="hours" :running-started-at="group.candy_running_started_at" @select="select" />
     </section>
     <section class="iq-drawing-region iq-group-grid" aria-label="绘图测试">
       <IntelligenceTimeline kind="pelican" :samples="drawing" expected-answer="" :model-id="group.model_id" :selected="selected?.id || artwork?.id" :now="now" :hours="hours" :running-started-at="group.running_started_at" @select="select" />
@@ -87,7 +87,7 @@ const candyFor = (model: string) => intelligenceTimeline(props.group.results, "c
 const drawing = computed(() =>
   intelligenceTimeline(props.group.results, "pelican"),
 );
-const status = computed(() => intelligenceGroupStatus(props.group.results, candyModels.value, props.now, props.group.quality_source_status));
+const status = computed(() => intelligenceGroupStatus(props.group.results, candyModels.value, props.now));
 const statusLabel = computed(
   () =>
     ({

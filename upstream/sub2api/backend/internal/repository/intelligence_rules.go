@@ -131,7 +131,7 @@ func (r *pelicanGroupTestRepository) ListIntelligenceResults(ctx context.Context
  SELECT r.id,row_number() OVER(PARTITION BY p.group_id, COALESCE(r.pelican_config->>'model_id',p.model_id),COALESCE(r.pelican_config->>'question_kind','pelican') ORDER BY r.started_at DESC,r.id DESC) AS pos
  FROM pelican_group_test_results r JOIN pelican_group_test_plans p ON p.id=r.plan_id
  WHERE p.id=ANY($1) AND r.started_at >= $2
- AND (COALESCE(r.pelican_config->>'question_kind','pelican')<>'candy' OR r.pelican_config->'intelligence_result'->>'source'='quality_ops')
+ AND (COALESCE(r.pelican_config->>'question_kind','pelican')<>'candy' OR r.pelican_config->'intelligence_result'->>'source'='intelligence_live')
  ) `+pelicanGroupTestResultSelect+` FROM ranked n JOIN pelican_group_test_results r ON r.id=n.id JOIN pelican_group_test_plans p ON p.id=r.plan_id JOIN groups g ON g.id=p.group_id WHERE n.pos <= $3 ORDER BY r.started_at DESC,r.id DESC`, pq.Array(ids), since, limit)
 	if err != nil {
 		return nil, err
@@ -155,11 +155,11 @@ func (r *pelicanGroupTestRepository) GetIntelligenceResult(ctx context.Context, 
  FROM pelican_group_test_results r JOIN pelican_group_test_plans p ON p.id=r.plan_id JOIN groups g ON g.id=p.group_id
  WHERE r.id=$1 AND r.started_at >= $2 AND g.deleted_at IS NULL AND g.status='active'
  AND p.pelican_config->'intelligence'->>'id' IS NOT NULL
- AND (COALESCE(r.pelican_config->>'question_kind','pelican')<>'candy' OR r.pelican_config->'intelligence_result'->>'source'='quality_ops')
+ AND (COALESCE(r.pelican_config->>'question_kind','pelican')<>'candy' OR r.pelican_config->'intelligence_result'->>'source'='intelligence_live')
  AND (SELECT COUNT(*) FROM pelican_group_test_results n JOIN pelican_group_test_plans np ON np.id=n.plan_id
  WHERE np.group_id=p.group_id AND np.pelican_config->'intelligence'->>'id' IS NOT NULL
  AND COALESCE(n.pelican_config->>'model_id',np.model_id)=COALESCE(r.pelican_config->>'model_id',p.model_id)
- AND (COALESCE(n.pelican_config->>'question_kind','pelican')<>'candy' OR n.pelican_config->'intelligence_result'->>'source'='quality_ops')
+ AND (COALESCE(n.pelican_config->>'question_kind','pelican')<>'candy' OR n.pelican_config->'intelligence_result'->>'source'='intelligence_live')
  AND COALESCE(n.pelican_config->>'question_kind','pelican')=COALESCE(r.pelican_config->>'question_kind','pelican')
  AND (n.started_at,n.id)>(r.started_at,r.id)) < $3`, id, since, limit)
 	result, err := scanPelicanGroupTestResult(row, true)

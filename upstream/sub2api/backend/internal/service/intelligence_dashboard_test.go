@@ -29,7 +29,7 @@ func TestIntelligenceRuleValidation(t *testing.T) {
 }
 
 func TestIntelligenceSamplesSeparateKindsAndSnapshots(t *testing.T) {
-	router := &groupTestRouterFake{steps: []routeStep{{account: account(1, "a")}, {account: account(2, "b")}}}
+	router := &groupTestRouterFake{steps: []routeStep{{account: account(1, "a")}, {account: account(2, "b")}, {account: account(3, "c")}}}
 	svc, _ := newGroupTestService(newGroupTestRepoFake(), router, func(_ context.Context, _ int64, _ string, cfg *PelicanTestConfig) (*ScheduledTestResult, error) {
 		if cfg.QuestionKind == "candy" {
 			return &ScheduledTestResult{Status: "success", ResponseText: "29"}, nil
@@ -42,9 +42,16 @@ func TestIntelligenceSamplesSeparateKindsAndSnapshots(t *testing.T) {
 	plan.PelicanConfig.Intelligence = &IntelligenceRuleConfig{ID: "r", Name: "rule", Candy: &PelicanTestConfig{QuestionKind: "candy", Prompt: CandyPrompt, Quality: &QualityPolicy{ExpectedAnswer: "21", Action: QualityActionObserveOnly}}, Actions: []string{"坐着雪橇"}, Scenes: []string{"竹林里"}}
 	plan.PelicanConfig.Prompt = IntelligenceDrawingPrompt
 	results := svc.runSamples(context.Background(), plan)
-	require.Len(t, results, 1)
+	require.Len(t, results, 3)
 	require.Equal(t, "passed", intelligenceVerdict(results[0]))
 	require.Equal(t, "pelican", results[0].PelicanConfig.QuestionKind)
+	for i, model := range []string{"gpt-6-astra", "gpt-6.1-sol"} {
+		r := results[i+1]
+		require.Equal(t, model, r.PelicanConfig.ModelID)
+		require.Equal(t, "29", r.ResponseText)
+		require.Equal(t, "incorrect", intelligenceVerdict(r))
+		require.Equal(t, "intelligence_live", r.PelicanConfig.IntelligenceResult.Source)
+	}
 	require.Contains(t, plan.PelicanConfig.Prompt, "{动作}")
 	require.Equal(t, "坐着雪橇", results[0].PelicanConfig.IntelligenceResult.Action)
 }
@@ -122,7 +129,7 @@ func TestIntelligenceDashboardThreeDayWindowAndSchedule(t *testing.T) {
 	svc.repo = repo
 	view, err := svc.IntelligenceDashboard(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 512, repo.limit)
+	require.Equal(t, 5000, repo.limit)
 	require.Equal(t, groupTestNow.Add(-72*time.Hour), repo.since)
 	require.Equal(t, next, *view.Groups[0].NextRunAt)
 	require.Equal(t, lease.Add(-pelicanGroupTestLease), *view.Groups[0].RunningStartedAt)

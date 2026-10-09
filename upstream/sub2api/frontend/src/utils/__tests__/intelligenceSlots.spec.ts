@@ -43,3 +43,9 @@ describe("fixed intelligence time slots", () => {
     expect(slots.filter((s) => s.result)).toHaveLength(0);
   });
 });
+
+it('keeps completed evidence clickable while a later run in the same slot is pending', () => {
+ const slots = intelligenceSlots([record], 'candy', now, 24, '2026-10-05T02:02:00+08:00');
+ expect(slots.at(-1)?.status).toBe('running');
+ expect(slots.at(-1)?.result?.id).toBe(1);
+});

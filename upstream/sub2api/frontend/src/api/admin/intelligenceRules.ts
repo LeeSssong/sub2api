@@ -11,7 +11,8 @@ export interface IntelligenceRuleInput {
   reasoning_effort: string;
   cron_expression: string;
   enabled: boolean;
-  quality_sources: { group_id: number; template_id: number }[];
+  candy_schedules: { group_id: number; cron_expression: string }[];
+  candy_reasoning_effort: string;
   candy_models: string[];
   candy_prompt?: string;
   expected_answer?: string;

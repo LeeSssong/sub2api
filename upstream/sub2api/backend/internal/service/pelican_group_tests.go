@@ -40,22 +40,23 @@ var (
 )
 
 type PelicanGroupTestPlan struct {
-	ID                  int64              `json:"id"`
-	GroupID             int64              `json:"group_id"`
-	GroupName           string             `json:"group_name"`
-	TodayCostUSD        float64            `json:"today_cost_usd"`
-	TotalCostUSD        float64            `json:"total_cost_usd"`
-	TodayCostIncomplete bool               `json:"today_cost_incomplete"`
-	TotalCostIncomplete bool               `json:"total_cost_incomplete"`
-	GroupPlatform       string             `json:"group_platform"`
-	GroupStatus         string             `json:"group_status"`
-	ModelID             string             `json:"model_id"`
-	CronExpression      string             `json:"cron_expression"`
-	Enabled             bool               `json:"enabled"`
-	PelicanConfig       *PelicanTestConfig `json:"pelican_config"`
-	LastRunAt           *time.Time         `json:"last_run_at"`
-	NextRunAt           *time.Time         `json:"next_run_at"`
-	RunningUntil        *time.Time         `json:"running_until,omitempty"`
+	intelligenceRunKinds []string
+	ID                   int64              `json:"id"`
+	GroupID              int64              `json:"group_id"`
+	GroupName            string             `json:"group_name"`
+	TodayCostUSD         float64            `json:"today_cost_usd"`
+	TotalCostUSD         float64            `json:"total_cost_usd"`
+	TodayCostIncomplete  bool               `json:"today_cost_incomplete"`
+	TotalCostIncomplete  bool               `json:"total_cost_incomplete"`
+	GroupPlatform        string             `json:"group_platform"`
+	GroupStatus          string             `json:"group_status"`
+	ModelID              string             `json:"model_id"`
+	CronExpression       string             `json:"cron_expression"`
+	Enabled              bool               `json:"enabled"`
+	PelicanConfig        *PelicanTestConfig `json:"pelican_config"`
+	LastRunAt            *time.Time         `json:"last_run_at"`
+	NextRunAt            *time.Time         `json:"next_run_at"`
+	RunningUntil         *time.Time         `json:"running_until,omitempty"`
 	// LastResult is the newest result without its HTML, for the admin overview.
 	LastResult *PelicanGroupTestResult `json:"last_result,omitempty"`
 	CreatedAt  time.Time               `json:"created_at"`
@@ -341,13 +342,12 @@ func (s *PelicanGroupTestService) runScheduled(ctx context.Context, plan *Pelica
 		logger.LegacyPrintf("service.pelican_group_test", "plan=%d skipped: no model", plan.ID)
 		return
 	}
-	expression := plan.CronExpression
+	next, err := computeNextRun(plan.CronExpression, now)
 	if plan.PelicanConfig != nil && plan.PelicanConfig.Intelligence != nil {
-		expression = "*/30 * * * *"
+		plan, next, err = prepareIntelligenceRun(plan, now)
 	}
-	next, err := computeNextRun(expression, now)
 	if err != nil {
-		logger.LegacyPrintf("service.pelican_group_test", "plan=%d invalid schedule: %v", plan.ID, err)
+		logger.LegacyPrintf("service.pelican_group_test", "invalid schedule: %v", err)
 		return
 	}
 	// The persisted lease keeps ticks and server replicas from running a plan twice and
@@ -368,16 +368,6 @@ func (s *PelicanGroupTestService) runScheduled(ctx context.Context, plan *Pelica
 func (s *PelicanGroupTestService) execute(plan *PelicanGroupTestPlan, until time.Time) {
 	runCtx, cancel := context.WithTimeout(context.Background(), pelicanGroupTestRunTimeout)
 	defer cancel()
-	if plan.PelicanConfig != nil && plan.PelicanConfig.Intelligence != nil {
-		if repo, ok := s.repo.(IntelligenceQualityRepository); ok {
-			snapshotCtx, stopSnapshot := context.WithTimeout(runCtx, 5*time.Second)
-			snapshotErr := repo.SnapshotIntelligenceQuality(snapshotCtx, plan, until.Add(-pelicanGroupTestLease).Truncate(30*time.Minute))
-			stopSnapshot()
-			if err := snapshotErr; err != nil {
-				logger.LegacyPrintf("service.pelican_group_test", "plan=%d quality snapshot unavailable: %v", plan.ID, err)
-			}
-		}
-	}
 	results := s.runSamples(runCtx, plan)
 	// Persist with a fresh context so timeout failures are still recorded.
 	saveCtx, stop := context.WithTimeout(context.Background(), 30*time.Second)
@@ -696,10 +686,10 @@ func isOpenAIResponsesGatewayPlatform(platform string) bool {
 	}
 }
 
-// Dual-question plans retain enough samples for a three-day view, including 15-minute schedules.
+// Retain three days at the maximum ten models and one-minute Cron, plus drawings and manual runs.
 func intelligenceHistoryKeep(plan *PelicanGroupTestPlan) int {
 	if plan.PelicanConfig != nil && plan.PelicanConfig.Intelligence != nil {
-		return 1024
+		return 72*60*10 + 144 + 1024
 	}
 	return pelicanGroupTestKeepResults
 }

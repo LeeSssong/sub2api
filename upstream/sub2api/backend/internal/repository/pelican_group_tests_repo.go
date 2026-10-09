@@ -175,12 +175,13 @@ func (r *pelicanGroupTestRepository) Claim(ctx context.Context, plan *service.Pe
 	defer tx.Rollback()
 	var result sql.Result
 	if next == nil {
-		result, err = tx.ExecContext(ctx, `UPDATE pelican_group_test_plans SET running_until = $3
+		result, err = tx.ExecContext(ctx, `UPDATE pelican_group_test_plans SET running_until = $3,
+ pelican_config = CASE WHEN pelican_config->'intelligence' IS NOT NULL THEN jsonb_set(pelican_config, '{intelligence,running_kinds}', '["candy","pelican"]'::jsonb) ELSE pelican_config END
  WHERE id = $1 AND (running_until IS NULL OR running_until < $2) AND updated_at = $4`, plan.ID, now, until, plan.UpdatedAt)
 	} else {
-		result, err = tx.ExecContext(ctx, `UPDATE pelican_group_test_plans SET running_until = $3, next_run_at = $4
- WHERE id = $1 AND enabled = true AND next_run_at <= $2 AND (running_until IS NULL OR running_until < $2) AND updated_at = $5`,
-			plan.ID, now, until, *next, plan.UpdatedAt)
+		result, err = tx.ExecContext(ctx, `UPDATE pelican_group_test_plans SET running_until = $3, next_run_at = $4, pelican_config = $6
+ WHERE id = $1 AND enabled = true AND next_run_at <= $2 AND (running_until IS NULL OR running_until < $2) AND updated_at = $5 AND next_run_at IS NOT DISTINCT FROM $7`,
+			plan.ID, now, until, *next, plan.UpdatedAt, marshalPelicanConfig(plan.PelicanConfig), plan.NextRunAt)
 	}
 	if err != nil {
 		return false, err

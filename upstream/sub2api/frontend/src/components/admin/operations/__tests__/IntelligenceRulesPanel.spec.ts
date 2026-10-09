@@ -92,31 +92,40 @@ describe('intelligence rule editing', () => {
     name.dispatchEvent(new Event('input', { bubbles: true }));
     document.querySelector<HTMLButtonElement>('[data-testid="intelligence-save"]')!.click();
     await flushPromises();
-    expect(intelligenceRulesAPI.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Updated rule', group_ids: [1, 2], quality_sources: [{ group_id: 1, template_id: 9 }, { group_id: 2, template_id: 10 }], candy_models: ['gpt-6-astra', 'gpt-6.1-sol'] }), 'rule-1');
-    expect(vi.mocked(intelligenceRulesAPI.save).mock.calls[0][0]).not.toHaveProperty('candy_prompt');
+    expect(intelligenceRulesAPI.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Updated rule', group_ids: [1, 2], candy_schedules: [{ group_id: 1, cron_expression: '*/30 * * * *' }, { group_id: 2, cron_expression: '*/30 * * * *' }], candy_models: ['gpt-6-astra', 'gpt-6.1-sol'] }), 'rule-1');
+    expect(vi.mocked(intelligenceRulesAPI.save).mock.calls[0][0].candy_prompt).toBe('custom question');
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(wrapper.emitted('changed')).toHaveLength(1);
   });
 
-  it('requires explicit source selection when a group has multiple matching templates', async () => {
-    const base = await listQualityTemplates();
-    vi.mocked(listQualityTemplates).mockResolvedValueOnce([...base, {...base[0], id: 11}]);
+  it('saves independent cron expressions without loading quality templates', async () => {
     wrapper = mount(IntelligenceRulesPanel, { props: { plans: plans() }, global, attachTo: document.body });
     await edit();
-    expect(document.querySelector<HTMLSelectElement>('[data-testid="intelligence-source-1"]')!.value).toBe('0');
+    for (const [id, cron] of [[1, '*/5 * * * *'], [2, '15 * * * *']]) {
+      const input = document.querySelector<HTMLInputElement>(`[data-testid="intelligence-candy-cron-${id}"]`)!;
+      expect(input.tagName).toBe('INPUT');
+      input.value = String(cron);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    document.querySelector<HTMLButtonElement>('[data-testid="intelligence-save"]')!.click();
+    await flushPromises();
+    expect(listQualityTemplates).not.toHaveBeenCalled();
+    expect(intelligenceRulesAPI.save).toHaveBeenCalledWith(expect.objectContaining({
+      candy_schedules: [{ group_id: 1, cron_expression: '*/5 * * * *' }, { group_id: 2, cron_expression: '15 * * * *' }],
+      candy_prompt: 'custom question', expected_answer: '42',
+      judge: { group_id: 1, model_id: 'judge', prompt: 'compare' },
+    }), 'rule-1');
+  });
+
+  it('keeps a malformed cron in the editor and prevents saving', async () => {
+    wrapper = mount(IntelligenceRulesPanel, { props: { plans: plans() }, global, attachTo: document.body });
+    await edit();
+    const input = document.querySelector<HTMLInputElement>('[data-testid="intelligence-candy-cron-1"]')!;
+    input.value = 'bad cron'; input.dispatchEvent(new Event('input', { bubbles: true }));
     document.querySelector<HTMLButtonElement>('[data-testid="intelligence-save"]')!.click();
     await flushPromises();
     expect(intelligenceRulesAPI.save).not.toHaveBeenCalled();
-    expect(document.querySelector('[role="dialog"]')!.textContent).toContain('请为每个生效分组选择有效的质量规则来源');
-    expect(document.querySelector('[data-testid="intelligence-candy"]')).toBeNull();
-  });
-
-  it('excludes a template without a quality judgment configuration', async () => {
-    const base = await listQualityTemplates();
-    vi.mocked(listQualityTemplates).mockResolvedValueOnce(base.map(t => ({ ...t, pelican_config: { ...t.pelican_config, quality: undefined } })));
-    wrapper = mount(IntelligenceRulesPanel, { props: { plans: plans() }, global, attachTo: document.body });
-    await edit();
-    expect(document.querySelector<HTMLSelectElement>('[data-testid="intelligence-source-1"]')!.options).toHaveLength(1);
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain('五字段');
   });
 
   it('pauses a running rule without waiting for the current run to finish', async () => {

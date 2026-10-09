@@ -79,3 +79,18 @@ describe("quality source status", () => {
     expect(intelligenceTimeline([fresh(1, models[0]), fresh(2, models[1])], "candy", models[1]).map(r => r.id)).toEqual([2]);
   });
 });
+
+describe('live candy monitoring', () => {
+  it('counts every real test even within one half-hour slot', () => {
+    const results = [fresh(1, models[0]), {...fresh(2, models[0]), started_at: '2026-10-09T12:05:00Z', verdict: 'incorrect' as const}];
+    expect(intelligenceStats(intelligenceCandySamples(results, models, now, 24))).toMatchObject({total: 2, passed: 1});
+  });
+  it('keeps a daily candy result fresh until its next scheduled check', () => {
+    const results = [
+      {...fresh(1, models[0]), started_at: '2026-10-09T00:00:00Z', valid_until: '2026-10-10T00:10:00Z'},
+      {...fresh(2, models[1]), started_at: '2026-10-09T00:00:00Z', valid_until: '2026-10-10T00:10:00Z'},
+      fresh(3, 'draw', 'pelican'),
+    ];
+    expect(intelligenceGroupStatus(results, models, now)).toBe('passed');
+  });
+});
