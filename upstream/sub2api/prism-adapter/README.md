@@ -122,7 +122,7 @@ PRISM_ADAPTER_BOOTSTRAP_CONCURRENCY=1
 
 待决文件改为 `pending/<account_id>/<scope_hash>.json`。每个请求有自己的 request ID 和 turn_state；不确定结果只阻塞相同会话。匿名管理员测试每份结果使用独立作用域，不自动重试。原版本留下的 `pending/<account_id>` 文件仍会阻塞该账号，不能绕过。回滚到旧执行器时，旧程序看到该目录也会拒绝账号，必须先核实并发版本的未完成记录；不能直接删除目录解锁。
 
-systemd 的 `MemoryMax=900M`、禁 swap 和单核限制保持不变。新执行器在 Linux cgroup 使用量达到 750 MiB 时拒绝新的项目准备，并回收已空闲上下文；已提交请求继续尝试取得终态。这个阈值是保护措施，不是达到生产容量的证明。推荐使用与固定 Playwright 版本匹配、预构建的 Chromium headless shell，仍启用浏览器 sandbox。
+systemd 的 `MemoryMax=900M`、禁 swap 和单核限制保持不变。新执行器在 Linux cgroup 使用量达到 `PRISM_ADAPTER_MEMORY_LIMIT_MIB`（默认 750 MiB，必须为正整数）时拒绝新的项目准备，并回收已空闲上下文；已提交请求继续尝试取得终态。这个阈值是保护措施，不是达到生产容量的证明。推荐使用与固定 Playwright 版本匹配、预构建的 Chromium headless shell，仍启用浏览器 sandbox。
 
 本地完整路径验证（真实 Chromium，模拟上游，无 OAuth/真实推理）：
 

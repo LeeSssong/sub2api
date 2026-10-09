@@ -368,7 +368,7 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			return fmt.Errorf("begin migration %s: %w", name, err)
 		}
 		switch name {
-		case "238_monitor_v4_p50.sql", "239_group_tool_mappings.sql", "240_manual_probe_group_scope.sql", "264_quality_rule_tested_group.sql", "265_monitor_v4_legacy_default.sql":
+		case "238_monitor_v4_p50.sql", "239_group_tool_mappings.sql", "240_manual_probe_group_scope.sql", "264_quality_rule_tested_group.sql", "265_monitor_v4_legacy_default.sql", "244_astra_gateway_history.sql", "249_astra_scheduling_states.sql", "263_strip_pelican_prompt_restriction.sql", "264_channel_monitor_v3.sql", "265_new_api_site_authorizations.sql", "266_account_ops_notifications.sql", "267_account_ops_threshold_episodes.sql", "268_controlled_experiments.sql", "268_support_tickets.sql":
 			if _, err := tx.ExecContext(ctx, "SET LOCAL lock_timeout = '100ms'; SET LOCAL statement_timeout = '2s'"); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("bound online migration %s: %w", name, err)

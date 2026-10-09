@@ -345,6 +345,13 @@ class MultiplexBrowser:
         if not 1 <= bootstrap <= 2 or not 1 <= accounts <= 2 or not 30 <= idle_seconds <= 900:
             raise ValueError('invalid Prism browser limits')
         self.state, self.chrome, self.api = state, chrome, api
+        try:
+            memory_mib = int(os.environ.get('PRISM_ADAPTER_MEMORY_LIMIT_MIB', '750'))
+        except ValueError:
+            raise ValueError('PRISM_ADAPTER_MEMORY_LIMIT_MIB must be a positive integer') from None
+        if memory_mib <= 0:
+            raise ValueError('PRISM_ADAPTER_MEMORY_LIMIT_MIB must be a positive integer')
+        self.memory_limit_bytes = memory_mib * 1024 * 1024
         self.admission = Admission(api, active, per_account, queued, wait_seconds)
         self.bootstrap = asyncio.Semaphore(bootstrap)
         self.max_accounts, self.idle_seconds, self.poll_seconds = accounts, idle_seconds, poll_seconds
@@ -387,7 +394,7 @@ class MultiplexBrowser:
         waiting = False
         while True:
             memory = cgroup_memory_bytes()
-            if memory is None or memory < 750 * 1024 * 1024:
+            if memory is None or memory < self.memory_limit_bytes:
                 if waiting:
                     self.observe('prism_memory_ready', journal)
                 return
@@ -547,7 +554,7 @@ class MultiplexBrowser:
             now = time.monotonic()
             self.runtime_cooldowns = {key: expiry for key, expiry in self.runtime_cooldowns.items() if expiry > now}
             memory = cgroup_memory_bytes()
-            pressure = memory is not None and memory >= 750 * 1024 * 1024
+            pressure = memory is not None and memory >= self.memory_limit_bytes
             for key, actor in list(self.actors.items()):
                 if not actor.refs and (pressure or now - actor.used >= self.idle_seconds or now - actor.created >= 900):
                     self.actors.pop(key)

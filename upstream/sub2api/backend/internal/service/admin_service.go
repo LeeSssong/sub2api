@@ -431,7 +431,8 @@ type UpdateGroupInput struct {
 }
 
 type CreateAccountInput struct {
-	Admission *AccountAdmissionInput
+	InitialQualityPlan *ScheduledTestPlan `json:"-"`
+	Admission          *AccountAdmissionInput
 	// AdmissionAllowUngrouped is set only by JSON import handlers.
 	AdmissionAllowUngrouped bool
 	Name                    string

@@ -495,7 +495,8 @@ const (
 	SettingKeyChannelMonitorEnabled = "channel_monitor_enabled"
 
 	// SettingKeyChannelMonitorMode selects exclusive implementation:
-	// "v1" active probes, "v2" passive aggregation. Default "v1" (opt-in to v2).
+	// "v1" active probes, "v2" passive aggregation, "v3" component status page.
+	// Default "v1" (opt-in to v2/v3).
 	SettingKeyChannelMonitorMode = "channel_monitor_mode"
 
 	// ChannelMonitorModeV1/V2 preserve the legacy choices. The explicit modes
@@ -505,6 +506,7 @@ const (
 	ChannelMonitorModeV2                = "v2"
 	ChannelMonitorModeNativeProbe       = "native_probe"
 	ChannelMonitorModeHybridPerformance = "hybrid_performance"
+	ChannelMonitorModeV3                = "v3"
 
 	// SettingKeyChannelMonitorDefaultIntervalSeconds controls the default interval (seconds)
 	// pre-filled when creating a new channel monitor from the admin UI. Range: [15, 3600].
@@ -530,6 +532,13 @@ const (
 	// /users payload from non-admin channel-monitor v2 viewers.
 	// Default false (keep the current ranking tab). Admin endpoints always keep it.
 	SettingKeyChannelMonitorHideUserRanking = "channel_monitor_hide_user_ranking"
+
+	// Protocol-wide switches default on for BPS compatibility and off for Prism.
+	SettingKeyExcelBPSEnabled = "excel_bps_enabled"
+	// Prism browser bridge is administrator-managed and disabled by default.
+	SettingKeyPrismBrowserEnabled = "prism_browser_enabled"
+	SettingKeyPrismBrowserBaseURL = "prism_browser_base_url"
+	SettingKeyPrismBrowserAPIKey  = "prism_browser_api_key"
 
 	// SettingKeyGrokDefaultTextModel is the fallback Grok text model for empty
 	// request models and built-in Grok aliases (e.g. "grok" → this id). Default grok-4.5.
@@ -581,6 +590,12 @@ const (
 	// SettingKeyPluginManagementEnabled controls sidebar visibility only; it does
 	// not stop or otherwise change already loaded plugin runtimes.
 	SettingKeyPluginManagementEnabled = "plugin_management_enabled"
+
+	// SettingKeySupportTicketEnabled is a DB-backed soft switch for support tickets
+	// ("网站工单"). When false both user and admin endpoints answer
+	// SUPPORT_TICKET_DISABLED and the sidebar entries are hidden; stored tickets
+	// are kept. Defaults to false (opt-in feature).
+	SettingKeySupportTicketEnabled = "support_ticket_enabled"
 
 	// SettingKeyUpstreamBillingProbeSettings stores the global enable switch and interval
 	// for probing remote Sub2API API-key billing metadata.

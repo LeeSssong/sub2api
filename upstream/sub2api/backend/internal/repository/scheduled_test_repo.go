@@ -315,6 +315,8 @@ func (r *scheduledTestPlanRepository) FinishPelican(ctx context.Context, id int6
 	return err
 }
 
+
+
 // Also prunes paused plans; bounded batches avoid long transactions on large histories.
 func (r *scheduledTestResultRepository) PruneExpiredPelican(ctx context.Context, before time.Time) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM scheduled_test_results WHERE id IN (

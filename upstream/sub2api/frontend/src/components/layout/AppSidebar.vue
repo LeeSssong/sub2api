@@ -115,6 +115,7 @@
               <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
               <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
               <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+              <span v-if="navBadge(item)" class="sidebar-nav-badge" :class="{ 'sidebar-nav-badge-collapsed': sidebarCollapsed }" data-testid="sidebar-nav-badge">{{ sidebarCollapsed ? '' : navBadgeText(item) }}</span>
             </router-link>
           </template>
         </div>
@@ -140,6 +141,7 @@
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+            <span v-if="navBadge(item)" class="sidebar-nav-badge" :class="{ 'sidebar-nav-badge-collapsed': sidebarCollapsed }" data-testid="sidebar-nav-badge">{{ sidebarCollapsed ? '' : navBadgeText(item) }}</span>
           </router-link>
         </div>
       </template>
@@ -163,6 +165,7 @@
             <img v-else-if="userNavIcon(item.path)" :src="userNavIcon(item.path)" class="user-nav-icon" alt="" aria-hidden="true" />
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" aria-hidden="true" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
+            <span v-if="navBadge(item)" class="sidebar-nav-badge" :class="{ 'sidebar-nav-badge-collapsed': sidebarCollapsed }" data-testid="sidebar-nav-badge">{{ sidebarCollapsed ? '' : navBadgeText(item) }}</span>
           </router-link>
         </div>
       </template>
@@ -273,7 +276,7 @@ import { useAppSurface } from '@/composables/useAppSurface'
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
+import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useSupportTicketStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
@@ -300,6 +303,8 @@ interface NavItem {
    * 开关切换时菜单自动更新。
    */
   featureFlag?: () => boolean | undefined
+  /** Optional count shown as a red badge (a dot while the sidebar is collapsed). */
+  badge?: () => number
 }
 
 // applyFeatureFlags 递归过滤掉 featureFlag() === false 的节点（含子节点）。
@@ -750,6 +755,12 @@ const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
 
 const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
+const QualityOpsIcon = { render: () => h(Icon, { name: 'badge', size: 'sm' }) }
+const SupportTicketInboxIcon = { render: () => h(Icon, { name: 'inbox' }) }
+const flagSupportTickets = makeSidebarFlag(FeatureFlags.supportTickets)
+const flagUserSupportTickets = () => flagSupportTickets() && !authStore.isAdmin
+const SupportTicketIcon = { render: () => h(Icon, { name: 'chat' }) }
+const supportTicketStore = useSupportTicketStore()
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 
@@ -768,6 +779,7 @@ function buildUserNavItems(): NavItem[] {
     { path: '/dashboard', label: userNavLabel('aiTools', 'AI 工具'), icon: DashboardIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/keys', label: userNavLabel('myKeys', '我的密钥'), icon: KeyIcon },
+    { path: '/support-tickets', label: t('nav.supportTickets'), icon: SupportTicketIcon, featureFlag: flagUserSupportTickets, badge: () => supportTicketStore.userUnread },
     // Recharge and redemption are accessed only through the fixed balance entry.
     ...customMenuItemsForUser.value
       .filter(item => item.url === '/intelligence-test')
@@ -844,6 +856,7 @@ const adminNavItems = computed((): NavItem[] => {
       { path: '/admin/auto-config', label: t('autoConfig.title'), icon: GlobeIcon },
       { path: '/admin/priority-scheduling', label: t('priorityScheduling.title'), icon: GlobeIcon },
       { path: '/admin/account-quality', label: t('qualityOps.title'), icon: ChartIcon },
+      { path: '/admin/controlled-experiments', label: t('controlledExperiments.title'), icon: QualityOpsIcon },
       { path: '/admin/account-ops', label: t('accountOps.title'), icon: GlobeIcon },
       { path: '/admin/token-guard', label: t('tokenGuard.title'), icon: ShieldIcon },
       { path: '/admin/token-guard-v2', label: t('tokenGuardV2.title'), icon: ShieldIcon },
@@ -852,6 +865,7 @@ const adminNavItems = computed((): NavItem[] => {
       { path: '/admin/harvest-flow', label: t('nav.harvestFlow'), icon: ChartIcon },
     ] },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
+    { path: '/admin/support-tickets', label: t('nav.supportTickets'), icon: SupportTicketInboxIcon, featureFlag: flagSupportTickets, badge: () => supportTicketStore.adminPending },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     {
       path: '/admin/security-audit',
@@ -978,6 +992,15 @@ function handleMenuItemClick(itemPath: string) {
   if (selector && onboardingStore.isCurrentStep(selector)) {
     onboardingStore.nextStep(500)
   }
+}
+
+function navBadge(item: NavItem): number {
+  return item.badge?.() ?? 0
+}
+
+function navBadgeText(item: NavItem): string {
+  const count = navBadge(item)
+  return count > 99 ? '99+' : String(count)
 }
 
 function isActive(path: string): boolean {
@@ -1169,6 +1192,35 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+}
+
+.sidebar-link {
+  position: relative;
+}
+
+.sidebar-nav-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.375rem;
+  border-radius: 9999px;
+  background: rgb(239 68 68);
+  color: white;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.sidebar-nav-badge-collapsed {
+  position: absolute;
+  top: 0.4rem;
+  left: 1.85rem;
+  min-width: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  padding: 0;
 }
 
 .sidebar-label-collapsed {

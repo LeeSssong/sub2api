@@ -62,6 +62,20 @@ func TestAutoConfigIndependentSwitchesAndValidation(t *testing.T) {
 	c.GroupIDs = []int64{-1}
 	require.Error(t, ValidateOAuthAutoConfig(c))
 }
+
+func TestAutoConfigInitialCostMultiplierScope(t *testing.T) {
+	c := DefaultOAuthAutoConfig()
+	c.Enabled, c.GroupIDs, c.CostMultiplier = true, []int64{2}, 0.07
+	raw, err := json.Marshal(c)
+	require.NoError(t, err)
+	svc := &adminServiceImpl{settingService: NewSettingService(&accountOpsSettingsStub{raw: string(raw)}, nil), groupRepo: autoConfigGroups{group: &Group{ID: 2, Platform: PlatformOpenAI, Status: StatusActive}}}
+	input := &CreateAccountInput{Platform: PlatformOpenAI, Type: AccountTypeOAuth, Extra: map[string]any{AccountCostMultiplierExtraKey: 0.9}}
+	require.NoError(t, svc.ApplyOAuthAutoConfig(t.Context(), input))
+	require.Equal(t, 0.07, input.Extra[AccountCostMultiplierExtraKey])
+	apiKey := &CreateAccountInput{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Extra: map[string]any{AccountCostMultiplierExtraKey: 0.9}}
+	require.NoError(t, svc.ApplyOAuthAutoConfig(t.Context(), apiKey))
+	require.Equal(t, 0.9, apiKey.Extra[AccountCostMultiplierExtraKey])
+}
 func TestAutoConfigAdvanceFailureCooldownCapAndManualChange(t *testing.T) {
 	c := DefaultOAuthAutoConfig()
 	c.Revision = "r1"
@@ -161,6 +175,7 @@ func (r *autoConfigAccountRepo) BindGroups(_ context.Context, _ int64, ids []int
 func TestAutoConfigCRSNewAccountsOnly(t *testing.T) {
 	cfg := DefaultOAuthAutoConfig()
 	cfg.Enabled = true
+	cfg.QualityRule = initialQualityRuleFixture()
 	cfg.Priority = 7
 	cfg.Concurrency = 9
 	cfg.GroupIDs = []int64{5}
@@ -171,6 +186,8 @@ func TestAutoConfigCRSNewAccountsOnly(t *testing.T) {
 	syncer := &CRSSyncService{accountRepo: repo, autoConfigure: policy.ApplyOAuthAutoConfig}
 	a := &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth, Priority: 50, Concurrency: 3, Status: StatusError, Schedulable: false}
 	require.NoError(t, syncer.createSyncedAccount(context.Background(), a))
+	require.NotNil(t, repo.created.InitialQualityPlan)
+	require.Equal(t, "gpt-5.4", repo.created.InitialQualityPlan.ModelID)
 	require.Equal(t, 9, repo.created.Concurrency)
 	require.Equal(t, 7, repo.created.Priority)
 	require.Equal(t, []int64{5}, repo.groups)

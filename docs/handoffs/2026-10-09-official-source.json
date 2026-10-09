@@ -1,0 +1,2873 @@
+{
+  "repository": "https://github.com/ranxi2001/sub2api",
+  "branch": "production",
+  "base": "bc83ff9c367883e5b7d0140e6bb42e2e7cc5239c",
+  "target": "11be589504b482d77827ab383b4b53f777241238",
+  "version": "2.10.1",
+  "local_base": "b6f7f2e597da14527c87ed5215d7b11cea9294b0",
+  "method": "Fixed upstream snapshots; per-file three-way content merge, preserve local customizations; external Git history not merged",
+  "upstream_tarball_sha256": "ff0a73a58dc896c5c8e914e1a22dbac16d045e9cb3a221d3edfc69045f9aba07",
+  "equivalent_files_skipped": 39,
+  "changed_upstream_files": 694,
+  "conflicting_files_reviewed": 72,
+  "preserved": [
+    "deployed SQL bytes and checksum allowlist",
+    "quota/billing/financial/probe cost ledger integration",
+    "AccountAdmission and process role separation",
+    "native probe/hybrid performance/monitor-v4",
+    "user AI tools and balance sidebar",
+    "Prism single-account concurrency, keepalive, session checks",
+    "expiring unsupported model catalog markers"
+  ],
+  "sheetjs_integrity": "sha512-oLDq3jw7AcLqKWH2AhCpVTZl8mf6X2YReP+Neh0SJUzV/BdZYjth94tG5toiMB1PPrYtxOCfaoUCkvtuH+3AJA==",
+  "files": [
+    {
+      "path": ".github/audit-exceptions.yml",
+      "result": "official"
+    },
+    {
+      "path": ".github/workflows/reauth-runtime.yml",
+      "result": "official"
+    },
+    {
+      "path": ".gitignore",
+      "result": "merged"
+    },
+    {
+      "path": "Makefile",
+      "result": "merged"
+    },
+    {
+      "path": "README.md",
+      "result": "merged"
+    },
+    {
+      "path": "README_EN.md",
+      "result": "official"
+    },
+    {
+      "path": "README_JA.md",
+      "result": "merged"
+    },
+    {
+      "path": "backend/cmd/server/VERSION",
+      "result": "official"
+    },
+    {
+      "path": "backend/cmd/server/wire.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/cmd/server/wire_gen.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/cmd/server/wire_gen_test.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/config/astra_automatic.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/config/astra_automatic_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/config/astra_routing.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/config/astra_scheduling_modes_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/config/codex_gateway_pin_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/config/config.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/config/config_test.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/config/readiness_test.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/config/upstream_routing_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/account_auto_config_outcome.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/handler/account_auto_config_outcome_test.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_astra_gateway.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_codex_import.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_handler.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_new_api_authorization.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_new_api_authorization_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_oauth_session_client_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_ops_handler.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/account_ops_handler_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/controlled_experiment_handler.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/controlled_experiment_handler_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/openai_excel_auth_url_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/openai_oauth_handler.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/admin/priority_scheduling_compat_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/priority_scheduling_handler.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/scheduled_test_handler.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_astra_routing.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_astra_routing_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_audit.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/admin/setting_handler_update.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/channel_monitor_v3_handler.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/channel_monitor_v3_handler_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/dto/settings.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/grok_audio.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/grok_forbidden_failover.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/grok_forbidden_failover_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/grok_media.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/handler/handler.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/handler/openai_chat_completions.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/openai_gateway_handler.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/openai_prism_error_test.go",
+      "result": "conflict",
+      "resolution": "official-prior-adoption"
+    },
+    {
+      "path": "backend/internal/handler/ops_error_logger.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/ops_error_logger_test.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/handler/setting_handler.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/handler/support_ticket_handler.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/support_ticket_handler_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/handler/wire.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/integration/e2e_user_flow_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/mihomo/astra.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/mihomo/astra_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/mihomo/collection.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/mihomo/collection_smoke_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/mihomo/collection_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/mihomo/manager.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/payment/provider/easypay.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/payment/provider/easypay_notify_security_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/pkg/apicompat/chatcompletions_to_responses.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/pkg/apicompat/chatcompletions_to_responses_nested_reasoning_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/pkg/apicompat/types.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/pkg/openai/oauth.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/pkg/qualityqueue/queuetest/redis.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/pkg/qualityqueue/redis.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/pkg/qualityqueue/redis_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/pkg/tlsfingerprint/dialer.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/pkg/tlsfingerprint/proxy_cancel_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/pkg/upstreamroute/context.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/pkg/upstreamroute/router.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/pkg/upstreamroute/router_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/reauthruntime/runtime_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_ops.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_ops_batch_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_ops_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_ops_names_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_ops_once.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_ops_once_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_quality.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/repository/account_quality_5xx.go",
+      "result": "conflict",
+      "resolution": "official-prior-adoption"
+    },
+    {
+      "path": "backend/internal/repository/account_quality_5xx_integration_test.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/repository/account_quality_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_quality_models.go",
+      "result": "conflict",
+      "resolution": "retain-local-expiring-catalog-markers"
+    },
+    {
+      "path": "backend/internal/repository/account_quality_models_test.go",
+      "result": "conflict",
+      "resolution": "retain-local-expiring-catalog-markers"
+    },
+    {
+      "path": "backend/internal/repository/account_repo.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/repository/account_token_guard_v2.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/account_token_guard_v2_integration_test.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/repository/astra_gateway_history.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_gateway_history_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_gateway_observations.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_gateway_observations_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_ip_affinity_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_node_store.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_node_store_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_readiness_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_rotation.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_rotation_cache.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_rotation_cache_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_rotation_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_routing_upstream.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_scheduling_action.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_scheduling_action_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_scheduling_action_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/astra_target_validation.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/channel_monitor_v2_aggregation.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/channel_monitor_v2_repo.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/channel_monitor_v3_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/channel_monitor_v3_repo.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/codex_gateway_pin.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/codex_gateway_pin_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/controlled_experiment_repo.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/controlled_experiment_repo_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/http_upstream.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/http_upstream_regional.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/http_upstream_regional_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/new_api_authorization.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/new_api_authorization_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/new_api_authorization_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/oauth_initial_quality_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/openai_excel_oauth_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/openai_oauth_service.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/openai_turn_admission.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/openai_turn_admission_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/ops_client_rejection_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/pelican_group_tests_repo_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/pelican_scheduled_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/pelican_scheduled_test.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/repository/priority_scheduling.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/priority_scheduling_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/quality_5xx_integration_test.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/repository/quality_rule_template_integration_test.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/repository/scheduled_test_repo.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/repository/scheduler_cache.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/setting_astra_automatic.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/setting_astra_automatic_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/support_ticket_integration_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/support_ticket_repo.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/repository/wire.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/server/api_contract_test.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/server/lifecycle.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/server/lifecycle_readiness_test.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/server/lifecycle_test.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/server/middleware/audit_log.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/server/middleware/audit_log_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/server/routes/admin.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/server/routes/channel_monitor_feature_gate_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/server/routes/user.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/account.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/account_cost.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_balance.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_balance_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_batch_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_config.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_integration_helper.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_names_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_notification.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_notification_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_once.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_once_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_robot.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_scoped.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_webhook.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_ops_webhook_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_prism.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/account_prism_test.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/account_quality.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/account_quality_multi_model_test.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/account_test_reasoning.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_test_reasoning_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_test_service.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/account_token_guard_v2.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/account_token_guard_v2_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/admin_account.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/admin_service.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/antigravity_credits_overages.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/antigravity_gateway_gemini.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/antigravity_gateway_retry.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/antigravity_gateway_upstream.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/astra_account_scheduling.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_account_scheduling_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_automatic_setup.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_automatic_setup_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_gateway_history.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_gateway_probe_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_gateway_questions.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_gateway_runtime.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_gateway_ws_validation_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_route_failover.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_route_failover_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_scheduling_action.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_scheduling_action_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_scheduling_history.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/astra_scheduling_history_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/background_runtime_test.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/channel_monitor_checker.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/channel_monitor_checker_body_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/channel_monitor_const.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/channel_monitor_v2_aggregator.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/channel_monitor_v2_candy.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/channel_monitor_v3.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/channel_monitor_v3_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_parallel.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/codex_harvest_parallel_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/controlled_experiment.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/controlled_experiment_gateway.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/controlled_experiment_gateway_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/controlled_experiment_grader.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/controlled_experiment_report.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/controlled_experiment_runner_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/controlled_experiment_service.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/controlled_experiment_sql.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/controlled_experiment_suite.json",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/controlled_experiment_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/controlled_experiment_transport.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/crs_sync_service.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/domain_constants.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/gateway_anthropic_passthrough.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/gateway_claude_code_agent_headers_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/gateway_count_tokens.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/gateway_forward.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/gateway_forward_as_chat_completions.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/gateway_forward_as_responses.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/gateway_service.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/gemini_chat_completions_compat_service.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/gemini_messages_compat_service.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/grok_audio.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/grok_audio_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/grok_forbidden_forward_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/grok_forbidden_isolation_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/grok_forbidden_policy.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/grok_forbidden_policy_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/grok_media.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/grok_model_quota_block.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/grok_team_rate_limit.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/grok_upstream_errors.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/new_api_authorization.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/new_api_authorization_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/new_api_upstream.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/new_api_upstream_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/oauth_auto_config.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/oauth_auto_config_observer_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/oauth_auto_config_quality.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/oauth_auto_config_quality_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/oauth_auto_config_test.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_account_scheduler.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_alpha_search.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_apikey_identity_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_apikey_responses_probe.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_identity.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_state_probe.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_state_route_probe_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket_manual.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ticket_manual_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_transform.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ws_anchor.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_codex_ws_anchor_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_embeddings.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_excel_bps_transport.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_cc_pipeline.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_chat_completions_nested_reasoning_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_chat_completions_raw.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_count_tokens.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_forward.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_grok.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_grok_chat_bridge.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_messages_chat_fallback_test.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_passthrough.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_request_body.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_response_handling.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_service.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_gateway_upstream_errors.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/openai_images.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_images_responses.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_oauth_passthrough_test.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_oauth_service.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_oauth_service_auth_url_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_oauth_session_client_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_oauth_web_search_history.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_oauth_web_search_history_forward_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_oauth_web_search_history_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_plugin_account_directory.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_plugin_account_directory_test.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/openai_prism_browser.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/openai_proxy_runtime_fallback.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/openai_responses_ingress_compat_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_turn_admission.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/openai_turn_admission_local_cache.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_turn_admission_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_upstream_transport_error.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_client.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_client_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_ingress.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_payload.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_success_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_support.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_v2.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_forwarder_v2_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_http_bridge.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_pool.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_pool_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_protocol_resolver_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_regional_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_request_capture.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_sse_acceleration.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_sse_presend_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/openai_ws_v2_passthrough_adapter.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/ops_user_error.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/ops_user_error_test.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/payment_resume_service.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/payment_resume_service_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/pelican_scheduled.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/pelican_test_service.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling_audit_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling_fairness.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling_fairness_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling_history.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling_oauth_quota.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling_oauth_quota_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/priority_scheduling_snapshot.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/prism_browser_routing_test.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/quality_5xx_immediate_test.go",
+      "result": "conflict",
+      "resolution": "official-prior-adoption"
+    },
+    {
+      "path": "backend/internal/service/quality_5xx_semantic_test.go",
+      "result": "conflict",
+      "resolution": "official-prior-adoption"
+    },
+    {
+      "path": "backend/internal/service/quality_5xx_trigger.go",
+      "result": "conflict",
+      "resolution": "official-prior-adoption"
+    },
+    {
+      "path": "backend/internal/service/quality_5xx_trigger_test.go",
+      "result": "conflict",
+      "resolution": "official-prior-adoption"
+    },
+    {
+      "path": "backend/internal/service/quality_result_metadata_test.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/quality_rule_template.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/quality_rule_template_test.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/quality_supported_models.go",
+      "result": "conflict",
+      "resolution": "retain-local-expiring-catalog-markers"
+    },
+    {
+      "path": "backend/internal/service/quality_supported_models_test.go",
+      "result": "conflict",
+      "resolution": "retain-local-expiring-catalog-markers"
+    },
+    {
+      "path": "backend/internal/service/ratelimit_service.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/ratelimit_service_403_html_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/ratelimit_service_clear_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/scheduled_test_port.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/scheduled_test_runner_service.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/scheduled_test_service.go",
+      "result": "already-current"
+    },
+    {
+      "path": "backend/internal/service/setting_astra_routing.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/setting_astra_routing_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/setting_excel_bps_image.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/setting_excel_bps_image_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/setting_parse.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/setting_prism_browser.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/setting_public.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/service/setting_service.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/setting_service_public_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/setting_support_ticket.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/setting_update.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/settings_view.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/support_ticket.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/support_ticket_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/token_refresh_service.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/upstream_billing_probe.go",
+      "result": "merged"
+    },
+    {
+      "path": "backend/internal/service/upstream_response_model.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/upstream_response_model_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/service/wire.go",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "backend/internal/setup/cli.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/setup/handler.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/setup/setup.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/internal/setup/setup_test.go",
+      "result": "official"
+    },
+    {
+      "path": "backend/migrations/244_astra_gateway_history.sql",
+      "result": "official"
+    },
+    {
+      "path": "backend/migrations/249_astra_scheduling_states.sql",
+      "result": "official"
+    },
+    {
+      "path": "backend/migrations/263_strip_pelican_prompt_restriction.sql",
+      "result": "official"
+    },
+    {
+      "path": "backend/migrations/264_channel_monitor_v3.sql",
+      "result": "official"
+    },
+    {
+      "path": "backend/migrations/265_new_api_site_authorizations.sql",
+      "result": "official"
+    },
+    {
+      "path": "backend/migrations/266_account_ops_notifications.sql",
+      "result": "official"
+    },
+    {
+      "path": "backend/migrations/267_account_ops_threshold_episodes.sql",
+      "result": "official"
+    },
+    {
+      "path": "backend/migrations/268_controlled_experiments.sql",
+      "result": "official"
+    },
+    {
+      "path": "backend/migrations/268_support_tickets.sql",
+      "result": "official"
+    },
+    {
+      "path": "backend/testdata/controlled-experiments/bootstrap.sql",
+      "result": "official"
+    },
+    {
+      "path": "backend/testdata/controlled-experiments/fixture.go",
+      "result": "official"
+    },
+    {
+      "path": "deploy/.env.example",
+      "result": "official"
+    },
+    {
+      "path": "deploy/APPLE_CONTAINER.md",
+      "result": "official"
+    },
+    {
+      "path": "deploy/README.md",
+      "result": "merged"
+    },
+    {
+      "path": "deploy/config.example.yaml",
+      "result": "merged"
+    },
+    {
+      "path": "deploy/docker-compose.dev.yml",
+      "result": "official"
+    },
+    {
+      "path": "deploy/docker-compose.local.yml",
+      "result": "merged"
+    },
+    {
+      "path": "deploy/docker-compose.standalone.yml",
+      "result": "merged"
+    },
+    {
+      "path": "deploy/docker-compose.yml",
+      "result": "merged"
+    },
+    {
+      "path": "deploy/docker-deploy.sh",
+      "result": "merged"
+    },
+    {
+      "path": "deploy/kubernetes/README.md",
+      "result": "already-current"
+    },
+    {
+      "path": "docs/account-ops-notifications.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/bps-2fa-worker.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/bps-oauth-validation-20261008.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/controlled-experiments.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/excel-bps.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/grok-forbidden-scheduling.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/harvest-gateway-borrow.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/new-api-upstream-probe.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/oauth-initial-quality.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/openai-outbound-identity.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/ops-client-rejections.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/priority-scheduling.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/quality-ops-evidence/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/quality-ops-evidence/after-editor.jpg",
+      "result": "official"
+    },
+    {
+      "path": "docs/quality-ops-evidence/after-model-results.jpg",
+      "result": "official"
+    },
+    {
+      "path": "docs/quality-ops-evidence/after-overview.jpg",
+      "result": "official"
+    },
+    {
+      "path": "docs/quality-ops-evidence/before-overview.jpg",
+      "result": "official"
+    },
+    {
+      "path": "docs/request-capture.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/reviews/priority-scheduling-audit-20261006.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-ops-monitoring/account-ops-add-channel.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-ops-monitoring/account-ops-batch.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-ops-monitoring/account-ops-before.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-ops-monitoring/account-ops-delivery.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-ops-monitoring/account-ops-records.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-ops-monitoring/account-ops-rule.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-ops-monitoring/account-ops-settings.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/account-ops-monitoring/account-ops-webhook.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/bps-oauth/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/bps-oauth/after.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/bps-oauth/before.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/bps-oauth/login.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v3/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v3/admin-preview.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v3/admin-settings.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v3/user-dark.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v3/user-desktop.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v3/user-incidents.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v3/user-mobile.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v3/user-tooltip-down.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/channel-monitor-v3/user-tooltip-slow.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/controlled-experiments/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/controlled-experiments/synthetic-paired-report.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/create-account-ws-sse/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/create-account-ws-sse/before.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/create-account-ws-sse/dark.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/create-account-ws-sse/entry.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/create-account-ws-sse/manifest.json",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/create-account-ws-sse/mobile.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/create-account-ws-sse/oauth-off.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/create-account-ws-sse/oauth-on.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/create-account-ws-sse/two-fa-on.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/harvest-gateway-borrow/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/harvest-gateway-borrow/after-desktop.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/harvest-gateway-borrow/before-desktop.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/harvest-gateway-borrow/borrow-dark.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/harvest-gateway-borrow/borrow-expanded.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/harvest-gateway-borrow/borrow-mobile.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/harvest-gateway-borrow/borrow-ready.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/harvest-gateway-borrow/manifest.json",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/iq-model-picker/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/iq-model-picker/after-eight-models.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/iq-model-picker/before-six-models.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/iq-model-picker/manual-input.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/mobile-account-sort/accounts-mobile-sort.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/mobile-account-tooltips/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/mobile-account-tooltips/after-chromium-error.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/mobile-account-tooltips/after-chromium-stats.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/mobile-account-tooltips/before-error.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/mobile-account-tooltips/before-stats.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/oauth-initial-quality/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/oauth-initial-quality/after-empty.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/oauth-initial-quality/after-saved.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/oauth-initial-quality/before.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/oauth-quota-priority/after-disabled.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/oauth-quota-priority/after-enabled.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/oauth-quota-priority/after-mobile.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/oauth-quota-priority/before.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/oauth-quota-priority/manifest.json",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/priority-scheduling/after-error.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/priority-scheduling/after-ready.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/priority-scheduling/before.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/priority-scheduling/manifest.json",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/prism-model-scope/README.md",
+      "result": "already-current"
+    },
+    {
+      "path": "docs/screenshots/prism-model-scope/after.png",
+      "result": "already-current"
+    },
+    {
+      "path": "docs/screenshots/prism-model-scope/before.png",
+      "result": "already-current"
+    },
+    {
+      "path": "docs/screenshots/prism-model-scope/manifest.json",
+      "result": "already-current"
+    },
+    {
+      "path": "docs/screenshots/prism-model-scope/mobile-dark.png",
+      "result": "already-current"
+    },
+    {
+      "path": "docs/screenshots/prism-model-scope/selected.png",
+      "result": "already-current"
+    },
+    {
+      "path": "docs/screenshots/protocol-feature-switches.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-capture-harvest/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-capture-harvest/harvest-flow-after-desktop.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-capture-harvest/harvest-flow-after-mobile.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-capture-harvest/harvest-flow-before-desktop.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/smart-ops-capture-harvest/request-capture-after-desktop.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/support-tickets/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/support-tickets/admin-detail-dark.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/support-tickets/admin-detail.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/support-tickets/admin-list-mobile.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/support-tickets/admin-list.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/support-tickets/admin-settings.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/support-tickets/user-create.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/support-tickets/user-detail-mobile.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/support-tickets/user-detail.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/support-tickets/user-list.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/targeted-harvest/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/targeted-harvest/after.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/targeted-harvest/before.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/targeted-harvest/running.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/usage-tps-single-token/README.md",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/usage-tps-single-token/usage-latency-after.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/screenshots/usage-tps-single-token/usage-latency-before.png",
+      "result": "official"
+    },
+    {
+      "path": "docs/upstream-regional-routing.md",
+      "result": "official"
+    },
+    {
+      "path": "frontend/package.json",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/pnpm-lock.yaml",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/App.vue",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/api/__tests__/admin.accountOps.scoped.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/api/__tests__/admin.accountOps.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/api/__tests__/admin.accounts.upstreamBillingProbe.spec.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/api/admin/accountOps.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/api/admin/accountQuality.ts",
+      "result": "already-current"
+    },
+    {
+      "path": "frontend/src/api/admin/accounts.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/api/admin/astraGateway.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/api/admin/autoConfig.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/api/admin/controlledExperiments.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/api/admin/priorityScheduling.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/api/admin/settings.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/api/channelMonitorV3.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/api/supportTickets.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/AccountConcurrencyProgress.vue",
+      "result": "already-current"
+    },
+    {
+      "path": "frontend/src/components/account/AccountStatusIndicator.vue",
+      "result": "conflict",
+      "resolution": "retain-local-component"
+    },
+    {
+      "path": "frontend/src/components/account/AccountTodayStatsCell.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/AccountUsageCell.vue",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/account/BulkEditAccountModal.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/CreateAccountModal.vue",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/components/account/EditAccountModal.vue",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/components/account/ExcelBPS403Badge.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/NewAPIUpstreamConfigDialog.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/OAuthAuthorizationFlow.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/ReAuthAccountModal.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/UpstreamBillingRateCell.vue",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/AccountStatusIndicator.spec.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/CreateAccountModal.spec.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/EditAccountModal.autoBPS.spec.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/EditAccountModal.grokForbiddenPause.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/EditAccountModal.spec.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/ExcelBPS403Badge.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/NewAPIUpstreamConfigDialog.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/OAuthAuthorizationFlow.excel.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/account/__tests__/UpstreamBillingRateCell.spec.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/admin/AstraAccountPicker.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/AstraGatewayHistory.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/AstraGatewayRuntime.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/HarvestGatewayBorrowPanel.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/HarvestManualConsole.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/__tests__/AstraGatewayHistory.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/__tests__/AstraGatewayRuntime.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/__tests__/HarvestGatewayBorrowPanel.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/__tests__/HarvestManualConsole.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/account/IQTestModal.vue",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/admin/account/TestModelSelect.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/account/__tests__/IQTestModal.spec.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/admin/account/__tests__/TestModelSelect.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsAddChannelDialog.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsBatchRuleDialog.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsChannelFields.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsDeliveryDetails.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsEmailDialog.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsGlobalSettings.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsRuleDialog.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsRuleList.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/AccountOpsWebhookDialog.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/SmartOpsNav.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/__tests__/AccountOpsBatchRuleDialog.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/__tests__/AccountOpsChannelFields.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/__tests__/AccountOpsRuleDialog.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/__tests__/AccountOpsRuleList.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/__tests__/AccountOpsWebhookDialog.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/operations/__tests__/SmartOpsNav.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/admin/usage/__tests__/UsageTable.spec.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/common/DataTable.vue",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/components/common/HelpTooltip.vue",
+      "result": "conflict",
+      "resolution": "retain-local-component"
+    },
+    {
+      "path": "frontend/src/components/common/__tests__/HelpTooltip.spec.ts",
+      "result": "conflict",
+      "resolution": "retain-local-component"
+    },
+    {
+      "path": "frontend/src/components/keys/UseKeyModal.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/keys/__tests__/UseKeyModal.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/components/layout/AppSidebar.vue",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/components/layout/__tests__/AppSidebar.spec.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/composables/__tests__/useOpenAIOAuth.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/composables/useOpenAIOAuth.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v2/MonitorSettingsPanel.vue",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v3/ComponentEditorDialog.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v3/IncidentsDialog.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v3/StatusBar.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v3/StatusDot.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v3/StatusPage.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v3/V3SettingsPanel.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v3/__tests__/StatusPage.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v3/__tests__/V3SettingsPanel.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v3/__tests__/monitorV3.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/channel-monitor-v3/monitorV3.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/support-tickets/CreateTicketDialog.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/support-tickets/TicketConversation.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/support-tickets/TicketMessageBody.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/support-tickets/TicketReplyBox.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/support-tickets/TicketStatusBadge.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/support-tickets/__tests__/TicketComponents.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/support-tickets/__tests__/supportTickets.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/features/support-tickets/supportTickets.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/accountOps.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/accounts.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/astraGateway.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/harvestFlow.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/index.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/admin/settings.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/autoConfig.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/channelMonitorV3.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/common.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/controlledExperiments.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/index.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/priorityScheduling.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/qualityOps.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/i18n/locales/en/supportTickets.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/accountOps.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/accounts.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/astraGateway.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/harvestFlow.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/index.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/admin/settings.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/autoConfig.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/channelMonitorV3.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/common.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/controlledExperiments.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/index.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/priorityScheduling.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/qualityOps.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/i18n/locales/zh/supportTickets.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/router/__tests__/feature-access.spec.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/router/index.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/router/meta.d.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/stores/__tests__/supportTickets.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/stores/app.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/stores/index.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/stores/supportTickets.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/types/index.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/qualityRulePatch.spec.ts",
+      "result": "already-current"
+    },
+    {
+      "path": "frontend/src/utils/__tests__/usageTps.spec.ts",
+      "result": "conflict",
+      "resolution": "retain-local-component"
+    },
+    {
+      "path": "frontend/src/utils/featureFlags.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/utils/intelligenceTest.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/utils/qualityRulePatch.ts",
+      "result": "already-current"
+    },
+    {
+      "path": "frontend/src/utils/settingsSearch.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/utils/usageTps.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/views/admin/AccountOpsView.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/AccountQualityView.vue",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/views/admin/AccountsView.vue",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/views/admin/AutoConfigView.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/ChannelMonitorView.vue",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/views/admin/ControlledExperimentsView.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/HarvestFlowView.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/PrioritySchedulingView.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/RequestCaptureView.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/SettingsView.vue",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/views/admin/SupportTicketDetailView.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/SupportTicketsView.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/AccountOpsView.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/AccountQualityView.spec.ts",
+      "result": "already-current"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/AccountsView.newAPIConfig.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/AutoConfigView.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/ChannelMonitorView.modeSwitch.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/ControlledExperimentsView.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/HarvestFlowView.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/PrioritySchedulingView.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/RequestCaptureView.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/SettingsView.spec.ts",
+      "result": "merged"
+    },
+    {
+      "path": "frontend/src/views/admin/__tests__/SupportTicketsAdmin.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/user/ChannelStatusV3View.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/user/ChannelStatusView.vue",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/views/user/SupportTicketDetailView.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/user/SupportTicketsView.vue",
+      "result": "official"
+    },
+    {
+      "path": "frontend/src/views/user/__tests__/ChannelStatusView.mode.spec.ts",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "frontend/src/views/user/__tests__/SupportTicketsViews.spec.ts",
+      "result": "official"
+    },
+    {
+      "path": "prism-adapter/README.md",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "prism-adapter/image_inputs.py",
+      "result": "official"
+    },
+    {
+      "path": "prism-adapter/model_selection.py",
+      "result": "official"
+    },
+    {
+      "path": "prism-adapter/multiplex_browser.py",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "prism-adapter/server.py",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "prism-adapter/smoke_multiplex.py",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "prism-adapter/test_image_inputs.py",
+      "result": "official"
+    },
+    {
+      "path": "prism-adapter/test_model_selection.py",
+      "result": "official"
+    },
+    {
+      "path": "prism-adapter/test_multiplex.py",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "prism-adapter/test_server.py",
+      "result": "conflict",
+      "resolution": "reviewed-custom-integration"
+    },
+    {
+      "path": "prism-adapter/test_tool_bridge.py",
+      "result": "already-current"
+    },
+    {
+      "path": "prism-adapter/tool_bridge.py",
+      "result": "already-current"
+    },
+    {
+      "path": "scripts/verify-controlled-experiments.ps1",
+      "result": "official"
+    },
+    {
+      "path": "tools/Dockerfile.openai-oauth-reauth-worker",
+      "result": "official"
+    },
+    {
+      "path": "tools/openai_excel_2fa_login.py",
+      "result": "official"
+    },
+    {
+      "path": "tools/openai_excel_oauth_adapter.py",
+      "result": "official"
+    },
+    {
+      "path": "tools/openai_excel_password_flow.mjs",
+      "result": "official"
+    },
+    {
+      "path": "tools/openai_oauth_reauth_worker.py",
+      "result": "official"
+    },
+    {
+      "path": "tools/reauth-runtime/Dockerfile",
+      "result": "official"
+    },
+    {
+      "path": "tools/reauth-runtime/package.py",
+      "result": "official"
+    },
+    {
+      "path": "tools/test_openai_excel_oauth_adapter.py",
+      "result": "official"
+    },
+    {
+      "path": "tools/test_openai_excel_password_flow.mjs",
+      "result": "official"
+    }
+  ]
+}

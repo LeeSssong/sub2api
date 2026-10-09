@@ -561,6 +561,9 @@ func TestLoadDefaultOpenAIWSConfig(t *testing.T) {
 	if cfg.Gateway.OpenAIWS.ClientReadLimitBytes != 64*1024*1024 {
 		t.Fatalf("Gateway.OpenAIWS.ClientReadLimitBytes = %d, want %d", cfg.Gateway.OpenAIWS.ClientReadLimitBytes, 64*1024*1024)
 	}
+	if cfg.Gateway.OpenAIWS.SSEAccelerationMaxPayloadBytes != 15*1024*1024 {
+		t.Fatalf("SSEAccelerationMaxPayloadBytes = %d, want 15 MiB", cfg.Gateway.OpenAIWS.SSEAccelerationMaxPayloadBytes)
+	}
 	if !cfg.Gateway.OpenAIWS.HTTPBridgeEnabled {
 		t.Fatalf("Gateway.OpenAIWS.HTTPBridgeEnabled = false, want true")
 	}
@@ -2692,5 +2695,56 @@ func TestLoad_DefaultGatewayImageStreamConfig(t *testing.T) {
 	}
 	if cfg.Gateway.ImageStreamDataIntervalTimeout <= cfg.Gateway.StreamDataIntervalTimeout {
 		t.Fatalf("image stream timeout = %d, want greater than ordinary stream timeout %d", cfg.Gateway.ImageStreamDataIntervalTimeout, cfg.Gateway.StreamDataIntervalTimeout)
+	}
+}
+
+func TestLoadSimpleModeAutoCreateDefaultGroups(t *testing.T) {
+	for _, loader := range []struct {
+		name string
+		load func() (*Config, error)
+	}{{"Load", Load}, {"LoadForBootstrap", LoadForBootstrap}} {
+		t.Run(loader.name, func(t *testing.T) {
+			for _, tt := range []struct {
+				name  string
+				yaml  string
+				env   string
+				unset bool
+				want  bool
+			}{
+				{name: "unset env uses application default", unset: true, want: true},
+				{name: "empty env uses application default", want: true},
+				{name: "unset env preserves yaml false", unset: true, yaml: "simple_mode:\n  auto_create_default_groups: false\n", want: false},
+				{name: "empty env preserves yaml false", yaml: "simple_mode:\n  auto_create_default_groups: false\n", want: false},
+				{name: "env false overrides yaml true", yaml: "simple_mode:\n  auto_create_default_groups: true\n", env: "false", want: false},
+				{name: "env false without yaml", env: "false", want: false},
+				{name: "env true overrides yaml false", yaml: "simple_mode:\n  auto_create_default_groups: false\n", env: "true", want: true},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					resetViperWithJWTSecret(t)
+					t.Setenv("SIMPLE_MODE_AUTO_CREATE_DEFAULT_GROUPS", tt.env)
+					if tt.unset {
+						require.NoError(t, os.Unsetenv("SIMPLE_MODE_AUTO_CREATE_DEFAULT_GROUPS"))
+					}
+					path := filepath.Join(t.TempDir(), "config.yaml")
+					require.NoError(t, os.WriteFile(path, []byte("run_mode: simple\n"+tt.yaml), 0o600))
+					t.Setenv("CONFIG_FILE", path)
+					cfg, err := loader.load()
+					require.NoError(t, err)
+					require.Equal(t, tt.want, cfg.SimpleMode.AutoCreateDefaultGroups)
+				})
+			}
+		})
+	}
+}
+
+func TestOpenAIWSSSEPayloadLimitConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("GATEWAY_OPENAI_WS_SSE_ACCELERATION_MAX_PAYLOAD_BYTES", "1048576")
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.EqualValues(t, 1048576, cfg.Gateway.OpenAIWS.SSEAccelerationMaxPayloadBytes)
+	for _, limit := range []int64{0, -1} {
+		cfg.Gateway.OpenAIWS.SSEAccelerationMaxPayloadBytes = limit
+		require.ErrorContains(t, cfg.Validate(), "sse_acceleration_max_payload_bytes must be positive")
 	}
 }

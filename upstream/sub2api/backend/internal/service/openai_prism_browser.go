@@ -305,7 +305,14 @@ func (s *OpenAIGatewayService) forwardPrismBrowser(ctx context.Context, c *gin.C
 		stop := startOpenAISSEKeepalive(c, time.Duration(s.cfg.Gateway.StreamKeepaliveInterval)*time.Second)
 		defer stop()
 	}
+	if err := controlledSubmission(ctx, "prism"); err != nil {
+		return nil, err
+	}
+	SetActualOpenAIUpstreamEndpoint(c, "/v1/responses")
 	responseBody, upstreamHeaders, status, err := s.callPrismBrowserForCaller(ctx, account, body, sessionID, prismBrowserCallerID(c, account.ID))
+	if mode := controlledMode(ctx); mode != nil {
+		mode.httpStatus.Store(int32(status))
+	}
 	if err != nil {
 		fail(http.StatusBadGateway, "prism_unavailable", "Prism adapter unavailable; request was not replayed")
 		return nil, err
@@ -361,14 +368,20 @@ func (s *OpenAIGatewayService) callPrismBrowserWithSession(ctx context.Context, 
 }
 
 func (s *OpenAIGatewayService) callPrismBrowserForCaller(ctx context.Context, account *Account, body []byte, sessionID, callerID string) ([]byte, http.Header, int, error) {
-	if !accountUsesPrismBrowser(account, s.cfg) {
+	runtime := PrismBrowserRuntime{}
+	if s.settingService != nil {
+		runtime = s.settingService.GetPrismBrowserRuntime(ctx)
+	} else if s.cfg != nil {
+		runtime = PrismBrowserRuntime{Enabled: s.cfg.Gateway.PrismBrowser.Enabled, BaseURL: s.cfg.Gateway.PrismBrowser.BaseURL, APIKey: s.cfg.Gateway.PrismBrowser.APIKey}
+	}
+	if !accountHasPrismBrowser(account) || !runtime.Enabled {
 		return nil, nil, 0, errors.New("prism adapter is disabled; native fallback is prohibited")
 	}
-	endpoint, err := prismBrowserAdapterURL(s.cfg.Gateway.PrismBrowser.BaseURL)
+	endpoint, err := prismBrowserAdapterURL(runtime.BaseURL)
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	key := strings.TrimSpace(s.cfg.Gateway.PrismBrowser.APIKey)
+	key := strings.TrimSpace(runtime.APIKey)
 	if key == "" {
 		return nil, nil, 0, errors.New("prism adapter key is not configured")
 	}
@@ -392,6 +405,9 @@ func (s *OpenAIGatewayService) callPrismBrowserForCaller(ctx context.Context, ac
 	}
 	if callerID != "" {
 		req.Header.Set("X-Prism-Caller-ID", callerID)
+	}
+	if mode := controlledMode(ctx); mode != nil {
+		req.Header.Set("X-Prism-Turn-ID", mode.prismTurnID)
 	}
 	// The token must never pass through an account proxy, environment proxy,
 	// plugin transport, or an HTTP redirect.
@@ -420,6 +436,11 @@ func (s *OpenAIGatewayService) callPrismBrowserForCaller(ctx context.Context, ac
 // Always derive the private tool identity from authenticated server context.
 // External callers cannot select another tenant's tool history by a header.
 func prismBrowserCallerID(c *gin.Context, accountID int64) string {
+	if c != nil && c.Request != nil {
+		if mode := controlledMode(c.Request.Context()); mode != nil {
+			return mode.prismIdentity
+		}
+	}
 	if c == nil || accountID <= 0 {
 		return ""
 	}
@@ -437,6 +458,9 @@ func prismBrowserCallerID(c *gin.Context, accountID int64) string {
 func prismBrowserSessionID(c *gin.Context, accountID int64, body []byte) (string, error) {
 	if c == nil || c.Request == nil {
 		return "", nil
+	}
+	if mode := controlledMode(c.Request.Context()); mode != nil {
+		return mode.prismIdentity, nil
 	}
 	for _, names := range [][]string{openAIThreadIdentityHeaders, openAISessionIdentityHeaders} {
 		for _, name := range names {

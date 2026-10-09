@@ -231,6 +231,24 @@ security:
 # 网关配置
 # =============================================================================
 gateway:
+  # Route upstream hosts through operator-managed regional HTTP(S)/SOCKS5 exits.
+  # Disabled by default; reload requires a process restart. Explicit account
+  # proxies, Codex harvest proxies and BPS keep their existing exit policy.
+  upstream_routing:
+    enabled: false
+    regions: []
+    rules: []
+    # regions:
+    #   - id: us
+    #     proxy_url_env: SUB2API_EGRESS_US_PROXY_URL
+    # rules:
+    #   - domain: api.vendor.example
+    #     region: us
+    #     account_ids: [123] # optional upstream account IDs, not client API Key IDs
+    #   - domain: "*.us.vendor.example"
+    #     region: us
+    # Inject SUB2API_EGRESS_US_PROXY_URL via Secret/EnvironmentFile, for example
+    # socks5h://127.0.0.1:11080 (SSH SOCKS tunnel terminating on a US host).
   # Timeout for waiting upstream response headers (seconds)
   # 等待上游响应头超时时间（秒）
   response_header_timeout: 600
@@ -370,6 +388,10 @@ gateway:
     store_disabled_force_new_conn: true
     # 是否启用 WSv2 generate=false 预热（默认 false）
     prewarm_generate_enabled: false
+    # HTTP 流式 WS 加速：编码后的消息超过此字节数时，在发送前保留 HTTP/SSE。
+    # 包含 JSON 换行；默认 15 MiB 是保守路由阈值，不代表上游公布的消息大小限制。
+    # 必须为正数；不影响原生 WS 入口。环境变量 GATEWAY_OPENAI_WS_SSE_ACCELERATION_MAX_PAYLOAD_BYTES。
+    sse_acceleration_max_payload_bytes: 15728640
     # 协议 feature 开关，v2 优先于 v1
     responses_websockets: false
     responses_websockets_v2: true
@@ -600,6 +622,9 @@ gateway:
     db_fallback_timeout_seconds: 0
     # 受控回源限流（实例级 QPS），0 表示不限制
     db_fallback_max_qps: 0
+    # OpenAI 发送前账户快照的进程内缓存 TTL（秒）；0 表示关闭。
+    # 启用后账户停用、换组或代理变更最坏可延迟该时长生效。
+    openai_turn_admission_cache_ttl_seconds: 0
     # outbox 轮询周期（秒）
     outbox_poll_interval_seconds: 1
     # outbox 滞后告警阈值（秒）
