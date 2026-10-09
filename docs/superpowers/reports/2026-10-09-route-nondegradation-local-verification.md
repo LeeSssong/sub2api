@@ -1,6 +1,6 @@
 # 线路不降智率本地验证
 
-状态：本地实现及直接相关验证完成。分支 `codex/route-nondegradation`，基线 `71a85174`，改动未提交、未推送、未合并 main、未部署。未访问主站或测试站，不代表线上验收。
+本地验证时状态：实现及直接相关验证完成，分支 `codex/route-nondegradation`，基线 `71a85174`，当时改动尚未提交、推送或部署。本记录保留部署前的本地验证证据。用户后续授权的独立测试站部署及未验证项见 `2026-10-09-route-nondegradation-test-station-release.md`。
 
 ## 计算口径
 
