@@ -2,9 +2,10 @@ import type { IntelligenceResult } from "@/api/intelligenceTests";
 export function intelligenceTimeline(
   results: IntelligenceResult[],
   kind: IntelligenceResult["kind"],
+  modelId?: string,
 ) {
   return results
-    .filter((r) => r.kind === kind)
+    .filter((r) => r.kind === kind && (!modelId || r.model_id === modelId))
     .sort(
       (a, b) =>
         Date.parse(a.started_at) - Date.parse(b.started_at) || a.id - b.id,
@@ -29,14 +30,23 @@ export function intelligenceStats(results: IntelligenceResult[]) {
       : null,
   };
 }
-export function intelligenceGroupStatus(results: IntelligenceResult[]) {
-  const latest = (["candy", "pelican"] as const)
-    .map((kind) => intelligenceTimeline(results, kind).at(-1))
-    .filter((r): r is IntelligenceResult => !!r);
-  if (!latest.length) return "empty";
-  if (latest.some((r) => r.verdict === "incorrect")) return "incorrect";
-  if (latest.some((r) => r.verdict === "abnormal")) return "abnormal";
-  return latest.length === 2 ? "passed" : "partial";
+export function intelligenceGroupStatus(results: IntelligenceResult[], models?: string[], now?: number, sourceStatus?: string) {
+  const required = models?.length ? models : [...new Set(results.filter(r => r.kind === "candy").map(r => r.model_id))];
+  const latest = [
+    ...required.map(model => intelligenceTimeline(results, "candy", model).at(-1)),
+    intelligenceTimeline(results, "pelican").at(-1),
+  ];
+  const present = latest.filter((r): r is IntelligenceResult => !!r);
+  if (!present.length) return "empty";
+  // Current or immediately preceding display slot may still be in flight.
+  if (now != null && present.some(r => !Number.isFinite(Date.parse(r.started_at)) || now - Date.parse(r.started_at) >= 2 * INTELLIGENCE_SLOT_MS)) return "stale";
+  if (present.some(r => r.verdict === "incorrect")) return "incorrect";
+  if (present.some(r => r.verdict === "abnormal" || r.verdict === "unknown")) return "abnormal";
+  if (sourceStatus === "missing") return "partial";
+  return required.length > 0 && present.length === latest.length ? "passed" : "partial";
+}
+export function intelligenceCandySamples(results: IntelligenceResult[], models: string[], now: number, hours: 24 | 72) {
+  return models.flatMap(model => intelligenceSlots(intelligenceTimeline(results, "candy", model), "candy", now, hours).flatMap(s => s.result ? [s.result] : []));
 }
 export function intelligenceDuration(ms?: number | null) {
   if (ms == null || ms <= 0) return "—";
@@ -52,6 +62,7 @@ export const intelligenceVerdictLabel = {
   passed: "通过",
   incorrect: "失败 · 答案错误",
   abnormal: "请求异常",
+  unknown: "判定未知",
 };
 
 export interface IntelligenceSlot {

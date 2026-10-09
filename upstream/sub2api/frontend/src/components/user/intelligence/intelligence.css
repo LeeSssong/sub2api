@@ -160,3 +160,22 @@ button.iq-bar:hover { filter: brightness(1.2); }
 @media (prefers-reduced-motion: reduce) {
   .iq-page *, .iq-dialog * { animation: none !important; transition: none !important; }
 }
+
+/* Logic is one shared section; the artwork belongs exclusively to drawing. */
+.iq-logic-region { min-width: 0; }
+.iq-logic-legend { margin: 12px 0 16px; gap: 8px 16px; font-size: 11px; }
+.iq-test-compact + .iq-test-compact { margin-top: 12px; padding-top: 12px; }
+.iq-test-compact .iq-stats { margin: 0; gap: 8px; }
+.iq-test-compact .iq-test-heading { margin-bottom: 10px; }
+.iq-test-compact .iq-stats strong { font-size: 17px; }
+.iq-test-compact .iq-bar { height: 18px; }
+.iq-drawing-region { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--xq-line, var(--iq-line)); }
+.iq-drawing-region > .iq-test { min-width: 0; }
+.iq-status.stale, .iq-page .unknown, .iq-dialog .unknown { color: var(--xq-muted, var(--iq-muted)); }
+.iq-legend i.unknown, .iq-bar.unknown { background: var(--xq-muted, var(--iq-muted)); }
+.iq-source-detail { color: var(--xq-secondary, var(--iq-secondary)); font-size: 12px; margin-bottom: 20px; }
+@media (max-width: 700px) {
+  .iq-test-compact .iq-model { flex-basis: auto; font-size: 12px; }
+  .iq-test-compact .iq-bar { height: 24px; }
+  .iq-test-compact .iq-latest { flex-basis: 100%; }
+}

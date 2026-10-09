@@ -5,10 +5,11 @@ import {
 } from "../intelligenceRules";
 import type { PelicanGroupTestPlan } from "@/api/admin/pelicanTests";
 describe("intelligence rules", () => {
-  it("defaults to the existing candy and exact approved drawing template", () => {
+  it("defaults to quality reuse and the approved drawing template", () => {
     const input = intelligenceRuleDefaults();
-    expect(input.expected_answer).toBe("21");
-    expect(input.candy_prompt).toContain("圆形 7 9 8");
+    expect(input.quality_sources).toEqual([]);
+    expect(input.candy_models).toEqual(["gpt-6-astra", "gpt-6.1-sol"]);
+    expect(input).not.toHaveProperty("candy_prompt");
     expect(input.drawing_prompt).toContain("山姆奥特曼{动作}在{场景}");
     expect(input.group_ids).toEqual([]);
   });
@@ -46,7 +47,8 @@ describe("intelligence rules", () => {
     ] as PelicanGroupTestPlan[];
     const draft = intelligenceRuleFromPlans(plans);
     expect(draft.group_ids).toEqual([1, 2]);
-    expect(draft.expected_answer).toBe("42");
+    expect(draft).not.toHaveProperty("candy_prompt");
+    expect(draft.candy_models).toEqual(["gpt-6-astra", "gpt-6.1-sol"]);
     draft.actions.push("b");
     expect(config.intelligence.actions).toEqual(["a"]);
   });

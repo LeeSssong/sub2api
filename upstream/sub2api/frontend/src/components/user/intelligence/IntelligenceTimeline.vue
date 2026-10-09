@@ -1,23 +1,44 @@
 <template>
-  <section class="iq-test">
+  <section class="iq-test" :class="{ 'iq-test-compact': compact }">
     <div class="iq-test-heading">
-      <span class="iq-test-name"
+      <span v-if="!compact" class="iq-test-name"
         ><Icon :name="kind === 'candy' ? 'grid' : 'sparkles'" size="md" />{{
           kind === "candy" ? "逻辑题测试" : "绘图测试"
         }}</span
       >
-      <span class="iq-muted">{{
+      <span v-if="latest?.model_id || modelId" class="iq-model iq-mono">{{ latest?.model_id || modelId }}</span>
+      <span v-if="latest?.reasoning_effort" class="iq-effort iq-mono">推理 {{ latest.reasoning_effort.toUpperCase() }}</span>
+      <span v-if="!compact" class="iq-muted">{{
         kind === "candy"
           ? `答案应为 ${expectedAnswer || "—"}`
           : "SVG 山姆奥特曼 + 随机动作与场景"
       }}</span>
+      <div v-if="compact" class="iq-stats">
+      <strong :class="{ 'iq-muted': !stats.total }"
+        >{{ stats.percentage }}<template v-if="stats.total">%</template></strong
+      >
+      <span
+        >{{ stats.passed }}/{{ stats.total }}
+        {{ kind === "candy" ? "答对" : "画出" }}</span
+      >
+      <span v-if="stats.abnormal" class="abnormal"
+        >{{ stats.abnormal }} 次异常</span
+      >
+      <span class="iq-muted"
+        >平均
+        <span class="iq-mono">{{
+          intelligenceDuration(stats.average)
+        }}</span></span
+      >
+    </div>
       <span v-if="isRunning" class="iq-latest running">● 检测中</span>
+      <span v-else-if="latest && isStale" class="iq-latest iq-muted">● 结果已过期 · {{ ago }}</span>
       <span v-else-if="latest" class="iq-latest" :class="latest.verdict"
         >● {{ intelligenceVerdictLabel[latest.verdict]
         }}<span class="iq-muted"> · {{ ago }}</span></span
       >
     </div>
-    <div class="iq-stats">
+    <div v-if="!compact" class="iq-stats">
       <strong :class="{ 'iq-muted': !stats.total }"
         >{{ stats.percentage }}<template v-if="stats.total">%</template></strong
       >
@@ -86,6 +107,8 @@ const props = withDefaults(
     now: number;
     hours?: 24 | 72;
     runningStartedAt?: string;
+    modelId?: string;
+    compact?: boolean;
   }>(),
   { hours: 24 },
 );
@@ -104,6 +127,7 @@ const completed = computed(() =>
 );
 const stats = computed(() => intelligenceStats(completed.value));
 const latest = computed(() => completed.value.at(-1));
+const isStale = computed(() => !!latest.value && props.now - Date.parse(latest.value.started_at) >= 60 * 60 * 1000);
 const isRunning = computed(() =>
   slots.value.some((s) => s.status === "running"),
 );

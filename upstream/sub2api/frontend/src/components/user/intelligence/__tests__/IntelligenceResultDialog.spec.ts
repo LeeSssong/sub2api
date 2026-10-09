@@ -19,6 +19,11 @@ const result: IntelligenceResult = {
   attempts: 1,
   started_at: "2026-10-04T12:00:00Z",
   reasoning_effort: "medium",
+  source: "quality_ops",
+  source_template_id: 9,
+  source_result_id: 123,
+  source_started_at: "2026-10-04T11:55:00Z",
+  source_finished_at: "2026-10-04T11:56:00Z",
   expected_answer: "21",
   response_text:
     '**29**<img src="https://untrusted.example/track"><script>alert(1)</script>',
@@ -44,6 +49,9 @@ describe("intelligence detail", () => {
     expect(wrapper.find(".iq-answer img").exists()).toBe(false);
     expect(wrapper.text()).toContain("失败 · 答案错误");
     expect(wrapper.text()).toContain("— / —");
+    expect(wrapper.text()).toContain("质量运维抽样");
+    expect(wrapper.text()).toContain("123");
+    expect(wrapper.text()).toContain("原检测时间");
     wrapper.unmount();
   });
 });

@@ -38,7 +38,7 @@
             <div>
               <h2>模型真的是满血在跑吗？</h2>
               <p>
-                按规则定时向每个受监测分组发送一道逻辑题和一个随机组合的绘图任务。点击任意色块可查看该次检测的完整记录。
+                逻辑题按模型抽样展示质量运维的已有结果，绘图每半小时检测一次。点击色块查看原检测时间与脱敏记录。
               </p>
               <div class="iq-group-totals">
                 <span class="passed">● {{ groupCounts.passed }} 智力正常</span
@@ -54,7 +54,7 @@
           </div>
           <div class="iq-overview-stat">
             <span
-              >逻辑题通过率 · 最近 {{ hours === 24 ? "24 小时" : "3 天" }}</span
+              >逻辑题抽样通过率 · 最近 {{ hours === 24 ? "24 小时" : "3 天" }}</span
             ><strong
               >{{ summary.percentage
               }}<template v-if="summary.total">%</template></strong
@@ -63,16 +63,6 @@
             >
           </div>
         </section>
-        <div class="iq-legend">
-          <span><i class="passed" />通过</span
-          ><span><i class="incorrect" />失败</span
-          ><span><i class="abnormal" />请求失败</span
-          ><span><i class="running" />检测中</span
-          ><span><i class="empty" />暂无数据</span
-          ><span class="iq-legend-hint"
-            >每个色块展示 30 分钟时段内最近一次检测</span
-          >
-        </div>
         <p v-if="loading && !view" class="iq-message" role="status">
           正在加载智商监测…
         </p>
@@ -123,10 +113,11 @@ import {
 } from "@/api/intelligenceTests";
 import {
   intelligenceWindow,
-  intelligenceSlots,
+  intelligenceCandySamples,
   intelligenceStats,
   intelligenceGroupStatus,
 } from "@/utils/intelligenceDashboard";
+import { INTELLIGENCE_CANDY_MODELS } from "@/utils/intelligenceRules";
 import IntelligenceGroupCard from "@/components/user/intelligence/IntelligenceGroupCard.vue";
 import IntelligenceResultDialog from "@/components/user/intelligence/IntelligenceResultDialog.vue";
 import "@/components/user/intelligence/intelligence.css";
@@ -147,20 +138,14 @@ const windowGroups = computed(
 const summary = computed(() =>
   intelligenceStats(
     windowGroups.value.flatMap((g) =>
-      intelligenceSlots(
-        g.results,
-        "candy",
-        now.value,
-        hours.value,
-        g.running_started_at,
-      ).flatMap((s) => (s.result ? [s.result] : [])),
+      intelligenceCandySamples(g.results, g.candy_model_ids?.length ? g.candy_model_ids : INTELLIGENCE_CANDY_MODELS, now.value, hours.value),
     ),
   ),
 );
 const groupCounts = computed(() => {
   const counts = { passed: 0, incorrect: 0, abnormal: 0, empty: 0 };
   for (const g of windowGroups.value) {
-    const state = intelligenceGroupStatus(g.results);
+    const state = intelligenceGroupStatus(g.results, g.candy_model_ids?.length ? g.candy_model_ids : INTELLIGENCE_CANDY_MODELS, now.value, g.quality_source_status);
     if (state === "passed" || state === "incorrect" || state === "abnormal")
       counts[state]++;
     else counts.empty++;

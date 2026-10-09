@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createI18n } from 'vue-i18n';
 import IntelligenceRulesPanel from '../IntelligenceRulesPanel.vue';
 import type { PelicanGroupTestPlan } from '@/api/admin/pelicanTests';
+import { listQualityTemplates } from '@/api/admin/accountQuality';
 import { intelligenceRulesAPI } from '@/api/admin/intelligenceRules';
 
 vi.mock('@/api', () => ({
@@ -13,6 +14,13 @@ vi.mock('@/api', () => ({
 }));
 vi.mock('@/api/admin/intelligenceRules', () => ({
   intelligenceRulesAPI: { save: vi.fn().mockResolvedValue({ id: 'rule-1' }), remove: vi.fn() },
+}));
+
+vi.mock('@/api/admin/accountQuality', () => ({
+  listQualityTemplates: vi.fn().mockResolvedValue([1, 2].map(id => ({
+    id: id + 8, account_filter: { group: String(id) }, model_id: 'gpt-6-astra',
+    cron_expression: '*/5 * * * *', enabled: true, pelican_config: { question_kind: 'candy', quality: { expected_answer: '21' }, model_ids: ['gpt-6-astra', 'gpt-6.1-sol'] },
+  }))),
 }));
 
 function plans(running = false): PelicanGroupTestPlan[] {
@@ -84,9 +92,31 @@ describe('intelligence rule editing', () => {
     name.dispatchEvent(new Event('input', { bubbles: true }));
     document.querySelector<HTMLButtonElement>('[data-testid="intelligence-save"]')!.click();
     await flushPromises();
-    expect(intelligenceRulesAPI.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Updated rule', group_ids: [1, 2] }), 'rule-1');
+    expect(intelligenceRulesAPI.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Updated rule', group_ids: [1, 2], quality_sources: [{ group_id: 1, template_id: 9 }, { group_id: 2, template_id: 10 }], candy_models: ['gpt-6-astra', 'gpt-6.1-sol'] }), 'rule-1');
+    expect(vi.mocked(intelligenceRulesAPI.save).mock.calls[0][0]).not.toHaveProperty('candy_prompt');
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(wrapper.emitted('changed')).toHaveLength(1);
+  });
+
+  it('requires explicit source selection when a group has multiple matching templates', async () => {
+    const base = await listQualityTemplates();
+    vi.mocked(listQualityTemplates).mockResolvedValueOnce([...base, {...base[0], id: 11}]);
+    wrapper = mount(IntelligenceRulesPanel, { props: { plans: plans() }, global, attachTo: document.body });
+    await edit();
+    expect(document.querySelector<HTMLSelectElement>('[data-testid="intelligence-source-1"]')!.value).toBe('0');
+    document.querySelector<HTMLButtonElement>('[data-testid="intelligence-save"]')!.click();
+    await flushPromises();
+    expect(intelligenceRulesAPI.save).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain('请为每个生效分组选择有效的质量规则来源');
+    expect(document.querySelector('[data-testid="intelligence-candy"]')).toBeNull();
+  });
+
+  it('excludes a template without a quality judgment configuration', async () => {
+    const base = await listQualityTemplates();
+    vi.mocked(listQualityTemplates).mockResolvedValueOnce(base.map(t => ({ ...t, pelican_config: { ...t.pelican_config, quality: undefined } })));
+    wrapper = mount(IntelligenceRulesPanel, { props: { plans: plans() }, global, attachTo: document.body });
+    await edit();
+    expect(document.querySelector<HTMLSelectElement>('[data-testid="intelligence-source-1"]')!.options).toHaveLength(1);
   });
 
   it('pauses a running rule without waiting for the current run to finish', async () => {

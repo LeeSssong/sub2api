@@ -15,6 +15,19 @@ const result: IntelligenceResult = {
   started_at: "2026-10-05T02:00:00+08:00",
 };
 describe("intelligence timeline rendering", () => {
+  it("keeps compact model and metrics in one wrapping heading above the timeline", () => {
+    const wrapper = mount(Timeline, { props: { kind: "candy", samples: [result], modelId: "m", compact: true, expectedAnswer: "", now, hours: 24 } });
+    expect(wrapper.find(".iq-test-heading .iq-model").exists()).toBe(true);
+    expect(wrapper.find(".iq-test-heading .iq-stats").exists()).toBe(true);
+    expect(wrapper.find(".iq-test > .iq-stats").exists()).toBe(false);
+    expect(wrapper.find(".iq-test > .iq-bars").exists()).toBe(true);
+    wrapper.unmount();
+  });
+  it("shows the actual result model rather than a later drawing configuration", () => {
+    const wrapper = mount(Timeline, { props: { kind: "pelican", samples: [{...result, kind: "pelican", model_id: "actual-model"}], modelId: "configured-model", expectedAnswer: "", now, hours: 24 } });
+    expect(wrapper.get(".iq-model").text()).toBe("actual-model");
+    wrapper.unmount();
+  });
   it("renders 47 empty cells and one clickable result in a fixed 48 column grid", async () => {
     const wrapper = mount(Timeline, {
       props: {

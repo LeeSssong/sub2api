@@ -28,6 +28,12 @@
         {{ error }} <button @click="$emit('retry')">重试</button>
       </p>
       <template v-else-if="result">
+        <p v-if="result.source === 'quality_ops'" class="iq-source-detail">
+          质量运维抽样 · 规则 #{{ result.source_template_id ?? '—' }} · 来源记录 #{{ result.source_result_id ?? '—' }}<br />
+          原检测时间 {{ result.source_started_at ? intelligenceDate(result.source_started_at) : '—' }}
+          <template v-if="result.source_finished_at"> → {{ intelligenceDate(result.source_finished_at) }}</template>
+          <br />展示时段 {{ intelligenceDate(result.started_at) }} · 保留来源判定
+        </p>
         <div v-if="html" class="iq-detail-art">
           <PelicanArtworkPreview :html="html" title="检测画作" />
         </div>
