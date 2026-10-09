@@ -36,28 +36,34 @@ type Attempt struct {
 	Events          map[string]float64 `json:"events"`
 }
 type Snapshot struct {
-	Outcome           string             `json:"outcome,omitempty"`
-	ClientDisconnect  bool               `json:"client_disconnect"`
-	Version           int                `json:"version"`
-	TraceID           string             `json:"trace_id"`
-	StartedAt         time.Time          `json:"started_at"`
-	TotalMS           float64            `json:"total_ms"`
-	Status            int                `json:"status"`
-	Canceled          bool               `json:"canceled"`
-	Truncated         bool               `json:"truncated"`
-	BodyBytes         int64              `json:"body_bytes"`
-	BodyExpected      int64              `json:"body_expected"`
-	BodyComplete      bool               `json:"body_complete"`
-	BodyReadMS        float64            `json:"body_read_ms"`
-	DownstreamBytes   int64              `json:"downstream_bytes"`
-	DownstreamWriteMS float64            `json:"downstream_write_ms"`
-	DownstreamError   bool               `json:"downstream_error"`
-	TTFTMode          string             `json:"ttft_mode,omitempty"`
-	Terminal          string             `json:"terminal,omitempty"`
-	Events            map[string]float64 `json:"events"`
-	Spans             []Span             `json:"spans"`
-	Attempts          []Attempt          `json:"attempts"`
-	Diagnostics       map[string]string  `json:"diagnostics,omitempty"`
+	Outcome              string             `json:"outcome,omitempty"`
+	ClientDisconnect     bool               `json:"client_disconnect"`
+	Version              int                `json:"version"`
+	TraceID              string             `json:"trace_id"`
+	StartedAt            time.Time          `json:"started_at"`
+	TotalMS              float64            `json:"total_ms"`
+	Status               int                `json:"status"`
+	Canceled             bool               `json:"canceled"`
+	Truncated            bool               `json:"truncated"`
+	BodyBytes            int64              `json:"body_bytes"`
+	BodyExpected         int64              `json:"body_expected"`
+	BodyComplete         bool               `json:"body_complete"`
+	BodyReadMS           float64            `json:"body_read_ms"`
+	DownstreamBytes      int64              `json:"downstream_bytes"`
+	DownstreamWriteMS    float64            `json:"downstream_write_ms"`
+	DownstreamWriteCalls int                `json:"downstream_write_calls"`
+	DownstreamFlushCalls int                `json:"downstream_flush_calls"`
+	DownstreamMaxWriteMS float64            `json:"downstream_max_write_ms"`
+	DownstreamMaxFlushMS float64            `json:"downstream_max_flush_ms"`
+	DownstreamError      bool               `json:"downstream_error"`
+	TTFTMode             string             `json:"ttft_mode,omitempty"`
+	Terminal             string             `json:"terminal,omitempty"`
+	Events               map[string]float64 `json:"events"`
+	Spans                []Span             `json:"spans"`
+	Attempts             []Attempt          `json:"attempts"`
+	Diagnostics          map[string]string  `json:"diagnostics,omitempty"`
+	Streams              []StreamSummary    `json:"streams,omitempty"`
+	StreamsDropped       int                `json:"streams_dropped,omitempty"`
 }
 type Collector struct {
 	mu        sync.Mutex
@@ -202,6 +208,7 @@ func (c *Collector) snapshot() Snapshot {
 	d.Spans = append([]Span{}, d.Spans...)
 	d.Attempts = append([]Attempt{}, d.Attempts...)
 	d.Diagnostics = cloneStrings(d.Diagnostics)
+	d.Streams = cloneStreams(d.Streams)
 	for i := range d.Attempts {
 		d.Attempts[i].Events = cloneEvents(d.Attempts[i].Events)
 	}

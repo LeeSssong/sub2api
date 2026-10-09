@@ -51,7 +51,15 @@ func (c *Collector) Written(start time.Time, n int, err error, flush bool) {
 		return
 	}
 	end := time.Now()
-	c.data.DownstreamWriteMS += float64(end.Sub(start)) / float64(time.Millisecond)
+	elapsed := float64(end.Sub(start)) / float64(time.Millisecond)
+	c.data.DownstreamWriteMS += elapsed
+	if flush {
+		c.data.DownstreamFlushCalls++
+		c.data.DownstreamMaxFlushMS = max(c.data.DownstreamMaxFlushMS, elapsed)
+	} else {
+		c.data.DownstreamWriteCalls++
+		c.data.DownstreamMaxWriteMS = max(c.data.DownstreamMaxWriteMS, elapsed)
+	}
 	c.data.DownstreamBytes += int64(n)
 	if n > 0 {
 		c.event("first_write", end)

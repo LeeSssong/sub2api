@@ -14,6 +14,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -280,6 +281,8 @@ func (s *OpenAIGatewayService) scanCCStream(
 	if c != nil && c.Request != nil {
 		ctx = c.Request.Context()
 	}
+	ctx = requesttiming.ResponseContext(ctx, resp)
+	ctx = requesttiming.TrackStream(ctx, resp, "chat_completions")
 
 	scanner := s.newUpstreamSSEScanner(resp.Body)
 	for scanner.Scan() {
@@ -293,6 +296,7 @@ func (s *OpenAIGatewayService) scanCCStream(
 			continue
 		}
 		if payload == "[DONE]" {
+			observeOpenAIChatStreamTiming(ctx, payload, false, false)
 			st.SawDone = true
 			break
 		}
@@ -309,13 +313,16 @@ func (s *OpenAIGatewayService) scanCCStream(
 
 		var chunk apicompat.ChatCompletionsChunk
 		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+			observeOpenAIChatStreamTiming(ctx, payload, false, false)
 			logger.L().Warn(logPrefix+": failed to parse chat stream chunk",
 				zap.Error(err),
 				zap.String("request_id", requestID),
 			)
 			continue
 		}
-		firstSemanticOutput := st.FirstTokenMs == nil && !isOpenAIChatUsageOnlyStreamChunk(payload) && chatChunkStartsResponsesOutput(&chunk)
+		semantic := !isOpenAIChatUsageOnlyStreamChunk(payload) && chatChunkStartsResponsesOutput(&chunk)
+		observeOpenAIChatStreamTiming(ctx, payload, semantic, semantic)
+		firstSemanticOutput := st.FirstTokenMs == nil && semantic
 		if firstSemanticOutput {
 			ms := int(time.Since(startTime).Milliseconds())
 			st.FirstTokenMs = &ms
