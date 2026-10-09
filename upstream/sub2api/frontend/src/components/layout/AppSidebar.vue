@@ -22,7 +22,7 @@
           class="sidebar-brand-title text-lg font-bold text-gray-900 transition-colors hover:text-primary-600 dark:text-white dark:hover:text-primary-400"
           @click="handleMenuItemClick(homePath)"
         >
-          {{ isAdmin ? siteName : '星桥 AI Link' }}
+          {{ siteName }}
         </router-link>
         <!-- Version Badge -->
         <VersionBadge v-if="isAdmin" :version="siteVersion" />

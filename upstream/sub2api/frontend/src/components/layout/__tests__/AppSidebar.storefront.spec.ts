@@ -51,8 +51,14 @@ describe('regular user storefront menu', () => {
     expect(router.currentRoute.value.path).toBe(paymentEnabled ? '/purchase' : '/redeem')
   })
 
-  it('does not restore a duplicate menu when storefront settings load or visibility changes', async () => {
+  it('updates the configured site name without restoring duplicate menus when settings change', async () => {
     const { sidebar, app } = await setup([])
+    app.$patch({ siteName: '星桥测试服' })
+    await nextTick()
+    expect(sidebar.get('.sidebar-brand-title').text()).toBe('星桥测试服')
+    app.$patch({ siteName: '更新后的站点名称' })
+    await nextTick()
+    expect(sidebar.get('.sidebar-brand-title').text()).toBe('更新后的站点名称')
     for (const visibility of ['user', 'admin'] as const) {
       app.$patch({ cachedPublicSettings: { custom_menu_items: [{ ...storefront, visibility }] } })
       await nextTick()
