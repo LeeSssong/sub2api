@@ -11,8 +11,10 @@ export interface IntelligenceRuleInput {
   reasoning_effort: string;
   cron_expression: string;
   enabled: boolean;
-  candy_prompt: string;
-  expected_answer: string;
+  quality_sources: { group_id: number; template_id: number }[];
+  candy_models: string[];
+  candy_prompt?: string;
+  expected_answer?: string;
   judge?: IntelligenceJudge;
   drawing_prompt: string;
   actions: string[];

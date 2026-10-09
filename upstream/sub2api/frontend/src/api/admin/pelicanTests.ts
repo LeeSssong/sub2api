@@ -8,7 +8,7 @@ import type { PaginatedResponse } from '@/types'
 
 export interface PelicanGroupTestConfig {
   quality?: { expected_answer: string; action: string; judge?: import('./intelligenceRules').IntelligenceJudge }
-  intelligence?: { id: string; name: string; candy: PelicanGroupTestConfig; actions: string[]; scenes: string[] }
+  intelligence?: { id: string; name: string; quality_template_id?: number; candy_models?: string[]; candy: PelicanGroupTestConfig; actions: string[]; scenes: string[] }
   intelligence_result?: { action?: string; scene?: string; first_token_ms?: number; input_tokens?: number; output_tokens?: number }
 
   question_kind?: string

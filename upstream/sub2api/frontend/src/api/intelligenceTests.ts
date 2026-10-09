@@ -1,10 +1,15 @@
 import { apiClient } from "./client";
 export interface IntelligenceResult {
+  source?: "quality_ops";
+  source_result_id?: number;
+  source_template_id?: number;
+  source_started_at?: string;
+  source_finished_at?: string;
   id: number;
   group_id: number;
   model_id: string;
   kind: "candy" | "pelican";
-  verdict: "passed" | "incorrect" | "abnormal";
+  verdict: "passed" | "incorrect" | "abnormal" | "unknown";
   error_kind?: string;
   prompt?: string;
   expected_answer?: string;
@@ -20,6 +25,9 @@ export interface IntelligenceResult {
   output_tokens?: number;
 }
 export interface IntelligenceGroup {
+  candy_model_ids?: string[];
+  quality_template_id?: number;
+  quality_source_status?: string;
   id: number;
   name: string;
   description: string;

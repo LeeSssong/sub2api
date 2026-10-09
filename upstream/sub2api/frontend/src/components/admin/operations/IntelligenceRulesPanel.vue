@@ -3,7 +3,7 @@
     <header>
       <div>
         <h3>检测规则</h3>
-        <p>每轮分别检测糖果题与画图，按生效分组展示结果。</p>
+        <p>逻辑题抽样复用质量运维结果，绘图每 30 分钟执行一次。</p>
       </div>
       <button
         v-if="showCreate"
@@ -15,7 +15,7 @@
       </button>
     </header>
     <p v-if="!rules.length" class="rules-empty">
-      创建第一条规则，配置题目并选择生效分组。
+      创建第一条规则，选择质量来源、绘图配置和生效分组。
     </p>
     <article v-for="rule in rules" :key="rule.id" class="rule-row">
       <div>
@@ -81,34 +81,15 @@
                 maxlength="100"
                 data-testid="intelligence-name" /></label
             ><label
-              >检测模型<input
+              >绘图模型<input
                 v-model.trim="draft.model_id"
                 class="input"
                 required
                 maxlength="100"
                 placeholder="gpt-6-astra"
                 data-testid="intelligence-model" /></label
-            ><label for="intelligence-cron"
-              >监测频率（Cron 表达式）
-              <input
-                id="intelligence-cron"
-                v-model.trim="draft.cron_expression"
-                class="input font-mono"
-                required
-                maxlength="100"
-                placeholder="*/30 * * * *"
-                list="intelligence-cron-presets"
-                data-testid="intelligence-cron"
-              />
-              <datalist id="intelligence-cron-presets">
-                <option value="*/15 * * * *">每 15 分钟</option>
-                <option value="*/30 * * * *">每 30 分钟</option>
-                <option value="0 * * * *">每小时</option>
-                <option value="0 */2 * * *">每 2 小时</option>
-              </datalist>
-              <small class="rule-help">分 时 日 月 周，可直接输入自定义表达式。</small>
-            </label
-            ><label
+            ><label>绘图频率<input class="input" value="每 30 分钟" disabled data-testid="intelligence-cron" /><small class="rule-help">逻辑题按相同时段抽样展示已完成的质量检测。</small></label>
+            <label
               >推理强度<select v-model="draft.reasoning_effort" class="input">
                 <option
                   v-for="effort in [
@@ -126,69 +107,20 @@
             >
           </div>
           <fieldset class="rule-section">
-            <legend>糖果题配置</legend>
-            <div class="flex justify-between">
-              <span>题目</span
-              ><button
-                type="button"
-                class="text-primary-500"
-                @click="
-                  draft.candy_prompt = CANDY_PROMPT;
-                  draft.expected_answer = '21';
-                "
-              >
-                恢复默认糖果题
-              </button>
-            </div>
-            <textarea
-              v-model="draft.candy_prompt"
-              class="input"
-              rows="6"
-              required
-              maxlength="32000"
-              data-testid="intelligence-candy"
-            /><label
-              >参考答案<input
-                v-model.trim="draft.expected_answer"
-                class="input"
-                required
-                maxlength="4000"
-                data-testid="intelligence-answer" /></label
-            ><label class="judge-switch"
-              ><input v-model="useJudge" type="checkbox" />
-              使用质量巡检判题模型</label
-            >
-            <p class="rule-help">
-              默认糖果题可沿用内置判题；修改题目或参考答案后，请配置判题模型。
-            </p>
-            <div v-if="useJudge" class="rule-fields">
-              <label
-                >判题分组<select
-                  v-model.number="judge.group_id"
-                  class="input"
-                  required
-                >
-                  <option :value="0" disabled>选择分组</option>
-                  <option v-for="g in groups" :key="g.id" :value="g.id">
-                    {{ g.name }}
-                  </option>
-                </select></label
-              ><label
-                >判题模型<input
-                  v-model.trim="judge.model_id"
-                  class="input"
-                  required
-                  maxlength="100" /></label
-              ><label class="rule-wide"
-                >判题提示词<textarea
-                  v-model="judge.prompt"
-                  rows="3"
-                  class="input"
-                  required
-                  maxlength="16000"
-                />
-              </label>
-            </div>
+            <legend>逻辑题来源</legend>
+            <p class="rule-help">每个展示时段从所选质量规则中抽样，保留原判定和检测时间。缺失结果不会补测。</p>
+            <label>逻辑题模型（每行一项）<textarea v-model="candyModels" class="input" rows="2" required data-testid="intelligence-candy-models" /></label>
+            <p v-if="templatesLoading" role="status">正在加载质量规则…</p>
+            <p v-if="templatesError" role="alert">质量规则加载失败 <button type="button" @click="loadTemplates">重试</button></p>
+            <label v-for="id in draft.group_ids" :key="id" class="quality-source-choice">
+              {{ groups.find(g => g.id === id)?.name || `分组 #${id}` }} 的质量来源
+              <select v-model.number="sourceSelections[id]" class="input" required :data-testid="`intelligence-source-${id}`">
+                <option :value="0" disabled>选择质量规则</option>
+                <option v-for="template in sourceCandidates(id)" :key="template.id" :value="template.id">规则 #{{ template.id }} · {{ template.cron_expression }}</option>
+              </select>
+              <small v-if="!sourceCandidates(id).length" class="rule-help">暂无匹配分组且包含所选模型的质量规则，请先在质量运维中配置。</small>
+            </label>
+            <p v-if="!draft.group_ids.length" class="rule-help">先在下方选择生效分组。</p>
           </fieldset>
           <fieldset class="rule-section">
             <legend>画图配置</legend>
@@ -277,7 +209,7 @@
           form="intelligence-rule-form"
           type="submit"
           class="btn btn-primary"
-          :disabled="busy || groupsLoading || groupsError"
+          :disabled="busy || groupsLoading || groupsError || templatesLoading || templatesError"
           data-testid="intelligence-save"
         >
           {{ busy ? "正在保存…" : "保存规则" }}
@@ -295,7 +227,7 @@
   </section>
 </template>
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import BaseDialog from "@/components/common/BaseDialog.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import { adminAPI } from "@/api";
@@ -313,7 +245,7 @@ import {
   intelligenceRuleFromPlans,
   INTELLIGENCE_DRAWING_PROMPT,
 } from "@/utils/intelligenceRules";
-import { CANDY_PROMPT } from "@/utils/intelligenceTest";
+import { listQualityTemplates, type QualityRuleTemplate } from "@/api/admin/accountQuality";
 const props = withDefaults(
   defineProps<{ plans: PelicanGroupTestPlan[]; showCreate?: boolean }>(),
   { showCreate: true },
@@ -336,12 +268,29 @@ const draft = ref<IntelligenceRuleInput | null>(null);
 const editing = ref("");
 const actions = ref("");
 const scenes = ref("");
-const useJudge = ref(false);
-const judge = ref({
-  group_id: 0,
-  model_id: "",
-  prompt: "比较参考答案与模型回答，判断答案是否一致。",
-});
+const candyModels = ref("");
+const templates = ref<QualityRuleTemplate[]>([]);
+const templatesLoading = ref(false);
+const templatesError = ref(false);
+const sourceSelections = ref<Record<number, number>>({});
+const modelList = computed(() => [...new Set(candyModels.value.split("\n").map(m => m.trim()).filter(Boolean))]);
+function sourceCandidates(groupId: number) {
+  return templates.value.filter(t => t.enabled && t.pelican_config.question_kind === "candy" && !!t.pelican_config.quality && t.account_filter.group === String(groupId) && modelList.value.every(m => (t.pelican_config.model_ids?.length ? t.pelican_config.model_ids : [t.model_id]).includes(m)));
+}
+function syncSources() {
+  for (const id of draft.value?.group_ids || []) {
+    const candidates = sourceCandidates(id);
+    if (!candidates.some(t => t.id === sourceSelections.value[id])) sourceSelections.value[id] = candidates.length === 1 ? candidates[0].id : 0;
+  }
+}
+watch(() => [draft.value?.group_ids.join(","), candyModels.value], syncSources);
+async function loadTemplates() {
+  templatesLoading.value = true;
+  templatesError.value = false;
+  try { templates.value = await listQualityTemplates(); syncSources(); }
+  catch { templatesError.value = true; }
+  finally { templatesLoading.value = false; }
+}
 const groups = ref<AdminGroup[]>([]);
 const groupsLoading = ref(false);
 const groupsError = ref(false);
@@ -384,14 +333,9 @@ function open(plans?: PelicanGroupTestPlan[]) {
   editing.value = plans?.[0].pelican_config.intelligence?.id || "";
   actions.value = draft.value.actions.join("\n");
   scenes.value = draft.value.scenes.join("\n");
-  useJudge.value = !!draft.value.judge;
-  judge.value = draft.value.judge
-    ? { ...draft.value.judge }
-    : {
-        group_id: 0,
-        model_id: "",
-        prompt: "比较参考答案与模型回答，判断答案是否一致。",
-      };
+  candyModels.value = draft.value.candy_models.join("\n");
+  sourceSelections.value = Object.fromEntries(draft.value.quality_sources.map(s => [s.group_id, s.template_id]));
+  void loadTemplates();
   formError.value = "";
   void loadGroups();
 }
@@ -408,13 +352,9 @@ async function save() {
     formError.value = "请选择至少一个生效分组";
     return;
   }
-  if (
-    !useJudge.value &&
-    (draft.value.candy_prompt.trim() !== CANDY_PROMPT.trim() ||
-      draft.value.expected_answer.trim() !== "21")
-  ) {
-    formError.value = "自定义题目或参考答案需要配置判题模型";
-    return;
+  if (!modelList.value.length) { formError.value = "请选择逻辑题模型"; return; }
+  if (templatesLoading.value || templatesError.value || draft.value.group_ids.some(id => !sourceCandidates(id).some(t => t.id === sourceSelections.value[id]))) {
+    formError.value = "请为每个生效分组选择有效的质量规则来源"; return;
   }
   if (
     !draft.value.drawing_prompt.includes("{动作}") ||
@@ -436,7 +376,9 @@ async function save() {
           .split("\n")
           .map((s) => s.trim())
           .filter(Boolean),
-        judge: useJudge.value ? { ...judge.value } : undefined,
+        candy_models: [...modelList.value],
+        quality_sources: draft.value.group_ids.map(group_id => ({ group_id, template_id: sourceSelections.value[group_id] })),
+        cron_expression: "*/30 * * * *",
       },
       editing.value || undefined,
     );
@@ -612,4 +554,8 @@ async function remove() {
     padding: 16px;
   }
 }
+</style>
+
+<style scoped>
+.quality-source-choice { display: grid; gap: 6px; margin-top: 14px; }
 </style>
