@@ -808,6 +808,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			markPatchSet("service_tier", OpenAIFastTierPriority)
 		}
 	}
+	if blocked := checkOpenAIFastOutbound(ctx, account, upstreamModel, normalizedOpenAIServiceTierValue(rawTier)); blocked != nil {
+		writeOpenAIFastPolicyBlockedResponse(c, blocked)
+		return nil, blocked
+	}
 	if rawTier != "" {
 		if normTier := normalizedOpenAIServiceTierValue(rawTier); normTier != "" {
 			action, errMsg := s.evaluateOpenAIFastPolicy(ctx, account, upstreamModel, normTier)

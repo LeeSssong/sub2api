@@ -442,6 +442,9 @@ func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Con
 			return "quota_auto_pause"
 		}
 	}
+	if reason := openAIFastRoutingFailureReason(ctx, account, requestedModel, requireCompact); reason != "" {
+		return reason
+	}
 	if requestedModel != "" && !account.IsModelSupported(requestedModel) {
 		return "model_not_supported"
 	}
@@ -1083,7 +1086,11 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 
 		fresh := s.resolveFreshSchedulableOpenAIAccountBeforeProfit(ctx, acc, groupID, platform, requestedModel, false, requiredCapability, requireCompact)
 		if fresh == nil {
-			filterStats.exclude("ineligible")
+			if reason := openAIFastRoutingFailureReason(ctx, acc, requestedModel, requireCompact); reason != "" {
+				filterStats.exclude(reason)
+			} else {
+				filterStats.exclude("ineligible")
+			}
 			continue
 		}
 		fresh = s.recheckSelectedOpenAIAccountFromDBBeforeProfit(ctx, fresh, groupID, platform, requestedModel, false, requiredCapability, requireCompact)

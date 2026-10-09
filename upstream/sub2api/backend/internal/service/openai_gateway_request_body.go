@@ -2079,7 +2079,14 @@ func openAIGroupForcesFast(ctx context.Context, account *Account) bool {
 // 到了上游可识别值；passthrough（OpenAI 自动透传） / native /responses 等
 // 入口没有这一前置步骤，pass 路径下若不在此处归一化，"fast" 就会被原样
 // 透传到 OpenAI 上游导致 400/拒绝。把归一化收敛到本函数，所有入口行为一致。
-func (s *OpenAIGatewayService) applyOpenAIFastPolicyToBody(ctx context.Context, account *Account, model string, body []byte) ([]byte, error) {
+func (s *OpenAIGatewayService) applyOpenAIFastPolicyToBody(ctx context.Context, account *Account, model string, body []byte) (updated []byte, err error) {
+	defer func() {
+		if err == nil {
+			if blocked := checkOpenAIFastOutbound(ctx, account, model, normalizedOpenAIServiceTierValue(gjson.GetBytes(updated, "service_tier").String())); blocked != nil {
+				err = blocked
+			}
+		}
+	}()
 	if len(body) == 0 {
 		return body, nil
 	}
@@ -2193,7 +2200,16 @@ func (s *OpenAIGatewayService) applyOpenAIFastPolicyToWSResponseCreate(
 	account *Account,
 	model string,
 	frame []byte,
-) ([]byte, *OpenAIFastBlockedError, error) {
+) (updated []byte, blocked *OpenAIFastBlockedError, err error) {
+	if request, managed := ctx.Value(openAIFastRoutingContextKey{}).(openAIFastRoutingRequest); managed && gjson.GetBytes(frame, "type").String() == "response.create" {
+		request.tier = normalizedOpenAIServiceTierValue(gjson.GetBytes(frame, "service_tier").String())
+		ctx = context.WithValue(ctx, openAIFastRoutingContextKey{}, request)
+		defer func() {
+			if err == nil && blocked == nil {
+				blocked = checkOpenAIFastOutbound(ctx, account, model, normalizedOpenAIServiceTierValue(gjson.GetBytes(updated, "service_tier").String()))
+			}
+		}()
+	}
 	if len(frame) == 0 {
 		return frame, nil, nil
 	}

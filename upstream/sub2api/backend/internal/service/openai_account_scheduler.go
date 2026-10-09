@@ -2051,6 +2051,9 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 		s.service.isUpstreamModelRestrictedByChannel(ctx, *req.GroupID, account, req.RequestedModel, req.RequireCompact) {
 		return false, "channel_upstream_restricted"
 	}
+	if reason := openAIFastRoutingFailureReason(ctx, account, req.RequestedModel, req.RequireCompact); reason != "" {
+		return false, reason
+	}
 	if !accountSupportsOpenAICapabilitiesForRequest(account, req.RequestedModel, req.RequiredCapability, req.RequiredImageCapability) {
 		return false, "capability_mismatch"
 	}
@@ -2407,6 +2410,19 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	previousResponseCanMove bool,
 	useUpstreamTokenCost bool,
 ) (selection *AccountSelectionResult, decision OpenAIAccountScheduleDecision, err error) {
+	defer func() {
+		if err != nil && (openAIFastRequested(ctx) || strings.Contains(err.Error(), "fast_not_supported=") || strings.Contains(err.Error(), "fast_policy_incompatible=") || strings.Contains(err.Error(), "fast_policy_unavailable=")) && (errors.Is(err, ErrNoAvailableAccounts) || errors.Is(err, ErrNoAvailableCompactAccounts)) {
+			err = fmt.Errorf("%w: %w", err, ErrOpenAIFastUnavailable)
+		}
+	}()
+	if !previousResponseCanMove && openAIFastRequested(ctx) && strings.TrimSpace(previousResponseID) != "" {
+		if id, lookupErr := s.getOpenAIWSStateStore().GetResponseAccount(ctx, derefGroupID(groupID), strings.TrimSpace(previousResponseID)); lookupErr == nil && id > 0 {
+			if bound, fetchErr := s.getSchedulableAccount(ctx, id); fetchErr == nil && bound != nil && openAIFastRoutingFailureReason(ctx, bound, requestedModel, requireCompact) != "" {
+				return nil, decision, ErrOpenAIFastContinuation
+			}
+		}
+	}
+	ctx = context.WithValue(ctx, openAIFastCompactContextKey{}, requireCompact)
 	ctx = withOAuthObservationRequestSlotMetadata(ctx, requestedModel)
 	defer func() { s.observeOAuthSelection(ctx, selection, decision, groupID, requestedModel, excludedIDs) }()
 	selection, decision, err = s.selectAccountWithSchedulerOnce(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove, useUpstreamTokenCost)

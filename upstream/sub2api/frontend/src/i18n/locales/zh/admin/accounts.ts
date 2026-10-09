@@ -921,6 +921,11 @@ export default {
         flattenNamespaces: '摊平 Codex namespace 工具（兼容）',
         flattenNamespacesDesc:
           '默认关闭：/responses 上的 namespace 工具声明原样转发，这正是 ChatGPT Codex 后端期望的形态。仅当该 OAuth 账号指向不认识 namespace 的兼容上游时才开启——摊平会把工具改名为 namespace__tool，使按 functions.<命名空间>.<工具> 寻址的模型（如 gpt-5.6 多智能体）无法调用。压缩（compact）请求不受该开关影响，始终摊平。',
+        fastSupported: '支持 Fast',
+        fastSupportedDesc: '标记该上游支持 Fast，普通请求仍可使用此账号。',
+        fastModels: '支持 Fast 的模型',
+        fastModelsPlaceholder: '留空表示此账号可用的全部模型',
+        fastModelsHint: '填写映射后的上游模型名，每行一个或用逗号分隔。留空表示全部模型；请仅标记实际支持 Fast 的模型。',
         longContextBilling: 'API 长上下文计费',
         longContextBillingDesc: '默认关闭。仅当该账号的上游会按模型阈值收取 OpenAI API 长上下文费率时开启。',
         responsesWebsocketsV2: 'Responses WebSocket v2',

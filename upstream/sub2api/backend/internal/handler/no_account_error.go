@@ -75,6 +75,12 @@ func classifySelectionFailureError(err error, fallback noAccountErrorClassificat
 	if err == nil {
 		return fallback
 	}
+	if errors.Is(err, service.ErrOpenAIFastContinuation) {
+		return noAccountErrorClassification{Status: http.StatusConflict, ErrType: "invalid_request_error", Message: service.ErrOpenAIFastContinuation.Error()}
+	}
+	if errors.Is(err, service.ErrOpenAIFastUnavailable) {
+		return noAccountErrorClassification{Status: http.StatusServiceUnavailable, ErrType: "fast_unavailable", Message: service.ErrOpenAIFastUnavailable.Error()}
+	}
 	if errors.Is(err, service.ErrOpenAIRPMExhausted) {
 		return noAccountErrorClassification{
 			Status:  http.StatusTooManyRequests,

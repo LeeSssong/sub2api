@@ -332,6 +332,30 @@ function mountModal(account = buildAccount(), renderGroupSelector = false) {
 }
 
 describe('EditAccountModal', () => {
+  it('saves and restores manual Fast capability without losing unrelated settings', async () => {
+    const account = { ...buildAccount(), extra: { unrelated: 'keep' } }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+    await flushPromises()
+    await wrapper.get('[data-testid="openai-fast-supported"]').trigger('click')
+    await wrapper.get('[data-testid="openai-fast-models"]').setValue('gpt-5.5\ngpt-6-astra, gpt-5.5')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    const extra = updateAccountMock.mock.calls[0]?.[1]?.extra
+    expect(extra).toMatchObject({ unrelated: 'keep', openai_fast_supported: true, openai_fast_models: ['gpt-5.5', 'gpt-6-astra'] })
+    wrapper.unmount()
+    const restored = mountModal({ ...account, extra })
+    await flushPromises()
+    expect(restored.get('[data-testid="openai-fast-supported"]').attributes('aria-checked')).toBe('true')
+    expect(restored.get<HTMLTextAreaElement>('[data-testid="openai-fast-models"]').element.value).toBe('gpt-5.5\ngpt-6-astra')
+    await restored.get('[data-testid="openai-fast-supported"]').trigger('click')
+    await restored.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(updateAccountMock.mock.calls[1]?.[1]?.extra?.openai_fast_supported).toBeUndefined()
+    expect(updateAccountMock.mock.calls[1]?.[1]?.extra?.openai_fast_models).toBeUndefined()
+  })
+
   it('round-trips OAuth alias scope and lets an operator restore a whitelist', async () => {
     const account = { ...buildAccount(), type: 'oauth', credentials: { model_mapping_mode: 'aliases', model_mapping: { 'gpt-5.4': 'gpt-5.6-sol' } } }
     const wrapper = mountModal(account); await flushPromises()
