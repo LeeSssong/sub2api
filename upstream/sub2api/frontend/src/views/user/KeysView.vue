@@ -2331,6 +2331,7 @@ onUnmounted(() => {
 .keys-line-trigger[aria-expanded="true"] { border-color: var(--xq-accent); }
 .keys-line-trigger:focus-visible { outline: 2px solid var(--xq-accent); outline-offset: 2px; }
 .keys-line-trigger :deep(.keys-line-trigger-badge) {
+  flex: 1 1 auto;
   min-width: 0;
   padding: 0;
   gap: 8px;
@@ -2339,9 +2340,14 @@ onUnmounted(() => {
   font-size: 14px;
   font-weight: 650;
 }
-.keys-line-trigger :deep(.keys-line-trigger-badge > .truncate) { overflow: visible; text-overflow: clip; }
+.keys-line-trigger :deep(.keys-line-trigger-badge > .truncate) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .keys-line-trigger :deep(.keys-line-trigger-badge > svg) { width: 20px; height: 20px; color: var(--xq-secondary); flex: none; }
 .keys-line-trigger :deep(.keys-line-trigger-badge > span.rounded) {
+  flex-shrink: 0;
   padding: 3px 7px;
   border-radius: 7px;
   background: var(--xq-raised);
