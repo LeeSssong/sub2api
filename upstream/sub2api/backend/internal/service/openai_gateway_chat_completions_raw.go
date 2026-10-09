@@ -11,6 +11,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/requesttiming"
 	"github.com/Wei-Shaw/sub2api/internal/requestcapture"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
@@ -322,6 +323,8 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	}
 	requestID := openAIUpstreamRequestID(resp.Header)
 	writeStreamHeaders := s.newStreamHeaderWriter(c, resp.Header)
+	ctx = requesttiming.ResponseContext(ctx, resp)
+	ctx = requesttiming.TrackStream(ctx, resp, "chat_completions")
 	scanner := s.newUpstreamSSEScanner(resp.Body)
 
 	var usage OpenAIUsage
@@ -375,6 +378,9 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		semanticOutput := false
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
 			trimmedPayload := strings.TrimSpace(payload)
+			observeOpenAIChatStreamTiming(ctx, trimmedPayload,
+				chatChunkPayloadStartsSemanticOutput(trimmedPayload),
+				trimmedPayload != "[DONE]" && !isOpenAIChatUsageOnlyStreamChunk(payload))
 			terminal.ObserveDataLine(trimmedPayload)
 			if trimmedPayload != "[DONE]" {
 				eventType := strings.TrimSpace(gjson.Get(trimmedPayload, "type").String())

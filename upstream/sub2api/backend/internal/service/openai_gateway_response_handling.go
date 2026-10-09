@@ -139,6 +139,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 	}
 	var firstTokenMs *int
 	ctx = requesttiming.ResponseContext(ctx, resp)
+	ctx = requesttiming.TrackStream(ctx, resp, "responses")
 	ttftMode := s.openAITTFTMode(ctx)
 	requesttiming.Mode(ctx, ttftMode)
 	firstOutputProgressObserved := false
@@ -522,6 +523,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			dataBytes := []byte(data)
 			eventTypeRaw := gjson.GetBytes(dataBytes, "type").String()
 			eventType := strings.TrimSpace(eventTypeRaw)
+			observeOpenAIStreamTiming(ctx, data, eventType, ttftMode)
 			if codexFailureTerminal && sawBareError && !sawResponseFailed {
 				switch eventType {
 				case "response.completed", "response.done":

@@ -2030,6 +2030,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthroughWithImage(
 	imageCounter := newOpenAIImageOutputCounter()
 	var firstTokenMs *int
 	ctx = requesttiming.ResponseContext(ctx, resp)
+	ctx = requesttiming.TrackStream(ctx, resp, "responses")
 	ttftMode := s.openAITTFTMode(ctx)
 	responseID := ""
 	requesttiming.Mode(ctx, ttftMode)
@@ -2225,6 +2226,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthroughWithImage(
 			dataBytes := []byte(data)
 			trimmedData := strings.TrimSpace(data)
 			rawEventType := effectiveOpenAISSEEventType(dataBytes, pendingSSEEventType)
+			observeOpenAIStreamTiming(ctx, data, rawEventType, ttftMode)
 			observer.ObserveOpenAI(dataBytes, rawEventType)
 			if needModelReplace && strings.Contains(data, `"model"`) {
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
