@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
@@ -14,34 +15,44 @@ import (
 const IntelligenceDrawingPrompt = "请直接返回完整的单文件HTML代码：使用内联SVG绘制山姆奥特曼{动作}在{场景}的2D动画。SVG必须设置viewBox，并用SVG或CSS实现动画；不要使用canvas、JavaScript、外部资源或Markdown代码块。你不需要任何测试"
 
 type IntelligenceRuleConfig struct {
-	ID      string             `json:"id"`
-	Name    string             `json:"name"`
-	Candy   *PelicanTestConfig `json:"candy"`
-	Actions []string           `json:"actions"`
-	Scenes  []string           `json:"scenes"`
+	QualityTemplateID int64              `json:"quality_template_id"`
+	CandyModels       []string           `json:"candy_models"`
+	ID                string             `json:"id"`
+	Name              string             `json:"name"`
+	Candy             *PelicanTestConfig `json:"candy"`
+	Actions           []string           `json:"actions"`
+	Scenes            []string           `json:"scenes"`
 }
 
 type IntelligenceResultMetadata struct {
-	Action       string `json:"action,omitempty"`
-	Scene        string `json:"scene,omitempty"`
-	FirstTokenMs *int64 `json:"first_token_ms,omitempty"`
-	InputTokens  *int   `json:"input_tokens,omitempty"`
-	OutputTokens *int   `json:"output_tokens,omitempty"`
+	Source           string     `json:"source,omitempty"`
+	SourceResultID   int64      `json:"source_result_id,omitempty"`
+	SourceTemplateID int64      `json:"source_template_id,omitempty"`
+	SourceStartedAt  *time.Time `json:"source_started_at,omitempty"`
+	SourceFinishedAt *time.Time `json:"source_finished_at,omitempty"`
+	Verdict          string     `json:"quality_verdict,omitempty"`
+	Action           string     `json:"action,omitempty"`
+	Scene            string     `json:"scene,omitempty"`
+	FirstTokenMs     *int64     `json:"first_token_ms,omitempty"`
+	InputTokens      *int       `json:"input_tokens,omitempty"`
+	OutputTokens     *int       `json:"output_tokens,omitempty"`
 }
 
 type IntelligenceRuleInput struct {
-	Name            string              `json:"name"`
-	GroupIDs        []int64             `json:"group_ids"`
-	ModelID         string              `json:"model_id"`
-	ReasoningEffort string              `json:"reasoning_effort"`
-	CronExpression  string              `json:"cron_expression"`
-	Enabled         bool                `json:"enabled"`
-	CandyPrompt     string              `json:"candy_prompt"`
-	ExpectedAnswer  string              `json:"expected_answer"`
-	Judge           *QualityJudgeConfig `json:"judge,omitempty"`
-	DrawingPrompt   string              `json:"drawing_prompt"`
-	Actions         []string            `json:"actions"`
-	Scenes          []string            `json:"scenes"`
+	QualitySources  []IntelligenceQualitySource `json:"quality_sources"`
+	CandyModels     []string                    `json:"candy_models"`
+	Name            string                      `json:"name"`
+	GroupIDs        []int64                     `json:"group_ids"`
+	ModelID         string                      `json:"model_id"`
+	ReasoningEffort string                      `json:"reasoning_effort"`
+	CronExpression  string                      `json:"cron_expression"`
+	Enabled         bool                        `json:"enabled"`
+	CandyPrompt     string                      `json:"candy_prompt"`
+	ExpectedAnswer  string                      `json:"expected_answer"`
+	Judge           *QualityJudgeConfig         `json:"judge,omitempty"`
+	DrawingPrompt   string                      `json:"drawing_prompt"`
+	Actions         []string                    `json:"actions"`
+	Scenes          []string                    `json:"scenes"`
 }
 
 // Rules are transactionally materialized into the existing per-group schedules.
@@ -95,15 +106,29 @@ func (s *PelicanGroupTestService) intelligencePlans(ctx context.Context, id stri
 	if len(in.GroupIDs) == 0 || len(in.GroupIDs) > 100 {
 		return invalid("select 1–100 groups")
 	}
-	if in.CandyPrompt == "" || len(in.CandyPrompt) > 32000 || in.ExpectedAnswer == "" || len(in.ExpectedAnswer) > 4000 {
-		return invalid("question and reference answer are required")
+	if in.CandyPrompt != "" && in.Judge == nil && (in.CandyPrompt != strings.TrimSpace(CandyPrompt) || in.ExpectedAnswer != "21") {
+		return invalid("custom legacy question requires a quality judge")
 	}
-	if in.Judge == nil && (in.CandyPrompt != strings.TrimSpace(CandyPrompt) || in.ExpectedAnswer != "21") {
-		return invalid("custom questions or reference answers require a quality judge")
+	candy := (*PelicanTestConfig)(nil)
+	if in.CandyPrompt != "" {
+		candy = &PelicanTestConfig{QuestionKind: "candy", Prompt: in.CandyPrompt, Quality: &QualityPolicy{ExpectedAnswer: in.ExpectedAnswer, Judge: in.Judge, Action: QualityActionObserveOnly}}
 	}
-	candy := &PelicanTestConfig{QuestionKind: "candy", Prompt: in.CandyPrompt, ReasoningEffort: normalizePelicanReasoningEffort(in.ReasoningEffort), ParallelCount: 1, Quality: &QualityPolicy{ExpectedAnswer: in.ExpectedAnswer, Judge: in.Judge, Action: QualityActionObserveOnly}}
-	if err := validateQualityPolicy(&ScheduledTestPlan{PelicanConfig: candy}); err != nil {
+	models, err := normalizeIntelligenceModels(in.CandyModels)
+	if err != nil {
 		return invalid(err.Error())
+	}
+	if in.CronExpression != "" && in.CronExpression != "*/30 * * * *" {
+		return invalid("drawing schedule must run every 30 minutes")
+	}
+	in.CronExpression = "*/30 * * * *"
+	sources := map[int64]int64{}
+	sourceGroups := map[int64]bool{}
+	for _, source := range in.QualitySources {
+		if source.TemplateID < 0 || source.GroupID <= 0 || sourceGroups[source.GroupID] {
+			return invalid("invalid or duplicate quality source")
+		}
+		sources[source.GroupID] = source.TemplateID
+		sourceGroups[source.GroupID] = true
 	}
 	if !strings.Contains(in.DrawingPrompt, "{动作}") || !strings.Contains(in.DrawingPrompt, "{场景}") {
 		return invalid("drawing template must contain {动作} and {场景}")
@@ -133,7 +158,17 @@ func (s *PelicanGroupTestService) intelligencePlans(ctx context.Context, id stri
 		if err != nil {
 			return nil, err
 		}
-		p.PelicanConfig.Intelligence = &IntelligenceRuleConfig{ID: id, Name: in.Name, Candy: candy, Actions: append([]string(nil), in.Actions...), Scenes: append([]string(nil), in.Scenes...)}
+		sourceID := sources[gid]
+		if repo, ok := s.repo.(IntelligenceQualityRepository); ok {
+			source, err := repo.ResolveIntelligenceQualitySource(ctx, gid, sourceID, models)
+			if err != nil {
+				return invalid(err.Error())
+			}
+			sourceID = source.ID
+		} else {
+			return invalid("quality source repository unavailable")
+		}
+		p.PelicanConfig.Intelligence = &IntelligenceRuleConfig{ID: id, Name: in.Name, Candy: candy, QualityTemplateID: sourceID, CandyModels: models, Actions: append([]string(nil), in.Actions...), Scenes: append([]string(nil), in.Scenes...)}
 		plans = append(plans, p)
 	}
 	return plans, nil
@@ -156,13 +191,6 @@ func (s *PelicanGroupTestService) intelligenceSamplePlans(plan *PelicanGroupTest
 		return []*PelicanGroupTestPlan{plan}
 	}
 	rule := cfg.Intelligence
-	candyPlan := *plan
-	candy := *rule.Candy
-	candy.Intelligence = nil
-	candy.IntelligenceResult = &IntelligenceResultMetadata{}
-	candy.ModelID = plan.ModelID
-	candy.ReasoningEffort = cfg.ReasoningEffort
-	candyPlan.PelicanConfig = &candy
 	drawingPlan := *plan
 	drawing := *cfg
 	drawing.Intelligence = nil
@@ -170,7 +198,7 @@ func (s *PelicanGroupTestService) intelligenceSamplePlans(plan *PelicanGroupTest
 	drawing.IntelligenceResult = &IntelligenceResultMetadata{Action: intelligenceChoice(rule.Actions), Scene: intelligenceChoice(rule.Scenes)}
 	drawing.Prompt = strings.NewReplacer("{动作}", drawing.IntelligenceResult.Action, "{场景}", drawing.IntelligenceResult.Scene).Replace(cfg.Prompt)
 	drawingPlan.PelicanConfig = &drawing
-	return []*PelicanGroupTestPlan{&candyPlan, &drawingPlan}
+	return []*PelicanGroupTestPlan{&drawingPlan}
 }
 
 func (s *PelicanGroupTestService) gradeIntelligence(ctx context.Context, accountID int64, cfg *PelicanTestConfig, r *ScheduledTestResult) {

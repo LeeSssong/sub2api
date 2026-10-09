@@ -27,17 +27,20 @@ type IntelligenceResult struct {
 	*IntelligenceResultMetadata
 }
 type IntelligenceGroup struct {
-	NextRunAt        *time.Time            `json:"next_run_at,omitempty"`
-	RunningStartedAt *time.Time            `json:"running_started_at,omitempty"`
-	ID               int64                 `json:"id"`
-	Name             string                `json:"name"`
-	Description      string                `json:"description"`
-	Platform         string                `json:"platform"`
-	RateMultiplier   float64               `json:"rate_multiplier"`
-	ModelID          string                `json:"model_id"`
-	ReasoningEffort  string                `json:"reasoning_effort"`
-	ExpectedAnswer   string                `json:"expected_answer"`
-	Results          []*IntelligenceResult `json:"results"`
+	CandyModelIDs       []string              `json:"candy_model_ids"`
+	QualityTemplateID   int64                 `json:"quality_template_id,omitempty"`
+	QualitySourceStatus string                `json:"quality_source_status,omitempty"`
+	NextRunAt           *time.Time            `json:"next_run_at,omitempty"`
+	RunningStartedAt    *time.Time            `json:"running_started_at,omitempty"`
+	ID                  int64                 `json:"id"`
+	Name                string                `json:"name"`
+	Description         string                `json:"description"`
+	Platform            string                `json:"platform"`
+	RateMultiplier      float64               `json:"rate_multiplier"`
+	ModelID             string                `json:"model_id"`
+	ReasoningEffort     string                `json:"reasoning_effort"`
+	ExpectedAnswer      string                `json:"expected_answer"`
+	Results             []*IntelligenceResult `json:"results"`
 }
 type IntelligenceDashboard struct {
 	Enabled     bool                 `json:"enabled"`
@@ -46,6 +49,9 @@ type IntelligenceDashboard struct {
 }
 
 func intelligenceVerdict(r *PelicanGroupTestResult) string {
+	if r.PelicanConfig != nil && r.PelicanConfig.IntelligenceResult != nil && r.PelicanConfig.IntelligenceResult.Verdict != "" {
+		return r.PelicanConfig.IntelligenceResult.Verdict
+	}
 	if r.Status == "success" {
 		return "passed"
 	}
@@ -100,7 +106,7 @@ func (s *PelicanGroupTestService) IntelligenceDashboard(ctx context.Context) (*I
 	ids := []int64{}
 	groups := map[int64]*Group{}
 	blocks := map[string]*IntelligenceGroup{}
-	key := func(gid int64, model string) string { return fmt.Sprintf("%d:%s", gid, model) }
+	key := func(gid int64, model string) string { return fmt.Sprint(gid) }
 	for _, p := range plans {
 		if p.PelicanConfig == nil || p.PelicanConfig.Intelligence == nil {
 			continue
@@ -119,14 +125,35 @@ func (s *PelicanGroupTestService) IntelligenceDashboard(ctx context.Context) (*I
 			}
 			groups[p.GroupID] = g
 		}
+		// First use can copy retained historical slots; every path is DB-only.
+		if repo, ok := s.repo.(interface {
+			BackfillIntelligenceQuality(context.Context, *PelicanGroupTestPlan, time.Time) error
+		}); ok {
+			_ = repo.BackfillIntelligenceQuality(ctx, p, s.now())
+		}
+		// GET materializes only the current display slot from stored quality data;
+		// this repository path cannot contact or grade an upstream.
+		if repo, ok := s.repo.(IntelligenceQualityRepository); ok {
+			_ = repo.SnapshotIntelligenceQuality(ctx, p, s.now().Truncate(30*time.Minute))
+		}
 		ids = append(ids, p.ID)
 		k := key(g.ID, p.ModelID)
 		if blocks[k] == nil {
 			b := &IntelligenceGroup{ID: g.ID, Name: g.Name, Description: g.Description, Platform: g.Platform, RateMultiplier: g.RateMultiplier, ModelID: p.ModelID, Results: []*IntelligenceResult{}}
 			if p.PelicanConfig != nil {
 				b.ReasoningEffort = p.PelicanConfig.ReasoningEffort
-				if rule := p.PelicanConfig.Intelligence; rule != nil && rule.Candy != nil && rule.Candy.Quality != nil {
-					b.ExpectedAnswer = rule.Candy.Quality.ExpectedAnswer
+				rule := p.PelicanConfig.Intelligence
+				b.CandyModelIDs, _ = normalizeIntelligenceModels(rule.CandyModels)
+				b.QualityTemplateID = rule.QualityTemplateID
+				b.QualitySourceStatus = "missing"
+				if repo, ok := s.repo.(IntelligenceQualityRepository); ok {
+					if source, e := repo.ResolveIntelligenceQualitySource(ctx, p.GroupID, rule.QualityTemplateID, b.CandyModelIDs); e == nil {
+						b.QualityTemplateID = source.ID
+						b.QualitySourceStatus = "ready"
+						if source.PelicanConfig != nil && source.PelicanConfig.Quality != nil {
+							b.ExpectedAnswer = source.PelicanConfig.Quality.ExpectedAnswer
+						}
+					}
 				}
 			}
 			blocks[k] = b

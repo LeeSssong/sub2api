@@ -46,7 +46,7 @@ func TestIntelligenceRuleAtomicFanoutAndTimeline(t *testing.T) {
 	now := time.Now()
 	for _, kind := range []string{"candy", "pelican"} {
 		for i := 0; i < 4; i++ {
-			_, err = repo.CreateResult(ctx, &service.PelicanGroupTestResult{PlanID: ids[0], Status: "failed", ErrorMessage: "answer_mismatch", StartedAt: now, FinishedAt: now, PelicanConfig: &service.PelicanTestConfig{QuestionKind: kind, ModelID: "model", IntelligenceResult: &service.IntelligenceResultMetadata{Action: "雪橇"}}})
+			_, err = repo.CreateResult(ctx, &service.PelicanGroupTestResult{PlanID: ids[0], Status: "failed", ErrorMessage: "answer_mismatch", StartedAt: now, FinishedAt: now, PelicanConfig: &service.PelicanTestConfig{QuestionKind: kind, ModelID: "model", IntelligenceResult: &service.IntelligenceResultMetadata{Action: "雪橇", Source: "quality_ops"}}})
 			require.NoError(t, err)
 		}
 	}
@@ -76,7 +76,7 @@ func TestIntelligenceSingleResultVisibility(t *testing.T) {
 	var oldest int64
 	now := time.Now()
 	for i := 0; i < 3; i++ {
-		r, e := repo.CreateResult(ctx, &service.PelicanGroupTestResult{PlanID: p.ID, Status: "success", ResponseText: "21", StartedAt: now.Add(time.Duration(i) * time.Second), FinishedAt: now, PelicanConfig: &service.PelicanTestConfig{QuestionKind: "candy", ModelID: p.ModelID}})
+		r, e := repo.CreateResult(ctx, &service.PelicanGroupTestResult{PlanID: p.ID, Status: "success", ResponseText: "21", StartedAt: now.Add(time.Duration(i) * time.Second), FinishedAt: now, PelicanConfig: &service.PelicanTestConfig{QuestionKind: "candy", ModelID: p.ModelID, IntelligenceResult: &service.IntelligenceResultMetadata{Source: "quality_ops"}}})
 		require.NoError(t, e)
 		if i == 0 {
 			oldest = r.ID
@@ -88,6 +88,13 @@ func TestIntelligenceSingleResultVisibility(t *testing.T) {
 	result, err = repo.GetIntelligenceResult(ctx, oldest, 3, now.Add(-time.Hour))
 	require.NoError(t, err)
 	require.Equal(t, "21", result.ResponseText)
+	require.NotNil(t, result)
+	legacy, e := repo.CreateResult(ctx, &service.PelicanGroupTestResult{PlanID: p.ID, Status: "success", StartedAt: now, FinishedAt: now, PelicanConfig: &service.PelicanTestConfig{QuestionKind: "candy", ModelID: p.ModelID}})
+	require.NoError(t, e)
+	hidden, e := repo.GetIntelligenceResult(ctx, legacy.ID, 512, now.Add(-time.Hour))
+	require.NoError(t, e)
+	require.Nil(t, hidden, "independent legacy candy is not exposed as quality ops")
+
 	_, err = integrationDB.ExecContext(ctx, `UPDATE groups SET status='disabled' WHERE id=$1`, g.ID)
 	require.NoError(t, err)
 	result, err = repo.GetIntelligenceResult(ctx, oldest, 3, now.Add(-time.Hour))

@@ -341,7 +341,11 @@ func (s *PelicanGroupTestService) runScheduled(ctx context.Context, plan *Pelica
 		logger.LegacyPrintf("service.pelican_group_test", "plan=%d skipped: no model", plan.ID)
 		return
 	}
-	next, err := computeNextRun(plan.CronExpression, now)
+	expression := plan.CronExpression
+	if plan.PelicanConfig != nil && plan.PelicanConfig.Intelligence != nil {
+		expression = "*/30 * * * *"
+	}
+	next, err := computeNextRun(expression, now)
 	if err != nil {
 		logger.LegacyPrintf("service.pelican_group_test", "plan=%d invalid schedule: %v", plan.ID, err)
 		return
@@ -364,6 +368,16 @@ func (s *PelicanGroupTestService) runScheduled(ctx context.Context, plan *Pelica
 func (s *PelicanGroupTestService) execute(plan *PelicanGroupTestPlan, until time.Time) {
 	runCtx, cancel := context.WithTimeout(context.Background(), pelicanGroupTestRunTimeout)
 	defer cancel()
+	if plan.PelicanConfig != nil && plan.PelicanConfig.Intelligence != nil {
+		if repo, ok := s.repo.(IntelligenceQualityRepository); ok {
+			snapshotCtx, stopSnapshot := context.WithTimeout(runCtx, 5*time.Second)
+			snapshotErr := repo.SnapshotIntelligenceQuality(snapshotCtx, plan, until.Add(-pelicanGroupTestLease).Truncate(30*time.Minute))
+			stopSnapshot()
+			if err := snapshotErr; err != nil {
+				logger.LegacyPrintf("service.pelican_group_test", "plan=%d quality snapshot unavailable: %v", plan.ID, err)
+			}
+		}
+	}
 	results := s.runSamples(runCtx, plan)
 	// Persist with a fresh context so timeout failures are still recorded.
 	saveCtx, stop := context.WithTimeout(context.Background(), 30*time.Second)
