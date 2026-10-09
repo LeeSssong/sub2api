@@ -29,7 +29,7 @@ func (s *OpenAIGatewayService) astraRouteFailover(ctx context.Context, account *
 	if account == nil || (!settings.CookiePool.Enabled && !settings.AccountScheduling) || !slices.Contains(settings.CookiePool.TargetAccountIDs, account.ID) {
 		return err
 	}
-	if disable && settings.AccountScheduling && s.accountRepo != nil {
+	if disable && shouldStartSingleton(s.cfg) && settings.AccountScheduling && s.accountRepo != nil {
 		action, writeErr := applyAstraScheduling(ctx, s.accountRepo, account, settings, false)
 		if writeErr != nil {
 			logger.L().Warn("astra_account_scheduling_update_failed", zap.Int64("account_id", account.ID), zap.Bool("schedulable", false), zap.String("reason", err.Error()), zap.String("trigger", "request_failover"), zap.String("mode", settings.EffectiveSchedulingMode()))
@@ -42,6 +42,12 @@ func (s *OpenAIGatewayService) astraRouteFailover(ctx context.Context, account *
 }
 
 func (s *OpenAIGatewayService) checkAstraSchedulingRoute(ctx context.Context, account *Account) error {
+	// API route readiness is request-local. The upstream targetRoute prepares and
+	// verifies its borrowed route before dispatch; an empty API snapshot cannot
+	// override the singleton's shared scheduling decision or block that preparation.
+	if !shouldStartSingleton(s.cfg) {
+		return nil
+	}
 	settings := s.cfg.AstraRouting(ctx)
 	if !settings.AccountScheduling || account == nil || !slices.Contains(settings.CookiePool.TargetAccountIDs, account.ID) {
 		return nil

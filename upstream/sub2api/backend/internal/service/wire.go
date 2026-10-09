@@ -354,7 +354,6 @@ func ProvideAccountTestService(
 	if p, ok := httpUpstream.(AstraGatewayRuntimeProvider); ok {
 		p.SetAstraGatewayPreparer(service.prepareAstraGatewaySource)
 	}
-	settingService.SetAstraRoutingOnSaved(service.StartAstraAutomaticSetup)
 	if recorder, ok := httpUpstream.(AstraGatewayHistoryRecorder); ok {
 		if history, ok := settingService.settingRepo.(AstraGatewayHistoryRepository); ok {
 			recorder.SetAstraGatewayHistoryRecorder(func(row AstraGatewayHistoryRecord, passed bool) {
@@ -369,6 +368,9 @@ func ProvideAccountTestService(
 			})
 		}
 	}
+	// The singleton owns preparation, validation and scheduling from one runtime.
+	// APIs still keep their request-local source preparer above. Database polling
+	// discovers saves made by any API process without using its readiness state.
 	stopScheduling := service.startAstraAccountScheduling()
 	openAIGatewayService.stopAstraSetup = func() {
 		stopScheduling()

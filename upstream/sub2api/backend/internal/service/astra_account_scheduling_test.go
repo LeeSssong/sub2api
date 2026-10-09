@@ -109,6 +109,8 @@ func TestAstraSchedulingStaleSaveAndShutdown(t *testing.T) {
 	svc := &AccountTestService{cfg: cfg, accountRepo: repo, settingService: &SettingService{astraRoutingCache: &newer}}
 	svc.syncAstraAccountScheduling(t.Context())
 	require.Empty(t, repo.writes, "off save supersedes stale work")
+	// This lifecycle fixture has no DB repository; a real singleton now polls it.
+	cfg.Server.ProcessRole = config.ProcessRoleAPI
 	stop := svc.startAstraAccountScheduling()
 	stop()
 	stop() // Idempotent lifecycle cleanup.
