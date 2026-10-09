@@ -1824,7 +1824,13 @@ func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 	if c != nil && c.Request != nil {
 		ctx = c.Request.Context()
 	}
-	s.rateLimitService.observeQualityStatus(ctx, account, statusCode)
+	// A request-policy rejection may be presented as a gateway stream failure,
+	// but it is not evidence of an unhealthy account and must not trigger probes.
+	qualityStatus := statusCode
+	if openAIStreamFailedEventErrorCode(payload) == "invalid_prompt" || openAIStreamFailedEventSemanticStatus(payload, message) == http.StatusBadRequest {
+		qualityStatus = http.StatusBadRequest
+	}
+	s.rateLimitService.observeQualityStatus(ctx, account, qualityStatus)
 	if len(payload) > 0 && s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
 		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
 		if maxBytes <= 0 {
