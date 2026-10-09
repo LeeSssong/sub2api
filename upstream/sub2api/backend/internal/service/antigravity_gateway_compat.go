@@ -58,7 +58,9 @@ func (s *AntigravityGatewayService) ForwardAsChatCompletions(
 	account *Account,
 	body []byte,
 	_ *ParsedRequest,
-) (*ForwardResult, error) {
+) (qualityResult *ForwardResult, qualityErr error) {
+	qualityStartedAt := beginQualityTrafficAttempt(c)
+	defer func() { stampGatewayQualityTrafficStart(qualityResult, qualityStartedAt) }()
 	if err := s.validateAntigravityCompatAccount(c, account); err != nil {
 		return nil, err
 	}
@@ -105,7 +107,9 @@ func (s *AntigravityGatewayService) ForwardAsResponses(
 	account *Account,
 	body []byte,
 	_ *ParsedRequest,
-) (*ForwardResult, error) {
+) (qualityResult *ForwardResult, qualityErr error) {
+	qualityStartedAt := beginQualityTrafficAttempt(c)
+	defer func() { stampGatewayQualityTrafficStart(qualityResult, qualityStartedAt) }()
 	if err := s.validateAntigravityCompatAccount(c, account); err != nil {
 		return nil, err
 	}

@@ -687,6 +687,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	resultWithUsage := func() *OpenAIForwardResult {
 		imageCount := imageCounter.Count()
 		result := &OpenAIForwardResult{
+			QualityRequestStartedAt:       turnStart,
 			RequestID:                     responseID,
 			Usage:                         usage,
 			Model:                         originalModel,

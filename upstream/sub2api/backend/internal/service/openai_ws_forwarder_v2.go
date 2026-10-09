@@ -507,6 +507,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	}
 	resultWithUsage := func() *OpenAIForwardResult {
 		return &OpenAIForwardResult{
+			QualityRequestStartedAt:       startTime,
 			RequestID:                     responseID,
 			ResponseID:                    responseID,
 			Usage:                         *usage,

@@ -735,6 +735,34 @@ func (_c *UsageLogCreate) SetNillableCreatedAt(v *time.Time) *UsageLogCreate {
 	return _c
 }
 
+// SetQualityRequestStartedAt sets the "quality_request_started_at" field.
+func (_c *UsageLogCreate) SetQualityRequestStartedAt(v time.Time) *UsageLogCreate {
+	_c.mutation.SetQualityRequestStartedAt(v)
+	return _c
+}
+
+// SetNillableQualityRequestStartedAt sets the "quality_request_started_at" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableQualityRequestStartedAt(v *time.Time) *UsageLogCreate {
+	if v != nil {
+		_c.SetQualityRequestStartedAt(*v)
+	}
+	return _c
+}
+
+// SetQualityStatus sets the "quality_status" field.
+func (_c *UsageLogCreate) SetQualityStatus(v string) *UsageLogCreate {
+	_c.mutation.SetQualityStatus(v)
+	return _c
+}
+
+// SetNillableQualityStatus sets the "quality_status" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableQualityStatus(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetQualityStatus(*v)
+	}
+	return _c
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_c *UsageLogCreate) SetUser(v *User) *UsageLogCreate {
 	return _c.SetUserID(v.ID)
@@ -1306,6 +1334,14 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(usagelog.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
+	}
+	if value, ok := _c.mutation.QualityRequestStartedAt(); ok {
+		_spec.SetField(usagelog.FieldQualityRequestStartedAt, field.TypeTime, value)
+		_node.QualityRequestStartedAt = &value
+	}
+	if value, ok := _c.mutation.QualityStatus(); ok {
+		_spec.SetField(usagelog.FieldQualityStatus, field.TypeString, value)
+		_node.QualityStatus = &value
 	}
 	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -2375,6 +2411,12 @@ func (u *UsageLogUpsertOne) UpdateNewValues() *UsageLogUpsertOne {
 	u.create.conflict = append(u.create.conflict, sql.ResolveWith(func(s *sql.UpdateSet) {
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(usagelog.FieldCreatedAt)
+		}
+		if _, exists := u.create.mutation.QualityRequestStartedAt(); exists {
+			s.SetIgnore(usagelog.FieldQualityRequestStartedAt)
+		}
+		if _, exists := u.create.mutation.QualityStatus(); exists {
+			s.SetIgnore(usagelog.FieldQualityStatus)
 		}
 	}))
 	return u
@@ -3656,6 +3698,12 @@ func (u *UsageLogUpsertBulk) UpdateNewValues() *UsageLogUpsertBulk {
 		for _, b := range u.create.builders {
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(usagelog.FieldCreatedAt)
+			}
+			if _, exists := b.mutation.QualityRequestStartedAt(); exists {
+				s.SetIgnore(usagelog.FieldQualityRequestStartedAt)
+			}
+			if _, exists := b.mutation.QualityStatus(); exists {
+				s.SetIgnore(usagelog.FieldQualityStatus)
 			}
 		}
 	}))

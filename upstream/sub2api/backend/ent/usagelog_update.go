@@ -1561,6 +1561,12 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)
 	}
+	if _u.mutation.QualityRequestStartedAtCleared() {
+		_spec.ClearField(usagelog.FieldQualityRequestStartedAt, field.TypeTime)
+	}
+	if _u.mutation.QualityStatusCleared() {
+		_spec.ClearField(usagelog.FieldQualityStatus, field.TypeString)
+	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2O,
@@ -3284,6 +3290,12 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if value, ok := _u.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)
+	}
+	if _u.mutation.QualityRequestStartedAtCleared() {
+		_spec.ClearField(usagelog.FieldQualityRequestStartedAt, field.TypeTime)
+	}
+	if _u.mutation.QualityStatusCleared() {
+		_spec.ClearField(usagelog.FieldQualityStatus, field.TypeString)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{

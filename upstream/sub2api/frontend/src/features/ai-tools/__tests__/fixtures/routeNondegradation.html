@@ -1,0 +1,7 @@
+<!doctype html><html class="dark" lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>不降智率本地验收</title><style>body{margin:0;padding:24px;background:var(--xq-bg);color:var(--xq-text);font-family:system-ui}main{max-width:920px;margin:auto;padding:20px;background:var(--xq-surface)}h1{font-size:18px;margin:0 0 24px}p{font-size:12px;color:var(--xq-secondary)}@media(max-width:700px){body{padding:12px}main{padding:12px}}</style><main><h1>线路指标历史 · 本地示例数据</h1><div id="app"></div><p>不降智率按请求发出时的账号标记统计；未标记请求计入不降智。</p></main><script type="module">
+import {createApp,h} from 'vue';
+import RouteHistoryStrip from '/src/features/ai-tools/RouteHistoryStrip.vue';
+import '/src/styles/xingqiao-brand.css';
+const points=[5,0,null,10,0,20].map((n,i)=>({group_id:7,start:new Date(Date.UTC(2026,9,9,10,i*5)).toISOString(),end:new Date(Date.UTC(2026,9,9,10,(i+1)*5)).toISOString(),request_count:120,success_count:100,cache_hit_rate:.75,ttft_p50_ms:1250,usage_request_count:n===null?0:100,degraded_request_count:n??0,quality_snapshot_request_count:n===null?0:100}));
+createApp({render:()=>h(RouteHistoryStrip,{points,loading:false,error:false})}).mount('#app');
+</script></html>

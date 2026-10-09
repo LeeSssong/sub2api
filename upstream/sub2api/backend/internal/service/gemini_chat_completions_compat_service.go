@@ -27,7 +27,9 @@ func (s *GeminiMessagesCompatService) ForwardAsChatCompletions(
 	c *gin.Context,
 	account *Account,
 	body []byte,
-) (*ForwardResult, error) {
+) (qualityResult *ForwardResult, qualityErr error) {
+	qualityStartedAt := beginQualityTrafficAttempt(c)
+	defer func() { stampGatewayQualityTrafficStart(qualityResult, qualityStartedAt) }()
 	startTime := time.Now()
 
 	var ccReq apicompat.ChatCompletionsRequest

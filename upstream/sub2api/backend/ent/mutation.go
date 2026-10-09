@@ -50353,6 +50353,8 @@ type UsageLogMutation struct {
 	addvideo_duration_seconds    *int
 	cache_ttl_overridden         *bool
 	created_at                   *time.Time
+	quality_request_started_at   *time.Time
+	quality_status               *string
 	clearedFields                map[string]struct{}
 	user                         *int64
 	cleareduser                  bool
@@ -53174,6 +53176,104 @@ func (m *UsageLogMutation) ResetCreatedAt() {
 	m.created_at = nil
 }
 
+// SetQualityRequestStartedAt sets the "quality_request_started_at" field.
+func (m *UsageLogMutation) SetQualityRequestStartedAt(t time.Time) {
+	m.quality_request_started_at = &t
+}
+
+// QualityRequestStartedAt returns the value of the "quality_request_started_at" field in the mutation.
+func (m *UsageLogMutation) QualityRequestStartedAt() (r time.Time, exists bool) {
+	v := m.quality_request_started_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQualityRequestStartedAt returns the old "quality_request_started_at" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldQualityRequestStartedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQualityRequestStartedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQualityRequestStartedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQualityRequestStartedAt: %w", err)
+	}
+	return oldValue.QualityRequestStartedAt, nil
+}
+
+// ClearQualityRequestStartedAt clears the value of the "quality_request_started_at" field.
+func (m *UsageLogMutation) ClearQualityRequestStartedAt() {
+	m.quality_request_started_at = nil
+	m.clearedFields[usagelog.FieldQualityRequestStartedAt] = struct{}{}
+}
+
+// QualityRequestStartedAtCleared returns if the "quality_request_started_at" field was cleared in this mutation.
+func (m *UsageLogMutation) QualityRequestStartedAtCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldQualityRequestStartedAt]
+	return ok
+}
+
+// ResetQualityRequestStartedAt resets all changes to the "quality_request_started_at" field.
+func (m *UsageLogMutation) ResetQualityRequestStartedAt() {
+	m.quality_request_started_at = nil
+	delete(m.clearedFields, usagelog.FieldQualityRequestStartedAt)
+}
+
+// SetQualityStatus sets the "quality_status" field.
+func (m *UsageLogMutation) SetQualityStatus(s string) {
+	m.quality_status = &s
+}
+
+// QualityStatus returns the value of the "quality_status" field in the mutation.
+func (m *UsageLogMutation) QualityStatus() (r string, exists bool) {
+	v := m.quality_status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQualityStatus returns the old "quality_status" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldQualityStatus(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQualityStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQualityStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQualityStatus: %w", err)
+	}
+	return oldValue.QualityStatus, nil
+}
+
+// ClearQualityStatus clears the value of the "quality_status" field.
+func (m *UsageLogMutation) ClearQualityStatus() {
+	m.quality_status = nil
+	m.clearedFields[usagelog.FieldQualityStatus] = struct{}{}
+}
+
+// QualityStatusCleared returns if the "quality_status" field was cleared in this mutation.
+func (m *UsageLogMutation) QualityStatusCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldQualityStatus]
+	return ok
+}
+
+// ResetQualityStatus resets all changes to the "quality_status" field.
+func (m *UsageLogMutation) ResetQualityStatus() {
+	m.quality_status = nil
+	delete(m.clearedFields, usagelog.FieldQualityStatus)
+}
+
 // ClearUser clears the "user" edge to the User entity.
 func (m *UsageLogMutation) ClearUser() {
 	m.cleareduser = true
@@ -53343,7 +53443,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 54)
+	fields := make([]string, 0, 56)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -53506,6 +53606,12 @@ func (m *UsageLogMutation) Fields() []string {
 	if m.created_at != nil {
 		fields = append(fields, usagelog.FieldCreatedAt)
 	}
+	if m.quality_request_started_at != nil {
+		fields = append(fields, usagelog.FieldQualityRequestStartedAt)
+	}
+	if m.quality_status != nil {
+		fields = append(fields, usagelog.FieldQualityStatus)
+	}
 	return fields
 }
 
@@ -53622,6 +53728,10 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.CacheTTLOverridden()
 	case usagelog.FieldCreatedAt:
 		return m.CreatedAt()
+	case usagelog.FieldQualityRequestStartedAt:
+		return m.QualityRequestStartedAt()
+	case usagelog.FieldQualityStatus:
+		return m.QualityStatus()
 	}
 	return nil, false
 }
@@ -53739,6 +53849,10 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldCacheTTLOverridden(ctx)
 	case usagelog.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
+	case usagelog.FieldQualityRequestStartedAt:
+		return m.OldQualityRequestStartedAt(ctx)
+	case usagelog.FieldQualityStatus:
+		return m.OldQualityStatus(ctx)
 	}
 	return nil, fmt.Errorf("unknown UsageLog field %s", name)
 }
@@ -54126,6 +54240,20 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetCreatedAt(v)
 		return nil
+	case usagelog.FieldQualityRequestStartedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityRequestStartedAt(v)
+		return nil
+	case usagelog.FieldQualityStatus:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityStatus(v)
+		return nil
 	}
 	return fmt.Errorf("unknown UsageLog field %s", name)
 }
@@ -54489,6 +54617,12 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldVideoDurationSeconds) {
 		fields = append(fields, usagelog.FieldVideoDurationSeconds)
 	}
+	if m.FieldCleared(usagelog.FieldQualityRequestStartedAt) {
+		fields = append(fields, usagelog.FieldQualityRequestStartedAt)
+	}
+	if m.FieldCleared(usagelog.FieldQualityStatus) {
+		fields = append(fields, usagelog.FieldQualityStatus)
+	}
 	return fields
 }
 
@@ -54580,6 +54714,12 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldVideoDurationSeconds:
 		m.ClearVideoDurationSeconds()
+		return nil
+	case usagelog.FieldQualityRequestStartedAt:
+		m.ClearQualityRequestStartedAt()
+		return nil
+	case usagelog.FieldQualityStatus:
+		m.ClearQualityStatus()
 		return nil
 	}
 	return fmt.Errorf("unknown UsageLog nullable field %s", name)
@@ -54750,6 +54890,12 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldCreatedAt:
 		m.ResetCreatedAt()
+		return nil
+	case usagelog.FieldQualityRequestStartedAt:
+		m.ResetQualityRequestStartedAt()
+		return nil
+	case usagelog.FieldQualityStatus:
+		m.ResetQualityStatus()
 		return nil
 	}
 	return fmt.Errorf("unknown UsageLog field %s", name)

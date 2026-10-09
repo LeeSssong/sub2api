@@ -651,7 +651,9 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 	requestID string,
 	body []byte,
 	contentType string,
-) (*OpenAIForwardResult, error) {
+) (qualityResult *OpenAIForwardResult, qualityErr error) {
+	qualityStartedAt := beginQualityTrafficAttempt(c)
+	defer func() { stampQualityTrafficStart(qualityResult, qualityStartedAt) }()
 	startTime := time.Now()
 	if account == nil {
 		return nil, fmt.Errorf("grok account is required")

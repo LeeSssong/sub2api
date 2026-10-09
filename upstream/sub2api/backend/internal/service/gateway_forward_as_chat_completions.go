@@ -32,7 +32,9 @@ func (s *GatewayService) ForwardAsChatCompletions(
 	account *Account,
 	body []byte,
 	parsed *ParsedRequest,
-) (*ForwardResult, error) {
+) (qualityResult *ForwardResult, qualityErr error) {
+	qualityStartedAt := beginQualityTrafficAttempt(c)
+	defer func() { stampGatewayQualityTrafficStart(qualityResult, qualityStartedAt) }()
 	startTime := time.Now()
 
 	// 1. Parse Chat Completions request

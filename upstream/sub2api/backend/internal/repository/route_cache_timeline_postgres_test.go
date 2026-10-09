@@ -25,7 +25,7 @@ func TestRouteCacheTimelineMatchesAdminStreamPostgres(t *testing.T) {
 	db.SetMaxOpenConns(1)
 	ctx := context.Background()
 	_, err = db.ExecContext(ctx, `
- CREATE TEMP TABLE usage_logs(id bigserial,group_id bigint,account_id bigint,created_at timestamptz,usage_completeness text,first_token_ms double precision,duration_ms double precision,input_tokens bigint,output_tokens bigint,cache_creation_tokens bigint,cache_read_tokens bigint,logical_request_id text,request_id text,request_type smallint,stream boolean,openai_ws_mode boolean,total_cost numeric DEFAULT 0,actual_cost numeric DEFAULT 0);
+ CREATE TEMP TABLE usage_logs(id bigserial,quality_status text,group_id bigint,account_id bigint,created_at timestamptz,usage_completeness text,first_token_ms double precision,duration_ms double precision,input_tokens bigint,output_tokens bigint,cache_creation_tokens bigint,cache_read_tokens bigint,logical_request_id text,request_id text,request_type smallint,stream boolean,openai_ws_mode boolean,total_cost numeric DEFAULT 0,actual_cost numeric DEFAULT 0);
  CREATE TEMP TABLE ops_error_logs(id bigserial,group_id bigint,account_id bigint,created_at timestamptz,status_code int,is_count_tokens boolean DEFAULT false,is_business_limited boolean DEFAULT false,error_owner text,error_phase text,error_source text,error_type text,error_message text,error_body text,upstream_error_message text,upstream_error_detail text,request_id text,client_request_id text);
  CREATE TEMP TABLE quality_rule_template_accounts(plan_id bigint,tested_group_id bigint);
  CREATE TEMP TABLE scheduled_test_results(id bigint,plan_id bigint,quality_round_id text,finished_at timestamptz,status text,error_message text,pelican_config jsonb,quality_judgment jsonb,response_text text);`)

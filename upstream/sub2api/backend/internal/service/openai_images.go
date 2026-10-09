@@ -604,7 +604,9 @@ func (s *OpenAIGatewayService) ForwardImages(
 	body []byte,
 	parsed *OpenAIImagesRequest,
 	channelMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (qualityResult *OpenAIForwardResult, qualityErr error) {
+	qualityStartedAt := beginQualityTrafficAttempt(c)
+	defer func() { stampQualityTrafficStart(qualityResult, qualityStartedAt) }()
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}

@@ -213,6 +213,8 @@ func (UsageLog) Fields() []ent.Field {
 			Default(time.Now).
 			Immutable().
 			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
+		field.Time("quality_request_started_at").Optional().Nillable().Immutable(),
+		field.String("quality_status").Optional().Nillable().Immutable(),
 	}
 }
 

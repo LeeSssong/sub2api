@@ -1446,6 +1446,7 @@ func (s *GatewayService) buildRecordUsageLog(
 		)
 	}
 	usageLog := &UsageLog{
+		QualityRequestStartedAt:  qualityTrafficStartedAt(result.QualityRequestStartedAt),
 		UserID:                   user.ID,
 		APIKeyID:                 apiKey.ID,
 		AccountID:                account.ID,

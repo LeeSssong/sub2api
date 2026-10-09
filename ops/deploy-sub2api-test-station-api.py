@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isolated API blue/green release with optional serialized worker replacement; no migrations."""
+"""Isolated API release; reviewed migration 266 uses a stopped-writes path."""
 import argparse
 import copy
 import fcntl
@@ -222,6 +222,203 @@ def verify_migration_checksums(expected, rows):
             raise ValueError('migration not applied with expected checksum: ' + name)
 
 
+def verify_maintenance_migrations(expected, rows, approved):
+    if approved != '266_quality_traffic_snapshots.sql' or approved not in expected:
+        raise ValueError('unreviewed maintenance migration')
+    applied = dict(row.split('|', 1) for row in rows.splitlines())
+    if approved in applied:
+        raise ValueError('maintenance migration already applied')
+    verify_migration_checksums({k: v for k, v in expected.items() if k != approved}, rows)
+
+
+def maintenance_caddy(config, service):
+    lines = config.splitlines(keepends=True)
+    changed = 0
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith('reverse_proxy ') and service + ':8080' in line:
+            indent = line[:len(line) - len(line.lstrip())]
+            args = line.strip().split()[1:]
+            if args[-1] != service + ':8080' or len(args) > 2:
+                raise ValueError('unsupported maintenance route')
+            matcher = args[0] + ' ' if len(args) == 2 else ''
+            lines[i] = indent + 'respond ' + matcher + '"Maintenance" 503\n'
+            changed += 1
+    if not changed:
+        raise ValueError('missing maintenance API upstream')
+    return ''.join(lines)
+
+
+def postgres(db, sql, database=None):
+    command = 'exec psql -X -v ON_ERROR_STOP=1 -At -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+    if database is not None:
+        if not re.fullmatch(r'[a-z][a-z0-9_]*', database):
+            raise ValueError('unsafe recovery database name')
+        command = 'exec psql -X -v ON_ERROR_STOP=1 -At -U "$POSTGRES_USER" -d ' + database
+    return run(['docker', 'exec', '-i', db, 'sh', '-c', command], sql.encode())
+
+
+def backup_database(db, directory):
+    directory.mkdir(mode=0o700)
+    archive = '/tmp/test-station-quality-' + directory.name + '.dump'
+    run(['docker', 'exec', db, 'sh', '-c',
+         'umask 077; exec pg_dump -Fc -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f ' + archive])
+    run(['docker', 'exec', db, 'pg_restore', '--list', archive])
+    path = directory / 'postgres.dump'
+    run(['docker', 'cp', db + ':' + archive, str(path)])
+    path.chmod(0o600)
+    digest = file_sha256(path)
+    save(directory / 'metadata.json', {'postgres_sha256': digest, 'container_archive': archive})
+    return archive
+
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with path.open('rb') as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_database_restore(db, directory, archive):
+    # A temporary recovery check receives no application traffic or credentials.
+    # Restore the entire archive, including data, to verify real recovery ability.
+    name = 'quality_restore_' + directory.name.replace('-', '_')
+    if not re.fullmatch(r'[a-z][a-z0-9_]*', name):
+        raise ValueError('unsafe recovery check name')
+    postgres(db, 'CREATE DATABASE ' + name + ';', 'postgres')
+    try:
+        run(['docker', 'exec', db, 'sh', '-c',
+             'exec pg_restore --exit-on-error --no-owner -U "$POSTGRES_USER" -d ' + name + ' ' + archive])
+        check = postgres(db, "SELECT EXISTS(SELECT 1 FROM schema_migrations);", name).strip()
+        if check != 't':
+            raise RuntimeError('recovery database verification failed')
+    finally:
+        postgres(db, 'DROP DATABASE ' + name + ';', 'postgres')
+
+
+def restore_database(db, directory, archive):
+    meta = json.loads((directory / 'metadata.json').read_text())
+    path = directory / 'postgres.dump'
+    if file_sha256(path) != meta['postgres_sha256']:
+        raise ValueError('database backup checksum mismatch')
+    run(['docker', 'cp', str(path), db + ':' + archive])
+    run(['docker', 'exec', '-i', db, 'sh', '-c',
+         'exec psql -X -v ON_ERROR_STOP=1 -At -v database="$POSTGRES_DB" -U "$POSTGRES_USER" -d postgres'], b"""
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=:'database' AND pid<>pg_backend_pid();
+SELECT format('DROP DATABASE %I', :'database') \gexec
+SELECT format('CREATE DATABASE %I', :'database') \gexec
+""")
+    run(['docker', 'exec', db, 'sh', '-c',
+         'exec pg_restore --exit-on-error --no-owner -U "$POSTGRES_USER" -d "$POSTGRES_DB" ' + archive])
+
+
+def deploy_maintenance(bundle, manifest, previous, release, meta, compose, db_id, new_caddy):
+    started = time.monotonic()
+    api_id = meta['previous_api_container']
+    worker_id = meta['previous_worker_container']
+    # Prove full backup restoration before interrupting the live service.
+    preflight = ROOT / 'backups' / ('quality-preflight-' + manifest['source_commit'][:12])
+    archive = backup_database(db_id, preflight)
+    verify_database_restore(db_id, preflight, archive)
+    meta['stage_seconds']['backup_restore_preflight'] = round(time.monotonic() - started, 2)
+    print('test_station_api stage=restore_preflight_passed', flush=True)
+    old_caddy = (release / 'previous-Caddyfile').read_text()
+    gate = maintenance_caddy(old_caddy, meta['previous_api_service'])
+    reload_caddy(meta['caddy_container'], gate)
+    private_write(meta['caddy_host_path'], gate)
+    meta.update(maintenance=True, traffic_resumed=False, result='maintenance')
+    save(release / 'deployment.json', meta)
+    stopped = time.monotonic()
+    backup = ROOT / 'backups' / ('quality-stopped-' + manifest['source_commit'][:12])
+    backup_ready = False
+    migration_started = False
+    try:
+        stop_worker(api_id)
+        stop_worker(worker_id)
+        # Only API/worker can write this schema. Detector is an independent,
+        # stateless HTTP service and remains unchanged.
+        active_db = postgres(db_id, "SELECT COUNT(*) FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND backend_type='client backend';").strip()
+        if active_db != '0':
+            raise RuntimeError('database still has other clients after stopping writers')
+        archive = backup_database(db_id, backup)
+        backup_ready = True
+        meta['backup_dir'] = str(backup)
+        meta['stage_seconds']['stop_and_backup'] = round(time.monotonic() - stopped, 2)
+        save(release / 'deployment.json', meta)
+        migration_started = True
+        migration_start = time.monotonic()
+        # Use the native, checksum-checked migration runner, never patch history.
+        run(compose + ['run', '--rm', '--no-deps', '--entrypoint', '/app/sub2api', meta['candidate_service'], '--migrate-only'])
+        rows = postgres(db_id, "SELECT filename || '|' || checksum FROM schema_migrations ORDER BY filename;")
+        verify_migration_checksums(manifest['migration_checksums'], rows)
+        meta['stage_seconds']['migration'] = round(time.monotonic() - migration_start, 2)
+        run(compose + ['up', '-d', '--no-deps', meta['candidate_service']])
+        candidate_id = run(compose + ['ps', '-q', meta['candidate_service']]).strip()
+        meta['candidate_container'] = candidate_id
+        save(release / 'deployment.json', meta)
+        healthy(candidate_id)
+        run(['docker', 'exec', candidate_id, 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/readyz'])
+        meta['worker_update_started'] = True
+        save(release / 'deployment.json', meta)
+        run(compose + ['up', '-d', '--no-deps', 'test-station-worker'])
+        new_worker = active_worker()
+        meta['candidate_worker_container'] = new_worker
+        save(release / 'deployment.json', meta)
+        healthy(new_worker)
+        # The migration is additive. If verification fails after reopening,
+        # restore old binaries but retain schema/data to preserve new writes.
+        meta['traffic_resumed'] = True
+        save(release / 'deployment.json', meta)
+        reload_caddy(meta['caddy_container'], new_caddy)
+        public_probes()
+        private_write(meta['caddy_host_path'], new_caddy)
+        private_write(release / 'Caddyfile', new_caddy)
+        meta['stage_seconds']['interruption'] = round(time.monotonic() - stopped, 2)
+        meta.update(result='succeeded', rolled_back=False)
+        save(release / 'deployment.json', meta)
+        state = dict(previous, source_commit=manifest['source_commit'], source_tree=manifest['source_tree'],
+                     image_id=meta['image_id'], image_tag=PROJECT + '-runtime:' + manifest['source_commit'],
+                     release_dir=str(release), previous_release_dir=previous['release_dir'],
+                     active_api_container=candidate_id, active_api_service=meta['candidate_service'],
+                     active_worker_container=new_worker, worker_image_id=meta['image_id'],
+                     migration_set_sha256=manifest['migration_set_sha256'], binary_sha256=manifest['binary_sha256'],
+                     binary_source_commit=manifest['source_commit'], binary_source_tree=manifest['source_tree'],
+                     backup_dir=str(backup), api_only_release=False, result='succeeded', rolled_back=False,
+                     updated_at=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()))
+        state.pop('image_archive_sha256', None)
+        save(ROOT / 'release-state.json', state)
+        print('test_station_api status=succeeded maintenance=true interruption_seconds=' + str(meta['stage_seconds']['interruption']), flush=True)
+    except Exception:
+        # Keep traffic gated during restoration. Recovery failure deliberately
+        # leaves it gated rather than serving an unverified database.
+        reload_caddy(meta['caddy_container'], gate)
+        private_write(meta['caddy_host_path'], gate)
+        candidate = meta.get('candidate_container')
+        if candidate:
+            run(['docker', 'stop', '--time', '300', candidate])
+        current = run(['docker', 'ps', '-q', '--filter', 'label=com.docker.compose.project=' + PROJECT,
+                       '--filter', 'label=com.docker.compose.service=test-station-worker']).strip()
+        if current:
+            stop_worker(current)
+        if migration_started and backup_ready and not meta['traffic_resumed'] and not meta.get('worker_update_started'):
+            restore_database(db_id, backup, archive)
+            meta['database_restored'] = True
+        else:
+            meta['database_restored'] = False
+        restored = restore_worker(release, meta)
+        run(['docker', 'start', api_id])
+        healthy(api_id)
+        reload_caddy(meta['caddy_container'], old_caddy)
+        private_write(meta['caddy_host_path'], old_caddy)
+        public_probes()
+        previous.update(active_worker_container=restored, worker_image_id=meta['previous_worker_image_id'])
+        save(ROOT / 'release-state.json', previous)
+        meta.update(result='rolled_back', rolled_back=True)
+        save(release / 'deployment.json', meta)
+        print('test_station_api status=rolled_back maintenance=true', flush=True)
+        raise
+
+
 def deploy(bundle):
     manifest = json.loads((bundle / 'manifest.json').read_text())
     commit, tree = manifest['source_commit'], manifest['source_tree']
@@ -259,7 +456,13 @@ def deploy(bundle):
     rows = run(['docker', 'exec', '-i', db_id, 'sh', '-c',
                 'exec psql -X -v ON_ERROR_STOP=1 -At -U "$POSTGRES_USER" -d "$POSTGRES_DB"'],
                b"SELECT filename || '|' || checksum FROM schema_migrations ORDER BY filename;\n")
-    verify_migration_checksums(manifest.get('migration_checksums'), rows)
+    maintenance = manifest.get('maintenance_migration', '')
+    if maintenance:
+        if not update_worker:
+            raise ValueError('maintenance migration requires worker update')
+        verify_maintenance_migrations(manifest.get('migration_checksums'), rows, maintenance)
+    else:
+        verify_migration_checksums(manifest.get('migration_checksums'), rows)
     caddy_id = run(['docker', 'ps', '-q', '--filter', 'label=com.docker.compose.project=' + PROJECT,
                     '--filter', 'label=com.docker.compose.service=test-station-caddy']).strip()
     if not caddy_id or '\n' in caddy_id:
@@ -303,6 +506,10 @@ def deploy(bundle):
         meta.update(previous_worker_container=worker_id, previous_worker_image_id=worker_image_id, worker_update_started=False)
     save(release / 'deployment.json', meta)
     compose = ['docker', 'compose', '-p', PROJECT, '--env-file', str(release / '.env'), '-f', str(release / 'compose.yaml')]
+    run(compose + ['config', '--quiet'])
+    if maintenance:
+        deploy_maintenance(bundle, manifest, previous, release, meta, compose, db_id, new_caddy)
+        return
     try:
         run(compose + ['config', '--quiet'])
         run(compose + ['up', '-d', '--no-deps', service])

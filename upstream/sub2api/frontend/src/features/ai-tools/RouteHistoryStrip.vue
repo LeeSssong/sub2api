@@ -4,7 +4,7 @@
  <p v-else-if="error" role="status">线路走势读取失败，请重新选择统计范围重试。</p>
  <p v-else-if="!points.length">暂无历史统计</p>
  <template v-else>
-  <div class="chart-legend" role="group" aria-label="切换指标曲线"><button v-for="s in series" :key="s.key" type="button" :class="s.key" :aria-pressed="enabled[s.key]" :title="`${enabled[s.key] ? '隐藏' : '显示'}${s.label}${s.key==='degradation' ? '：评分未达标轮次／有效评分轮次；报错、超时、判题失败及未完成轮次不计入' : s.key==='success' ? '：后台对应分组 SLA，排除业务限制及客户端取消' : ''}`" @click="enabled[s.key]=!enabled[s.key]"><span class="legend-check" aria-hidden="true"><svg v-if="enabled[s.key]" viewBox="0 0 16 16" fill="none"><path d="m3.5 8 3 3 6-6" /></svg></span><i aria-hidden="true"></i><span class="legend-label">{{ s.label }}</span></button></div>
+  <div class="chart-legend" role="group" aria-label="切换指标曲线"><button v-for="s in series" :key="s.key" type="button" :class="s.key" :aria-pressed="enabled[s.key]" :title="`${enabled[s.key] ? '隐藏' : '显示'}${s.label}${s.key==='degradation' ? '：（用量请求－降智请求）／用量请求；按请求发出时的账号标记统计，未标记请求计入不降智' : s.key==='success' ? '：后台对应分组 SLA，排除业务限制及客户端取消' : ''}`" @click="enabled[s.key]=!enabled[s.key]"><span class="legend-check" aria-hidden="true"><svg v-if="enabled[s.key]" viewBox="0 0 16 16" fill="none"><path d="m3.5 8 3 3 6-6" /></svg></span><i aria-hidden="true"></i><span class="legend-label">{{ s.label }}</span></button></div>
   <div class="chart-layout">
    <div class="chart-axis"><span>100%</span><span>50%</span><span>0%</span></div>
    <div class="chart-plot" @mouseleave="tooltipOpen=false" @focusout="tooltipOpen=false" @keydown.esc="tooltipOpen=false">
@@ -19,7 +19,7 @@
     <div class="chart-targets" role="group" aria-label="按时间查看线路指标"><button v-for="(p,i) in points" :key="p.start" :data-point="i" :aria-label="describe(p)" :aria-pressed="selected===i" :tabindex="selected===i?0:-1" @mouseenter="select(i)" @focus="select(i)" @click="select(i)" @keydown="navigate($event,i)"></button></div>
     <div v-if="tooltipOpen && points[selected]" class="chart-tooltip" role="status" :style="tooltipStyle">
      <strong>{{ tooltipTime(points[selected]!.start) }}</strong>
-     <div class="tooltip-readings"><div v-for="s in tooltipSeries" :key="s.key" class="tooltip-row" :class="s.key"><span>{{ s.label }}</span><b>{{ formatted(points[selected]!,s.key).split('（')[0] }}</b><small>{{ counts(points[selected]!,s.key) }}</small></div></div><div v-if="tooltipSeries.some(s=>formatted(points[selected]!,s.key).includes('无样本'))" class="tooltip-note">缓存、成功率及首字无样本时按 0 展示</div><div v-if="!points[selected]!.graded_round_count" class="tooltip-note">无有效评分，按 0% 展示</div>
+     <div class="tooltip-readings"><div v-for="s in tooltipSeries" :key="s.key" class="tooltip-row" :class="s.key"><span>{{ s.label }}</span><b>{{ formatted(points[selected]!,s.key).split('（')[0] }}</b><small>{{ counts(points[selected]!,s.key) }}</small></div></div><div v-if="tooltipSeries.some(s=>formatted(points[selected]!,s.key).includes('无样本'))" class="tooltip-note">缓存、成功率及首字无样本时按 0 展示</div><div v-if="qualityNote(points[selected]!)" class="tooltip-note">{{ qualityNote(points[selected]!) }}</div>
     </div>
    </div>
    <div class="chart-axis seconds"><span>{{ secondsMax }}s</span><span>{{ secondsMax/2 }}s</span><span>0s</span></div>
@@ -33,7 +33,7 @@ import { computed, ref, watch } from 'vue'
 import type { RouteTimelinePoint } from './routeTimeline'
 const props = defineProps<{points:RouteTimelinePoint[];loading:boolean;error:boolean}>()
 type Metric = 'cache'|'success'|'ttft'|'degradation'
-const series: {key:Metric;label:string}[] = [{key:'success',label:'请求成功率'},{key:'ttft',label:'首字 P50'},{key:'cache',label:'缓存命中率'},{key:'degradation',label:'疑似降智率'}]
+const series: {key:Metric;label:string}[] = [{key:'success',label:'请求成功率'},{key:'ttft',label:'首字 P50'},{key:'cache',label:'缓存命中率'},{key:'degradation',label:'不降智率'}]
 const tooltipSeries=series
 const enabled=ref<Record<Metric,boolean>>({cache:true,success:true,ttft:true,degradation:true})
 const visibleSeries=computed(()=>series.filter(s=>enabled.value[s.key]))
@@ -48,7 +48,7 @@ const tooltipStyle=computed(()=>{
 })
 const x = (i:number)=>(i+.5)*400/props.points.length
 function value(p:RouteTimelinePoint,m:Metric):number|null {
- if(m==='degradation')return p.graded_round_count ? (p.suspected_degraded_round_count??0)/p.graded_round_count*100 : 0
+ if(m==='degradation')return p.usage_request_count && p.quality_snapshot_request_count===p.usage_request_count ? (p.usage_request_count-p.degraded_request_count!)/p.usage_request_count*100 : null
  if(m==='cache')return (p.cache_hit_rate??0)*100
  if(m==='ttft')return (p.ttft_p50_ms??0)/1000
  return p.request_count?p.success_count/p.request_count*100:0
@@ -61,8 +61,9 @@ function path(m:Metric){
 const tooltipTime=(v:string)=>{const d=new Date(v);const pad=(n:number)=>String(n).padStart(2,'0');return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}  ${pad(d.getHours())}:${pad(d.getMinutes())}`}
 const time=(v:string)=>new Date(v).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})
 const tick=(v:string)=>new Date(v).toLocaleString('zh-CN',props.points.length>1 && Date.parse(props.points[props.points.length-1]!.end)-Date.parse(props.points[0]!.start)>86400000?{month:'2-digit',day:'2-digit'}:{hour:'2-digit',minute:'2-digit',hour12:false})
-function formatted(p:RouteTimelinePoint,m:Metric){const reading=value(p,m);if(m==='degradation')return `${Number((reading??0).toFixed(1))}%`+(!p.graded_round_count?'（无有效评分，按 0% 展示）':'');const v=reading??0;const missing=m==='cache'?p.cache_hit_rate==null:m==='ttft'?p.ttft_p50_ms==null:!p.request_count;return (m==='ttft'?`${v.toFixed(2)}s`:`${Number(v.toFixed(1))}%`)+(missing?'（无样本，按 0 展示）':'')}
-function counts(p:RouteTimelinePoint,m:Metric){if(m==='success')return `（${p.success_count}／${p.request_count}）`;if(m==='degradation' && p.graded_round_count!==undefined && p.suspected_degraded_round_count!==undefined)return `（${p.suspected_degraded_round_count}／${p.graded_round_count} 轮）`;return ''}
+function formatted(p:RouteTimelinePoint,m:Metric){const reading=value(p,m);if(m==='degradation')return reading===null?'暂无数据':`${Number(reading.toFixed(1))}%`;const v=reading??0;const missing=m==='cache'?p.cache_hit_rate==null:m==='ttft'?p.ttft_p50_ms==null:!p.request_count;return (m==='ttft'?`${v.toFixed(2)}s`:`${Number(v.toFixed(1))}%`)+(missing?'（无样本，按 0 展示）':'')}
+function counts(p:RouteTimelinePoint,m:Metric){if(m==='success')return `（${p.success_count}／${p.request_count}）`;if(m==='degradation' && value(p,m)!==null)return `（${p.usage_request_count!-p.degraded_request_count!}／${p.usage_request_count} 次）`;return ''}
+function qualityNote(p:RouteTimelinePoint){if(p.usage_request_count===0)return '无用量请求';if(p.usage_request_count===undefined)return '缺少请求时的降智状态';if(p.quality_snapshot_request_count!==p.usage_request_count)return `${p.usage_request_count-(p.quality_snapshot_request_count??0)} 次用量请求缺少降智状态`;return ''}
 const describe=(p:RouteTimelinePoint)=>`${time(p.start)} – ${time(p.end)} · ${series.map(s=>`${s.label} ${formatted(p,s.key)}${s.key==='degradation'?counts(p,s.key):''}`).join(' · ')}${p.request_count?` · ${p.success_count} / ${p.request_count} 次请求成功`:' · 无请求'}`
 function navigate(event:KeyboardEvent,i:number){
  let next=i
@@ -80,7 +81,7 @@ function navigate(event:KeyboardEvent,i:number){
 .route-history{min-width:0;--chart-cache:#b49aee;--chart-ttft:#82b7f3;color:var(--xq-secondary);font-size:12px}
 :global(:root:not(.dark) .route-history){--chart-cache:#7651b5;--chart-ttft:#326ea9}
 .cache{color:var(--chart-cache)}.success{color:var(--xq-success)}.ttft{color:var(--chart-ttft)}
-.degradation{color:var(--xq-danger)}
+.degradation{color:var(--xq-accent)}
 .chart-legend{display:flex;flex-wrap:wrap;gap:4px 16px;margin-bottom:20px;font-size:11px}
 .chart-legend button{font:inherit;color:var(--xq-secondary);min-height:36px;background:transparent;border:0;border-radius:4px;padding:6px 0;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
 .chart-legend button:hover{color:var(--xq-text);background:var(--xq-raised)}
@@ -91,7 +92,7 @@ function navigate(event:KeyboardEvent,i:number){
 .chart-legend .cache i{color:var(--chart-cache);border-top-style:dashed}
 .chart-legend .success i{color:var(--xq-success)}
 .chart-legend .ttft i{color:var(--chart-ttft)}
-.chart-legend .degradation i{color:var(--xq-danger)}
+.chart-legend .degradation i{color:var(--xq-accent)}
 .chart-legend button[aria-pressed="false"] .legend-label{text-decoration:line-through;text-decoration-thickness:1px}
 .chart-legend button[aria-pressed="false"] i{color:var(--xq-secondary);opacity:.4}
 .chart-legend button:focus-visible{outline:2px solid var(--xq-accent);outline-offset:3px}
