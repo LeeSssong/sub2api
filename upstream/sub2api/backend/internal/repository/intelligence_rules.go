@@ -71,6 +71,37 @@ func (r *pelicanGroupTestRepository) SaveIntelligenceRule(ctx context.Context, k
 		if overlap {
 			return infraerrors.Conflict("INTELLIGENCE_RULE_OVERLAP", "同一分组和模型已有检测规则，请编辑现有规则")
 		}
+		// Legacy drawing plans are hidden by the rule panel. Retire their schedule
+		// atomically with the rule, but preserve their rows and historical results.
+		// Lock their rows too so a claim made by an older server cannot race takeover.
+		legacy, err := tx.QueryContext(ctx, `SELECT COALESCE(running_until > NOW(),false)
+ FROM pelican_group_test_plans WHERE group_id=$1 AND model_id=$2
+ AND pelican_config->'intelligence'->>'id' IS NULL ORDER BY id FOR UPDATE`, p.GroupID, p.ModelID)
+		if err != nil {
+			return err
+		}
+		running := false
+		for legacy.Next() {
+			var active bool
+			if err = legacy.Scan(&active); err != nil {
+				legacy.Close()
+				return err
+			}
+			running = running || active
+		}
+		err = legacy.Err()
+		legacy.Close()
+		if err != nil {
+			return err
+		}
+		if running {
+			return infraerrors.Conflict("INTELLIGENCE_LEGACY_PLAN_RUNNING", "同一分组和模型的旧绘图计划正在检测，请等待本轮结束后保存规则")
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE pelican_group_test_plans SET enabled=false,updated_at=NOW()
+ WHERE group_id=$1 AND model_id=$2 AND enabled=true
+ AND pelican_config->'intelligence'->>'id' IS NULL`, p.GroupID, p.ModelID); err != nil {
+			return err
+		}
 	}
 	for _, p := range plans {
 		if id, ok := existing[p.GroupID]; ok {
@@ -100,6 +131,7 @@ func (r *pelicanGroupTestRepository) ListIntelligenceResults(ctx context.Context
  SELECT r.id,row_number() OVER(PARTITION BY p.group_id, COALESCE(r.pelican_config->>'model_id',p.model_id),COALESCE(r.pelican_config->>'question_kind','pelican') ORDER BY r.started_at DESC,r.id DESC) AS pos
  FROM pelican_group_test_results r JOIN pelican_group_test_plans p ON p.id=r.plan_id
  WHERE p.id=ANY($1) AND r.started_at >= $2
+ AND (COALESCE(r.pelican_config->>'question_kind','pelican')<>'candy' OR r.pelican_config->'intelligence_result'->>'source'='quality_ops')
  ) `+pelicanGroupTestResultSelect+` FROM ranked n JOIN pelican_group_test_results r ON r.id=n.id JOIN pelican_group_test_plans p ON p.id=r.plan_id JOIN groups g ON g.id=p.group_id WHERE n.pos <= $3 ORDER BY r.started_at DESC,r.id DESC`, pq.Array(ids), since, limit)
 	if err != nil {
 		return nil, err
@@ -123,9 +155,11 @@ func (r *pelicanGroupTestRepository) GetIntelligenceResult(ctx context.Context, 
  FROM pelican_group_test_results r JOIN pelican_group_test_plans p ON p.id=r.plan_id JOIN groups g ON g.id=p.group_id
  WHERE r.id=$1 AND r.started_at >= $2 AND g.deleted_at IS NULL AND g.status='active'
  AND p.pelican_config->'intelligence'->>'id' IS NOT NULL
+ AND (COALESCE(r.pelican_config->>'question_kind','pelican')<>'candy' OR r.pelican_config->'intelligence_result'->>'source'='quality_ops')
  AND (SELECT COUNT(*) FROM pelican_group_test_results n JOIN pelican_group_test_plans np ON np.id=n.plan_id
  WHERE np.group_id=p.group_id AND np.pelican_config->'intelligence'->>'id' IS NOT NULL
  AND COALESCE(n.pelican_config->>'model_id',np.model_id)=COALESCE(r.pelican_config->>'model_id',p.model_id)
+ AND (COALESCE(n.pelican_config->>'question_kind','pelican')<>'candy' OR n.pelican_config->'intelligence_result'->>'source'='quality_ops')
  AND COALESCE(n.pelican_config->>'question_kind','pelican')=COALESCE(r.pelican_config->>'question_kind','pelican')
  AND (n.started_at,n.id)>(r.started_at,r.id)) < $3`, id, since, limit)
 	result, err := scanPelicanGroupTestResult(row, true)

@@ -42,12 +42,11 @@ func TestIntelligenceSamplesSeparateKindsAndSnapshots(t *testing.T) {
 	plan.PelicanConfig.Intelligence = &IntelligenceRuleConfig{ID: "r", Name: "rule", Candy: &PelicanTestConfig{QuestionKind: "candy", Prompt: CandyPrompt, Quality: &QualityPolicy{ExpectedAnswer: "21", Action: QualityActionObserveOnly}}, Actions: []string{"坐着雪橇"}, Scenes: []string{"竹林里"}}
 	plan.PelicanConfig.Prompt = IntelligenceDrawingPrompt
 	results := svc.runSamples(context.Background(), plan)
-	require.Len(t, results, 2)
-	require.Equal(t, "candy", results[0].PelicanConfig.QuestionKind)
-	require.Equal(t, "incorrect", intelligenceVerdict(results[0]))
-	require.Equal(t, "passed", intelligenceVerdict(results[1]))
+	require.Len(t, results, 1)
+	require.Equal(t, "passed", intelligenceVerdict(results[0]))
+	require.Equal(t, "pelican", results[0].PelicanConfig.QuestionKind)
 	require.Contains(t, plan.PelicanConfig.Prompt, "{动作}")
-	require.Equal(t, "坐着雪橇", results[1].PelicanConfig.IntelligenceResult.Action)
+	require.Equal(t, "坐着雪橇", results[0].PelicanConfig.IntelligenceResult.Action)
 }
 
 func TestIntelligencePublicResultDoesNotLeakAccountsOrErrors(t *testing.T) {
@@ -128,4 +127,11 @@ func TestIntelligenceDashboardThreeDayWindowAndSchedule(t *testing.T) {
 	require.Equal(t, next, *view.Groups[0].NextRunAt)
 	require.Equal(t, lease.Add(-pelicanGroupTestLease), *view.Groups[0].RunningStartedAt)
 	require.GreaterOrEqual(t, intelligenceHistoryKeep(plan), 576)
+}
+
+func (r *groupTestRepoFake) ResolveIntelligenceQualitySource(_ context.Context, groupID, templateID int64, models []string) (*QualityRuleTemplate, error) {
+	return &QualityRuleTemplate{ID: 10, CronExpression: "*/5 * * * *"}, nil
+}
+func (r *groupTestRepoFake) SnapshotIntelligenceQuality(context.Context, *PelicanGroupTestPlan, time.Time) error {
+	return nil
 }

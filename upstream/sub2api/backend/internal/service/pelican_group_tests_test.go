@@ -198,6 +198,18 @@ func newGroupTestService(repo *groupTestRepoFake, router pelicanGroupRouter,
 
 func account(id int64, name string) *Account { return &Account{ID: id, Name: name} }
 
+func TestPelicanGroupTestLegacyEditRejectsIntelligenceRule(t *testing.T) {
+	plan := groupTestPlan(1)
+	plan.PelicanConfig.Intelligence = &IntelligenceRuleConfig{ID: "protected-rule", Name: "rule"}
+	repo := newGroupTestRepoFake(plan)
+	svc, _ := newGroupTestService(repo, nil, nil)
+	_, err := svc.UpdatePlan(context.Background(), plan.ID, PelicanGroupTestPlanInput{
+		ModelID: plan.ModelID, Enabled: true, Prompt: "legacy drawing", ReasoningEffort: "high", ParallelCount: 1,
+	})
+	require.Error(t, err, "legacy edits must not remove the dual-question configuration")
+	require.Equal(t, "protected-rule", repo.plans[plan.ID].PelicanConfig.Intelligence.ID)
+}
+
 // answers scripts the account test: each account answers with the given result.
 func answers(byAccount map[int64]ScheduledTestResult) func(context.Context, int64, string, *PelicanTestConfig) (*ScheduledTestResult, error) {
 	return func(_ context.Context, accountID int64, _ string, _ *PelicanTestConfig) (*ScheduledTestResult, error) {
