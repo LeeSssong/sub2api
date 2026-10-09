@@ -3,6 +3,11 @@ set -euo pipefail
 
 umask 077
 
+# October 9 v2.10.1: reviewed bounded expansion; original API stays live.
+readonly OCTOBER_09_OLD_MIGRATIONS_HASH=94e7d3f18b82168089015e41e69b3f4d9f2f6b3d4fe9f493c5eb1b67dd87e44d
+readonly OCTOBER_09_NEW_MIGRATIONS_HASH=10a94ee6d7eb6ecfef05053c99571604230edba42780257eb73cf105d378073a
+
+
 # User-authorized v2.9.7 online transition; additive order column and platform superset.
 readonly OCTOBER_03_OLD_MIGRATIONS_HASH=600a3160b811deeb1795a446e3ba2f325bd3532b874274c4228eee5d05e121ea
 readonly OCTOBER_03_NEW_MIGRATIONS_HASH=406b6dbf90984d725eedad313962d2785498e03eda5057863df80faa4ba39c6b
@@ -68,9 +73,10 @@ command = ["docker", "exec", "-i", postgres, "sh", "-c",
 sql = """BEGIN;
 SET LOCAL lock_timeout='2s';
 SET LOCAL idle_in_transaction_session_timeout='75s';
-LOCK TABLE scheduled_test_plans IN SHARE MODE;
+LOCK TABLE scheduled_test_plans, pelican_group_test_plans IN SHARE MODE;
 SELECT 'worker_guard|' || count(*) FILTER (WHERE pelican_config IS NULL)
-  || '|' || count(*) FILTER (WHERE running_until IS NOT NULL)
+  || '|' || (count(*) FILTER (WHERE running_until IS NOT NULL)
+      + (SELECT count(*) FROM pelican_group_test_plans WHERE running_until > NOW()))
 FROM scheduled_test_plans;
 """
 while True:
@@ -120,6 +126,13 @@ september28_drain_candidate() {
 
 september28_old_worker_compatible() {
   local result action=enable_bps
+  if [[ "${migrations_hash:-${current_hash:-}}" == "$OCTOBER_09_NEW_MIGRATIONS_HASH" ]]; then
+    result=$(docker exec "$1" sh -c \
+      'exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' october09-compat \
+      "SELECT NOT EXISTS (SELECT 1 FROM account_ops_alerts WHERE kind NOT IN ('balance_low','weekly_quota') AND state IN ('pending','failed','sending')) AND NOT EXISTS (SELECT 1 FROM account_ops_threshold_events WHERE state IN ('pending','failed','sending'))") || return 1
+    [[ "$result" == t ]]
+    return
+  fi
   # Additive schema remains on rollback; previous worker supports retained actions.
   if [[ "${migrations_hash:-${current_hash:-}}" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" ]]; then return 0; fi
   if [[ "${migrations_hash:-${current_hash:-}}" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" ]]; then return 0; fi
@@ -351,7 +364,7 @@ rollback_committed_release() {
   ' "$release_env" >"$temp_env"
   chmod 0600 "$temp_env"
   restore_compose=(docker compose --project-name sub2api --project-directory "$deploy_root" --env-file "$secret_env" --env-file "$temp_env" -f "$compose_file")
-  if [[ ( "$previous_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$MONITOR_V4_OLD_MIGRATIONS_HASH" && "$current_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ]]; then
+  if [[ ( "$previous_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$MONITOR_V4_OLD_MIGRATIONS_HASH" && "$current_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_09_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_09_NEW_MIGRATIONS_HASH" ) ]]; then
     september28_compatibility_blocked=true
     september28_drain_candidate "$("${compose[@]}" ps -q "sub2api-$current_slot")" \
       || fail 'candidate API could not drain during rollback'
@@ -1513,7 +1526,7 @@ restore_previous() {
       rollback_ok=false
     fi
   fi
-  if [[ "$rollback_ok" == true && "$online_migration_transition" == true && ( "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ) && "$cutover_attempted" == true ]]; then
+  if [[ "$rollback_ok" == true && "$online_migration_transition" == true && ( "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_09_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ) && "$cutover_attempted" == true ]]; then
     september28_drain_candidate "$(resolve_container_id "sub2api-$candidate_slot")" || return 1
     if ! september28_old_worker_compatible "$rollback_postgres_id"; then
       failure_reason=september28_bps_compatibility_recovery_required
@@ -1531,7 +1544,7 @@ restore_previous() {
       if [[ "$maintenance_stopped" == true ]]; then
         run_post_stop_command "${compose_rollback[@]}" up --no-deps -d "${compose_pull_args[@]+${compose_pull_args[@]}}" "sub2api-$previous_slot" >/dev/null 2>&1 || rollback_ok=false
       fi
-      if [[ "$maintenance_stopped" == false && ( "$online_migration_transition" == false || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
+      if [[ "$maintenance_stopped" == false && ( "$online_migration_transition" == false || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_09_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
         local rollback_worker_id rollback_worker_running
         rollback_worker_id=$("${compose_rollback[@]}" ps -a -q sub2api-worker) || return 1
         rollback_worker_running=false
@@ -1982,6 +1995,10 @@ if [[ "$migrations_hash" != "$state_migrations_hash" ]]; then
   elif [[ "$state_migrations_hash" == "$MONITOR_V4_OLD_MIGRATIONS_HASH" \
       && "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ]]; then
     online_migration_transition=true
+  elif [[ "$online_migrations_from_hash" == "$state_migrations_hash" \
+      && "$state_migrations_hash" == "$OCTOBER_09_OLD_MIGRATIONS_HASH" \
+      && "$migrations_hash" == "$OCTOBER_09_NEW_MIGRATIONS_HASH" ]]; then
+    online_migration_transition=true
   elif [[ "$maintenance_authorized" == true \
       && "$maintenance_from_hash" == "$state_migrations_hash" ]] \
       && approved_maintenance_transition "$state_migrations_hash" "$migrations_hash"; then
@@ -2009,6 +2026,18 @@ if [[ "$migrations_hash" != "$state_migrations_hash" \
 fi
 [[ -z "$online_migrations_from_hash" || "$online_migration_transition" == true ]] \
   || gate migration_set_changed 'online migration transition is not a reviewed migration pair' 300
+
+if [[ "$online_migration_transition" == true && "$migrations_hash" == "$OCTOBER_09_NEW_MIGRATIONS_HASH" ]]; then
+  [[ "$drain_mode" == retain && "$preserve_worker" == false && "$preserve_detector" == true ]] \
+    || gate october09_online_contract 'October 9 requires retained streams, new worker and preserved detector' 300
+  # This predecessor cannot create threshold events. Refuse a different data
+  # state instead of suppressing live notification work during migration 267.
+  october09_legacy_safe=$("${compose_current[@]}" exec -T postgres sh -c \
+    'exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' october09-preflight \
+    "SELECT NOT EXISTS (SELECT 1 FROM account_ops_alerts WHERE kind NOT IN ('balance_low','weekly_quota'))") \
+    || gate october09_notification_state 'could not verify old notification queue' 300
+  [[ "$october09_legacy_safe" == t ]] || gate october09_notification_state 'threshold notification work requires a separate safe transition' 300
+fi
 
 if [[ "$online_migration_transition" == true && "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" && "$drain_mode" != retain ]]; then
   gate fusion_requires_retain 'fusion requires --drain-mode retain to preserve long requests' 300
@@ -2172,7 +2201,7 @@ jq -e --arg service "sub2api-$candidate_slot" --arg active_service "sub2api-$sta
 partial_path="$record_root/$attempt_id.partial"
 write_partial preflight_complete
 
-if [[ "$online_migration_transition" == true && ( "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
+if [[ "$online_migration_transition" == true && ( "$migrations_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_09_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
   # Existing upgraded streams use the OLD proxy handler's cleanup policy.
   # Merely putting a delay in the incoming file cannot preserve them.
   "${compose_current[@]}" exec -T caddy wget -qO- http://127.0.0.1:2019/config/ |
@@ -2435,7 +2464,7 @@ failure_reason=caddy_validate_failed
 run_caddy_config_command "$candidate_upstream" validate >/dev/null
 write_partial caddy_validated
 
-if [[ "$preserve_worker" == false && "$maintenance_transition" == false && ( "$online_migration_transition" == false || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
+if [[ "$preserve_worker" == false && "$maintenance_transition" == false && ( "$online_migration_transition" == false || "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_09_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ) ]]; then
   failure_reason=worker_drain_failed
   write_partial worker_updating
   stop_worker_after_schedule_drain "$postgres_id" "$(resolve_container_id sub2api-worker)" 90 \
@@ -2479,7 +2508,7 @@ write_partial state_persisted
 [[ "$(live_caddy_upstream)" == "$candidate_upstream" ]] || fail 'persisted route does not match live Caddy upstream'
 
 failure_reason=worker_update_failed
-if [[ "$preserve_worker" == false && ( "$maintenance_transition" == true || ( "$online_migration_transition" == true && "$migrations_hash" != "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_01_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_02_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_03_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ]]; then
+if [[ "$preserve_worker" == false && ( "$maintenance_transition" == true || ( "$online_migration_transition" == true && "$migrations_hash" != "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_01_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_02_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_03_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$MONITOR_V4_NEW_MIGRATIONS_HASH" && "$migrations_hash" != "$OCTOBER_09_NEW_MIGRATIONS_HASH" ) ) ]]; then
   reauth_lifecycle pause || fail 'reauth could not drain before worker replacement'
   worker_update_started=true
   write_partial worker_updating

@@ -402,6 +402,8 @@ JSON
     done
     ;;
   'inspect worker-id --format {{.State.Running}}'|'inspect green-id --format {{.State.Running}}') printf 'false\n' ;;
+  *'october09-preflight'*) printf '%s\n' "${FAKE_OCTOBER09_SAFE:-t}" ;;
+  *'october09-compat'*) printf '%s\n' "${FAKE_SEPTEMBER28_COMPAT:-t}" ;;
   *'september28-compat'*) printf '%s\n' "${FAKE_SEPTEMBER28_COMPAT:-t}" ;;
   *'fusion-receipts'*) if [[ "$scenario" == fusion_partial_migration || "$scenario" == september26_receipt_mismatch ]]; then printf '%064d\n' 7; else printf '%s\n' "${EXPECTED_MIGRATIONS_HASH:?}"; fi ;;
   *' -migrate-only') [[ "$scenario" != fusion_partial_migration && "$scenario" != official297_migration_failure ]] || exit 1 ;;
@@ -1374,6 +1376,66 @@ test_monitor_v4_online_transition() {
     expect_failure monitor_v4_public_failure run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=fusion_public_failure
   ! grep -q 'maintenance stop api-worker' "$EVENT_LOG" || fail 'monitor-v4 public failure stopped active API'
   grep -q 'stop --time 300 green-id' "$EVENT_LOG" || fail 'monitor-v4 rollback did not drain candidate for 300 seconds'
+}
+
+test_october09_online_transition() {
+  local old_hash=94e7d3f18b82168089015e41e69b3f4d9f2f6b3d4fe9f493c5eb1b67dd87e44d
+  local new_hash=10a94ee6d7eb6ecfef05053c99571604230edba42780257eb73cf105d378073a
+  setup_case october09_online
+  write_meminfo
+  MIGRATIONS_HASH=$new_hash
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  EXPECTED_MIGRATIONS_HASH=$new_hash ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=retain \
+    run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=drain_empty >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "October 9 online release failed: $(cat "$CASE_DIR/stderr")"
+  grep -q 'run --rm --no-deps --user 1000:1000 --entrypoint /app/sub2api sub2api-worker -migrate-only' "$EVENT_LOG" \
+    || fail 'October 9 did not run the standalone migrator'
+  grep -q 'up --no-deps -d --force-recreate sub2api-worker' "$EVENT_LOG" \
+    || fail 'October 9 did not promote the new worker'
+  ! grep -q 'maintenance stop api-worker' "$EVENT_LOG" || fail 'October 9 stopped the active API'
+  ! grep -q ' stop sub2api-blue sub2api-green sub2api-worker' "$EVENT_LOG" || fail 'October 9 stopped the active API/worker'
+  grep -q 'docker stop --time 60 worker-id' "$EVENT_LOG" || fail 'October 9 did not drain the old worker'
+  "$REAL_JQ" -e --arg hash "$new_hash" '.migrations_hash == $hash and .active_slot == "green"' "$CASE_DIR/state.json" >/dev/null \
+    || fail 'October 9 did not persist the additive schema and candidate promotion'
+
+  setup_case october09_wrong_target
+  write_meminfo
+  MIGRATIONS_HASH=$(printf '0%.0s' {1..64})
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  EXPECTED_MIGRATIONS_HASH=$MIGRATIONS_HASH ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=retain \
+    expect_failure october09_wrong_target run_executor PRESERVE_DETECTOR=true
+  ! grep -q ' -migrate-only' "$EVENT_LOG" || fail 'wrong October 9 target reached migration execution'
+  assert_no_mutation october09_wrong_target
+
+  setup_case october09_public_failure
+  write_meminfo
+  MIGRATIONS_HASH=$new_hash
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  EXPECTED_MIGRATIONS_HASH=$new_hash ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=retain \
+    expect_failure october09_public_failure run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=fusion_public_failure
+  ! grep -q 'maintenance stop api-worker' "$EVENT_LOG" || fail 'October 9 public failure stopped active API'
+  grep -q 'stop --time 300 green-id' "$EVENT_LOG" || fail 'October 9 rollback did not drain candidate for 300 seconds'
+  local scenario
+  for scenario in forced_drain unsafe_notifications; do
+    setup_case "october09_$scenario"
+    write_meminfo
+    MIGRATIONS_HASH=$new_hash
+    "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+    mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+    if [[ "$scenario" == forced_drain ]]; then
+      EXPECTED_MIGRATIONS_HASH=$new_hash ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=force \
+        expect_failure october09_forced_drain run_executor PRESERVE_DETECTOR=true
+    else
+      EXPECTED_MIGRATIONS_HASH=$new_hash ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=retain \
+        expect_failure october09_unsafe_notifications run_executor PRESERVE_DETECTOR=true FAKE_OCTOBER09_SAFE=f
+    fi
+    assert_no_mutation "october09_$scenario"
+  done
+  printf 'PASS: October 9 exact transition, retained streams, notification safety, wrong-target and rollback cases\n'
+
 }
 
 test_successful_release_can_rollback_without_stopping_current_api() {
@@ -3779,6 +3841,7 @@ case "${ONLY_TEST:-all}" in
 	maintenance-official-028-transition) test_official_028_maintenance_transition_allowlist ;;
   online-migrations) test_online_official_028_migrations_keep_old_api_running ;;
   monitor-v4-online) test_monitor_v4_online_transition ;;
+  october09-online) test_october09_online_transition ;;
   post-success-rollback) test_successful_release_can_rollback_without_stopping_current_api; test_online_migration_release_can_rollback_to_previous_schema_reader; test_failed_rollback_restoration_keeps_exclusive_lock; test_failed_rollback_state_write_restores_release_env ;;
 	caddy-identity) test_caddy_identity_refresh_without_maintenance ;;
 	drain) test_preserve_worker_and_drain; test_fusion_retain_drain ;;
