@@ -7,6 +7,7 @@ type NavigationGuard = (
 ) => Promise<void>
 
 const routerHarness = vi.hoisted(() => ({
+  routes: [] as Array<{ path: string; meta?: Record<string, unknown> }>,
   guard: null as NavigationGuard | null,
   afterEach: null as ((to: Record<string, any>) => void) | null,
 }))
@@ -41,15 +42,22 @@ const appStore = vi.hoisted(() => ({
 
 vi.mock('vue-router', () => ({
   createWebHistory: vi.fn(() => ({})),
-  createRouter: vi.fn(() => ({
-    beforeEach: vi.fn((guard: NavigationGuard) => {
-      routerHarness.guard = guard
-    }),
-    afterEach: vi.fn((hook: (to: Record<string, any>) => void) => {
-      routerHarness.afterEach = hook
-    }),
-    onError: vi.fn(),
-  })),
+  createRouter: vi.fn((options) => {
+    routerHarness.routes = options.routes
+    return {
+      beforeEach: vi.fn((guard: NavigationGuard) => {
+        routerHarness.guard = guard
+      }),
+      afterEach: vi.fn((hook: (to: Record<string, any>) => void) => {
+        routerHarness.afterEach = hook
+      }),
+      onError: vi.fn(),
+    }
+  }),
+}))
+
+vi.mock('@/i18n', () => ({
+  i18n: { global: { t: (key: string) => key } },
 }))
 
 vi.mock('@/stores/auth', () => ({
@@ -144,6 +152,25 @@ describe('feature route guard', () => {
 
     expect(routePrefetchHarness.create).not.toHaveBeenCalled()
     expect(routePrefetchHarness.trigger).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('allows authenticated order history when payment is enabled=%s', async (enabled) => {
+    const route = routerHarness.routes.find(route => route.path === '/orders')!
+    appStore.publicSettingsLoaded = true
+    appStore.cachedPublicSettings = { payment_enabled: enabled }
+    const { navigation, next } = runGuard(route.meta!, route.path)
+    await navigation
+    expect(next).toHaveBeenCalledWith()
+  })
+
+  it('still requires authentication for order history when payment is disabled', async () => {
+    const route = routerHarness.routes.find(route => route.path === '/orders')!
+    authStore.isAuthenticated = false
+    appStore.publicSettingsLoaded = true
+    appStore.cachedPublicSettings = { payment_enabled: false }
+    const { navigation, next } = runGuard(route.meta!, route.path)
+    await navigation
+    expect(next).toHaveBeenCalledWith({ path: '/login', query: { redirect: '/orders' } })
   })
 
   it('allows observers own usage in backend mode without opening other user or admin pages', async () => {
