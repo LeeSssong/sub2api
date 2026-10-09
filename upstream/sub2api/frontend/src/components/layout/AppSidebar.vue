@@ -22,7 +22,7 @@
           class="sidebar-brand-title text-lg font-bold text-gray-900 transition-colors hover:text-primary-600 dark:text-white dark:hover:text-primary-400"
           @click="handleMenuItemClick(homePath)"
         >
-          {{ isUserSurface ? '星桥 AI Link' : siteName }}
+          {{ siteName }}
         </router-link>
         <!-- Version Badge -->
         <VersionBadge v-if="!isUserSurface" :version="siteVersion" />

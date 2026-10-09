@@ -38,7 +38,11 @@ function validRealCounts(metric?: MonitorV4Group): metric is MonitorV4Group {
 }
 export function routeHealth(metric?: MonitorV4Group, now = Date.now(), snapshotGeneratedAt?: string | null): RouteHealth {
   if (!freshSnapshot(now,snapshotGeneratedAt) || !validRealCounts(metric) || metric.real_request_count === 0) return noRouteData()
-  const rate = metric.real_success_count / metric.real_request_count * 100
+  return routeCountHealth(metric.real_success_count, metric.real_request_count)
+}
+export function routeCountHealth(success?: number, requests?: number): RouteHealth {
+  if (!Number.isSafeInteger(success) || !Number.isSafeInteger(requests) || requests! <= 0 || success! < 0 || success! > requests!) return noRouteData()
+  const rate = success! / requests! * 100
   return rate >= 90 ? {kind:'success',text:'正常运行',rate} : rate >= 70 ? {kind:'warning',text:'波动',rate} : {kind:'danger',text:'异常',rate}
 }
 export function aggregateRouteHealth(metrics: (MonitorV4Group | undefined)[], now = Date.now(), snapshotGeneratedAt?: string | null): RouteHealth {

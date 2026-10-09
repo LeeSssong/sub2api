@@ -105,7 +105,6 @@ type MonitorV4Snapshot struct {
 
 type MonitorV4Service struct {
 	checkMu     sync.Mutex
-	checkNext   map[int64]time.Time
 	checkActive map[int64]bool
 	checkCount  int
 	groupRepo   GroupRepository

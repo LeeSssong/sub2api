@@ -28,6 +28,7 @@
 - 验收 API/登录入口：由独立站自身根路径提供，必须以该站页面和 API 实际响应为准；不得拼接旧 `/admin/lab/api/v1` 前缀
 - 主站管理员页面：`https://api.xingqiaolab.top/admin/accounts`；该路径继续走主站，不属于验收站
 - 宿主 SSH alias：`sub2api-test-station`（`ubuntu@43.133.75.82:22`）
+- 2026-10-09 用户再次确认 `43.133.75.82` 为测试站。本机旧 alias 已纠正；执行前用 `ssh -G sub2api-test-station` 核对，不得按旧 SSH 路由访问 `49.51.203.200`。
 - 验收宿主目录：`/opt/sub2api-test-station/`
 - 当前活动 release：由宿主 `/opt/sub2api-test-station/release-state.json` 的 `source_commit/source_tree`、发布记录与运行容器 Compose 标签实时解析；不得在规则文档中固定可能过时的 release SHA
 - Compose 文件：`<active-release>/infra/independent-test-station/compose.yaml`
@@ -43,10 +44,10 @@
 
 任何线程需要登录、查看日志、执行验收发布或宿主运维时，使用以下受保护文件；不得把其中的密码、token、私钥、API key、支付密钥、上游 key 或 webhook 写入 Git、规格书、聊天消息、发布证据或普通日志：
 
-- 测试站 SSH 私钥：`/Users/awen/.ssh/tencent_lighthouse_seoul_sub2api`，权限必须为 `0600`
-- 测试站 SSH known_hosts：`/Users/awen/.config/sub2api/known_hosts`，权限必须为 `0600`，且必须包含 `43.133.75.82` 的可信 host key
+- 测试站 SSH 私钥：`/Users/gongtengxinwen/.ssh/tencent_lighthouse_seoul_sub2api`，权限必须为 `0600`
+- 测试站 SSH known_hosts：`/Users/gongtengxinwen/.config/sub2api/known_hosts`，权限必须为 `0600`，且必须包含 `43.133.75.82` 的可信 host key
 - 测试站运行 env：服务器 `/opt/sub2api-test-station/.env`，权限必须为 `0600`
-- 旧验收 env：`/Users/awen/.config/sub2api/acceptance-20260827.env`，仅历史参考，不得用于新独立测试站
+- 旧验收 env：`/Users/gongtengxinwen/.config/sub2api/acceptance-20260827.env`，仅历史参考，不得用于新独立测试站
 
 线程可以读取非敏感配置名和值（站点、目录、project、network、端口、provider 类型），但不得用 `cat`、`env`、`docker inspect` 或日志命令打印完整 env。需要展示时只展示变量名、是否已设置、文件权限和脱敏摘要。
 
@@ -84,7 +85,11 @@ curl --fail --silent --show-error http://43.133.75.82/readyz
 
 独立测试站发布与主站共用同一来源底线：候选先合入并推送根目录 `main`，然后只能从该根目录干净的 `main` 执行发布。发布时必须同时满足：当前分支为 `main`、非 detached HEAD、工作树干净、`HEAD` commit/tree 与本地 `origin/main` 完全一致。
 
-当前仓库的 `ops/release-sub2api-acceptance.sh`、`ops/deploy-sub2api-acceptance-host.sh` 和 `infra/compose.acceptance.yaml` 仍是旧 `/admin/lab` 拓扑的历史发布链，不能发布到 `sub2api-test-station`。在独立测试站发布控制器完成适配并经直接相关测试前，禁止用旧脚本发布新站；本轮只允许对新站做只读核对。适配后的控制器必须 fail-closed 校验 `main == origin/main`，使用 `<active-release>`/新站 Compose 文件，仅操作 `sub2api-test-station` project，并不得调用主站蓝绿链。
+当前仓库的 `ops/release-sub2api-acceptance.sh`、`ops/deploy-sub2api-acceptance-host.sh` 和 `infra/compose.acceptance.yaml` 仍是旧 `/admin/lab` 拓扑的历史发布链，不能发布到 `sub2api-test-station`。
+
+独立站当前 API 发布入口为 `ops/release-sub2api-test-station-api.sh`，宿主执行器为 `ops/deploy-sub2api-test-station-api.py`。它们校验根目录干净 `main == origin/main`、当前 SSH 身份、活动 release、依赖镜像和全部迁移校验和；复用活动配置，仅操作独立站 project。普通发布使用 API 蓝绿，并可串行更新 singleton worker；有待执行的迁移默认拒绝。
+
+2026-10-09 为请求质量快照新增的停机路径只允许 `266_quality_traffic_snapshots.sql`：设置 `TEST_STATION_APPROVED_HOST=43.133.75.82`、`TEST_STATION_UPDATE_WORKER=true` 和 `TEST_STATION_MAINTENANCE_MIGRATION=266_quality_traffic_snapshots.sql`。先构建制品、验证数据库备份的完整恢复，再阻断 API 入口、停止 API/worker、备份停止写入后的数据库，调用原生 `--migrate-only`，更新单套 API/worker，检查就绪后开放流量。临时恢复验证库不接业务流量，验证后删除。首页、detector、PostgreSQL、Redis 不重建。迁移或 API 启动失败且新 worker 尚未启动时恢复数据库备份；worker 启动或开放流量后的失败仅恢复兼容的旧应用，保留新增结构和数据，避免丢弃新写入。新增其他迁移须先适配并验证，不能借此放宽门禁。直接相关发布测试已覆盖门禁、停机顺序、迁移失败恢复及开放流量后保留数据；线上结果由对应发布记录单独确认。
 
 新站当前已部署的镜像/数据属于独立服务器上的既有运行态，不构成当前代码发布控制器已适配的证据。不得把旧 `/admin/lab` 健康结果、主站 Caddy 路由或旧验收脚本输出写成新独立站发布成功。
 

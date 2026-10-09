@@ -131,6 +131,9 @@ func TestAccountMonitorProbeCarriesObservedUsageIntoResult(t *testing.T) {
 
 	result, err := svc.ProbeAccountConnection(context.Background(), 17, "gpt-5", "", AccountTestModeDefault)
 	require.NoError(t, err)
+	require.Equal(t, "success", result.Status)
+	require.Empty(t, result.ErrorCode)
+	require.NotNil(t, result.TTFTMS)
 	require.Equal(t, 13, result.InputTokens)
 	require.Equal(t, 2, result.CacheCreationTokens)
 	require.Equal(t, 7, result.CacheReadTokens)

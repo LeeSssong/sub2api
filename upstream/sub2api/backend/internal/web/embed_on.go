@@ -87,6 +87,10 @@ func (s *FrontendServer) InvalidateCache() {
 func (s *FrontendServer) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/branding/favicon/") || path == "/favicon.ico" || path == "/apple-touch-icon.png" {
+			s.serveFavicon(c)
+			return
+		}
 
 		// Skip API routes
 		if shouldBypassEmbeddedFrontend(path) {
@@ -226,7 +230,7 @@ func injectSiteFavicon(html, settingsJSON []byte) []byte {
 		return html
 	}
 
-	logoURL := safeImageURL(cfg.SiteLogo)
+	logoURL := faviconURL(safeImageURL(cfg.SiteLogo))
 	if logoURL == "" {
 		return html
 	}

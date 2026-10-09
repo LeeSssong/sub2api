@@ -27,7 +27,7 @@
           </article>
         </div>
         <section class="lines-panel" aria-labelledby="routes-title">
-          <div class="panel-head"><h2 id="routes-title">我的 AI 线路</h2><button class="xq-button route-check-button" aria-label="检查线路" title="检查线路" :disabled="checking || !routeRows.some(g=>g.status==='active')" @click="runChecks"><img src="/xingqiao/refresh.svg" alt="" :class="{'is-checking':checking}" /><span>检查线路</span></button></div>
+          <div class="panel-head"><h2 id="routes-title">我的 AI 线路</h2><button class="xq-button route-check-button" aria-label="检查线路" title="每分钟最多检查 30 次" :disabled="checking || checkCooldown || !routeRows.some(g=>g.status==='active')" @click="runChecks"><img src="/xingqiao/refresh.svg" alt="" :class="{'is-checking':checking}" /><span>检查线路</span></button></div>
           <div v-if="checkError" class="workspace-error" role="alert">{{ checkError }}</div>
           <div class="route-table-scroll">
             <div class="route-table" role="table" aria-label="我的 AI 线路">
@@ -64,9 +64,9 @@
             </header>
             <div class="detail-card-quality">
               <div class="detail-quality-value detail-success-hover" tabindex="0" role="group" :aria-describedby="`detail-request-sample-${group.id}`" @mouseenter="detailSampleGroup=group.id" @mouseleave="detailSampleGroup=null" @focusin="detailSampleGroup=group.id" @focusout="detailSampleGroup=null" @click="detailSampleGroup=group.id" @keydown.esc.stop="detailSampleGroup=null">
-                <span class="detail-quality-label">请求成功率</span>
-                <strong class="success-rate success-rate-tone" :data-tone="successTone(group,detailMetrics,false)">{{ successLabel(group,detailMetrics,false) }}</strong>
-                <span v-show="detailSampleGroup===group.id" :id="`detail-request-sample-${group.id}`" class="detail-request-sample" role="tooltip">{{ detailMetrics.get(group.id)?.real_success_count ?? '—' }} / {{ detailMetrics.get(group.id)?.real_request_count ?? '—' }} 次请求成功</span>
+                <span class="detail-quality-label" title="与后台对应分组的 SLA 一致，排除业务限制及客户端取消">请求成功率</span>
+                <strong class="success-rate success-rate-tone" :data-tone="routeHealthTone(detailSLAHealth(group))">{{ timelineLoading || timelineError ? '—' : routeSuccessLabel(detailSLAHealth(group)) }}</strong>
+                <span v-show="detailSampleGroup===group.id" :id="`detail-request-sample-${group.id}`" class="detail-request-sample" role="tooltip">{{ detailSLACounts.get(group.id)?.success_count ?? '—' }} / {{ detailSLACounts.get(group.id)?.request_count ?? '—' }} 次请求成功（后台 SLA，排除业务限制）</span>
               </div>
             </div>
             <RouteHistoryStrip :points="timelinePoints.filter(point=>point.group_id===group.id)" :loading="timelineLoading" :error="timelineError" />
@@ -89,14 +89,14 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import CreateLineKeyDialog from '@/features/ai-tools/CreateLineKeyDialog.vue'
 import RouteHistoryStrip from '@/features/ai-tools/RouteHistoryStrip.vue'
-import { getRouteTimeline, type RouteTimelinePoint } from '@/features/ai-tools/routeTimeline'
+import { aggregateRouteSLACounts, getRouteTimeline, type RouteTimelinePoint } from '@/features/ai-tools/routeTimeline'
 import PricingDialog from '@/features/ai-tools/PricingDialog.vue'
 import userGroupsAPI from '@/api/groups'
 import keysAPI from '@/api/keys'
 import { getHybridPerformanceSnapshot } from '@/features/monitor-v4/api'
 import { formatLineRate, resolveLineRate } from '@/components/keys/lineOptions'
 import { checkLines, type LineCheck } from '@/features/ai-tools/api'
-import { tools, linkedCounts, configuredLines, routeHealth, routeHealthTone, routeSuccessLabel, compareQuality, rankWeightedRoutes, metricLabel, providerIcon, platformLabel, toolIdsForGroup } from '@/features/ai-tools/model'
+import { tools, linkedCounts, configuredLines, routeCountHealth, routeHealth, routeHealthTone, routeSuccessLabel, compareQuality, rankWeightedRoutes, metricLabel, providerIcon, platformLabel, toolIdsForGroup } from '@/features/ai-tools/model'
 import { getDashboardWorkspaceSnapshot, setDashboardWorkspaceSnapshot } from '@/features/ai-tools/workspaceCache'
 import type { ApiKey, Group } from '@/types'
 import type { MonitorV4Group, MonitorV4Window } from '@/features/monitor-v4/types'
@@ -128,7 +128,8 @@ let detailsTrigger:HTMLElement|null=null, createTrigger:HTMLElement|null=null
 const counts=computed(()=>linkedCounts(keys.value))
 const metricsById=computed(()=>new Map(metrics.value.map(m=>[m.id,m])))
 const rankingMetricsById=computed(()=>new Map(rankingMetrics.value.map(m=>[m.id,m])))
-const detailMetrics=computed(()=>new Map(detailData.value.map(m=>[m.id,m])))
+const detailSLACounts=computed(()=>timelineLoading.value || timelineError.value ? new Map<number,{request_count:number;success_count:number}>() : aggregateRouteSLACounts(timelinePoints.value))
+function detailSLAHealth(group:Group){const counts=detailSLACounts.value.get(group.id);return routeCountHealth(counts?.success_count,counts?.request_count)}
 const allGroups=computed(()=>{const all=new Map(groups.value.map(g=>[g.id,g]));for(const g of configuredLines(groups.value,keys.value))all.set(g.id,g);return [...all.values()]})
 const sort=(list:Group[], ms=metricsById.value)=>[...list].sort((a,b)=>compareQuality(a,b,ms,rates.value,clock.value,metricsGeneratedAt.value))
 const stateOf=(g:Group)=>routeHealth(statsFailed.value?undefined:metricsById.value.get(g.id),clock.value,metricsGeneratedAt.value)
@@ -152,7 +153,7 @@ function openPricing(tool:ToolCard){pricingTrigger=document.activeElement as HTM
 function closePricing(){pricingTool.value=null;nextTick(()=>pricingTrigger?.focus())}
 const selectedTool=ref<ToolCard|null>(null), createTool=ref<ToolCard|null>(null),createGroupId=ref<number>()
 const routeRows=computed(()=>sort(configuredLines(groups.value,keys.value)))
-const detailRows=computed(()=>sort(selectedTool.value?.groups||[],detailMetrics.value))
+const detailRows=computed(()=>[...(selectedTool.value?.groups||[])].sort((a,b)=>(resolveLineRate(a,rates.value)??Infinity)-(resolveLineRate(b,rates.value)??Infinity)))
 const detailBest=computed(()=>toolCards.value.find(tool=>tool.id===selectedTool.value?.id)?.best)
 const periods=[{value:'1h' as const,label:'近 1 小时'},{value:'24h' as const,label:'近 24 小时'},{value:'7d' as const,label:'近 7 天'}]
 const rateLabel=(g:Group)=>formatLineRate(resolveLineRate(g,rates.value))
@@ -237,15 +238,29 @@ function closeCreate(){
   if(!selectedTool.value)nextTick(()=>createTrigger?.focus())
 }
 async function keyCreated(key:ApiKey){keys.value=[...keys.value.filter(k=>k.id!==key.id),key];createTool.value=null;await loadWorkspace();if(selectedTool.value)await loadDetails(detailWindow.value)}
+const checkCooldown=ref(false)
+let checkCooldownTimer:ReturnType<typeof setTimeout>|undefined
 async function runChecks(){
-  if(checking.value)return
+  if(checking.value||checkCooldown.value)return
   const ids=routeRows.value.filter(g=>g.status==='active').map(g=>g.id);if(!ids.length)return
   checking.value=true;checkError.value='';checkController=new AbortController()
   try{const results=await checkLines(ids,checkController.signal);if(checkController.signal.aborted)return;for(const id of ids)checks.value[id]=results.find(r=>r.group_id===id)||{group_id:id,status:'failed',ttft_ms:null,checked_at:''};await loadWorkspace()}
-  catch{if(!checkController.signal.aborted){checkError.value='线路检查请求未完成，请稍后重试。'}}
+  catch(error:unknown){if(!checkController.signal.aborted){
+    const failure=error as {status?:number;code?:string;metadata?:{retry_after_seconds?:unknown}}|null
+    if(failure?.status===429&&failure.code==='LINE_CHECK_RATE_LIMITED'){
+      const retry=Number(failure.metadata?.retry_after_seconds)
+      const seconds=Number.isFinite(retry)?Math.max(1,Math.min(60,Math.ceil(retry))):60
+      checkError.value=`每分钟最多检查 30 次，请在 ${seconds} 秒后重试。`
+      checkCooldown.value=true
+      clearTimeout(checkCooldownTimer)
+      checkCooldownTimer=setTimeout(()=>{checkCooldown.value=false;checkError.value=''},seconds*1000)
+    }else if(failure?.status===429){checkError.value='检查过于频繁，请稍后重试。'}
+    else if(failure?.code==='LINE_CHECK_UNAVAILABLE'){checkError.value='线路检查暂不可用，请稍后重试。'}
+    else{checkError.value='线路检查请求未完成，请稍后重试。'}
+  }}
   finally{checking.value=false}
 }
 function openGroupKeys(id:number){void router.push({path:'/keys',query:{group_id:String(id)}})}
 onMounted(()=>{void loadWorkspace();freshnessTimer=setInterval(()=>{clock.value=Date.now()},30000)})
-onBeforeUnmount(()=>{clearInterval(freshnessTimer);loadController?.abort();detailController?.abort();checkController?.abort()})
+onBeforeUnmount(()=>{clearTimeout(checkCooldownTimer);clearInterval(freshnessTimer);loadController?.abort();detailController?.abort();checkController?.abort()})
 </script>

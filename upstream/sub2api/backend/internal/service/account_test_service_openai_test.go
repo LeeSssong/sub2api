@@ -57,7 +57,7 @@ func TestProcessOpenAIStreamEmitsCompletedOutputText(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, recorder := newTestContext()
 	svc := &AccountTestService{}
-	body := `data: {"type":"response.completed","response":{"output":[{"type":"message","content":[{"type":"output_text","text":"probe ok"}]}]}}\n\ndata: [DONE]\n\n`
+	body := "data: " + `{"type":"response.completed","response":{"output":[{"type":"message","content":[{"type":"output_text","text":"probe ok"}]}]}}` + "\n\ndata: [DONE]\n\n"
 
 	observer := &accountMonitorProbeObserver{}
 	ctx.Request = ctx.Request.WithContext(context.WithValue(ctx.Request.Context(), accountMonitorProbeObserverKey{}, observer))
