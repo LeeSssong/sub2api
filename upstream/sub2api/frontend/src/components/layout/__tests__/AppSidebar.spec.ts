@@ -80,7 +80,7 @@ describe('AppSidebar user navigation structure', () => {
     expect(userItemsSource).toContain("{ path: '/usage', label: t('nav.usage'), icon: ChartIcon }")
     expect(userItemsSource).toContain("{ path: '/keys', label: userNavLabel('myKeys', '我的密钥'), icon: KeyIcon }")
     expect(userItemsSource).not.toContain("path: '/purchase'")
-    expect(userItemsSource).toContain("{ path: '/orders', label: t('nav.myOrders'), icon: OrderIcon }")
+    expect(userItemsSource).not.toContain("path: '/orders'")
     expect(userItemsSource).not.toContain("path: '/redeem'")
     expect(userItemsSource).not.toContain("path: '/profile'")
     expect(componentSource).toContain('data-testid="user-sidebar-recharge"')

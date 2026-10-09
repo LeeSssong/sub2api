@@ -41,15 +41,11 @@ async function setup(items = [storefront], paymentEnabled = false, role: 'user' 
 }
 
 describe('regular user storefront menu', () => {
-  it.each(['user', 'admin'] as const)('keeps native order history accessible with payments disabled for %s', async (role) => {
-    const { sidebar, router } = await setup([], false, role)
-    const link = sidebar.get('nav a[href="/orders"]')
-    expect(link.text()).toBe('nav.myOrders')
-    expect(link.find('svg').exists()).toBe(true)
-    await link.trigger('click')
-    await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/orders')
-    expect(sidebar.get('nav a[href="/orders"]').attributes('aria-current')).toBe('page')
+  it.each(['user', 'admin'] as const)('keeps order history outside the sidebar for %s', async (role) => {
+    const { sidebar } = await setup([], false, role)
+    expect(sidebar.find('nav a[href="/orders"]').exists()).toBe(false)
+    await sidebar.get('[data-testid="user-sidebar-account"]').trigger('click')
+    expect(sidebar.find('[role="menu"] a[href="/orders"]').exists()).toBe(false)
   })
 
   it.each(['user', 'admin'] as const)('follows the affiliate switch and opens the native page for %s', async (role) => {
@@ -79,7 +75,7 @@ describe('regular user storefront menu', () => {
     const { sidebar, app, router } = await setup([storefront], false, 'admin')
     app.$patch({ sidebarCollapsed: true })
     await nextTick()
-    expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys', '/orders'])
+    expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys'])
     expect(sidebar.get('aside').classes()).not.toContain('admin-sidebar')
     expect(sidebar.get('aside').classes()).not.toContain('admin-sidebar-collapsed')
     expect(sidebar.get('.sidebar-brand-title').attributes('href')).toBe('/dashboard')
@@ -95,17 +91,17 @@ describe('regular user storefront menu', () => {
     app.$patch({ sidebarCollapsed: false })
     await nextTick()
     const personal = sidebar.findAll('.sidebar-section').find(section => section.find('.sidebar-section-title').exists())!
-    expect(personal.findAll('a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys', '/orders'])
+    expect(personal.findAll('a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys'])
     await router.push('/keys')
     await flushPromises()
     expect(sidebar.get('aside').classes()).not.toContain('admin-sidebar')
-    expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys', '/orders'])
+    expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys'])
   })
 
   it.each([false, true])('keeps only the bottom recharge entry when payments are enabled=%s', async (paymentEnabled) => {
     const { sidebar, router } = await setup([storefront], paymentEnabled)
     expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual([
-      '/dashboard', '/usage', '/keys', '/orders',
+      '/dashboard', '/usage', '/keys',
     ])
     expect(sidebar.find('nav a[href="/redeem"]').exists()).toBe(false)
     expect(sidebar.find('nav a[href="/custom/xingqiao-storefront"]').exists()).toBe(false)
@@ -127,7 +123,7 @@ describe('regular user storefront menu', () => {
     for (const visibility of ['user', 'admin'] as const) {
       app.$patch({ cachedPublicSettings: { custom_menu_items: [{ ...storefront, visibility }] } })
       await nextTick()
-      expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys', '/orders'])
+      expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys'])
       expect(sidebar.get('[data-testid="user-sidebar-recharge"]').exists()).toBe(true)
     }
   })

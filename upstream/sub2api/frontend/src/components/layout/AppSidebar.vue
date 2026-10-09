@@ -768,7 +768,6 @@ function buildUserNavItems(): NavItem[] {
     { path: '/dashboard', label: userNavLabel('aiTools', 'AI 工具'), icon: DashboardIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/keys', label: userNavLabel('myKeys', '我的密钥'), icon: KeyIcon },
-    { path: '/orders', label: t('nav.myOrders'), icon: OrderIcon },
     ...(flagAffiliate() ? [{ path: '/affiliate', label: t('nav.affiliate'), icon: GiftIcon }] : []),
     // Recharge and redemption are accessed only through the fixed balance entry.
     ...customMenuItemsForUser.value
