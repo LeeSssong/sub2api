@@ -12,7 +12,7 @@ func TestProvideHandlersWiresMonitorV4(t *testing.T) {
 		nil, nil, nil, nil, nil, nil, nil, nil,
 		nil, monitorV4, nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil,
 	)
 	if handlers == nil {
 		t.Fatal("ProvideHandlers() returned nil")
@@ -28,8 +28,8 @@ func TestProvideHandlersReusesModelPlazaPricingService(t *testing.T) {
 	plaza := NewModelPlazaHandler(pricing, nil, nil)
 	ProvideHandlers(
 		nil, nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, gateway, nil,
-		nil, nil, nil, nil, nil, nil, nil, plaza,
+		nil, nil, nil, nil, nil, nil, nil, gateway,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, plaza,
 		nil, nil, nil, nil, nil,
 	)
 	if gateway.modelPlazaService != pricing {

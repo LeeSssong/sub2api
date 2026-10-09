@@ -1372,7 +1372,7 @@ func (s *GatewayService) calculateTokenCost(
 		resolved = s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group})
 	}
 	var legacy *LegacyLongContextRule
-	if opts.LongContextThreshold > 0 {
+	if opts != nil && opts.LongContextThreshold > 0 {
 		legacy = &LegacyLongContextRule{Threshold: opts.LongContextThreshold, Multiplier: opts.LongContextMultiplier}
 	}
 
