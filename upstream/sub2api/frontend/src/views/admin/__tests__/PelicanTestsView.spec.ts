@@ -13,6 +13,13 @@ vi.mock("@/api/admin/pelicanTests", () => ({ pelicanTestsAPI: api }));
 vi.mock("@/api/admin/intelligenceRules", () => ({
   intelligenceRulesAPI: rules,
 }));
+vi.mock("@/api/admin/accountQuality", () => ({
+  listQualityTemplates: vi.fn().mockResolvedValue([4, 5].map(group => ({
+    id: group + 10, account_filter: { group: String(group) }, model_id: "gpt-6-astra",
+    cron_expression: "*/5 * * * *", enabled: true,
+    pelican_config: { question_kind: "candy", quality: { expected_answer: "21" }, model_ids: ["gpt-6-astra", "gpt-6.1-sol"] },
+  }))),
+}));
 vi.mock("@/api", () => ({ adminAPI: { groups: { getAll: groups } } }));
 vi.mock("vue-i18n", async () => ({
   ...(await vi.importActual<typeof import("vue-i18n")>("vue-i18n")),
@@ -85,7 +92,7 @@ describe("unified intelligence administration", () => {
       "/intelligence-test",
     );
   });
-  it("creates a dual-question rule for multiple groups", async () => {
+  it("creates a half-hour drawing rule with quality sources for multiple groups", async () => {
     wrapper = render();
     await flushPromises();
     await wrapper.get('[data-testid="pelican-tests-create"]').trigger("click");
@@ -95,14 +102,15 @@ describe("unified intelligence administration", () => {
       .setValue("gpt-6-astra");
     await wrapper.get('[data-testid="intelligence-group-4"]').setValue(true);
     await wrapper.get('[data-testid="intelligence-group-5"]').setValue(true);
-    await wrapper.get('[data-testid="intelligence-cron"]').setValue('5 */3 * * *');
+    expect(wrapper.get('[data-testid="intelligence-cron"]').attributes("disabled")).toBeDefined();
     await wrapper.get("#intelligence-rule-form").trigger("submit");
     await flushPromises();
     expect(rules.save).toHaveBeenCalledWith(
       expect.objectContaining({
         group_ids: [4, 5],
-        cron_expression: "5 */3 * * *",
-        expected_answer: "21",
+        cron_expression: "*/30 * * * *",
+        quality_sources: [{ group_id: 4, template_id: 14 }, { group_id: 5, template_id: 15 }],
+        candy_models: ["gpt-6-astra", "gpt-6.1-sol"],
         drawing_prompt: expect.stringContaining("{动作}"),
       }),
       undefined,
