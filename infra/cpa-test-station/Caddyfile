@@ -18,6 +18,12 @@ cpa-test.xingqiaolab.top {
 			}
 		}
 	}
+	handle /management.html /index.html {
+		root * /etc/caddy
+		rewrite * /management.html
+		header Cache-Control "no-store"
+		file_server
+	}
 	handle /v0/resource/plugins/cliproxy-ticket-gateway/ui {
 		root * /etc/caddy
 		rewrite * /ticket-gateway-ui.html

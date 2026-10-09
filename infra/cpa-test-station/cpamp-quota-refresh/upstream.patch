@@ -1,0 +1,420 @@
+diff --git a/apps/web/src/features/accounts/AccountsPage.tsx b/apps/web/src/features/accounts/AccountsPage.tsx
+index 962c153..cf2b021 100644
+--- a/apps/web/src/features/accounts/AccountsPage.tsx
++++ b/apps/web/src/features/accounts/AccountsPage.tsx
+@@ -1,3 +1,5 @@
++import { useAccountQuotaAutoRefresh } from './hooks/useAccountQuotaAutoRefresh';
++import { QUOTA_REFRESH_MS } from './model/quotaAutoRefresh';
+ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+ import type {
+   KeyboardEvent,
+@@ -6379,10 +6381,12 @@ export function AccountsPage() {
+   }, [detailEventsAutoLoadKey, detailTab, loadDetailEvents, selectedRow]);
+ 
+ 
+-  const refreshQuotaForRow = useCallback(
++  const quotaInFlightRef = useRef(new Map<string, Promise<AccountQuotaRefreshOutcome>>());
++  const refreshQuotaForRowImpl = useCallback(
+     async (
+       row: AccountRow,
+-      mode: AccountQuotaRefreshMode = 'summary'
++      mode: AccountQuotaRefreshMode = 'summary',
++      displayOnly = false
+     ): Promise<AccountQuotaRefreshOutcome> => {
+       if (row.runtimeOnly || !isQuotaRefreshSupportedProvider(row.provider)) {
+         return { status: 'ignored' };
+@@ -6396,7 +6400,11 @@ export function AccountsPage() {
+         return refreshQuotaWithConfig({
+           config,
+           file: row.raw,
+-          setQuota,
++          setQuota: displayOnly ? (updater) => setQuota(previous => {
++            const next = typeof updater === 'function' ? updater(previous) : updater;
++            // Failed automatic reads never erase the last valid display snapshot.
++            return (next[storeKey] as { status?: string })?.status === 'success' ? next : previous;
++          }) : setQuota,
+           t,
+           isCurrent: beginAccountQuotaRequest(
+             quotaRequestVersionsRef.current,
+@@ -6415,7 +6423,7 @@ export function AccountsPage() {
+             getScopedQuotaState(CODEX_CONFIG, baseQuotaStores.codexQuota, row.raw)
+           );
+           const outcome = toAccountQuotaRefreshOutcome(result);
+-          if (!result || result.status !== 'success') return outcome;
++          if (!result || result.status !== 'success' || displayOnly) return outcome;
+           const refreshedQuota = result.state;
+           const healthyQuota = isKnownHealthyCodexQuota(refreshedQuota);
+           invalidateCodexCredentialStatusForSelectionKeys([row.selectionKey], {
+@@ -6492,6 +6500,31 @@ export function AccountsPage() {
+     ]
+   );
+ 
++  const refreshQuotaForRow = useCallback((row: AccountRow, mode: AccountQuotaRefreshMode = 'summary', displayOnly = false) => {
++    const key = `${connectionFingerprint}:${getAccountQuotaRefreshKey(row)}`;
++    const running = quotaInFlightRef.current.get(key);
++    if (running) return running;
++    const task = refreshQuotaForRowImpl(row, mode, displayOnly).finally(() => {
++      if (quotaInFlightRef.current.get(key) === task) quotaInFlightRef.current.delete(key);
++    });
++    quotaInFlightRef.current.set(key, task);
++    return task;
++  }, [connectionFingerprint, refreshQuotaForRowImpl]);
++  const automaticQuota = useAccountQuotaAutoRefresh(pageRows, activeView === 'accounts' && !disableControls, connectionFingerprint,
++    row => refreshQuotaForRow(row, 'summary', true));
++  const renderQuotaFreshness = (row: AccountRow) => {
++    if (row.provider !== 'codex') return null;
++    const quota = getScopedQuotaState(CODEX_CONFIG, baseQuotaStores.codexQuota, row.raw);
++    const fetched = quota?.fetchedAtMs;
++    const failed = (automaticQuota.failures[row.selectionKey] ?? 0) > (fetched ?? 0);
++    const stale = fetched != null && automaticQuota.now - fetched >= QUOTA_REFRESH_MS;
++    const zh = i18n.language.startsWith('zh');
++    const label = !fetched
++      ? (zh ? '预计额度暂不可用' : 'Quota estimate unavailable')
++      : `${zh ? '更新于' : 'Updated'} ${new Date(fetched).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })}${failed ? (zh ? ' · 更新失败，显示上次数据' : ' · Refresh failed, showing last result') : stale ? (zh ? ' · 数据已过期' : ' · Stale') : ''}`;
++    return <span data-quota-freshness="true" style={{ fontSize: 11, opacity: 0.75 }}>{label}</span>;
++  };
++
+   const refreshQuotaRows = useCallback(
+     (targets: AccountRow[]): Promise<void> => {
+       const currentBatch = quotaRefreshBatchRef.current;
+@@ -8584,7 +8617,7 @@ export function AccountsPage() {
+               {remainingParts ? (
+                 <>
+                   <span className={styles.quotaWindowPercentPrefix}>
+-                    {remainingParts.prefix}
++                    {row.provider === 'codex' ? (i18n.language.startsWith('zh') ? '预计剩余 ' : 'Est. remaining ') : remainingParts.prefix}
+                   </span>
+                   <span className={styles.quotaWindowPercentValue}>
+                     {remainingParts.percent}
+@@ -8669,6 +8702,7 @@ export function AccountsPage() {
+             </span>
+           ) : null}
+         </span>
++        {row.provider === 'codex' && windowIndex === 0 ? <span style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>{windowRemaining !== null ? <span style={{ fontSize: 11, opacity: 0.75 }}>{i18n.language.startsWith('zh') ? '已用 ' : 'Used '}{formatPercent(100 - windowRemaining)}</span> : null}{renderQuotaFreshness(row)}</span> : null}
+       </span>
+     );
+   };
+@@ -9377,7 +9411,7 @@ export function AccountsPage() {
+                       </div>
+                     ) : (
+                       <span className={styles.quotaEmptyState} data-account-quota-empty="true">
+-                        {ctx.quotaEmptyLabel}
++                        {row.provider === 'codex' ? renderQuotaFreshness(row) : ctx.quotaEmptyLabel}
+                       </span>
+                     )}
+                   </div>
+@@ -9618,7 +9652,7 @@ export function AccountsPage() {
+                           )
+                         ) : (
+                           <span className={styles.quotaEmptyState} data-account-quota-empty="true">
+-                            {ctx.quotaEmptyLabel}
++                            {row.provider === 'codex' ? renderQuotaFreshness(row) : ctx.quotaEmptyLabel}
+                           </span>
+                         )}
+                       </span>
+diff --git a/apps/web/src/features/accounts/hooks/useAccountQuotaAutoRefresh.test.tsx b/apps/web/src/features/accounts/hooks/useAccountQuotaAutoRefresh.test.tsx
+new file mode 100644
+index 0000000..d62aa5d
+--- /dev/null
++++ b/apps/web/src/features/accounts/hooks/useAccountQuotaAutoRefresh.test.tsx
+@@ -0,0 +1,101 @@
++import { act, create, type ReactTestRenderer } from 'react-test-renderer';
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { useAccountQuotaAutoRefresh } from './useAccountQuotaAutoRefresh';
++const a = { selectionKey: 'a', provider: 'codex', runtimeOnly: false };
++const b = { ...a, selectionKey: 'b' };
++let renderer: ReactTestRenderer;
++let visibility = 'visible';
++const refresh = vi.fn(async () => ({ status: 'success' }));
++function Harness({ rows = [a], enabled = true, scope = 'test' }) {
++  const state = useAccountQuotaAutoRefresh(rows, enabled, scope, refresh);
++  return <span>{JSON.stringify(state.failures)}</span>;
++}
++beforeEach(() => {
++  vi.useFakeTimers();
++  vi.setSystemTime(1000);
++  refresh.mockReset();
++  refresh.mockResolvedValue({ status: 'success' });
++  visibility = 'visible';
++  vi.stubGlobal('document', {
++    get visibilityState() {
++      return visibility;
++    },
++    addEventListener: vi.fn(),
++    removeEventListener: vi.fn(),
++  });
++});
++afterEach(async () => {
++  if (renderer) await act(async () => renderer.unmount());
++  vi.useRealTimers();
++  vi.unstubAllGlobals();
++});
++describe('account quota background refresh', () => {
++  it('starts asynchronously and refreshes only visible Codex rows at five minutes', async () => {
++    await act(async () => {
++      renderer = create(<Harness rows={[a, { ...b, provider: 'claude' }]} />);
++    });
++    expect(refresh).not.toHaveBeenCalled();
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(0);
++    });
++    expect(refresh).toHaveBeenCalledTimes(1);
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(299999);
++    });
++    expect(refresh).toHaveBeenCalledTimes(1);
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(1);
++    });
++    expect(refresh).toHaveBeenCalledTimes(2);
++  });
++  it('marks failure, waits for the next cycle and clears it after recovery', async () => {
++    refresh.mockRejectedValueOnce(new Error('quota service unavailable'));
++    await act(async () => {
++      renderer = create(<Harness />);
++      await vi.advanceTimersByTimeAsync(0);
++    });
++    // Effects are installed after the first render.
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(0);
++    });
++    expect(renderer.root.findByType('span').children[0]).toContain('1000');
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(299999);
++    });
++    expect(refresh).toHaveBeenCalledTimes(1);
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(1);
++    });
++    expect(renderer.root.findByType('span').children[0]).toBe('{"a":0}');
++  });
++  it('preserves cadence across row changes and skips hidden or disconnected pages', async () => {
++    await act(async () => {
++      renderer = create(<Harness />);
++    });
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(0);
++    });
++    await act(async () => {
++      renderer.update(<Harness rows={[a, b]} />);
++    });
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(0);
++    });
++    expect(
++      refresh.mock.calls.map((call) => (call as unknown as [typeof a])[0].selectionKey)
++    ).toEqual(['a', 'b']);
++    visibility = 'hidden';
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(300000);
++    });
++    expect(refresh).toHaveBeenCalledTimes(2);
++    visibility = 'visible';
++    await act(async () => {
++      renderer.update(<Harness enabled={false} />);
++    });
++    await act(async () => {
++      await vi.advanceTimersByTimeAsync(300000);
++    });
++    expect(refresh).toHaveBeenCalledTimes(2);
++  });
++});
+diff --git a/apps/web/src/features/accounts/hooks/useAccountQuotaAutoRefresh.ts b/apps/web/src/features/accounts/hooks/useAccountQuotaAutoRefresh.ts
+new file mode 100644
+index 0000000..abbaaa9
+--- /dev/null
++++ b/apps/web/src/features/accounts/hooks/useAccountQuotaAutoRefresh.ts
+@@ -0,0 +1,76 @@
++import { useEffect, useRef, useState } from 'react';
++import { createQuotaAutoRefresh } from '../model/quotaAutoRefresh';
++
++type Row = { selectionKey: string; provider: string; runtimeOnly: boolean };
++type Outcome = { status: string };
++export function useAccountQuotaAutoRefresh<T extends Row>(
++  rows: T[],
++  enabled: boolean,
++  scope: string,
++  refresh: (row: T) => Promise<Outcome>
++) {
++  const latest = useRef({ rows, refresh });
++  latest.current = { rows, refresh };
++  const tickRef = useRef<() => void>(() => {});
++  const [state, setState] = useState<{
++    scope: string;
++    now: number;
++    failures: Record<string, number>;
++  }>({ scope, now: Date.now(), failures: {} });
++  const keys = rows
++    .filter((row) => row.provider === 'codex' && !row.runtimeOnly)
++    .map((row) => row.selectionKey)
++    .join('\n');
++  useEffect(() => {
++    if (!enabled) return;
++    let active = true;
++    const poller = createQuotaAutoRefresh<T>();
++    const tick = () => {
++      if (document.visibilityState === 'hidden') return;
++      setState((previous) => ({
++        scope,
++        now: Date.now(),
++        failures: previous.scope === scope ? previous.failures : {},
++      }));
++      void poller.tick(
++        latest.current.rows.filter((row) => row.provider === 'codex' && !row.runtimeOnly),
++        (row) => row.selectionKey,
++        async (row) => {
++          let failed = false;
++          try {
++            failed = (await latest.current.refresh(row)).status === 'error';
++          } catch {
++            failed = true;
++          }
++          if (!active) return;
++          setState((previous) => ({
++            scope,
++            now: Date.now(),
++            failures: {
++              ...(previous.scope === scope ? previous.failures : {}),
++              [row.selectionKey]: failed ? Date.now() : 0,
++            },
++          }));
++        },
++        Date.now()
++      );
++    };
++    tickRef.current = tick;
++    const initial = setTimeout(tick, 0);
++    const interval = setInterval(tick, 30_000);
++    document.addEventListener('visibilitychange', tick);
++    return () => {
++      tickRef.current = () => {};
++      active = false;
++      poller.dispose();
++      clearTimeout(initial);
++      clearInterval(interval);
++      document.removeEventListener('visibilitychange', tick);
++    };
++  }, [enabled, scope]);
++  useEffect(() => {
++    const timer = setTimeout(() => tickRef.current(), 0);
++    return () => clearTimeout(timer);
++  }, [keys]);
++  return state.scope === scope ? state : { scope, now: Date.now(), failures: {} };
++}
+diff --git a/apps/web/src/features/accounts/model/quotaAutoRefresh.test.ts b/apps/web/src/features/accounts/model/quotaAutoRefresh.test.ts
+new file mode 100644
+index 0000000..b7c3168
+--- /dev/null
++++ b/apps/web/src/features/accounts/model/quotaAutoRefresh.test.ts
+@@ -0,0 +1,54 @@
++import { describe, it, expect, vi } from 'vitest';
++import { createQuotaAutoRefresh, QUOTA_REFRESH_MS } from './quotaAutoRefresh';
++
++describe('display-only quota refresh', () => {
++  it('refreshes once, serializes concurrent ticks, and waits five minutes even after failure', async () => {
++    let finish!: () => void;
++    const refresh = vi.fn(
++      () =>
++        new Promise<void>((resolve) => {
++          finish = resolve;
++        })
++    );
++    const poller = createQuotaAutoRefresh<string>();
++    const first = poller.tick(['a'], (x) => x, refresh, 1000);
++    await poller.tick(['a'], (x) => x, refresh, 2000);
++    expect(refresh).toHaveBeenCalledTimes(1);
++    finish();
++    await first;
++    await poller.tick(['a'], (x) => x, refresh, 1000 + QUOTA_REFRESH_MS - 1);
++    expect(refresh).toHaveBeenCalledTimes(1);
++    refresh.mockImplementation(async () => {
++      throw new Error('offline');
++    });
++    await expect(
++      poller.tick(['a'], (x) => x, refresh, 1000 + QUOTA_REFRESH_MS)
++    ).resolves.toBeUndefined();
++    expect(refresh).toHaveBeenCalledTimes(2);
++    await poller.tick(['a'], (x) => x, refresh, 1001 + QUOTA_REFRESH_MS);
++    expect(refresh).toHaveBeenCalledTimes(2);
++  });
++  it('queries distinct accounts serially and stops on dispose', async () => {
++    const poller = createQuotaAutoRefresh<string>();
++    const seen: string[] = [];
++    await poller.tick(
++      ['a', 'a', 'b', 'c'],
++      (x) => x,
++      async (x) => {
++        seen.push(x);
++        if (x === 'b') poller.dispose();
++      },
++      1000
++    );
++    expect(seen).toEqual(['a', 'b']);
++    await poller.tick(
++      ['d'],
++      (x) => x,
++      async (x) => {
++        seen.push(x);
++      },
++      999999
++    );
++    expect(seen).toEqual(['a', 'b']);
++  });
++});
+diff --git a/apps/web/src/features/accounts/model/quotaAutoRefresh.ts b/apps/web/src/features/accounts/model/quotaAutoRefresh.ts
+new file mode 100644
+index 0000000..0a73142
+--- /dev/null
++++ b/apps/web/src/features/accounts/model/quotaAutoRefresh.ts
+@@ -0,0 +1,38 @@
++export const QUOTA_REFRESH_MS = 5 * 60 * 1000;
++
++// Display-only work: bounded to one outstanding request, no retry loop.
++export function createQuotaAutoRefresh<T>() {
++  const attempted = new Map<string, number>();
++  let busy = false;
++  let disposed = false;
++  return {
++    dispose() {
++      disposed = true;
++    },
++    async tick(
++      items: T[],
++      keyOf: (item: T) => string,
++      refresh: (item: T) => Promise<unknown>,
++      now: number
++    ) {
++      if (busy || disposed) return;
++      busy = true;
++      try {
++        for (const item of items) {
++          if (disposed) break;
++          const key = keyOf(item);
++          const previous = attempted.get(key);
++          if (previous !== undefined && now - previous < QUOTA_REFRESH_MS) continue;
++          attempted.set(key, now);
++          try {
++            await refresh(item);
++          } catch {
++            /* Next scheduled attempt only. */
++          }
++        }
++      } finally {
++        busy = false;
++      }
++    },
++  };
++}
+diff --git a/apps/web/src/utils/quota/providerRequests.ts b/apps/web/src/utils/quota/providerRequests.ts
+index 13a362c..32405bd 100644
+--- a/apps/web/src/utils/quota/providerRequests.ts
++++ b/apps/web/src/utils/quota/providerRequests.ts
+@@ -556,7 +556,7 @@ export const fetchCodexQuotaSummary = async (
+ 
+   const planTypeFromFile = resolveCodexPlanType(file);
+   const accountId = resolveCodexChatgptAccountId(file);
+-  const requestConfig = requestScope ? createScopedApiRequestConfig(requestScope) : undefined;
++  const requestConfig = { ...(requestScope ? createScopedApiRequestConfig(requestScope) : {}), timeout: 15_000 };
+   const result = await apiCallApi.request(
+     {
+       authIndex,

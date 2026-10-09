@@ -1,0 +1,12 @@
+{
+  "upstream": "https://github.com/seakee/CPA-Manager-Plus",
+  "tag": "v1.14.4",
+  "source_url": "https://codeload.github.com/seakee/CPA-Manager-Plus/tar.gz/refs/tags/v1.14.4",
+  "source_sha256": "f542a0cbc227d48fa83ccd7fcb9f0ab54d0668b3bde5b1ab05b8ba782ae52148",
+  "patch_sha256": "43198493fc42e68c4c8578cb7cb0d155e82e31d3cbfd3f3c49cc6f4e3b97a4a4",
+  "management_sha256": "f8ce965d59efc8f1ec31e9e30b36a608b971bbf3fa2329aaa6a545a788551d48",
+  "build_version": "v1.14.4-xingqiao-quota",
+  "build_command": "VERSION=v1.14.4-xingqiao-quota npm run build",
+  "validation": "16 targeted tests passed; TypeScript check and production build passed",
+  "plugin_changes": false
+}
