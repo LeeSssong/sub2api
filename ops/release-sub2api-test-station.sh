@@ -9,11 +9,18 @@ worktree=${RELEASE_WORKTREE:-$(pwd -P)}
 worktree=$(cd "$worktree" && pwd -P)
 [[ "$(git -C "$worktree" branch --show-current)" == main ]] || fail 'release must originate from main'
 [[ -z "$(git -C "$worktree" status --porcelain)" ]] || fail 'worktree is dirty'
-git -C "$worktree" fetch origin main >/dev/null 2>&1 || fail 'origin fetch failed'
-[[ "$(git -C "$worktree" rev-parse HEAD)" == "$(git -C "$worktree" rev-parse origin/main)" ]] || fail 'main is not equal to origin/main'
 source_commit=$(git -C "$worktree" rev-parse HEAD)
 source_tree=$(git -C "$worktree" rev-parse 'HEAD^{tree}')
 [[ "$source_commit" =~ ^[a-f0-9]{40}$ && "$source_tree" =~ ^[a-f0-9]{40}$ ]] || fail 'source identity is invalid'
+# Only an explicitly pinned local main may use the no-push test-station path.
+# Normal releases retain their pushed-main gate; never rewrite origin/main.
+local_main_commit=${TEST_STATION_LOCAL_MAIN_COMMIT:-}
+if [[ -n "$local_main_commit" ]]; then
+  [[ "$local_main_commit" =~ ^[a-f0-9]{40}$ && "$source_commit" == "$local_main_commit" ]] || fail 'authorized local main commit mismatch'
+else
+  git -C "$worktree" fetch origin main >/dev/null 2>&1 || fail 'origin fetch failed'
+  [[ "$source_commit" == "$(git -C "$worktree" rev-parse origin/main)" ]] || fail 'main is not equal to origin/main'
+fi
 
 target=${TEST_STATION_SSH_TARGET:-sub2api-test-station}
 ssh_known_hosts=''

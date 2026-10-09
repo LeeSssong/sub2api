@@ -16,8 +16,8 @@
       <div v-if="form.amount > 0 && summary" class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
         <div class="flex items-center justify-between text-sm"><span class="text-gray-700 dark:text-gray-300">{{ t('admin.users.newBalance') }}:</span><span class="font-bold text-gray-900 dark:text-gray-100">${{ formatBalance(calculateNewBalance()) }}</span></div>
         <div class="mt-2 grid grid-cols-2 gap-3 text-xs text-gray-600 dark:text-gray-400">
-          <span>{{ t('admin.users.paidQuota') }} ${{ formatBalance(Number(summary.paid_quota_balance_usd)) }}</span>
-          <span>{{ t('admin.users.giftQuota') }} ${{ formatBalance(Number(summary.gift_quota_balance_usd) + (operation === 'add' ? form.amount : -form.amount)) }}</span>
+          <span>{{ t('admin.users.paidQuota') }} ${{ summary.paid_quota_balance_usd }}</span>
+          <span>{{ t('admin.users.giftQuota') }} ${{ Number(summary.gift_quota_balance_usd) + (operation === 'add' ? form.amount : -form.amount) }}</span>
         </div>
       </div>
     </form>
@@ -38,6 +38,7 @@ import { adminAPI, type QuotaSummary } from '@/api/admin'
 import type { AdminUser } from '@/types'
 import { extractApiErrorCode, extractApiErrorMessage } from '@/utils/apiError'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { formatBalanceFixed } from '@/utils/format'
 
 const props = defineProps<{ show: boolean, user: AdminUser | null, operation: 'add' | 'subtract' }>()
 const emit = defineEmits(['close', 'success']); const { t } = useI18n(); const appStore = useAppStore()
@@ -52,17 +53,7 @@ const generateAdminTradeNo = () => {
 watch(() => props.show, (v) => { if(v) { form.amount = 0; form.giftQuota = 0; form.paymentTradeNo = props.operation === 'add' ? generateAdminTradeNo() : ''; form.notes = ''; summary.value = null; if (props.user) void loadSummary(props.user.id) } })
 const loadSummary = async (id: number) => { try { summary.value = await adminAPI.users.getUserQuotaSummary(id) } catch { summary.value = null } }
 
-// 格式化余额：显示完整精度，去除尾部多余的0
-const formatBalance = (value: number) => {
-  if (value === 0) return '0.00'
-  // 最多保留8位小数，去除尾部的0
-  const formatted = value.toFixed(8).replace(/\.?0+$/, '')
-  // 确保至少有2位小数
-  const parts = formatted.split('.')
-  if (parts.length === 1) return formatted + '.00'
-  if (parts[1].length === 1) return formatted + '0'
-  return formatted
-}
+const formatBalance = formatBalanceFixed
 
 // 填入全部余额
 const fillAllBalance = () => {

@@ -1,0 +1,419 @@
+{
+  "desktop": {
+    "width": 1600,
+    "route": "/redeem",
+    "title": "充值与兑换 - 星桥 AI Link",
+    "form": {
+      "x": 282,
+      "y": 261,
+      "width": 501.59375,
+      "height": 409,
+      "bottom": 670
+    },
+    "shop": {
+      "x": 807.59375,
+      "y": 261,
+      "width": 752.40625,
+      "height": 812,
+      "bottom": 1073
+    },
+    "grid": "501.594px 752.406px",
+    "overflow": false,
+    "workspaceOverflow": false,
+    "link": "https://catfk.com/shop/DLK8SNUJ",
+    "iframe": "https://catfk.com/shop/DLK8SNUJ",
+    "balanceLink": "/redeem",
+    "topbar": {
+      "x": 242,
+      "y": 0,
+      "width": 1358,
+      "height": 64,
+      "bottom": 64
+    },
+    "first": {
+      "x": 282,
+      "y": 84,
+      "width": 1278,
+      "height": 155,
+      "bottom": 239
+    },
+    "firstContent": {
+      "x": 282,
+      "y": 84,
+      "width": 1278,
+      "height": 92,
+      "bottom": 176
+    },
+    "bottom": {
+      "x": 282,
+      "y": 1097,
+      "width": 1278,
+      "height": 275,
+      "bottom": 1372
+    },
+    "actions": {
+      "x": 18,
+      "y": 938,
+      "width": 205,
+      "height": 38,
+      "bottom": 976
+    }
+  },
+  "errors": [],
+  "requests": [
+    {
+      "path": "/setup/status",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/subscriptions/active",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/announcements",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/keys",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/keys",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/groups/available",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/groups/rates",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/settings/public",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/keys",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/keys/concurrency",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/announcements",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/redeem/history",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/settings/public",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/redeem",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/redeem",
+      "method": "POST"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/redeem/history",
+      "method": "GET"
+    },
+    {
+      "path": "/setup/status",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/auth/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/subscriptions/active",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/announcements",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/keys",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/redeem/history",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/settings/public",
+      "method": "GET"
+    }
+  ],
+  "navigation": {
+    "entry": "bottom-balance",
+    "selectedTab": "true",
+    "sidebarDuplicate": 0
+  },
+  "liveShopFrames": [
+    "http://127.0.0.1:43127/redeem",
+    "https://catfk.com/shop/DLK8SNUJ"
+  ],
+  "mockRedemption": {
+    "success": true,
+    "failure": true,
+    "balance": "可用额度\n\n$20.15\n\n并发上限\n\n5"
+  },
+  "mobile": {
+    "width": 375,
+    "route": "/redeem",
+    "title": "充值与兑换 - 星桥 AI Link",
+    "form": {
+      "x": 90,
+      "y": 305,
+      "width": 271,
+      "height": 535,
+      "bottom": 840
+    },
+    "shop": {
+      "x": 90,
+      "y": 864,
+      "width": 271,
+      "height": 842,
+      "bottom": 1706
+    },
+    "grid": "271px",
+    "overflow": false,
+    "workspaceOverflow": false,
+    "link": "https://catfk.com/shop/DLK8SNUJ",
+    "iframe": "https://catfk.com/shop/DLK8SNUJ",
+    "balanceLink": "/redeem",
+    "topbar": {
+      "x": 76,
+      "y": 0,
+      "width": 299,
+      "height": 56,
+      "bottom": 56
+    },
+    "first": {
+      "x": 90,
+      "y": 68,
+      "width": 271,
+      "height": 215,
+      "bottom": 283
+    },
+    "firstContent": {
+      "x": 90,
+      "y": 68,
+      "width": 271,
+      "height": 152,
+      "bottom": 220
+    },
+    "bottom": {
+      "x": 90,
+      "y": 1730,
+      "width": 271,
+      "height": 275,
+      "bottom": 2005
+    },
+    "actions": {
+      "x": 10,
+      "y": 802,
+      "width": 55,
+      "height": 80,
+      "bottom": 882
+    }
+  },
+  "mobileBottom": {
+    "width": 375,
+    "route": "/redeem",
+    "title": "充值与兑换 - 星桥 AI Link",
+    "form": {
+      "x": 90,
+      "y": -818,
+      "width": 271,
+      "height": 535,
+      "bottom": -283
+    },
+    "shop": {
+      "x": 90,
+      "y": -259,
+      "width": 271,
+      "height": 842,
+      "bottom": 583
+    },
+    "grid": "271px",
+    "overflow": false,
+    "workspaceOverflow": false,
+    "link": "https://catfk.com/shop/DLK8SNUJ",
+    "iframe": "https://catfk.com/shop/DLK8SNUJ",
+    "balanceLink": "/redeem",
+    "topbar": {
+      "x": 76,
+      "y": 0,
+      "width": 299,
+      "height": 56,
+      "bottom": 56
+    },
+    "first": {
+      "x": 90,
+      "y": -1055,
+      "width": 271,
+      "height": 215,
+      "bottom": -840
+    },
+    "firstContent": {
+      "x": 90,
+      "y": -1055,
+      "width": 271,
+      "height": 152,
+      "bottom": -903
+    },
+    "bottom": {
+      "x": 90,
+      "y": 607,
+      "width": 271,
+      "height": 275,
+      "bottom": 882
+    },
+    "actions": {
+      "x": 10,
+      "y": 802,
+      "width": 55,
+      "height": 80,
+      "bottom": 882
+    }
+  },
+  "desktopBottom": {
+    "width": 1600,
+    "route": "/redeem",
+    "title": "充值与兑换 - 星桥 AI Link",
+    "form": {
+      "x": 282,
+      "y": -135,
+      "width": 501.59375,
+      "height": 409,
+      "bottom": 274
+    },
+    "shop": {
+      "x": 807.59375,
+      "y": -135,
+      "width": 752.40625,
+      "height": 812,
+      "bottom": 677
+    },
+    "grid": "501.594px 752.406px",
+    "overflow": false,
+    "workspaceOverflow": false,
+    "link": "https://catfk.com/shop/DLK8SNUJ",
+    "iframe": "https://catfk.com/shop/DLK8SNUJ",
+    "balanceLink": "/redeem",
+    "topbar": {
+      "x": 242,
+      "y": 0,
+      "width": 1358,
+      "height": 64,
+      "bottom": 64
+    },
+    "first": {
+      "x": 282,
+      "y": -312,
+      "width": 1278,
+      "height": 155,
+      "bottom": -157
+    },
+    "firstContent": {
+      "x": 282,
+      "y": -312,
+      "width": 1278,
+      "height": 92,
+      "bottom": -220
+    },
+    "bottom": {
+      "x": 282,
+      "y": 701,
+      "width": 1278,
+      "height": 275,
+      "bottom": 976
+    },
+    "actions": {
+      "x": 18,
+      "y": 938,
+      "width": 205,
+      "height": 38,
+      "bottom": 976
+    }
+  },
+  "light": {
+    "width": 1600,
+    "route": "/redeem",
+    "title": "充值与兑换 - 星桥 AI Link",
+    "form": {
+      "x": 282,
+      "y": 261,
+      "width": 501.59375,
+      "height": 409,
+      "bottom": 670
+    },
+    "shop": {
+      "x": 807.59375,
+      "y": 261,
+      "width": 752.40625,
+      "height": 812,
+      "bottom": 1073
+    },
+    "grid": "501.594px 752.406px",
+    "overflow": false,
+    "workspaceOverflow": false,
+    "link": "https://catfk.com/shop/DLK8SNUJ",
+    "iframe": "https://catfk.com/shop/DLK8SNUJ",
+    "balanceLink": "/redeem",
+    "topbar": {
+      "x": 242,
+      "y": 0,
+      "width": 1358,
+      "height": 64,
+      "bottom": 64
+    },
+    "first": {
+      "x": 282,
+      "y": 84,
+      "width": 1278,
+      "height": 155,
+      "bottom": 239
+    },
+    "firstContent": {
+      "x": 282,
+      "y": 84,
+      "width": 1278,
+      "height": 92,
+      "bottom": 176
+    },
+    "bottom": {
+      "x": 282,
+      "y": 1097,
+      "width": 1278,
+      "height": 275,
+      "bottom": 1372
+    },
+    "actions": {
+      "x": 18,
+      "y": 938,
+      "width": 205,
+      "height": 38,
+      "bottom": 976
+    }
+  }
+}

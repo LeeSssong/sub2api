@@ -1,0 +1,26 @@
+name: cpa-test-station-edge
+
+services:
+  cpa-edge:
+    image: caddy@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - ${CPA_TEST_ROOT:-/opt/cpa-test-station}/edge:/etc/caddy:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [cpa-test]
+    logging:
+      options: {max-size: "10m", max-file: "3"}
+
+networks:
+  cpa-test:
+    external: true
+    name: cpa-test-station-network
+
+volumes:
+  caddy-data:
+    name: cpa-test-station-edge-data
+  caddy-config:
+    name: cpa-test-station-edge-config

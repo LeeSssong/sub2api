@@ -52,10 +52,14 @@ const messages: Record<string, string> = {
   'admin.usage.allGroups': 'All groups',
   'admin.usage.allModels': 'All models',
   'usage.allApiKeys': 'All API Keys',
+  'usage.statGranularity': 'Statistics granularity',
   'usage.errors.allKeys': 'All API Keys',
   'usage.tabs.usage': 'Usage records',
+  'usage.requestDetails': 'Request Details',
   'usage.tabs.errors': 'Error records',
   'usage.apiKeyFilter': 'API Key',
+  'usage.lineFilter': 'Line',
+  'usage.allLines': 'All lines',
   'usage.model': 'Model',
   'usage.type': 'Type',
   'usage.ws': 'WS',
@@ -114,9 +118,15 @@ vi.mock('vue-i18n', async () => {
 
 const simpleStub = { template: '<div><slot /></div>' }
 const chartStub = { template: '<div />' }
+const StatsStub = { name: 'UsageStatsCards', props: { userOverview: Boolean, strikeStandardCost: Boolean }, template: '<div />' }
+const SelectStub = {
+  props: { brand: Boolean, options: Array, modelValue: [String, Number, Boolean], placeholder: String },
+  emits: ['update:modelValue', 'change'],
+  template: '<div class="select-stub" :data-brand="brand ? \'yes\' : \'no\'" />',
+}
 const UsageTableStub = {
   name: 'UsageTable',
-  props: ['data', 'columns', 'showAccountBilling', 'showUpstreamEndpoint'],
+  props: { data: null, columns: null, showAccountBilling: Boolean, showUpstreamEndpoint: Boolean, flat: Boolean },
   emits: ['detailClick'],
   template: '<button data-testid="user-usage-detail-action" @click="$emit(\'detailClick\', 42)">Details</button>',
 }
@@ -164,13 +174,12 @@ function mountUsageView() {
       stubs: {
         AppLayout: simpleStub,
         Pagination: true,
-        Select: true,
+        Select: SelectStub,
         DateRangePicker: true,
-        Icon: true,
-        UsageStatsCards: chartStub,
+        Icon: false,
+        UsageStatsCards: StatsStub,
         UsageTable: UsageTableStub,
         UsageDetailDialog: UsageDetailDialogStub,
-        UsageTable: chartStub,
         UserErrorRequestsTable: chartStub,
         ModelDistributionChart: chartStub,
         GroupDistributionChart: chartStub,
@@ -227,6 +236,50 @@ describe('user UsageView', () => {
     getAvailable.mockResolvedValue([{ id: 1, name: 'default' }])
   })
 
+  it('uses the branded select shell for granularity and all visible usage filters', () => {
+    const wrapper = mountUsageView()
+    const selects = wrapper.findAll('.select-stub')
+    expect(selects.length).toBeGreaterThan(1)
+    expect(selects.every(select => select.attributes('data-brand') === 'yes')).toBe(true)
+  })
+
+  it('groups the overview, analysis, and records as continuous prototype workspaces', () => {
+    const wrapper = mountUsageView()
+    const overview = wrapper.find('.usage-overview')
+    const analysis = wrapper.find('.usage-analysis-grid')
+    const records = wrapper.find('.usage-records')
+
+    expect(overview.exists()).toBe(true)
+    expect(overview.find('.usage-time-toolbar').exists()).toBe(true)
+    expect(overview.find('.usage-stats').exists()).toBe(true)
+    expect(analysis.findAll('.usage-chart')).toHaveLength(4)
+    expect(records.findAll('.select-stub').length).toBeGreaterThan(0)
+    expect(records.find('h2').text()).toBe('Request Details')
+    expect(records.findComponent(UsageTableStub).props('flat')).toBe(true)
+    expect(overview.find('.usage-time-toolbar').text()).toContain('Statistics granularity')
+    expect(overview.find('.usage-time-toolbar').text()).not.toContain('Granularity:')
+    expect(overview.findComponent({ name: 'UsageStatsCards' }).props('userOverview')).toBe(true)
+    expect(overview.findComponent({ name: 'UsageStatsCards' }).props('strikeStandardCost')).toBe(false)
+  })
+
+  it('shows only the four prototype filters and the prototype toolbar actions', () => {
+    const wrapper = mountUsageView()
+    const primary = wrapper.get('[data-testid="usage-primary-filters"]')
+    expect(primary.findAll('label').map(label => label.text())).toEqual(['API Key', 'Model', 'Line', 'Billing mode'])
+    expect(primary.findAllComponents(Select).map(select => select.props('placeholder'))).toEqual([
+      'All API Keys', 'All models', 'All lines', 'All billing modes',
+    ])
+    const toolbar = wrapper.get('[data-testid="usage-filter-actions"]')
+    expect(toolbar.findAll('button').map(button => button.text().trim()).filter(Boolean)).toEqual([
+      'Refresh', 'Reset', 'Columns', 'Export CSV',
+    ])
+    const refresh = toolbar.findAll('button').find(button => button.text().trim() === 'Refresh')!
+    expect(refresh.find('svg path').attributes('d')).toBeTruthy()
+    expect(refresh.find('svg').classes()).toContain('shrink-0')
+    expect(toolbar.find('[data-testid="usage-export"]').classes()).toContain('usage-export')
+    wrapper.unmount()
+  })
+
   afterEach(() => {
     localStorage.removeItem('user-usage-hidden-columns')
   })
@@ -248,8 +301,111 @@ describe('user UsageView', () => {
     expect(getAvailable).toHaveBeenCalled()
   })
 
+  it('keeps successful rows and chart data when refresh requests fail independently', async () => {
+    const wrapper = mountUsageView()
+    await flushPromises()
+    const previousRows = (wrapper.vm as any).usageLogs
+    const previousModels = (wrapper.vm as any).requestedModelStats
+    query.mockRejectedValueOnce(new Error('rows unavailable'))
+    getDashboardModels.mockRejectedValueOnce(new Error('models unavailable'))
+
+    await wrapper.findAll('button').find((button) => button.text() === 'Refresh')!.trigger('click')
+    await flushPromises()
+
+    expect((wrapper.vm as any).usageLogs).toEqual(previousRows)
+    expect((wrapper.vm as any).requestedModelStats).toEqual(previousModels)
+    expect(wrapper.findAll('[role="alert"]')).toHaveLength(2)
+    expect((wrapper.vm as any).usageStats.total_actual_cost).toBe(0.08)
+  })
+
+  it('reports an initial stats failure without inventing successful usage totals', async () => {
+    getStats.mockRejectedValueOnce(new Error('stats unavailable'))
+    const wrapper = mountUsageView()
+    await flushPromises()
+
+    expect((wrapper.vm as any).usageStats).toBeNull()
+    expect(wrapper.find('[role="alert"]').text()).toContain('Failed to load')
+    await wrapper.find('[role="alert"] button').trigger('click')
+    await flushPromises()
+    expect((wrapper.vm as any).usageStats.total_actual_cost).toBe(0.08)
+  })
+
+  it('hides the empty detail table after an initial failure and retries that section alone', async () => {
+    query.mockRejectedValueOnce(new Error('offline'))
+    const wrapper = mountUsageView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="user-usage-detail-action"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="usage-logs-error"]').exists()).toBe(true)
+    const statsCalls = getStats.mock.calls.length
+    await wrapper.get('[data-testid="usage-logs-error"] button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="user-usage-detail-action"]').exists()).toBe(true)
+    expect(getStats).toHaveBeenCalledTimes(statsCalls)
+  })
+
+  it('retries only failed chart sources and keeps successful statistics and details', async () => {
+    getDashboardModels.mockRejectedValueOnce(new Error('models unavailable'))
+    const wrapper = mountUsageView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="usage-charts-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="usage-model-chart"]').exists()).toBe(false)
+    const statsCalls = getStats.mock.calls.length
+    const chartCalls = getDashboardSnapshotV2.mock.calls.length
+    const logCalls = query.mock.calls.length
+    await wrapper.get('[data-testid="usage-charts-error"] button').trigger('click')
+    await flushPromises()
+    expect(getDashboardModels).toHaveBeenCalledTimes(2)
+    expect(getDashboardSnapshotV2).toHaveBeenCalledTimes(chartCalls)
+    expect(getStats).toHaveBeenCalledTimes(statsCalls)
+    expect(query).toHaveBeenCalledTimes(logCalls)
+    expect(wrapper.find('[data-testid="usage-model-chart"]').exists()).toBe(true)
+  })
+
+  it('does not show an empty error-record table after its first failed load', async () => {
+    listMyErrorRequests.mockRejectedValueOnce(new Error('offline'))
+    const wrapper = mountUsageView()
+    await flushPromises()
+    await wrapper.findAll('.tab').find(button => button.text() === 'Error records')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="usage-errors-error"]').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'UserErrorRequestsTable' }).exists()).toBe(false)
+    await wrapper.get('[data-testid="usage-errors-error"] button').trigger('click')
+    await flushPromises()
+    expect(listMyErrorRequests).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps the successful detail action fixed and opens only the user-scoped dialog', async () => {
     localStorage.setItem('user-usage-hidden-columns', JSON.stringify(['detail']))
+    const wrapper = mountUsageView()
+    await flushPromises()
+
+    const usageTable = wrapper.getComponent({ name: 'UsageTable' })
+    const columns = usageTable.props('columns') as Array<{ key: string; class?: string; sortable?: boolean }>
+    expect(columns.at(-1)).toEqual(expect.objectContaining({
+      key: 'detail',
+      class: 'w-24 min-w-24',
+      sortable: false,
+    }))
+    expect((wrapper.vm as any).toggleableColumns.map((column: { key: string }) => column.key))
+      .not.toContain('detail')
+    expect(usageTable.props('showAccountBilling')).toBe(false)
+    expect(usageTable.props('showUpstreamEndpoint')).toBe(false)
+    expect(columns.map((column) => column.key)).not.toEqual(expect.arrayContaining([
+      'account',
+      'account_cost',
+      'upstream_model',
+      'model_mapping',
+      'user',
+    ]))
+
+    await wrapper.get('[data-testid="user-usage-detail-action"]').trigger('click')
+
+    const dialog = wrapper.getComponent({ name: 'UsageDetailDialog' })
+    expect(dialog.props('show')).toBe(true)
+    expect(dialog.props('usageId')).toBe(42)
+    expect(dialog.props('scope')).toBe('user')
+  })
+
   it('includes API keys after the first page in both record filters and queries by the selected key', async () => {
     const firstPageKeys = Array.from({ length: 100 }, (_, index) => ({
       id: index + 1,
@@ -577,12 +733,28 @@ describe('UsageView subscription feature flag', () => {
     )
   }
 
-  it('offers the balance / subscription billing-type filter by default', async () => {
+  it('keeps advanced controls collapsed and applies request type, compaction and billing filters', async () => {
     const wrapper = mountUsageView()
     await flushPromises()
 
-    expect(billingTypeSelect(wrapper)).toBeDefined()
-    expect(wrapper.text()).toContain('Billing type')
+    expect(billingTypeSelect(wrapper)).toBeUndefined()
+    expect(wrapper.text()).not.toContain('Billing type')
+    const toggle = wrapper.get('[data-testid="usage-more-filters"]')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    await toggle.trigger('click')
+    const advanced = wrapper.get('[data-testid="usage-advanced-filters"]')
+    const controls = advanced.findAllComponents(Select)
+    expect(controls).toHaveLength(3)
+    expect(controls.every(control => control.props('brand'))).toBe(true)
+    for (const [index, value] of [[0, 'stream'], [1, true], [2, 1]] as const) {
+      controls[index].vm.$emit('update:modelValue', value)
+      controls[index].vm.$emit('change', value)
+      await flushPromises()
+    }
+    expect(query).toHaveBeenLastCalledWith(expect.objectContaining({ request_type: 'stream', native_compaction_v2: true, billing_type: 1 }), expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    await toggle.trigger('click')
+    expect(wrapper.find('[data-testid="usage-advanced-filters"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="usage-primary-filters"]').findAllComponents(Select)).toHaveLength(4)
     wrapper.unmount()
   })
 

@@ -54,6 +54,11 @@ describe('GroupDistributionChart', () => {
     },
   ]
 
+  it('uses a page-specific title when one is supplied', () => {
+    const wrapper = mount(GroupDistributionChart, { props: { groupStats: [], title: 'Line Usage Distribution' } })
+    expect(wrapper.find('h3').text()).toBe('Line Usage Distribution')
+  })
+
   it('uses total_tokens and token ordering by default', () => {
     const wrapper = mount(GroupDistributionChart, {
       props: {
@@ -111,6 +116,18 @@ describe('GroupDistributionChart', () => {
       dataset: { data: [0.9, 0.1] },
     })
     expect(label).toBe('group-b: $0.900 (90.0%)')
+  })
+
+  it('renders tiny, negative and large costs with native precision without changing raw chart data', () => {
+    const wrapper = mount(GroupDistributionChart, {
+      props: { groupStats: [{ ...groupStats[0], actual_cost: -1.2, account_cost: 0.001, cost: 1234.5 }] },
+      global: { stubs: { LoadingSpinner: true } },
+    })
+    const row = wrapper.find('tbody tr').text()
+    expect(row).toContain('$-1.2000')
+    expect(row).toContain('$0.0010')
+    expect(row).toContain('$1.23K')
+    expect(JSON.parse(wrapper.find('.chart-data').text()).datasets[0].data).toEqual([1200])
   })
 
   it('can hide account cost for user usage stats without account_cost', () => {

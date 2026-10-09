@@ -281,14 +281,14 @@ describe('admin UsageTable tooltip', () => {
     expect(text).toContain('Service tier')
     expect(text).toContain('Fast')
     expect(text).toContain('Rate')
-    expect(text).toContain('1.00x')
+    expect(text).toContain('1.0x倍率')
     expect(text).toContain('Account rate')
     expect(text).toContain('User billed')
     expect(text).toContain('Account billed')
-    expect(text).toContain('$0.092883')
+    expect(text).toContain('$0.09')
     expect(text).toContain('$5.0000 / 1M tokens')
     expect(text).toContain('$30.0000 / 1M tokens')
-    expect(text).toContain('$0.069568')
+    expect(text).toContain('$0.06956800')
   })
 
   it('prefers the final account cost snapshot over the legacy multiplier formula', () => {
@@ -315,11 +315,11 @@ describe('admin UsageTable tooltip', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('A $0.240000')
-    expect(wrapper.text()).not.toContain('A $0.120000')
+    expect(wrapper.text()).toContain('A $0.24')
+    expect(wrapper.text()).not.toContain('A $0.12')
   })
 
-  it.each(['token', 'image', 'per_request'])('keeps eight decimal places in %s cost details', async (billingMode) => {
+  it.each(['token', 'image', 'per_request'])('uses the confirmed money format in %s cost details', async (billingMode) => {
     const row = {
       ...baseImageRow,
       billing_mode: billingMode,
@@ -350,7 +350,7 @@ describe('admin UsageTable tooltip', () => {
     wrapper.unmount()
   })
 
-  it('uses eight decimal places for missing cost values', async () => {
+  it('uses the confirmed money format for missing cost values', async () => {
     const wrapper = mount(UsageTable, {
       props: {
         data: [{ ...baseImageRow, billing_mode: 'per_request', image_count: 0, total_cost: undefined, actual_cost: undefined }],
@@ -362,7 +362,7 @@ describe('admin UsageTable tooltip', () => {
     const triggers = wrapper.findAll('.group.relative')
     await triggers[triggers.length - 1].trigger('mouseenter')
     const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text()).filter(text => text.startsWith('$'))
-    expect(amounts).toEqual(['$0.00000000', '$0.00000000', '$0.00000000', '$0.00000000'])
+    expect(amounts).toEqual(['$0.00000000'])
     wrapper.unmount()
   })
 

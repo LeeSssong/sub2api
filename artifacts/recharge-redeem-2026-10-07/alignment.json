@@ -1,0 +1,25 @@
+{
+  "alignment": {
+    "375": {
+      "redeem": {
+        "first": 68,
+        "title": 15.5
+      },
+      "keys": {
+        "first": 68,
+        "title": 15.5
+      }
+    },
+    "1600": {
+      "redeem": {
+        "first": 84,
+        "title": 16.5
+      },
+      "keys": {
+        "first": 84,
+        "title": 16.5
+      }
+    }
+  },
+  "errors": []
+}

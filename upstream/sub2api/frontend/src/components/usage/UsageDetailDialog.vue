@@ -182,8 +182,8 @@
           <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
             <DetailItem :label="t('usage.detail.billingMode')" :value="billingModeLabel(detail)" />
             <DetailItem :label="t('usage.detail.billingType')" :value="billingTypeLabel(detail.billing_type)" />
-            <DetailItem :label="t('usage.detail.inputCost')" :value="formatCost(detail.input_cost)" numeric />
-            <DetailItem :label="t('usage.detail.outputCost')" :value="formatCost(detail.output_cost)" numeric />
+            <DetailItem :label="t('usage.detail.inputCost')" :value="formatCost(detail.input_cost, 6)" numeric />
+            <DetailItem :label="t('usage.detail.outputCost')" :value="formatCost(detail.output_cost, 6)" numeric />
             <DetailItem
               v-if="detail.cache_creation_cost > 0"
               :label="t('usage.detail.cacheCreationCost')"
@@ -212,7 +212,7 @@
             <DetailItem :label="t('usage.detail.actualCost')" :value="formatCost(detail.actual_cost)" numeric emphasized />
             <DetailItem
               :label="t('usage.detail.groupMultiplier')"
-              :value="`${formatMultiplier(detail.rate_multiplier ?? 1)}x`"
+              :value="formatMultiplierLabel(detail.rate_multiplier)"
               numeric
             />
             <DetailItem
@@ -223,13 +223,13 @@
             <DetailItem
               v-if="effectiveInputPrice != null"
               :label="t('usage.detail.effectiveInputPrice')"
-              :value="`${formatCost(effectiveInputPrice)} ${t('usage.perMillionTokens')}`"
+              :value="`${formatUnitPrice(effectiveInputPrice)} ${t('usage.perMillionTokens')}`"
               numeric
             />
             <DetailItem
               v-if="effectiveOutputPrice != null"
               :label="t('usage.detail.effectiveOutputPrice')"
-              :value="`${formatCost(effectiveOutputPrice)} ${t('usage.perMillionTokens')}`"
+              :value="`${formatUnitPrice(effectiveOutputPrice)} ${t('usage.perMillionTokens')}`"
               numeric
             />
           </dl>
@@ -371,8 +371,8 @@ import { adminUsageAPI } from '@/api/admin/usage'
 import { usageAPI } from '@/api/usage'
 import { useClipboard } from '@/composables/useClipboard'
 import type { AdminUsageLog, StreamDiagnosticResponse, UsageCostEvidenceDetail, UserUsageDetail } from '@/types'
-import { formatDateTime, formatReasoningEffort } from '@/utils/format'
-import { formatMultiplier } from '@/utils/formatters'
+import { formatCostFixed, formatDateTime, formatMoneyFixed, formatReasoningEffort } from '@/utils/format'
+import { formatMultiplierLabel } from '@/utils/formatters'
 import { getBillingModeLabel, getDisplayBillingMode } from '@/utils/billingMode'
 import {
   formatImageBillingSize,
@@ -604,8 +604,13 @@ function formatDiagnosticBytes(read: number | undefined, forwarded: number | und
   return `${(read ?? 0).toLocaleString()} / ${(forwarded ?? 0).toLocaleString()}`
 }
 
-function formatCost(value: number | null | undefined): string {
-  return `$${(Number.isFinite(value) ? value as number : 0).toFixed(6)}`
+function formatCost(value: number | null | undefined, fractionDigits = 6): string {
+  const formatted = formatMoneyFixed(value, fractionDigits)
+  return formatted === '—' ? formatted : `$${formatted}`
+}
+
+function formatUnitPrice(value: number): string {
+  return `$${formatCostFixed(value, 6)}`
 }
 
 function requestTypeLabel(row: Pick<UsageDetailRecord, 'request_type' | 'stream' | 'openai_ws_mode'>): string {

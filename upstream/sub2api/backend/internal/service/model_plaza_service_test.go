@@ -19,6 +19,30 @@ func newPlazaService(channels []Channel, groups []Group, pricing *PricingService
 	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, pricing, nil, nil)
 }
 
+func TestPlazaOfficialPricesForNativeCatalogUsesExistingLookup(t *testing.T) {
+	billing := NewBillingService(&config.Config{}, nil)
+	s := NewModelPlazaService(nil, nil, nil, billing, NewModelPricingResolver(nil, billing))
+	names := []string{"gpt-5.4", "gpt-5.4-2026-03-05", "unknown-model"}
+	prices, err := s.OfficialPricesForModels(context.Background(), names)
+	require.NoError(t, err)
+	for _, name := range names {
+		require.Contains(t, prices, name)
+		require.Equal(t, s.lookupOfficialPricing(context.Background(), name, map[string]*PlazaOfficialPricing{}), prices[name])
+	}
+	require.InDelta(t, 2.5e-6, *prices[names[1]].InputPrice, 1e-15)
+	require.Empty(t, prices[names[1]].Intervals, "fallback without a native threshold stays single tier")
+	require.Nil(t, prices["unknown-model"])
+	_, err = (&ModelPlazaService{}).OfficialPricesForModels(context.Background(), names)
+	require.Error(t, err)
+	catalog := newStubPricingServiceFromJSON(t, openAILadderCatalogJSON)
+	billing = NewBillingService(&config.Config{}, catalog)
+	s = NewModelPlazaService(nil, nil, catalog, billing, NewModelPricingResolver(nil, billing))
+	prices, err = s.OfficialPricesForModels(context.Background(), []string{"gpt-5.4"})
+	require.NoError(t, err)
+	require.Len(t, prices["gpt-5.4"].Intervals, 2, "native catalogue threshold is preserved")
+	require.InDelta(t, 5e-6, *prices["gpt-5.4"].Intervals[1].InputPrice, 1e-15)
+}
+
 func plazaPricedChannel(id int64, name string, groupIDs []int64, platform string, models ...string) Channel {
 	return Channel{
 		ID:       id,

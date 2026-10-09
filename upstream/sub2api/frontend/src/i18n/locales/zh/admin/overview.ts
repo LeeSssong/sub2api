@@ -1040,7 +1040,7 @@ export default {
       exclusiveFilter: '专属',
       nonExclusive: '公开',
       public: '公开',
-      rateAndAccounts: '{rate}x 费率 · {count} 个账号',
+      rateAndAccounts: '{rate}x倍率 · {count} 个账号',
       accountsCount: '{count} 个账号',
       rateLabel: '倍率',
       accountFilters: {

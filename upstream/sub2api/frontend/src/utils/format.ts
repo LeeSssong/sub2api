@@ -62,8 +62,6 @@ export function formatCurrency(amount: number | null | undefined, currency: stri
   if (amount === null || amount === undefined) return '$0.00'
 
   const locale = getLocale()
-
-  // For very small amounts, show more decimals
   const fractionDigits = amount > 0 && amount < 0.01 ? 6 : 2
 
   return new Intl.NumberFormat(locale, {
@@ -351,6 +349,38 @@ export function formatNumberLocaleString(num: number): string {
  */
 export function formatCostFixed(amount: number, fractionDigits: number = 4): string {
   return amount.toFixed(fractionDigits)
+}
+
+/**
+ * 格式化原生费用（默认自适应精度，传入位数时固定精度，不带货币符号）。
+ * 不可用值必须由调用方显式处理，不得伪装成 0.00。
+ */
+export function formatMoneyFixed(amount: number | null | undefined, fractionDigits?: number): string {
+  if (amount === null || amount === undefined || !Number.isFinite(amount)) return '—'
+  if (fractionDigits != null) return amount.toFixed(fractionDigits)
+  if (amount >= 1000) return `${(amount / 1000).toFixed(2)}K`
+  if (amount >= 1) return amount.toFixed(2)
+  if (amount >= 0.01) return amount.toFixed(3)
+  return amount.toFixed(4)
+}
+
+export function formatUsdMoney(amount: number | null | undefined, fractionDigits?: number): string {
+  if (amount === null || amount === undefined || !Number.isFinite(amount)) return '—'
+  const formatted = formatMoneyFixed(amount, fractionDigits)
+  return formatted === '—' ? formatted : `$${formatted}`
+}
+
+export function formatBalanceFixed(amount: number | null | undefined): string {
+  if (amount === null || amount === undefined || !Number.isFinite(amount)) return '—'
+  return new Intl.NumberFormat('en-US', {
+    useGrouping: false,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount)
+}
+
+export function formatUsdCost(amount: number | null | undefined): string {
+  return formatUsdMoney(amount)
 }
 
 /**

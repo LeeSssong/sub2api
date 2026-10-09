@@ -1,9 +1,9 @@
 <template>
   <aside
-    class="sidebar"
+    class="sidebar user-sidebar"
     :class="[
       sidebarCollapsed ? 'w-[72px]' : 'w-64',
-      { '-translate-x-full lg:translate-x-0': !mobileOpen, 'user-sidebar': !isAdmin }
+      { 'admin-sidebar': isAdmin && !isUserSurface, 'admin-sidebar-collapsed': sidebarCollapsed, 'admin-sidebar-open': isAdmin && !isUserSurface && mobileOpen }
     ]"
   >
     <!-- Logo/Brand -->
@@ -14,7 +14,7 @@
         class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow transition-opacity hover:opacity-80"
         @click="handleMenuItemClick(homePath)"
       >
-        <img v-if="settingsLoaded" :src="isAdmin ? (siteLogo || '/logo.svg') : '/xingqiao-brand-logo.png'" alt="Logo" class="h-full w-full object-contain" />
+        <img v-if="settingsLoaded" :src="siteLogo || DEFAULT_SITE_LOGO" alt="Logo" class="h-full w-full object-contain" />
       </router-link>
       <div class="sidebar-brand" :class="{ 'sidebar-brand-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
         <router-link
@@ -22,17 +22,17 @@
           class="sidebar-brand-title text-lg font-bold text-gray-900 transition-colors hover:text-primary-600 dark:text-white dark:hover:text-primary-400"
           @click="handleMenuItemClick(homePath)"
         >
-          {{ siteName }}
+          {{ isUserSurface ? '星桥 AI Link' : siteName }}
         </router-link>
         <!-- Version Badge -->
-        <VersionBadge :version="siteVersion" />
+        <VersionBadge v-if="!isUserSurface" :version="siteVersion" />
+        <small v-else-if="siteVersion" class="user-brand-version">{{ siteVersion.startsWith('v') ? siteVersion : `v${siteVersion}` }}</small>
       </div>
     </div>
 
-    <FeatureSearch v-if="isAdmin" :items="searchNavItems" :collapsed="sidebarCollapsed" @navigate="handleMenuItemClick" />
 
     <!-- Navigation -->
-    <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
+    <nav ref="sidebarNavRef" class="sidebar-nav">
       <div v-if="authStore.isObserver" class="sidebar-section">
         <router-link to="/admin/accounts" class="sidebar-link mb-1"
           :class="{ 'sidebar-link-active': isActive('/admin/accounts'), 'sidebar-link-collapsed': sidebarCollapsed }"
@@ -50,7 +50,7 @@
         </router-link>
       </div>
       <!-- Admin View: Admin menu first, then personal menu -->
-      <template v-if="isAdmin">
+      <template v-if="isAdmin && !isUserSurface">
         <!-- Admin Section -->
         <div class="sidebar-section">
           <template v-for="item in adminNavItems" :key="item.path">
@@ -63,7 +63,7 @@
                   'sidebar-link-active': isGroupActive(item) && !isGroupExpanded(item),
                   'sidebar-link-collapsed': sidebarCollapsed
                 }"
-                :title="sidebarCollapsed ? item.label : undefined"
+                :title="sidebarCollapsed ? item.label : undefined" :aria-label="item.label"
                 @click="handleGroupClick(item)"
               >
                 <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
@@ -100,7 +100,7 @@
               :to="item.path"
               class="sidebar-link mb-1"
               :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-              :title="sidebarCollapsed ? item.label : undefined"
+              :title="sidebarCollapsed ? item.label : undefined" :aria-label="item.label"
               :id="
                 item.path === '/admin/accounts'
                   ? 'sidebar-channel-manage'
@@ -133,7 +133,7 @@
             :to="item.path"
             class="sidebar-link mb-1"
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="sidebarCollapsed ? item.label : undefined"
+            :title="sidebarCollapsed ? item.label : undefined" :aria-label="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
@@ -145,7 +145,7 @@
       </template>
 
       <!-- Regular User View -->
-      <template v-else-if="!appStore.backendModeEnabled">
+      <template v-else-if="isUserSurface && (isAdmin || !appStore.backendModeEnabled)">
         <div class="sidebar-section">
           <router-link
             v-for="item in userNavItems"
@@ -153,58 +153,33 @@
             :to="item.path"
             class="sidebar-link mb-1"
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
-            :title="sidebarCollapsed ? item.label : undefined"
+            :aria-label="item.label"
+            :aria-current="isActive(item.path) ? 'page' : undefined"
+            :title="item.label"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" aria-hidden="true" v-html="sanitizeSvg(item.iconSvg)"></span>
+            <img v-else-if="userNavIcon(item.path)" :src="userNavIcon(item.path)" class="user-nav-icon" alt="" aria-hidden="true" />
+            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" aria-hidden="true" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
           </router-link>
         </div>
       </template>
     </nav>
 
-    <!-- Bottom Section -->
-    <div v-if="isAdmin" class="mt-auto border-t border-gray-100 p-3 dark:border-dark-800">
-      <!-- Theme Toggle -->
-      <button
-        @click="toggleTheme"
-        class="sidebar-link mb-2 w-full"
-        :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
-        :title="sidebarCollapsed ? (isDark ? t('nav.lightMode') : t('nav.darkMode')) : undefined"
-      >
-        <SunIcon v-if="isDark" class="h-5 w-5 flex-shrink-0 text-amber-500" />
-        <MoonIcon v-else class="h-5 w-5 flex-shrink-0" />
-        <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{
-          isDark ? t('nav.lightMode') : t('nav.darkMode')
-        }}</span>
-      </button>
-
-      <!-- Collapse Button -->
-      <button
-        @click="toggleSidebar"
-        class="sidebar-link w-full"
-        :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
-        :title="sidebarCollapsed ? t('nav.expand') : t('nav.collapse')"
-      >
-        <ChevronDoubleLeftIcon v-if="!sidebarCollapsed" class="h-5 w-5 flex-shrink-0" />
-        <ChevronDoubleRightIcon v-else class="h-5 w-5 flex-shrink-0" />
-        <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ t('nav.collapse') }}</span>
-      </button>
-    </div>
-
-    <div v-else class="user-sidebar-bottom">
+    <!-- Shared fixed account area, outside the scrollable navigation. -->
+    <div class="user-sidebar-bottom">
       <router-link
-        to="/purchase"
+        :to="rechargeEntryPath"
         class="user-recharge-button"
         :class="{ 'user-recharge-button-collapsed': sidebarCollapsed }"
         data-testid="user-sidebar-recharge"
         :aria-label="`${formatMoney(userBalance)} ${userNavLabel('recharge', '充值')}`"
-        @click="handleMenuItemClick('/purchase')"
+        @click="handleMenuItemClick(rechargeEntryPath)"
       >
         <strong>{{ formatMoney(userBalance) }}</strong>
-        <span>{{ userNavLabel('recharge', '充值') }} <b aria-hidden="true">+</b></span>
+        <span>{{ t('redeem.rechargeTitle') }}</span>
       </router-link>
 
       <div ref="accountMenuRef" class="user-sidebar-actions">
@@ -218,7 +193,8 @@
           @click.stop="toggleAccountMenu"
         >
           <img v-if="userAvatarUrl" :src="userAvatarUrl" :alt="displayName" />
-          <span v-else>{{ userInitials }}</span>
+          <span v-else class="user-account-avatar"><Icon name="user" size="md" aria-hidden="true" /></span>
+          <span class="user-account-name">{{ displayName }}</span>
         </button>
 
         <button
@@ -229,7 +205,7 @@
           :title="t('common.contactSupport')"
           @click="supportDialogOpen = true"
         >
-          <SupportIcon class="h-4 w-4" />
+          <Icon name="questionCircle" size="md" aria-hidden="true" />
         </button>
 
         <transition name="dropdown">
@@ -238,14 +214,37 @@
               <strong>{{ displayName }}</strong>
               <span>{{ user?.email }}</span>
             </div>
-            <router-link to="/profile" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu">
+            <router-link to="/profile" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu(); closeMobile()">
               <UserIcon class="h-4 w-4" />
               <span>{{ t('nav.profile') }}</span>
             </router-link>
-            <router-link to="/keys" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu">
+            <router-link to="/keys" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu(); closeMobile()">
               <KeyIcon class="h-4 w-4" />
               <span>{{ t('nav.apiKeys') }}</span>
             </router-link>
+              <button type="button" class="user-account-menu-item" role="menuitem" @click="toggleTheme">
+                <SunIcon v-if="isDark" class="h-4 w-4" /><MoonIcon v-else class="h-4 w-4" />
+                <span>{{ isDark ? t('nav.lightMode') : t('nav.darkMode') }}</span>
+              </button>
+            <template v-if="isAdmin">
+              <router-link v-if="isUserSurface" to="/admin/dashboard" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu(); closeMobile()">
+                <ChartIcon class="h-4 w-4" />
+                <span>{{ t('admin.dashboard.title') }}</span>
+              </router-link>
+              <template v-if="!isUserSurface">
+                <router-link v-if="modelPlazaEnabled" :to="{ path: '/model-plaza', query: { embedded: '1' } }" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu(); closeMobile()">
+                  <span>{{ t('nav.modelPlaza') }}</span>
+                </router-link>
+
+                <button type="button" class="user-account-menu-item shell-collapse-action" role="menuitem" @click="toggleSidebar(); closeAccountMenu()">
+                  <ChevronDoubleRightIcon v-if="sidebarCollapsed" class="h-4 w-4" /><ChevronDoubleLeftIcon v-else class="h-4 w-4" />
+                  <span>{{ sidebarCollapsed ? t('nav.expand') : t('nav.collapse') }}</span>
+                </button>
+                <button type="button" class="user-account-menu-item" role="menuitem" @click="closeAccountMenu(); onboardingStore.replay()">
+                  <span>{{ t('onboarding.restartTour') }}</span>
+                </button>
+              </template>
+            </template>
             <button type="button" class="user-account-menu-item user-account-menu-danger" role="menuitem" @click="handleLogout">
               <LogoutIcon class="h-4 w-4" />
               <span>{{ t('nav.logout') }}</span>
@@ -261,8 +260,8 @@
   <!-- Mobile Overlay -->
   <transition name="fade">
     <div
-      v-if="mobileOpen"
-      class="fixed inset-0 z-30 bg-black/50 lg:hidden"
+      v-if="isAdmin && !isUserSurface && mobileOpen"
+      class="fixed inset-0 z-40 bg-black/50 min-[701px]:hidden"
       @click="closeMobile"
     ></div>
   </transition>
@@ -270,17 +269,16 @@
 
 <script setup lang="ts">
 import Icon from '@/components/icons/Icon.vue'
+import { useAppSurface } from '@/composables/useAppSurface'
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
-import FeatureSearch from './FeatureSearch.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
-import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
-import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
-import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { DEFAULT_SITE_LOGO } from '@/utils/branding'
+import { FeatureFlags, makeSidebarFlag, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import ContactSupportDialog from './ContactSupportDialog.vue'
 
 interface NavItem {
@@ -327,11 +325,11 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
-const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 
-const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
-const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
+const { isUserSurface } = useAppSurface()
+const sidebarCollapsed = computed(() => isAdmin.value && !isUserSurface.value && appStore.sidebarCollapsed && !mobileOpen.value)
+const mobileOpen = computed(() => appStore.mobileOpen)
 const sidebarNavRef = ref<HTMLElement | null>(null)
 const isDark = ref(document.documentElement.classList.contains('dark'))
 const accountMenuOpen = ref(false)
@@ -339,7 +337,7 @@ const supportDialogOpen = ref(false)
 const accountMenuRef = ref<HTMLElement | null>(null)
 
 const homePath = computed(() => (
-  isAdmin.value ? '/admin/dashboard' : authStore.isObserver ? '/admin/accounts' : '/dashboard'
+  isUserSurface.value ? '/dashboard' : isAdmin.value ? '/admin/dashboard' : authStore.isObserver ? '/admin/accounts' : '/dashboard'
 ))
 
 // Per-group expand/collapse overrides. A group with no entry follows the
@@ -353,21 +351,14 @@ const siteName = computed(() => appStore.siteName)
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const siteVersion = computed(() => appStore.siteVersion)
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
+const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
 const user = computed(() => authStore.user)
 const userBalance = computed(() => Number(user.value?.balance || 0))
+const rechargeEntryPath = computed(() => appStore.cachedPublicSettings?.payment_enabled === false ? '/redeem' : '/purchase')
 const userAvatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
 const displayName = computed(() => user.value?.username || user.value?.email?.split('@')[0] || '')
-const userInitials = computed(() => displayName.value.substring(0, 2).toUpperCase())
 
 // SVG Icon Components
-const RequestCaptureIcon = { render: () => h(Icon, { name: 'requestCapture' }) }
-const OpsMonitoringIcon = { render: () => h(Icon, { name: 'monitorPulse' }) }
-const SmartOpsIcon = { render: () => h(Icon, { name: 'cpu' }) }
-const QualityOpsIcon = { render: () => h(Icon, { name: 'badge', size: 'sm' }) }
-const AccountOpsIcon = { render: () => h(Icon, { name: 'userCog', size: 'sm' }) }
-const TokenGuardIcon = { render: () => h(Icon, { name: 'shieldKey', size: 'sm' }) }
-const CredentialOpsIcon = { render: () => h(Icon, { name: 'credentialOps', size: 'sm' }) }
-const PelicanTestsIcon = { render: () => h(Icon, { name: 'beaker', size: 'sm' }) }
 
 const DashboardIcon = {
   render: () =>
@@ -394,26 +385,6 @@ const KeyIcon = {
           'stroke-linecap': 'round',
           'stroke-linejoin': 'round',
           d: 'M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z'
-        })
-      ]
-    )
-}
-
-const BatchImageIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.25 2.25 0 00-1.906-1.059H9.554a2.25 2.25 0 00-1.906 1.059l-.821 1.316z'
-        }),
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z'
         })
       ]
     )
@@ -524,31 +495,6 @@ const CreditCardIcon = {
     )
 }
 
-const RechargeSubscriptionIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'currentColor', viewBox: '0 0 1024 1024' },
-      [
-        h('path', {
-          d: 'M512 992C247.3 992 32 776.7 32 512S247.3 32 512 32s480 215.3 480 480c0 84.4-22.2 167.4-64.2 240-8.9 15.3-28.4 20.6-43.7 11.7-15.3-8.8-20.5-28.4-11.7-43.7 36.4-62.9 55.6-134.8 55.6-208 0-229.4-186.6-416-416-416S96 282.6 96 512s186.6 416 416 416c17.7 0 32 14.3 32 32s-14.3 32-32 32z'
-        }),
-        h('path', {
-          d: 'M640 512H384c-17.7 0-32-14.3-32-32s14.3-32 32-32h256c17.7 0 32 14.3 32 32s-14.3 32-32 32zM640 640H384c-17.7 0-32-14.3-32-32s14.3-32 32-32h256c17.7 0 32 14.3 32 32s-14.3 32-32 32z'
-        }),
-        h('path', {
-          d: 'M512 480c-8.2 0-16.4-3.1-22.6-9.4l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l128 128c12.5 12.5 12.5 32.8 0 45.3-6.3 6.3-14.5 9.4-22.7 9.4z'
-        }),
-        h('path', {
-          d: 'M512 480c-8.2 0-16.4-3.1-22.6-9.4-12.5-12.5-12.5-32.8 0-45.3l128-128c12.5-12.5 32.8-12.5 45.3 0s12.5 32.8 0 45.3l-128 128c-6.3 6.3-14.5 9.4-22.7 9.4z'
-        }),
-        h('path', {
-          d: 'M512 736c-17.7 0-32-14.3-32-32V448c0-17.7 14.3-32 32-32s32 14.3 32 32v256c0 17.7-14.3 32-32 32zM896 992H512c-17.7 0-32-14.3-32-32s14.3-32 32-32h306.8l-73.4-73.4c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l128 128c9.2 9.2 11.9 22.9 6.9 34.9S908.9 992 896 992z'
-        })
-      ]
-    )
-}
-
 const GlobeIcon = {
   render: () =>
     h(
@@ -564,9 +510,6 @@ const GlobeIcon = {
     )
 }
 
-const FlowIcon = {
-  render: () => h(Icon, { name: 'swap' })
-}
 
 const ServerIcon = {
   render: () =>
@@ -693,21 +636,6 @@ const OrderIcon = {
     )
 }
 
-const OrderListIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [
-        h('path', {
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-          d: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z'
-        })
-      ]
-    )
-}
-
 const ChevronDoubleRightIcon = {
   render: () =>
     h(
@@ -804,17 +732,6 @@ const ChevronDownIcon = {
     )
 }
 
-const SupportIcon = {
-  render: () =>
-    h('svg', { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' }, [
-      h('path', {
-        'stroke-linecap': 'round',
-        'stroke-linejoin': 'round',
-        d: 'M8.625 12a3.375 3.375 0 116.75 0c0 1.875-1.875 2.25-2.625 3M12 18h.008v.008H12V18zm9-6a9 9 0 11-18 0 9 9 0 0118 0z'
-      })
-    ])
-}
-
 const LogoutIcon = {
   render: () =>
     h('svg', { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' }, [
@@ -830,81 +747,34 @@ const LogoutIcon = {
 // which handles the opt-in vs opt-out fallback when settings haven't loaded
 // yet. Admin-only flags (not in public settings) stay inline below.
 const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
-const flagPayment = makeSidebarFlag(FeatureFlags.payment)
-const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
-const flagSubscription = makeSidebarFlag(FeatureFlags.subscription)
 
-// 购买入口文案随站点计费模式切换：仅充值 → 「充值」，仅订阅 → 「订阅」，否则「充值/订阅」。
-const purchaseNavLabel = computed(() => {
-  switch (resolveSiteBillingMode(appStore.cachedPublicSettings)) {
-    case 'recharge_only':
-      return t('nav.recharge')
-    case 'subscription_only':
-      return t('nav.subscribe')
-    default:
-      return t('nav.buySubscription')
-  }
-})
 const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
-const flagBatchImageAccess = () => canUseBatchImage.value
-
-// buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
-// withDashboard=true 时包含仪表盘（用户端），false 时不含（管理员的个人区已经有独立仪表盘入口）。
-//
-// 条目顺序：密钥 → 用量 → 可用渠道 → 订阅/支付 → 兑换/资料。
-// 渠道状态入口已屏蔽，分组性能监控走自定义菜单 /custom/performance-monitor。
-function buildSelfNavItems(withDashboard: boolean): NavItem[] {
-  const items: NavItem[] = []
-  if (withDashboard) {
-    items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
-  }
-  items.push(
-    { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
-    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: !authStore.isObserver },
-    { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
-    { path: '/purchase', label: purchaseNavLabel.value, icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
-    { path: '/affiliate', label: t('nav.affiliate'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagAffiliate },
-    { path: '/profile', label: t('nav.profile'), icon: UserIcon },
-    ...customMenuItemsForUser.value.map((item): NavItem => ({
-      path: item.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${item.id}`,
-      label: item.url === '/intelligence-test' && item.label === '智商检测' ? '智商监测' : item.label,
-      icon: item.id === 'performance-monitor' ? PerformanceMonitorIcon : null,
-      iconSvg: item.icon_svg,
-    })),
-  )
-  return items
-}
-
-// finalizeNav 合并三重过滤：featureFlag 过滤 + simple 模式过滤。
-function finalizeNav(items: NavItem[]): NavItem[] {
-  const visible = applyFeatureFlags(items)
-  return authStore.isSimpleMode ? visible.filter(item => !item.hideInSimpleMode) : visible
-}
 
 function userNavLabel(key: string, fallback: string): string {
   const translated = t(`nav.${key}`)
   return translated === `nav.${key}` ? fallback : translated
 }
 
+function userNavIcon(path: string): string | undefined {
+  const name = ({ '/dashboard': 'tools', '/usage': 'history', '/keys': 'key' } as Record<string, string>)[path]
+  return name ? `/xingqiao/${name}.svg` : undefined
+}
+
 function buildUserNavItems(): NavItem[] {
   return [
-    { path: '/dashboard', label: userNavLabel('myRoutes', '我的线路'), icon: DashboardIcon },
+    { path: '/dashboard', label: userNavLabel('aiTools', 'AI 工具'), icon: DashboardIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/keys', label: userNavLabel('myKeys', '我的密钥'), icon: KeyIcon },
-    // Reuse the existing storefront configuration and embedded custom-page route.
+    // Recharge and redemption are accessed only through the fixed balance entry.
     ...customMenuItemsForUser.value
-      .filter(item => item.id === 'xingqiao-storefront' || item.url === '/intelligence-test')
+      .filter(item => item.url === '/intelligence-test')
       .map((item): NavItem => ({
-        path: item.url === '/intelligence-test' ? '/intelligence-test' : `/custom/${item.id}`,
-        label: item.url === '/intelligence-test' && item.label === '智商检测' ? '智商监测' : item.label,
-        icon: CreditCardIcon,
+        path: '/intelligence-test',
+        label: item.label === '智商检测' ? '智商监测' : item.label,
+        icon: PerformanceMonitorIcon,
         iconSvg: item.icon_svg,
       })),
   ]
@@ -913,10 +783,8 @@ function buildUserNavItems(): NavItem[] {
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => buildUserNavItems())
 
-// Personal navigation items (for admin's "My Account" section, without Dashboard).
-// Admins access 可用渠道 from this section just like regular users — there is no
-// separate admin entry, since the page is purely a user-facing view.
-const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)))
+// The management console links to the same user workspace navigation.
+const personalNavItems = userNavItems
 
 // Custom menu items filtered by visibility
 const customMenuItemsForUser = computed(() => {
@@ -945,8 +813,7 @@ const customMenuItemsForAdmin = computed(() => {
 const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
-    { path: '/admin/request-captures', label: t('admin.requestCapture.title'), icon: RequestCaptureIcon, featureFlag: () => adminSettingsStore.requestCaptureEnabled },
-    { path: '/admin/ops', label: t('nav.ops'), icon: OpsMonitoringIcon, featureFlag: flagOpsMonitoring },
+    { path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
     {
       path: '/admin/operations',
       label: t('nav.operations'),
@@ -970,20 +837,20 @@ const adminNavItems = computed((): NavItem[] => {
         { path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: SignalIcon, featureFlag: flagChannelMonitor },
       ],
     },
-    // 「仅充值」站点连管理端的「订阅管理」入口也一并收起（路由本身不拦截）。
-    { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true, featureFlag: flagSubscription },
+    { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/accounts/monitor', label: t('nav.accountMonitor'), icon: ChartIcon },
-    { path: '/admin/smart-ops', label: t('accountOps.smartTitle'), icon: SmartOpsIcon, expandOnly: true, children: [
-      { path: '/admin/auto-config', label: t('autoConfig.title'), icon: AccountOpsIcon },
-      { path: '/admin/priority-scheduling', label: t('priorityScheduling.title'), icon: AccountOpsIcon },
-      { path: '/admin/account-quality', label: t('qualityOps.title'), icon: QualityOpsIcon },
-      { path: '/admin/account-ops', label: t('accountOps.title'), icon: AccountOpsIcon },
-      { path: '/admin/token-guard', label: t('tokenGuard.title'), icon: TokenGuardIcon },
-      { path: '/admin/token-guard-v2', label: t('tokenGuardV2.title'), icon: CredentialOpsIcon },
-      { path: '/admin/pelican-tests', label: t('pelicanTests.title'), icon: PelicanTestsIcon },
+    { path: '/admin/smart-ops', label: t('accountOps.smartTitle'), icon: GlobeIcon, expandOnly: true, children: [
+      { path: '/admin/auto-config', label: t('autoConfig.title'), icon: GlobeIcon },
+      { path: '/admin/priority-scheduling', label: t('priorityScheduling.title'), icon: GlobeIcon },
+      { path: '/admin/account-quality', label: t('qualityOps.title'), icon: ChartIcon },
+      { path: '/admin/account-ops', label: t('accountOps.title'), icon: GlobeIcon },
+      { path: '/admin/token-guard', label: t('tokenGuard.title'), icon: ShieldIcon },
+      { path: '/admin/token-guard-v2', label: t('tokenGuardV2.title'), icon: ShieldIcon },
+      { path: '/admin/pelican-tests', label: t('pelicanTests.title'), icon: ChartIcon },
+      { path: '/admin/request-captures', label: t('admin.requestCapture.title'), icon: ChartIcon, featureFlag: () => adminSettingsStore.requestCaptureEnabled },
+      { path: '/admin/harvest-flow', label: t('nav.harvestFlow'), icon: ChartIcon },
     ] },
-    { path: '/admin/harvest-flow', label: t('nav.harvestFlow'), icon: FlowIcon },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     {
@@ -1050,10 +917,6 @@ const adminNavItems = computed((): NavItem[] => {
 })
 
 // Use exactly the visible navigation, including the personal section only when shown.
-const searchNavItems = computed(() => [
-  ...adminNavItems.value,
-  ...(authStore.isSimpleMode ? [] : personalNavItems.value)
-])
 
 function toggleSidebar() {
   appStore.toggleSidebar()
@@ -1144,6 +1007,9 @@ function toggleGroup(item: NavItem) {
  *   (router-link semantics) and ensure the group is expanded.
  */
 function handleGroupClick(item: NavItem) {
+  if (window.matchMedia('(max-width: 700px)').matches && !mobileOpen.value) {
+    appStore.setMobileOpen(true)
+  }
   if (sidebarCollapsed.value) return
   if (item.expandOnly) {
     toggleGroup(item)
@@ -1156,15 +1022,10 @@ function handleGroupClick(item: NavItem) {
   groupExpandOverrides.value.set(item.path, true)
 }
 
-// Initialize theme
+// Restore the same preference used before app mount; first visits start dark.
 const savedTheme = localStorage.getItem('theme')
-if (
-  savedTheme === 'dark' ||
-  (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-) {
-  isDark.value = true
-  document.documentElement.classList.add('dark')
-}
+isDark.value = savedTheme !== 'light'
+document.documentElement.classList.toggle('dark', isDark.value)
 
 // Fetch admin settings (for feature-gated nav items like Ops).
 watch(
@@ -1179,7 +1040,6 @@ watch(
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
-  void refreshBatchImageAccess()
   if (isAdmin.value) {
     adminSettingsStore.fetch()
   }
@@ -1329,216 +1189,138 @@ onBeforeUnmount(() => {
   height: 1.25rem;
 }
 
+/* Shared chrome uses the confirmed user shell; admin navigation keeps its groups. */
 .user-sidebar {
-  background: #020813;
-  border-color: #14304f;
+  width: 242px !important;
+  transform: none !important;
+  padding: 0 18px var(--xq-bottom-gutter, 24px);
+  background: var(--xq-canvas);
+  border-right: 1px solid var(--xq-line);
+  box-shadow: none;
+  color: var(--xq-text);
 }
-
-.user-sidebar :deep(.sidebar-header) {
-  border-color: #10223a;
+.user-sidebar .sidebar-header {
+  height: var(--xq-header-height, 64px); min-height: 0; flex-shrink: 0; align-items: center;
+  gap: 12px; padding: 0 10px; margin-bottom: 28px;
+  border-bottom: 1px solid var(--xq-line);
 }
-
-.user-locale-row {
-  display: flex;
-  align-items: center;
-  padding: 0.15rem 0.75rem 0.75rem;
+.user-sidebar .sidebar-logo {
+  width: 32px; min-width: 32px; height: 32px; margin-top: 0; flex: 0 0 32px;
+  border-radius: 5px; background: #040a12; box-shadow: none;
 }
-
-.user-locale-row-collapsed {
-  justify-content: center;
-  padding-left: 0.5rem;
-  padding-right: 0.5rem;
+.user-sidebar .sidebar-brand { min-width: 0; }
+.user-sidebar .sidebar-brand-title { color: var(--xq-text); font-size: 16px; line-height: 1.6; white-space: nowrap; }
+.user-brand-version { display: block; font-size: 10px; margin-top: 4px; color: var(--xq-muted); }
+.user-sidebar .sidebar-nav {
+  min-height: 0; padding: 0 0 16px; margin-bottom: 12px;
+  scroll-padding-block: 12px; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--xq-border) transparent;
 }
-
-.user-locale-row :deep(button) {
-  color: #94bbd9;
+.user-sidebar .sidebar-nav::-webkit-scrollbar { width: 4px; }
+.user-sidebar .sidebar-nav::-webkit-scrollbar-thumb { background: var(--xq-border); border-radius: 4px; }
+.user-sidebar .sidebar-section-title { color: var(--xq-muted); }
+.user-sidebar .sidebar-section { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; }
+.user-sidebar .sidebar-link {
+  position: relative; height: 42px; min-height: 42px; margin: 0; padding: 0 12px; gap: 16px;
+  border: 1px solid transparent; border-radius: 9px; color: var(--xq-secondary);
+  font-size: 13px; font-weight: 500; background: transparent;
+  transition: color .18s ease, background .18s ease, border-color .18s ease;
 }
-
-.user-locale-row :deep(button:hover) {
-  background: #0a162c;
-  color: #e6f6ff;
+.user-sidebar .sidebar-link:hover { color: var(--xq-text); background: color-mix(in srgb, var(--xq-raised) 42%, transparent); border-color: var(--xq-border); }
+.user-sidebar .sidebar-link-active {
+  color: var(--xq-text); background: var(--xq-raised);
+  border-color: var(--xq-border); box-shadow: inset 3px 0 var(--xq-accent);
 }
-
-.user-sidebar .sidebar-brand-title {
-  color: #e6f6ff;
-}
-
-.user-sidebar :deep(.sidebar-link) {
-  color: #94bbd9;
-  border-radius: 0.5rem;
-}
-
-.user-sidebar :deep(.sidebar-link:hover) {
-  color: #e6f6ff;
-  background: #0a162c;
-}
-
-.user-sidebar :deep(.sidebar-link-active) {
-  color: #31b9ff;
-  background: #0a2440;
-  box-shadow: inset 3px 0 #ffca48;
-}
-
+.user-nav-icon { width: 20px; height: 20px; flex-shrink: 0; }
 .user-sidebar-bottom {
-  position: relative;
-  display: grid;
-  grid-template-columns: 6.5rem minmax(0, 1fr);
-  align-items: end;
-  gap: 0.5rem;
-  margin-top: auto;
-  padding: 0.75rem;
-  border-top: 1px solid #10223a;
+  position: relative; flex-shrink: 0; margin: auto -18px calc(-1 * var(--xq-bottom-gutter, 24px));
+  padding: 16px 18px var(--xq-bottom-gutter, 24px);
+  border-top: 1px solid var(--xq-border); background: var(--xq-depth);
 }
-
+.user-sidebar-bottom :is(button, a):focus-visible { outline: 2px solid var(--xq-accent); outline-offset: 3px; }
 .user-recharge-button {
-  display: flex;
-  width: 5.75rem;
-  min-height: 4.25rem;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  border: 1px solid #173a5e;
-  border-radius: 0.5rem;
-  background: #0a162c;
-  color: #ffca48;
-  text-decoration: none;
+  display: flex; width: 100%; height: 58px; padding: 0 12px;
+  align-items: center; justify-content: space-between; margin: 0 0 16px;
+  border: 1px solid var(--xq-border); border-radius: 9px;
+  background: var(--xq-surface);
+  color: var(--xq-secondary); text-decoration: none;
 }
-
-.user-recharge-button span {
-  color: #31b9ff;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-
-.user-recharge-button-collapsed {
-  width: 3rem;
-  min-height: 3.5rem;
-}
-
-.user-recharge-button-collapsed strong {
-  font-size: 0.75rem;
-}
-
-.user-recharge-button-collapsed span {
-  font-size: 0;
-}
-
-.user-recharge-button-collapsed span b {
-  font-size: 1rem;
-}
-
-.user-sidebar-actions {
-  position: relative;
-  display: flex;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.user-account-button,
-.user-support-button {
-  display: grid;
-  place-items: center;
-  border: 1px solid #173a5e;
-  background: #071426;
-  color: #94bbd9;
-}
-
+.user-recharge-button strong { color: var(--xq-text); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.user-recharge-button span { color: var(--xq-secondary); font-size: 12px; }
+.user-sidebar-actions { position: relative; display: flex; gap: 8px; align-items: center; }
 .user-account-button {
-  width: 2.75rem;
-  height: 2.75rem;
-  overflow: hidden;
-  border-color: #1d6088;
-  border-radius: 0.55rem;
-  background: #0e78ad;
-  color: white;
-  font-size: 0.8rem;
-  font-weight: 700;
+  display: flex; flex: 1; min-width: 0; padding: 0; gap: 10px; align-items: center;
+  border: 0; background: none; text-align: left; color: var(--xq-secondary); font-size: 12px;
+}
+.user-account-button > img, .user-account-avatar {
+  display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+  flex-shrink: 0; border: 1px solid var(--xq-border); border-radius: 50%; background: var(--xq-raised);
+  color: var(--xq-accent); overflow: hidden; object-fit: cover;
 }
 
-.user-account-button img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
+.user-account-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-support-button {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.45rem;
+  display: inline-flex; align-items: center; justify-content: center; width: 40px; min-height: 38px;
+  flex-shrink: 0; padding: 0; border: 1px solid var(--xq-border); border-radius: 9px; background: var(--xq-raised); color: var(--xq-secondary);
 }
-
+.user-recharge-button:hover, .user-support-button:hover { border-color: var(--xq-accent); background: var(--xq-raised); color: var(--xq-text); }
 .user-account-menu {
-  position: absolute;
-  right: 0;
-  bottom: 3.25rem;
-  width: 13rem;
-  overflow: hidden;
-  border: 1px solid #173a5e;
-  border-radius: 0.5rem;
-  background: #071426;
-  box-shadow: 0 1rem 2rem rgb(0 0 0 / 30%);
+  position: absolute; bottom: 48px; left: 0; width: 210px; z-index: 40;
+  border: 1px solid var(--xq-border); border-radius: 10px; padding: 6px;
+  background: var(--xq-surface); box-shadow: 0 12px 32px rgb(4 10 18 / 12%);
+  max-height: calc(100dvh - 130px); overflow-y: auto;
 }
-
-.user-account-summary {
-  padding: 0.75rem;
-  border-bottom: 1px solid #17304d;
+.user-account-summary { padding: 8px 10px; border-bottom: 1px solid var(--xq-line); }
+.user-account-summary strong, .user-account-summary span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-account-summary strong { color: var(--xq-text); font-size: 12px; }
+.user-account-summary span { color: var(--xq-muted); font-size: 11px; }
+.user-account-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 0 10px; border: 0; background: none; color: var(--xq-secondary); font-size: 12px; text-align: left; border-radius: 6px; }
+.user-account-menu-item:hover { background: var(--xq-raised); color: var(--xq-text); }
+.user-account-menu-danger { color: var(--xq-danger); }
+@media (min-width: 701px) and (max-width: 1050px) { .user-sidebar { width: 200px !important; } }
+@media (max-width: 700px) {
+  .user-sidebar { width: 76px !important; padding: 0 10px var(--xq-bottom-gutter, 18px); }
+  .user-sidebar .sidebar-header { padding: 0 12px; }
+  .user-sidebar-bottom { margin-left: -10px; margin-right: -10px; padding-left: 10px; padding-right: 10px; }
+  .user-sidebar .sidebar-brand, .user-sidebar .sidebar-label,
+  .user-recharge-button strong, .user-recharge-button span, .user-account-name { display: none !important; }
+  .user-sidebar .sidebar-link { justify-content: center; padding: 0; }
+  .user-recharge-button { padding: 0; justify-content: center; }
+  .user-recharge-button::after { content: "充值"; font-size: 12px; }
+  .user-sidebar-actions { flex-direction: column; }
+  .user-account-menu { left: 58px; bottom: 0; }
 }
-
-.user-account-summary strong,
-.user-account-summary span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.admin-sidebar { z-index: 50; }
+.admin-sidebar .sidebar-section + .sidebar-section { margin-top: 20px; }
+.admin-sidebar .sidebar-section-title { flex-shrink: 0; }
+.admin-sidebar .sidebar-link { flex-shrink: 0; }
+@media (min-width: 701px) {
+  .admin-sidebar-collapsed { width: 76px !important; padding-left: 10px; padding-right: 10px; }
+  .admin-sidebar-collapsed .user-sidebar-bottom { margin-left: -10px; margin-right: -10px; padding-left: 10px; padding-right: 10px; }
+  .admin-sidebar-collapsed .sidebar-header { padding-left: 12px; padding-right: 12px; }
+  .admin-sidebar-collapsed .sidebar-link { justify-content: center; padding: 0; }
+  .admin-sidebar-collapsed .user-recharge-button { justify-content: center; padding: 0; }
+  .admin-sidebar-collapsed .user-recharge-button strong, .admin-sidebar-collapsed .user-recharge-button span,
+  .admin-sidebar-collapsed .user-account-name { display: none; }
+  .admin-sidebar-collapsed .user-recharge-button::after { content: "充值"; font-size: 12px; }
+  .admin-sidebar-collapsed .user-sidebar-actions { flex-direction: column; }
+  .admin-sidebar-collapsed .user-account-menu { left: 58px; bottom: 0; }
 }
-
-.user-account-summary strong {
-  color: #e6f6ff;
-  font-size: 0.8rem;
-}
-
-.user-account-summary span {
-  margin-top: 0.2rem;
-  color: #94bbd9;
-  font-size: 0.7rem;
-}
-
-.user-account-menu-item {
-  display: flex;
-  min-height: 2.5rem;
-  align-items: center;
-  gap: 0.55rem;
-  width: 100%;
-  padding: 0 0.75rem;
-  border: 0;
-  background: #071426;
-  color: #c6d9e8;
-  font-size: 0.75rem;
-  text-align: left;
-}
-
-.user-account-menu-item:hover {
-  background: #0a2440;
-  color: #31b9ff;
-}
-
-.user-account-menu-danger {
-  border-top: 1px solid #17304d;
-  color: #ff6b72;
-}
-
-@media (max-width: 1023px) {
-  .user-sidebar-bottom {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .user-sidebar-actions {
-    flex-direction: column;
-  }
+@media (max-width: 700px) {
+  .shell-collapse-action { display: none; }
+  .admin-sidebar:not(.admin-sidebar-open) .sidebar-section-title { display: none; }
+  .admin-sidebar:not(.admin-sidebar-open) .sidebar-link > span:not(.sidebar-svg-icon),
+  .admin-sidebar:not(.admin-sidebar-open) .sidebar-section > div { display: none; }
+  .admin-sidebar-open { width: 242px !important; padding: 0 18px var(--xq-bottom-gutter, 18px); }
+  .admin-sidebar-open .user-sidebar-bottom { margin-left: -18px; margin-right: -18px; padding-left: 18px; padding-right: 18px; }
+  .admin-sidebar-open .sidebar-brand, .admin-sidebar-open .sidebar-label,
+  .admin-sidebar-open .user-recharge-button strong, .admin-sidebar-open .user-recharge-button span,
+  .admin-sidebar-open .user-account-name { display: block !important; }
+  .admin-sidebar-open .sidebar-label-flex { display: flex !important; }
+  .admin-sidebar-open .sidebar-link { justify-content: flex-start; padding: 0 12px; }
+  .admin-sidebar-open .user-recharge-button { justify-content: space-between; padding: 0 12px; }
+  .admin-sidebar-open .user-recharge-button::after { content: none; }
+  .admin-sidebar-open .user-sidebar-actions { flex-direction: row; }
+  .admin-sidebar-open .user-account-menu { left: 0; bottom: 48px; }
 }
 </style>

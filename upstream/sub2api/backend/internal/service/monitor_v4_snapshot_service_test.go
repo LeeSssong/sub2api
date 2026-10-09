@@ -71,19 +71,42 @@ func TestMonitorV4RefreshUsesOneAsOfAndPublishesOnce(t *testing.T) {
 	if len(native.calls) != 3 {
 		t.Fatalf("native calls = %d, want 3", len(native.calls))
 	}
-	for _, call := range native.calls {
-		if !call.end.Equal(time.Date(2026, 8, 31, 4, 12, 0, 0, time.UTC)) {
+	for i, call := range native.calls {
+		wantEnd := time.Date(2026, 8, 31, 4, 0, 0, 0, time.UTC)
+		if i == 0 {
+			wantEnd = wantEnd.Add(12 * time.Minute)
+		}
+		if !call.end.Equal(wantEnd) {
 			t.Fatalf("as_of = %s", call.end)
 		}
 		if len(call.groupIDs) != 1 || call.groupIDs[0] != 7 {
 			t.Fatalf("group IDs = %v", call.groupIDs)
 		}
 	}
-	if !native.calls[0].start.Equal(time.Date(2026, 8, 31, 3, 12, 0, 0, time.UTC)) || !native.calls[1].start.Equal(time.Date(2026, 8, 30, 4, 12, 0, 0, time.UTC)) || !native.calls[2].start.Equal(time.Date(2026, 8, 24, 4, 12, 0, 0, time.UTC)) {
+	if !native.calls[0].start.Equal(time.Date(2026, 8, 31, 3, 12, 0, 0, time.UTC)) || !native.calls[1].start.Equal(time.Date(2026, 8, 30, 4, 0, 0, 0, time.UTC)) || !native.calls[2].start.Equal(time.Date(2026, 8, 24, 4, 0, 0, 0, time.UTC)) {
 		t.Fatalf("window starts = %#v", native.calls)
 	}
 	if len(store.replaced) != 3 || store.replaced[0].SnapshotID == "" || store.replaced[0].SnapshotID == "pending" || store.replaced[1].SnapshotID != store.replaced[0].SnapshotID || store.replaced[2].SnapshotID != store.replaced[0].SnapshotID {
 		t.Fatalf("snapshot IDs = %#v", store.replaced)
+	}
+}
+
+func TestMonitorV4RefreshIncludesAllActiveGroupsOutsideMonitorConfiguration(t *testing.T) {
+	native := &monitorV4NativeReaderStub{}
+	store := &monitorV4RefreshStoreStub{}
+	svc := NewMonitorV4Service(&monitorV4GroupRepoStub{groups: []Group{
+		{ID: 7, Status: StatusActive},
+		{ID: 8, Status: StatusActive},
+		{ID: 9, Status: "inactive"},
+	}}, &monitorV4AvailableGroupReaderStub{}, native, nil, &monitorV4ConfiguredGroupReaderStub{config: &ChannelMonitorV2Config{GroupIDs: []int64{7}}})
+	svc.SetSnapshotStore(store)
+	if err := svc.RefreshMonitorV4Snapshots(context.Background(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range native.calls {
+		if len(call.groupIDs) != 2 || call.groupIDs[0] != 7 || call.groupIDs[1] != 8 {
+			t.Fatalf("group IDs = %v, want all active groups [7 8]", call.groupIDs)
+		}
 	}
 }
 

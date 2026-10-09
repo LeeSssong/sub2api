@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
@@ -46,10 +47,12 @@ type userGroupStat struct {
 
 // UsageHandler handles usage-related requests
 type UsageHandler struct {
-	usageService   *service.UsageService
-	apiKeyService  *service.APIKeyService
-	opsService     *service.OpsService
-	settingService *service.SettingService
+	modelPopularityMu sync.Mutex
+	modelPopularity   *modelPopularityResponse
+	usageService      *service.UsageService
+	apiKeyService     *service.APIKeyService
+	opsService        *service.OpsService
+	settingService    *service.SettingService
 }
 
 // NewUsageHandler creates a new UsageHandler

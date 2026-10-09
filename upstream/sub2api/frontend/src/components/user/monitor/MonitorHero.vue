@@ -34,13 +34,14 @@
 
       <button
         type="button"
-        class="h-8 w-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-dark-700 transition-colors disabled:opacity-50"
+        class="btn btn-secondary h-8  rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-dark-700 transition-colors disabled:opacity-50"
         :disabled="loading"
         :title="t('common.refresh')"
         @click="emit('refresh')"
       >
         <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-      </button>
+      <span>{{ t('common.refresh') }}</span>
+          </button>
 
       <AutoRefreshButton
         v-if="autoRefresh"

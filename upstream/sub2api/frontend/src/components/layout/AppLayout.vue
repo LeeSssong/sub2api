@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen" :class="isAdmin ? 'bg-gray-50 dark:bg-dark-950' : 'dark user-app-shell bg-[#040b17]'">
+  <div class="min-h-screen" :class="isUserSurface ? 'user-app-shell' : 'brand-admin-shell bg-gray-50 dark:bg-dark-950'">
     <!-- Background Decoration -->
     <div class="pointer-events-none fixed inset-0 bg-mesh-gradient"></div>
 
@@ -9,27 +9,15 @@
     <!-- Main Content Area -->
     <div
       class="relative min-h-screen transition-all duration-300"
-      :class="[sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-64']"
+      :class="isUserSurface ? 'user-main-frame' : ['admin-main-frame', { 'admin-main-collapsed': sidebarCollapsed }]"
     >
       <!-- Header -->
-      <AppHeader v-if="isAdmin || showDesktopHeader" />
+      <AppHeader v-if="!isUserSurface || showDesktopHeader" />
 
-      <div v-else class="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-[#14304f] bg-[#040b17]/95 px-4 backdrop-blur lg:hidden">
-        <button
-          type="button"
-          class="btn-ghost btn-icon"
-          :aria-label="$t('common.toggleMenu')"
-          @click="appStore.toggleMobileSidebar()"
-        >
-          <Icon name="menu" size="md" />
-        </button>
-        <div data-testid="user-mobile-locale">
-          <LocaleSwitcher />
-        </div>
-      </div>
+      <UserHeader v-else />
 
       <!-- Main Content -->
-      <main class="p-4 md:p-6 lg:p-8" :class="{ 'user-workspace': !isAdmin }">
+      <main class="p-4 md:p-6 lg:p-8" :class="{ 'user-workspace': isUserSurface, 'admin-workspace': !isUserSurface }">
         <slot />
       </main>
     </div>
@@ -38,26 +26,30 @@
 
 <script setup lang="ts">
 import '@/styles/onboarding.css'
-import { computed, onMounted } from 'vue'
+import '@/styles/xingqiao-brand.css'
+import '@/styles/xingqiao-user.css'
+import '@/styles/xingqiao-ai.css'
+import { computed, onMounted, provide } from 'vue'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
+import { useAppSurface } from '@/composables/useAppSurface'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useOnboardingStore } from '@/stores/onboarding'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
-import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
-import Icon from '@/components/icons/Icon.vue'
+import UserHeader from './UserHeader.vue'
 
 withDefaults(defineProps<{ showDesktopHeader?: boolean }>(), { showDesktopHeader: false })
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const { isUserSurface } = useAppSurface()
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
-const isAdmin = computed(() => authStore.user?.role === 'admin')
+provide('starbridge-user', isUserSurface)
 
 const { replayTour } = useOnboardingTour({
-  storageKey: isAdmin.value ? 'admin_guide' : 'user_guide',
-  autoStart: true
+  storageKey: authStore.isAdmin ? 'admin_guide' : 'user_guide',
+  autoStart: !isUserSurface.value
 })
 
 const onboardingStore = useOnboardingStore()
@@ -71,11 +63,11 @@ defineExpose({ replayTour })
 
 <style scoped>
 .user-app-shell {
-  color: #e8f3fb;
+  color: var(--xq-text);
 }
 
 .user-workspace {
-  min-height: 100vh;
-  background: #040b17;
+  min-height: 0;
+  background: var(--xq-void);
 }
 </style>

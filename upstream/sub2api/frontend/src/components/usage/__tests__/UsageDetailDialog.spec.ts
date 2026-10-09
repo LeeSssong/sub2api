@@ -221,8 +221,8 @@ describe('UsageDetailDialog', () => {
     expect(wrapper.text()).toContain('1.23s')
     expect(wrapper.text()).toContain('245ms')
     expect(wrapper.text()).toContain('1,000')
-    expect(wrapper.text()).toContain('$0.005000')
-    expect(wrapper.text()).toContain('$0.006880')
+    expect(wrapper.text()).toContain('usage.detail.inputCost$0.005000')
+    expect(wrapper.text()).toContain('usage.detail.actualCost$0.006880')
     expect(wrapper.text()).toContain('$5.000000')
   })
 

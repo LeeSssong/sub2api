@@ -407,6 +407,8 @@ export default {
     noPlans: 'No subscription plans available',
     notAvailable: 'Top-up is currently unavailable',
     billingUnavailable: 'Neither top-up nor subscriptions are currently available. Please contact the administrator.',
+    loadFailedTitle: 'Failed to load recharge information',
+    loadFailedHint: 'The payment service is temporarily unavailable. Please try again.',
     confirmSubscription: 'Confirm Subscription',
     confirmCancel: 'Are you sure you want to cancel this order?',
     amountTooLow: 'Minimum amount is {min}',
