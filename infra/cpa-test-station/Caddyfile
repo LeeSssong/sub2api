@@ -18,7 +18,8 @@ cpa-test.xingqiaolab.top {
 			}
 		}
 	}
-	handle /management.html /index.html {
+	@management_page path /management.html /index.html
+	handle @management_page {
 		root * /etc/caddy
 		rewrite * /management.html
 		header Cache-Control "no-store"
