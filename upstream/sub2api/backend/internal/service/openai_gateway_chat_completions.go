@@ -59,9 +59,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	body []byte,
 	promptCacheKey string,
 	defaultMappedModel string,
-) (qualityResult *OpenAIForwardResult, qualityErr error) {
-	qualityStartedAt := beginQualityTrafficAttempt(c)
-	defer func() { stampQualityTrafficStart(qualityResult, qualityStartedAt) }()
+) (*OpenAIForwardResult, error) {
 	return s.forwardAsChatCompletions(ctx, c, account, body, promptCacheKey, defaultMappedModel, false)
 }
 

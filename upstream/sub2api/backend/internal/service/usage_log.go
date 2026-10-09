@@ -102,13 +102,11 @@ func ApplyLegacyRequestFields(requestType RequestType, fallbackStream bool, fall
 }
 
 type UsageLog struct {
-	// Write-only dispatch timestamp used to persist the immutable quality snapshot.
-	QualityRequestStartedAt *time.Time
-	ID                      int64
-	UserID                  int64
-	APIKeyID                int64
-	AccountID               int64
-	RequestID               string
+	ID        int64
+	UserID    int64
+	APIKeyID  int64
+	AccountID int64
+	RequestID string
 	// UpstreamRequestID is the provider request identifier, separate from the
 	// local idempotency/correlation key in RequestID.
 	UpstreamRequestID *string

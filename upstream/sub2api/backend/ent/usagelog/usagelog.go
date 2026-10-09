@@ -122,10 +122,6 @@ const (
 	FieldCacheTTLOverridden = "cache_ttl_overridden"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
-	// FieldQualityRequestStartedAt holds the string denoting the quality_request_started_at field in the database.
-	FieldQualityRequestStartedAt = "quality_request_started_at"
-	// FieldQualityStatus holds the string denoting the quality_status field in the database.
-	FieldQualityStatus = "quality_status"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// EdgeAPIKey holds the string denoting the api_key edge name in mutations.
@@ -232,8 +228,6 @@ var Columns = []string{
 	FieldVideoDurationSeconds,
 	FieldCacheTTLOverridden,
 	FieldCreatedAt,
-	FieldQualityRequestStartedAt,
-	FieldQualityStatus,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -606,16 +600,6 @@ func ByCacheTTLOverridden(opts ...sql.OrderTermOption) OrderOption {
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
-}
-
-// ByQualityRequestStartedAt orders the results by the quality_request_started_at field.
-func ByQualityRequestStartedAt(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldQualityRequestStartedAt, opts...).ToFunc()
-}
-
-// ByQualityStatus orders the results by the quality_status field.
-func ByQualityStatus(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldQualityStatus, opts...).ToFunc()
 }
 
 // ByUserField orders the results by user field.

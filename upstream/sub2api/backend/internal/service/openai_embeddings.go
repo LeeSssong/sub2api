@@ -23,9 +23,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	account *Account,
 	body []byte,
 	defaultMappedModel string,
-) (qualityResult *OpenAIForwardResult, qualityErr error) {
-	qualityStartedAt := beginQualityTrafficAttempt(c)
-	defer func() { stampQualityTrafficStart(qualityResult, qualityStartedAt) }()
+) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
 
 	originalModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())

@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -136,7 +135,6 @@ func (h *GatewayHandler) WebSearch(c *gin.Context) {
 	var nativeResp *websearch.SearchResponse
 	var providerName string
 	var err error
-	var qualityRequestStartedAt time.Time
 
 	// Acquire + release holder for the whole handler (including failover retries).
 	defer func() {
@@ -184,7 +182,6 @@ func (h *GatewayHandler) WebSearch(c *gin.Context) {
 		account = selected.Account
 		accountReleaseFunc = release
 
-		qualityRequestStartedAt = time.Now()
 		if isXSearch {
 			nativeResp, providerName, err = h.doGrokNativeXSearch(c.Request.Context(), c, account, req, searchModel, maxResults)
 		} else {
@@ -240,11 +237,10 @@ func (h *GatewayHandler) WebSearch(c *gin.Context) {
 	h.submitMandatoryUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
 		if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 			Result: &service.ForwardResult{
-				QualityRequestStartedAt: qualityRequestStartedAt,
-				RequestID:               searchRequestID,
-				Model:                   "grok-" + strings.ReplaceAll(searchLabel, "_", "-"),
-				SearchCount:             1,
-				Duration:                0,
+				RequestID:   searchRequestID,
+				Model:       "grok-" + strings.ReplaceAll(searchLabel, "_", "-"),
+				SearchCount: 1,
+				Duration:    0,
 			},
 			APIKey:             apiKey,
 			User:               apiKey.User,

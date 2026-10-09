@@ -243,7 +243,6 @@ func (s *ScheduledTestRunnerService) runPelicanPlan(ctx context.Context, plan *S
 			freshSignal = s.qualityTrigger.signalIsCurrent(plan.AccountID, *plan.TriggerObservedAt)
 		}
 		if applyTriggeredQuality && freshSignal && qualityRoundHasResults(results) {
-			plan.QualityTrafficVerdict = qualityTrafficVerdict(plan.PelicanConfig, results)
 			var actionErr error
 			qualityAction, actionErr = s.planRepo.ApplyQualityOutcome(saveCtx, plan, until, qualityRoundOutcome(results, len(models) > 1))
 			if actionErr != nil {

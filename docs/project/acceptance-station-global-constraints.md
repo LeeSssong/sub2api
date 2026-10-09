@@ -28,6 +28,7 @@
 - 验收 API/登录入口：由独立站自身根路径提供，必须以该站页面和 API 实际响应为准；不得拼接旧 `/admin/lab/api/v1` 前缀
 - 主站管理员页面：`https://api.xingqiaolab.top/admin/accounts`；该路径继续走主站，不属于验收站
 - 宿主 SSH alias：`sub2api-test-station`（`ubuntu@43.133.75.82:22`）
+- 2026-10-09 用户再次确认 `43.133.75.82` 为测试站。本机旧 alias 已纠正；执行前用 `ssh -G sub2api-test-station` 核对，不得按旧 SSH 路由访问 `49.51.203.200`。
 - 验收宿主目录：`/opt/sub2api-test-station/`
 - 当前活动 release：由宿主 `/opt/sub2api-test-station/release-state.json` 的 `source_commit/source_tree`、发布记录与运行容器 Compose 标签实时解析；不得在规则文档中固定可能过时的 release SHA
 - Compose 文件：`<active-release>/infra/independent-test-station/compose.yaml`
@@ -43,10 +44,10 @@
 
 任何线程需要登录、查看日志、执行验收发布或宿主运维时，使用以下受保护文件；不得把其中的密码、token、私钥、API key、支付密钥、上游 key 或 webhook 写入 Git、规格书、聊天消息、发布证据或普通日志：
 
-- 测试站 SSH 私钥：`/Users/awen/.ssh/tencent_lighthouse_seoul_sub2api`，权限必须为 `0600`
-- 测试站 SSH known_hosts：`/Users/awen/.config/sub2api/known_hosts`，权限必须为 `0600`，且必须包含 `43.133.75.82` 的可信 host key
+- 测试站 SSH 私钥：`/Users/gongtengxinwen/.ssh/tencent_lighthouse_seoul_sub2api`，权限必须为 `0600`
+- 测试站 SSH known_hosts：`/Users/gongtengxinwen/.config/sub2api/known_hosts`，权限必须为 `0600`，且必须包含 `43.133.75.82` 的可信 host key
 - 测试站运行 env：服务器 `/opt/sub2api-test-station/.env`，权限必须为 `0600`
-- 旧验收 env：`/Users/awen/.config/sub2api/acceptance-20260827.env`，仅历史参考，不得用于新独立测试站
+- 旧验收 env：`/Users/gongtengxinwen/.config/sub2api/acceptance-20260827.env`，仅历史参考，不得用于新独立测试站
 
 线程可以读取非敏感配置名和值（站点、目录、project、network、端口、provider 类型），但不得用 `cat`、`env`、`docker inspect` 或日志命令打印完整 env。需要展示时只展示变量名、是否已设置、文件权限和脱敏摘要。
 

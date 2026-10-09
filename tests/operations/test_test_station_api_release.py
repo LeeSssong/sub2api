@@ -16,12 +16,12 @@ SPEC.loader.exec_module(release)
 
 
 class ReleaseScopeTests(unittest.TestCase):
-    def check_scope(self, paths, update_worker=False):
+    def check_scope(self, paths, update_worker=False, deleted_migration=False):
         shell = (ROOT / 'ops/release-sub2api-test-station-api.sh').read_text()
         gate = shell[shell.index('while IFS= read -r path; do'):shell.index('binary_commit=$commit')]
-        script = 'fail(){ echo "$1" >&2; exit 1; }; git(){ printf "%s\\n" "$CHANGED_PATHS"; }; ' + gate
+        script = 'fail(){ echo "$1" >&2; exit 1; }; git(){ if [[ "$*" == *--diff-filter=D* ]]; then printf "%s\\n" "$DELETED_MIGRATION"; else printf "%s\\n" "$CHANGED_PATHS"; fi; }; ' + gate
         return subprocess.run(['bash', '-c', script], capture_output=True, text=True,
-            env=dict(os.environ, CHANGED_PATHS='\n'.join(paths), update_worker=str(update_worker).lower(), previous='old'))
+            env=dict(os.environ, CHANGED_PATHS='\n'.join(paths), update_worker=str(update_worker).lower(), previous='old', root=str(ROOT), DELETED_MIGRATION='upstream/sub2api/backend/migrations/266_quality_traffic_snapshots.sql' if deleted_migration else ''))
 
     def test_frontend_design_rules_allow_api_only_release_without_widening_runtime_scope(self):
         result = self.check_scope(['upstream/sub2api/frontend/DESIGN.md',
@@ -30,6 +30,18 @@ class ReleaseScopeTests(unittest.TestCase):
         for path in ['package.json', 'pnpm-lock.yaml', 'vite.config.ts']:
             with self.subTest(path=path):
                 self.assertNotEqual(self.check_scope(['upstream/sub2api/frontend/' + path]).returncode, 0)
+
+    def test_snapshot_removal_requires_worker_and_only_deleted_migration(self):
+        paths = ['upstream/sub2api/backend/internal/repository/usage_log_repo_insert.go',
+                 'upstream/sub2api/backend/ent/schema/usage_log.go',
+                 'upstream/sub2api/backend/internal/service/quality_traffic.go']
+        self.assertNotEqual(self.check_scope(paths).returncode, 0)
+        self.assertEqual(self.check_scope(paths, True).returncode, 0)
+        migration = ['upstream/sub2api/backend/migrations/266_quality_traffic_snapshots.sql']
+        self.assertNotEqual(self.check_scope(migration, True).returncode, 0)
+        self.assertNotEqual(self.check_scope(migration, False, True).returncode, 0)
+        self.assertEqual(self.check_scope(migration, True, True).returncode, 0)
+        self.assertNotEqual(self.check_scope(['upstream/sub2api/backend/migrations/999.sql'], True, True).returncode, 0)
 
     def test_native_group_catalog_changes_allow_api_only_release(self):
         paths = ['internal/handler/' + name for name in (
@@ -46,14 +58,6 @@ class ReleaseScopeTests(unittest.TestCase):
                 result = self.check_scope(['upstream/sub2api/backend/' + path])
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn('unsupported runtime changes', result.stderr)
-
-    def test_quality_request_snapshots_require_worker_without_widening_dependencies(self):
-        paths = ['upstream/sub2api/backend/internal/service/quality_traffic.go',
-                 'upstream/sub2api/backend/internal/repository/usage_log_repo_insert.go',
-                 'upstream/sub2api/backend/ent/schema/usage_log.go']
-        self.assertNotEqual(self.check_scope(paths).returncode, 0)
-        self.assertEqual(self.check_scope(paths, True).returncode, 0)
-        self.assertNotEqual(self.check_scope(['upstream/sub2api/backend/ent/schema/account.go'], True).returncode, 0)
 
     def test_native_plaza_price_reuse_allows_api_only_release(self):
         paths = ['internal/handler/wire.go', 'internal/handler/handler_wiring_test.go',
@@ -139,23 +143,6 @@ class ReleaseScopeTests(unittest.TestCase):
 
 
 class MigrationPreflightTests(unittest.TestCase):
-    def test_only_reviewed_266_may_be_pending_in_maintenance(self):
-        expected = {'265.sql': 'a'*64, '266_quality_traffic_snapshots.sql': 'b'*64}
-        release.verify_maintenance_migrations(expected, '265.sql|'+'a'*64+'\n', '266_quality_traffic_snapshots.sql')
-        for rows, name in [('', '266_quality_traffic_snapshots.sql'),
-                           ('265.sql|'+'c'*64+'\n', '266_quality_traffic_snapshots.sql'),
-                           ('265.sql|'+'a'*64+'\n', '999.sql')]:
-            with self.subTest(rows=rows, name=name), self.assertRaises(ValueError):
-                release.verify_maintenance_migrations(expected, rows, name)
-
-    def test_maintenance_preserves_homepage_and_blocks_every_api_route(self):
-        source = ':80 {\n handle /home {\n  reverse_proxy homepage:80\n }\n reverse_proxy /api/* test-station-api-green:8080\n reverse_proxy test-station-api-green:8080\n}\n'
-        changed = release.maintenance_caddy(source, 'test-station-api-green')
-        self.assertIn('reverse_proxy homepage:80', changed)
-        self.assertNotIn('test-station-api-green:8080', changed)
-        self.assertIn('respond /api/* "Maintenance" 503', changed)
-        self.assertIn('respond "Maintenance" 503', changed)
-
     def test_applied_unchanged_migrations_accept_retained_history(self):
         release.verify_migration_checksums({'265.sql': 'a'*64}, '265.sql|'+'a'*64+'\n241.sql|'+'b'*64+'\n')
 
@@ -163,6 +150,22 @@ class MigrationPreflightTests(unittest.TestCase):
         for rows in ['', '265.sql|'+'b'*64+'\n']:
             with self.subTest(rows=rows), self.assertRaises(ValueError):
                 release.verify_migration_checksums({'265.sql': 'a'*64}, rows)
+
+
+class DrainDeadlineTests(unittest.TestCase):
+    def test_expired_deadline_does_not_add_another_stop_grace_period(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'releases' / ('a'*40)
+            target.mkdir(parents=True)
+            (root / 'release-state.json').write_text(json.dumps({'source_commit': 'a'*40}))
+            (target / 'deployment.json').write_text(json.dumps(dict(source_commit='a'*40,
+                result='promoted', promoted_at=600, previous_api_container='old-api')))
+            rows = ' 0: 00000000:1F90 0100007F:C123 01\n'
+            with patch.object(release, 'ROOT', root), patch.object(release.time, 'time', return_value=1000), \
+                 patch.object(release, 'run', return_value=rows) as commands, contextlib.redirect_stdout(io.StringIO()):
+                release.finalize(target)
+            self.assertIn(unittest.mock.call(['docker', 'stop', '--time', '0', 'old-api']), commands.call_args_list)
 
 
 class APIReleaseTests(unittest.TestCase):
@@ -236,101 +239,6 @@ class APIReleaseTests(unittest.TestCase):
     def test_counts_only_established_server_connections(self):
         rows = ' 0: 00000000:1F90 0100007F:C123 01\n 1: 00000000:1F90 00000000:0000 0A\n 2: 0100007F:C222 0100007F:1F90 01\n'
         self.assertEqual(release.established_connections(rows), 1)
-
-
-class MaintenanceFlowTests(unittest.TestCase):
-    def exercise(self, failure=None):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            target = root / 'releases' / ('a'*40)
-            target.mkdir(parents=True)
-            old_caddy = ':80 {\n reverse_proxy test-station-api-green:8080\n}\n'
-            (target / 'previous-Caddyfile').write_text(old_caddy)
-            host_caddy = root / 'Caddyfile'
-            manifest = dict(source_commit='a'*40, source_tree='b'*40, migration_set_sha256='c'*64,
-                            binary_sha256='d'*64, migration_checksums={'266.sql': 'e'*64})
-            previous = dict(source_commit='f'*40, release_dir='/previous')
-            meta = dict(previous_api_container='old-api', previous_worker_container='old-worker',
-                        previous_worker_image_id='old-image', previous_api_service='test-station-api-green',
-                        candidate_service='test-station-api-blue', caddy_container='caddy',
-                        caddy_host_path=str(host_caddy), stage_seconds={}, image_id='new-image',
-                        worker_update_started=False)
-            events = []
-            def command(args, data=None):
-                events.append(('run', args))
-                if '--migrate-only' in args and failure == 'migration':
-                    raise RuntimeError('migration failed')
-                if args[-3:] == ['ps', '-q', 'test-station-api-blue']:
-                    return 'new-api'
-                if args[:3] == ['docker', 'ps', '-q']:
-                    return 'new-worker'
-                return ''
-            def backup(db, directory):
-                events.append(('backup', directory.name))
-                return '/backup.dump'
-            def restore_check(*args):
-                events.append(('restore_check',))
-                if failure == 'restore_preflight':
-                    raise RuntimeError('restore unavailable')
-            def health(container):
-                if failure == 'candidate' and container == 'new-api':
-                    raise RuntimeError('API not ready')
-                if failure == 'worker' and container == 'new-worker':
-                    raise RuntimeError('worker not ready')
-            def stop(container):
-                events.append(('stop', container))
-            def route(container, config):
-                events.append(('route', config))
-            probes = [RuntimeError('public failed'), None] if failure == 'public' else [None]
-            with patch.object(release, 'ROOT', root), patch.object(release, 'run', side_effect=command), \
-                 patch.object(release, 'backup_database', side_effect=backup), \
-                 patch.object(release, 'verify_database_restore', side_effect=restore_check), \
-                 patch.object(release, 'postgres', side_effect=['0', '266.sql|'+'e'*64+'\n']), \
-                 patch.object(release, 'stop_worker', side_effect=stop), \
-                 patch.object(release, 'reload_caddy', side_effect=route), \
-                 patch.object(release, 'healthy', side_effect=health), \
-                 patch.object(release, 'active_worker', return_value='new-worker'), \
-                 patch.object(release, 'restore_worker', return_value='restored-worker'), \
-                 patch.object(release, 'restore_database') as restore, \
-                 patch.object(release, 'public_probes', side_effect=probes), contextlib.redirect_stdout(io.StringIO()):
-                call = lambda: release.deploy_maintenance(root, manifest, previous, target, meta, ['compose'], 'db', old_caddy.replace('green','blue'))
-                if failure:
-                    with self.assertRaises(RuntimeError):
-                        call()
-                else:
-                    call()
-                if failure == 'restore_preflight':
-                    self.assertFalse(any(e[0] in ('route', 'stop') for e in events))
-                    return
-                gate = next(i for i,e in enumerate(events) if e[0] == 'route')
-                proof = next(i for i,e in enumerate(events) if e[0] == 'restore_check')
-                self.assertLess(proof, gate)
-                migration = next(i for i,e in enumerate(events) if e[0]=='run' and '--migrate-only' in e[1])
-                self.assertLess(events.index(('stop','old-api')), migration)
-                self.assertLess(events.index(('stop','old-worker')), migration)
-                self.assertTrue(any(e[0]=='backup' and e[1].startswith('quality-stopped') for e in events[:migration]))
-                if failure in ('migration','candidate'):
-                    restore.assert_called_once()
-                else:
-                    restore.assert_not_called()
-                state = json.loads((root/'release-state.json').read_text())
-                self.assertEqual(state['source_commit'], previous['source_commit'] if failure else manifest['source_commit'])
-
-    def test_restore_preflight_failure_never_interrupts_live_service(self):
-        self.exercise('restore_preflight')
-
-    def test_stops_writers_and_backs_up_before_native_migration(self):
-        self.exercise()
-
-    def test_migration_or_candidate_failure_restores_database_before_old_services(self):
-        for stage in ('migration', 'candidate'):
-            with self.subTest(stage=stage):
-                self.exercise(stage)
-
-    def test_worker_or_public_failure_keeps_new_data_and_restores_old_binaries(self):
-        for stage in ('worker', 'public'):
-            with self.subTest(stage=stage):
-                self.exercise(stage)
 
 
 class HostFlowTests(unittest.TestCase):

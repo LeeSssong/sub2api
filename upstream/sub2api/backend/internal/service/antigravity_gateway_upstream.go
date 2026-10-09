@@ -18,9 +18,7 @@ import (
 )
 
 // ForwardUpstream 使用 base_url + /v1/messages + 双 header 认证透传上游 Claude 请求
-func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.Context, account *Account, body []byte) (qualityResult *ForwardResult, qualityErr error) {
-	qualityStartedAt := beginQualityTrafficAttempt(c)
-	defer func() { stampGatewayQualityTrafficStart(qualityResult, qualityStartedAt) }()
+func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
 	beginUpstreamResponseModelObservation(c)
 	startTime := time.Now()
 	sessionID := getSessionID(c)

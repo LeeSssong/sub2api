@@ -7,9 +7,6 @@ import (
 )
 
 type MonitorV4TimelinePoint struct {
-	UsageRequestCount           int       `json:"usage_request_count"`
-	DegradedRequestCount        int       `json:"degraded_request_count"`
-	QualitySnapshotRequestCount int       `json:"quality_snapshot_request_count"`
 	GradedRoundCount            int       `json:"graded_round_count"`
 	SuspectedDegradedRoundCount int       `json:"suspected_degraded_round_count"`
 	CacheHitRate                *float64  `json:"cache_hit_rate"`

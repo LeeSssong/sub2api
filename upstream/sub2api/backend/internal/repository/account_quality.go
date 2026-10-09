@@ -85,9 +85,6 @@ func (r *scheduledTestPlanRepository) ApplyQualityOutcome(ctx context.Context, p
 	if err != nil {
 		return "", err
 	}
-	if err := recordQualityTrafficVerdict(ctx, tx, plan); err != nil {
-		return "", err
-	}
 	if plan.PelicanConfig.Quality.Action == service.QualityActionObserveOnly {
 		// Relinquish any former action without restoring or changing account
 		// settings; observation leaves BPS lifecycle to independent policies.

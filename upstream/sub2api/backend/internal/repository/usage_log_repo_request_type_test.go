@@ -111,7 +111,6 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // unsafe_to_replay
 			sqlmock.AnyArg(), // native_compaction_v2
 			createdAt,
-			sqlmock.AnyArg(), // quality_request_started_at
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
 
@@ -213,7 +212,6 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // unsafe_to_replay
 			sqlmock.AnyArg(), // native_compaction_v2
 			createdAt,
-			sqlmock.AnyArg(), // quality_request_started_at
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
 

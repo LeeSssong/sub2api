@@ -237,11 +237,10 @@ type OpenAIUsage struct {
 
 // OpenAIForwardResult represents the result of forwarding
 type OpenAIForwardResult struct {
-	QualityRequestStartedAt time.Time
-	AttemptMetadata         OpenAIRequestAttemptMetadata
-	RequestID               string
-	ResponseID              string
-	Usage                   OpenAIUsage
+	AttemptMetadata OpenAIRequestAttemptMetadata
+	RequestID       string
+	ResponseID      string
+	Usage           OpenAIUsage
 	// UsageUnavailable prevents a protocol without upstream usage from being
 	// recorded or billed as if it reported an authoritative zero-token result.
 	UsageUnavailable bool

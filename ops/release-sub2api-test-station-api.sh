@@ -22,8 +22,6 @@ ssh -T "${ssh_opts[@]}" sub2api-test-station 'sudo -n cat /opt/sub2api-test-stat
 previous=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source_commit"])' "$staging/previous-state.json")
 update_worker=${TEST_STATION_UPDATE_WORKER:-false}
 [[ "$update_worker" == true || "$update_worker" == false ]] || fail 'invalid worker update flag'
-maintenance_migration=${TEST_STATION_MAINTENANCE_MIGRATION:-}
-[[ -z "$maintenance_migration" || ( "$maintenance_migration" == 266_quality_traffic_snapshots.sql && "$update_worker" == true ) ]] || fail 'only reviewed migration 266 with worker update is supported'
 # Monitor service changes require the same new binary in API and singleton worker.
 # Native group catalogue handlers and their read-only tool mapping can update API only.
 # The reviewed user popularity projection reuses native read-only aggregates, API only.
@@ -36,7 +34,7 @@ maintenance_migration=${TEST_STATION_MAINTENANCE_MIGRATION:-}
 # The embedded brand icon handler only reads existing public settings.
 while IFS= read -r path; do
   case "$path" in
-    # Reviewed request-time quality snapshots and timestamp plumbing.
+    # Reviewed removal of request quality snapshots; API and worker must agree.
     upstream/sub2api/backend/ent/migrate/schema.go|\
     upstream/sub2api/backend/ent/mutation.go|\
     upstream/sub2api/backend/ent/schema/usage_log.go|\
@@ -52,6 +50,7 @@ while IFS= read -r path; do
     upstream/sub2api/backend/internal/repository/monitor_v4_quality_traffic.go|\
     upstream/sub2api/backend/internal/repository/quality_traffic.go|\
     upstream/sub2api/backend/internal/repository/quality_traffic_postgres_test.go|\
+    upstream/sub2api/backend/internal/repository/usage_log_snapshot_removal_postgres_test.go|\
     upstream/sub2api/backend/internal/repository/usage_log_repo_insert.go|\
     upstream/sub2api/backend/internal/repository/usage_log_repo_insert_shape_unit_test.go|\
     upstream/sub2api/backend/internal/repository/usage_log_repo_request_type_test.go|\
@@ -89,9 +88,11 @@ while IFS= read -r path; do
     upstream/sub2api/backend/internal/service/scheduled_test_port.go|\
     upstream/sub2api/backend/internal/service/seedance.go|\
     upstream/sub2api/backend/internal/service/usage_log.go)
-      [[ "$update_worker" == true ]] || fail 'quality request snapshots require a worker update' ;;
+      [[ "$update_worker" == true ]] || fail 'snapshot removal requires a worker update' ;;
     upstream/sub2api/backend/migrations/266_quality_traffic_snapshots.sql)
-      [[ "$maintenance_migration" == 266_quality_traffic_snapshots.sql ]] || fail 'migration 266 requires stopped-writes maintenance' ;;
+      [[ "$update_worker" == true && ! -e "$root/$path" &&
+         "$(git diff --diff-filter=D --name-only "$previous" HEAD -- "$path")" == "$path" ]] \
+        || fail 'only deletion of snapshot migration with worker update is supported' ;;
     upstream/sub2api/frontend/src/*|upstream/sub2api/frontend/DESIGN.md|docs/*|ops/*|tests/*|artifacts/*) ;;
     homepage/*|infra/independent-test-station/Dockerfile.homepage|\
     upstream/sub2api/backend/internal/web/embed_on.go|\
@@ -188,12 +189,12 @@ else
     -ldflags="-s -w -X main.Version=$version -X main.Commit=$commit -X main.Date=$build_date -X main.BuildType=release" \
     -o "$staging/sub2api" ./cmd/server)
 fi
-python3 - "$staging" "$commit" "$tree" "$binary_commit" "$binary_tree" "$update_worker" "$maintenance_migration" <<'PY'
+python3 - "$staging" "$commit" "$tree" "$binary_commit" "$binary_tree" "$update_worker" <<'PY'
 import hashlib,json,pathlib,sys
 root=pathlib.Path(sys.argv[1]); previous=json.loads((root/'previous-state.json').read_text())
 manifest={'source_commit':sys.argv[2],'source_tree':sys.argv[3], 'previous_commit':previous['source_commit'],
           'base_image_id':previous['image_id'],'binary_sha256':hashlib.sha256((root/'sub2api').read_bytes()).hexdigest(),
-          'binary_source_commit':sys.argv[4], 'binary_source_tree':sys.argv[5], 'update_worker':sys.argv[6]=='true', 'maintenance_migration':sys.argv[7]}
+          'binary_source_commit':sys.argv[4], 'binary_source_tree':sys.argv[5], 'update_worker':sys.argv[6]=='true'}
 migrations=root.parents[1]/'upstream/sub2api/backend/migrations'
 manifest['migration_checksums']={p.name:hashlib.sha256(p.read_text().strip().encode()).hexdigest() for p in sorted(migrations.glob('*.sql')) if p.read_text().strip()}
 digest=hashlib.sha256()

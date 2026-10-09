@@ -34,9 +34,7 @@ func (s *GatewayService) ForwardAsResponses(
 	account *Account,
 	body []byte,
 	parsed *ParsedRequest,
-) (qualityResult *ForwardResult, qualityErr error) {
-	qualityStartedAt := beginQualityTrafficAttempt(c)
-	defer func() { stampGatewayQualityTrafficStart(qualityResult, qualityStartedAt) }()
+) (*ForwardResult, error) {
 	startTime := time.Now()
 
 	normalizedBody, normalized, err := normalizeOpenAIResponsesLegacyIngress(body)

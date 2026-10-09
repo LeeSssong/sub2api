@@ -4969,7 +4969,6 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarkedWithIdentity(c *gin.Cont
 		identity = *identityOverride
 	}
 	nativeCompactionV2 := service.IsOpenAINativeCompactionV2(c)
-	qualityRequestStartedAt := service.QualityTrafficAttemptStartedAt(c)
 	apiKeyPrefix := ""
 	if apiKey != nil {
 		apiKeyPrefix = keyPrefix(apiKey.Key, 8)
@@ -5027,24 +5026,23 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarkedWithIdentity(c *gin.Cont
 		}
 		if forwardErrored && gwSvc != nil {
 			gwSvc.RecordCyberPolicyUsageLog(ctx, service.CyberPolicyUsageInput{
-				QualityRequestStartedAt: qualityRequestStartedAt,
-				APIKey:                  apiKey,
-				Account:                 account,
-				Subscription:            subscription,
-				RequestID:               requestID,
-				Model:                   model,
-				Stream:                  stream,
-				InputTokens:             mark.UpstreamInTok,
-				OutputTokens:            mark.UpstreamOutTok,
-				InboundEndpoint:         inboundEndpoint,
-				UpstreamEndpoint:        upstreamEndpoint,
-				UserAgent:               userAgent,
-				IPAddress:               clientIPStr,
-				SessionID:               sessionID,
-				RequestPayloadHash:      requestPayloadHash,
-				APIKeyService:           apiKeySvc,
-				NativeCompactionV2:      nativeCompactionV2,
-				ChannelUsageFields:      channelFields,
+				APIKey:             apiKey,
+				Account:            account,
+				Subscription:       subscription,
+				RequestID:          requestID,
+				Model:              model,
+				Stream:             stream,
+				InputTokens:        mark.UpstreamInTok,
+				OutputTokens:       mark.UpstreamOutTok,
+				InboundEndpoint:    inboundEndpoint,
+				UpstreamEndpoint:   upstreamEndpoint,
+				UserAgent:          userAgent,
+				IPAddress:          clientIPStr,
+				SessionID:          sessionID,
+				RequestPayloadHash: requestPayloadHash,
+				APIKeyService:      apiKeySvc,
+				NativeCompactionV2: nativeCompactionV2,
+				ChannelUsageFields: channelFields,
 			})
 		}
 		if opsSvc != nil {

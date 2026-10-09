@@ -255,7 +255,7 @@ func (r *accountMonitorRepository) ReadMonitorV4Timeline(ctx context.Context, id
 	if err := rows.Close(); err != nil {
 		return nil, err
 	}
-	if err := r.readQualityTrafficCounts(ctx, ids, start, end, step, out); err != nil {
+	if err := r.readGradedCandyRounds(ctx, ids, start, end, out); err != nil {
 		return nil, err
 	}
 	return out, nil

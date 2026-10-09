@@ -87,13 +87,12 @@ func (s *GatewayService) ForwardSystemOne(ctx context.Context, c *gin.Context, a
 	}
 	return &SystemOneForwardResult{
 		ForwardResult: ForwardResult{
-			QualityRequestStartedAt: started,
-			RequestID:               resp.Header.Get("x-request-id"),
-			UpstreamHeaders:         resp.Header.Clone(),
-			Usage:                   ClaudeUsage{InputTokens: decoded.Usage.InputTokens, OutputTokens: decoded.Usage.OutputTokens},
-			Model:                   typesafe.JevLatestModel,
-			UpstreamResponseModel:   decoded.Model,
-			Duration:                time.Since(started),
+			RequestID:             resp.Header.Get("x-request-id"),
+			UpstreamHeaders:       resp.Header.Clone(),
+			Usage:                 ClaudeUsage{InputTokens: decoded.Usage.InputTokens, OutputTokens: decoded.Usage.OutputTokens},
+			Model:                 typesafe.JevLatestModel,
+			UpstreamResponseModel: decoded.Model,
+			Duration:              time.Since(started),
 		},
 		StatusCode:  resp.StatusCode,
 		Body:        decoded.Body,
