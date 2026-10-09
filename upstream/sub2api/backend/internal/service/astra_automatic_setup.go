@@ -20,6 +20,9 @@ type AstraSetupStatus struct {
 // A save schedules one bounded serial preparation run. Saving again cancels
 // the previous run, and revision checks prevent stale work publishing readiness.
 func (s *AccountTestService) StartAstraAutomaticSetup(settings config.AstraRoutingSettings) {
+	if !shouldStartSingleton(s.cfg) {
+		return
+	}
 	if s.cfg.AstraRouting(context.Background()).Revision != settings.Revision {
 		return
 	}

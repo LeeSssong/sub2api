@@ -10,8 +10,12 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 )
 
-// Read existing validation state only: never prepare routes or issue model requests.
+// One singleton owns automatic preparation and scheduling. API processes retain
+// their request-local preparers but never start this shared-state writer.
 func (s *AccountTestService) startAstraAccountScheduling() func() {
+	if !shouldStartSingleton(s.cfg) {
+		return func() {}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
@@ -20,7 +24,7 @@ func (s *AccountTestService) startAstraAccountScheduling() func() {
 		defer ticker.Stop()
 		for {
 			cycle, stop := context.WithTimeout(ctx, 5*time.Second)
-			s.syncAstraAccountScheduling(cycle)
+			s.runAstraSingletonCycle(cycle)
 			stop()
 			select {
 			case <-ctx.Done():
@@ -30,6 +34,62 @@ func (s *AccountTestService) startAstraAccountScheduling() func() {
 		}
 	}()
 	return func() { cancel(); <-done }
+}
+
+// A worker observes API saves through the database, populating its own config
+// loader before preparing the same runtime snapshot it uses for scheduling.
+func (s *AccountTestService) runAstraSingletonCycle(ctx context.Context) {
+	if ctx.Err() != nil || !shouldStartSingleton(s.cfg) {
+		return
+	}
+	settings := s.cfg.AstraRouting(ctx)
+	if s.settingService != nil {
+		var err error
+		settings, err = s.settingService.refreshAstraRoutingForSingleton(ctx)
+		if err != nil {
+			return
+		}
+	}
+	s.astraSetupMu.Lock()
+	status := s.astraSetupStatus
+	s.astraSetupMu.Unlock()
+	snapshot := AstraGatewayRuntime{}
+	if provider, ok := s.httpUpstream.(AstraGatewayRuntimeProvider); ok {
+		snapshot = provider.AstraGatewaySnapshot(ctx)
+	}
+	if astraAutomaticSetupNeeded(settings, status, snapshot, time.Now()) {
+		s.StartAstraAutomaticSetup(settings)
+	}
+	s.syncAstraAccountScheduling(ctx)
+}
+
+func astraAutomaticSetupNeeded(settings config.AstraRoutingSettings, status AstraSetupStatus, snapshot AstraGatewayRuntime, now time.Time) bool {
+	if settings.Revision != status.Revision {
+		return true
+	}
+	enabled := settings.CookiePool.Enabled || settings.WSSession.Enabled
+	if !enabled {
+		return status.State != "disabled"
+	}
+	switch status.State {
+	case "queued", "running":
+		return false
+	case "failed":
+		return status.FinishedAt != nil && now.Sub(*status.FinishedAt) >= 30*time.Second
+	case "ready":
+		// Refresh verification before expiry; the singleton does not rely on API traffic.
+		if !settings.CookiePool.Enabled {
+			return false
+		}
+		for _, id := range settings.CookiePool.TargetAccountIDs {
+			if !astraAccountSchedulingReady(settings, snapshot, id, now.Add(90*time.Second)) {
+				return true
+			}
+		}
+		return false
+	default:
+		return true
+	}
 }
 
 func astraAccountSchedulingReady(settings config.AstraRoutingSettings, snapshot AstraGatewayRuntime, id int64, now time.Time) bool {
@@ -45,6 +105,9 @@ func astraAccountSchedulingReady(settings config.AstraRoutingSettings, snapshot 
 }
 
 func (s *AccountTestService) syncAstraAccountScheduling(ctx context.Context) {
+	if !shouldStartSingleton(s.cfg) {
+		return
+	}
 	settings := s.cfg.AstraRouting(ctx)
 	if !settings.AccountScheduling {
 		return

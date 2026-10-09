@@ -104,3 +104,17 @@ func (s *SettingService) astraRoutingRuntime(ctx context.Context) config.AstraRo
 	s.astraRoutingExpires = time.Now().Add(5 * time.Second)
 	return value
 }
+
+// The singleton needs a successful database read before acting on shared state.
+// Unlike the request loader, this never falls back to stale cache on an outage.
+func (s *SettingService) refreshAstraRoutingForSingleton(ctx context.Context) (config.AstraRoutingSettings, error) {
+	s.astraRoutingMu.Lock()
+	defer s.astraRoutingMu.Unlock()
+	value, err := s.GetAstraRouting(ctx)
+	if err != nil {
+		return config.AstraRoutingSettings{}, err
+	}
+	s.astraRoutingCache = &value
+	s.astraRoutingExpires = time.Now().Add(5 * time.Second)
+	return value, nil
+}
