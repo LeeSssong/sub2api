@@ -147,7 +147,7 @@ func TestProvideTimingWheelService_Success(t *testing.T) {
 
 func TestProvideUpstreamBillingProbeService_APIRoleDoesNotStartSingleton(t *testing.T) {
 	cfg := &config.Config{Server: config.ServerConfig{ProcessRole: config.ProcessRoleAPI}}
-	svc := ProvideUpstreamBillingProbeService(nil, nil, nil, nil, nil, cfg)
+	svc := ProvideUpstreamBillingProbeService(nil, nil, nil, nil, nil, cfg, nil, nil)
 	t.Cleanup(svc.Stop)
 
 	svc.mu.Lock()

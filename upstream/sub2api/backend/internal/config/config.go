@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/upstreamroute"
 	"github.com/spf13/viper"
 	"golang.org/x/net/http/httpguts"
 )
@@ -97,7 +98,8 @@ const DefaultUpstreamResponseReadMaxBytes int64 = 128 * 1024 * 1024
 const DefaultModelsListReadMaxBytes int64 = 8 * 1024 * 1024
 
 type Config struct {
-	Runtime                 RuntimeConfig                 `mapstructure:"runtime"`
+	Runtime                 RuntimeConfig `mapstructure:"runtime"`
+	astraRoutingLoader      atomic.Pointer[astraRoutingLoader]
 	Server                  ServerConfig                  `mapstructure:"server"`
 	Log                     LogConfig                     `mapstructure:"log"`
 	CORS                    CORSConfig                    `mapstructure:"cors"`
@@ -1090,11 +1092,85 @@ func strictConfigInt(value any) (int, error) {
 }
 
 // GatewayConfig API网关相关配置
+// CodexGatewayPinConfig controls the private HTTP routing experiment.
+// Cookie values are learned from completed Astra responses, never configured.
+type CodexGatewayPinConfig struct {
+	NodeCooldownSeconds int     `mapstructure:"node_cooldown_seconds" json:"node_cooldown_seconds"`
+	RotateNodes         bool    `mapstructure:"rotate_nodes" json:"rotate_nodes"`
+	MaxNodeAttempts     int     `mapstructure:"max_node_attempts" json:"max_node_attempts"`
+	IPAffinity          bool    `mapstructure:"ip_affinity" json:"ip_affinity"`
+	TTLSeconds          int     `mapstructure:"ttl_seconds" json:"ttl_seconds"`
+	Enabled             bool    `mapstructure:"enabled" json:"enabled"`
+	SourceAccountIDs    []int64 `mapstructure:"source_account_ids" json:"source_account_ids"`
+	TargetAccountIDs    []int64 `mapstructure:"target_account_ids" json:"target_account_ids"`
+}
+
+func (c CodexGatewayPinConfig) Validate() error {
+	if c.NodeCooldownSeconds != 0 && (c.NodeCooldownSeconds < 60 || c.NodeCooldownSeconds > 86400) {
+		return fmt.Errorf("astra node cooldown must be 60–86400 seconds")
+	}
+	if c.MaxNodeAttempts < 0 || c.MaxNodeAttempts > 10 {
+		return fmt.Errorf("astra node attempts must be 1–10 (0 uses default 3)")
+	}
+	if c.TTLSeconds != 0 && (c.TTLSeconds < 30 || c.TTLSeconds > 240) {
+		return fmt.Errorf("cookie TTL must be 30–240 seconds")
+	}
+	if !c.Enabled {
+		return nil
+	}
+	if len(c.SourceAccountIDs) == 0 || len(c.TargetAccountIDs) == 0 || len(c.SourceAccountIDs) > 64 || len(c.TargetAccountIDs) > 64 {
+		return fmt.Errorf("gateway.codex_gateway_pin requires 1–64 source_account_ids and target_account_ids")
+	}
+	seen := map[int64]bool{}
+	for _, ids := range [][]int64{c.SourceAccountIDs, c.TargetAccountIDs} {
+		for _, id := range ids {
+			if id <= 0 || seen[id] {
+				return fmt.Errorf("gateway.codex_gateway_pin account IDs must be positive, unique and disjoint")
+			}
+			seen[id] = true
+		}
+	}
+	return nil
+}
+
+// CodexWSAnchorConfig promotes explicitly continued, qualified Astra requests
+// to a pinned WS connection. The account's normal WS switches still apply.
+type CodexWSAnchorConfig struct {
+	TTLSeconds int     `mapstructure:"ttl_seconds" json:"ttl_seconds"`
+	Enabled    bool    `mapstructure:"enabled" json:"enabled"`
+	AccountIDs []int64 `mapstructure:"account_ids" json:"account_ids"`
+}
+
+func (c CodexWSAnchorConfig) Validate() error {
+	if c.TTLSeconds != 0 && (c.TTLSeconds < 60 || c.TTLSeconds > 3600) {
+		return fmt.Errorf("WS TTL must be 60–3600 seconds")
+	}
+	if !c.Enabled {
+		return nil
+	}
+	if len(c.AccountIDs) == 0 || len(c.AccountIDs) > 64 {
+		return fmt.Errorf("gateway.codex_ws_anchor requires 1–64 account_ids")
+	}
+	seen := map[int64]bool{}
+	for _, id := range c.AccountIDs {
+		if id <= 0 || seen[id] {
+			return fmt.Errorf("gateway.codex_ws_anchor account IDs must be positive and unique")
+		}
+		seen[id] = true
+	}
+	return nil
+}
+
 type GatewayConfig struct {
+	UpstreamRouting upstreamroute.Config `mapstructure:"upstream_routing"`
 	// PrismBrowser is the server-managed browser-session adapter for prism.openai.com.
 	// Account settings only select this route; cookies, sandbox state and the adapter
 	// API key remain outside account credentials.
-	PrismBrowser GatewayPrismBrowserConfig `mapstructure:"prism_browser"`
+	PrismBrowser  GatewayPrismBrowserConfig `mapstructure:"prism_browser"`
+	CodexWSAnchor CodexWSAnchorConfig       `mapstructure:"codex_ws_anchor"`
+	// CodexGatewayPin shares qualified source routing cookies with selected targets.
+	// Disabled by default; applies only to ChatGPT HTTP Responses requests.
+	CodexGatewayPin CodexGatewayPinConfig `mapstructure:"codex_gateway_pin"`
 	// 等待上游响应头的超时时间（秒），0表示无超时
 	// 注意：这不影响流式数据传输，只控制等待响应头的时间
 	ResponseHeaderTimeout int `mapstructure:"response_header_timeout"`
@@ -1128,9 +1204,10 @@ type GatewayConfig struct {
 	ForceCodexCLI bool `mapstructure:"force_codex_cli"`
 	// DisableCodexIdentityEnforcement: 关闭「强制统一 Codex 出站身份」。上游 /backend-api/codex
 	// 在容量紧张时按客户端身份分优先级降载，被降载的请求会拿到 HTTP 200 + 流内
-	// server_is_overloaded，该次请求失败。默认强制统一出口：所有 OAuth 出站的
+	// server_is_overloaded，该次请求失败。默认强制统一出口：OAuth 与 OpenAI API Key 出站的
 	// User-Agent / originator / version 都改写为网关规范身份，确保没有请求带着第三方或陈旧身份
-	// 出站。置 true 后退回「仅按最终 User-Agent 配对 originator」的收口语义，供上游策略变动时回滚。
+	// 出站。API Key 的供应商专用头与显式账号 header_overrides 保留更高优先级。
+	// 置 true 后，OAuth 退回「按最终 UA 配对 originator」，API Key 恢复原有头透传，供回滚使用。
 	//
 	// 取反义命名是为了让零值安全：该开关会发布为进程级快照，未经 viper 加载而手工构造的
 	// Config（测试、工具）其零值必须落在「强制统一开启」这一侧，否则会静默丢掉这层保护。
@@ -1442,6 +1519,9 @@ type GatewayOpenAIWSConfig struct {
 	HTTPBridgeEnabled bool `mapstructure:"http_bridge_enabled"`
 	// HTTPBridgeThresholdBytes: 触发 HTTP bridge 的入站 WS payload 阈值。
 	HTTPBridgeThresholdBytes int64 `mapstructure:"http_bridge_threshold_bytes"`
+	// SSEAccelerationMaxPayloadBytes bounds the encoded HTTP-to-WS request, including its JSON newline.
+	// Larger requests remain on HTTP/SSE; native WS ingress is unaffected.
+	SSEAccelerationMaxPayloadBytes int64 `mapstructure:"sse_acceleration_max_payload_bytes"`
 
 	// Feature 开关：v2 优先于 v1
 	ResponsesWebsockets   bool `mapstructure:"responses_websockets"`
@@ -1662,6 +1742,9 @@ type GatewaySchedulingConfig struct {
 	DbFallbackTimeoutSeconds int `mapstructure:"db_fallback_timeout_seconds"`
 	// 受控回源限流（实例级 QPS），0 表示不限制
 	DbFallbackMaxQPS int `mapstructure:"db_fallback_max_qps"`
+	// OpenAI 请求发送前账户快照的进程内缓存 TTL（秒），0 表示关闭。
+	// 启用后账户停用、换组或代理变更最坏可延迟该时长生效。
+	OpenAITurnAdmissionCacheTTLSeconds int `mapstructure:"openai_turn_admission_cache_ttl_seconds"`
 
 	// Outbox 轮询与滞后阈值配置
 	// Outbox 轮询周期（秒）
@@ -2189,6 +2272,7 @@ func configureConfigSource(setConfigFile, addConfigPath func(string)) {
 }
 
 func setDefaults() {
+	viper.SetDefault("gateway.upstream_routing.enabled", false)
 	viper.SetDefault("runtime.role", RuntimeRoleFull)
 	viper.SetDefault("runtime.serverless_id", "")
 	viper.SetDefault("runtime.serverless_endpoint", "")
@@ -2591,6 +2675,17 @@ func setDefaults() {
 	viper.SetDefault("gateway.api_key_queue.max_waiting", defaultAPIKeyQueueMaxWaiting)
 	viper.SetDefault("gateway.api_key_queue.timeout_seconds", defaultAPIKeyQueueTimeoutSeconds)
 	viper.SetDefault("gateway.force_codex_cli", false)
+	viper.SetDefault("gateway.codex_ws_anchor.ttl_seconds", 3600)
+	viper.SetDefault("gateway.codex_gateway_pin.ttl_seconds", 230)
+	viper.SetDefault("gateway.codex_gateway_pin.node_cooldown_seconds", 3600)
+	viper.SetDefault("gateway.codex_gateway_pin.rotate_nodes", false)
+	viper.SetDefault("gateway.codex_gateway_pin.max_node_attempts", 0)
+	viper.SetDefault("gateway.codex_gateway_pin.ip_affinity", false)
+	viper.SetDefault("gateway.codex_ws_anchor.enabled", false)
+	viper.SetDefault("gateway.codex_ws_anchor.account_ids", []int64{})
+	viper.SetDefault("gateway.codex_gateway_pin.enabled", false)
+	viper.SetDefault("gateway.codex_gateway_pin.source_account_ids", []int64{})
+	viper.SetDefault("gateway.codex_gateway_pin.target_account_ids", []int64{})
 	viper.SetDefault("gateway.disable_codex_identity_enforcement", false)
 	viper.SetDefault("gateway.disable_codex_originator_normalization", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
@@ -2629,6 +2724,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.client_read_limit_bytes", 64*1024*1024)
 	viper.SetDefault("gateway.openai_ws.http_bridge_enabled", true)
 	viper.SetDefault("gateway.openai_ws.http_bridge_threshold_bytes", 15*1024*1024)
+	viper.SetDefault("gateway.openai_ws.sse_acceleration_max_payload_bytes", 15*1024*1024)
 	viper.SetDefault("gateway.openai_ws.responses_websockets", false)
 	viper.SetDefault("gateway.openai_ws.responses_websockets_v2", true)
 	viper.SetDefault("gateway.openai_ws.max_conns_per_account", 128)
@@ -2733,6 +2829,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.scheduling.db_fallback_enabled", true)
 	viper.SetDefault("gateway.scheduling.db_fallback_timeout_seconds", 0)
 	viper.SetDefault("gateway.scheduling.db_fallback_max_qps", 0)
+	viper.SetDefault("gateway.scheduling.openai_turn_admission_cache_ttl_seconds", 0)
 	viper.SetDefault("gateway.scheduling.outbox_poll_interval_seconds", 1)
 	viper.SetDefault("gateway.scheduling.outbox_lag_warn_seconds", 5)
 	viper.SetDefault("gateway.scheduling.outbox_lag_rebuild_seconds", 10)
@@ -2885,7 +2982,16 @@ func (c *Config) Validate() error {
 		return err
 	}
 	c.Server.ProcessRole = processRole
+	if _, err := upstreamroute.New(c.Gateway.UpstreamRouting); err != nil {
+		return fmt.Errorf("gateway.upstream_routing: %w", err)
+	}
 	if err := c.validateRuntime(); err != nil {
+		return err
+	}
+	if err := c.Gateway.CodexWSAnchor.Validate(); err != nil {
+		return err
+	}
+	if err := c.Gateway.CodexGatewayPin.Validate(); err != nil {
 		return err
 	}
 	forwardedClientIPHeaders, err := NormalizeForwardedClientIPHeaders(c.Security.ForwardedClientIPHeaders)
@@ -3697,6 +3803,9 @@ func (c *Config) Validate() error {
 	if c.Gateway.OpenAIWS.ClientReadLimitBytes <= 0 {
 		return fmt.Errorf("gateway.openai_ws.client_read_limit_bytes must be positive")
 	}
+	if c.Gateway.OpenAIWS.SSEAccelerationMaxPayloadBytes <= 0 {
+		return fmt.Errorf("gateway.openai_ws.sse_acceleration_max_payload_bytes must be positive")
+	}
 	if c.Gateway.OpenAIWS.HTTPBridgeThresholdBytes < 0 {
 		return fmt.Errorf("gateway.openai_ws.http_bridge_threshold_bytes must be non-negative")
 	}
@@ -3896,6 +4005,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.Scheduling.DbFallbackMaxQPS < 0 {
 		return fmt.Errorf("gateway.scheduling.db_fallback_max_qps must be non-negative")
+	}
+	if c.Gateway.Scheduling.OpenAITurnAdmissionCacheTTLSeconds < 0 {
+		return fmt.Errorf("gateway.scheduling.openai_turn_admission_cache_ttl_seconds must be non-negative")
 	}
 	if c.Gateway.Scheduling.OutboxPollIntervalSeconds <= 0 {
 		return fmt.Errorf("gateway.scheduling.outbox_poll_interval_seconds must be positive")

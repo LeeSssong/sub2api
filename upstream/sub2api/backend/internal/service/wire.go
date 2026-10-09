@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/oauthobs"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/qualityqueue"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
@@ -333,6 +334,7 @@ func ProvideAccountTestService(
 	openAIGatewayService *OpenAIGatewayService,
 	settingService *SettingService,
 	probeCostRecorder *AccountProbeCostService,
+	pluginManager *PluginManager,
 ) *AccountTestService {
 	service := NewAccountTestService(
 		accountRepo,
@@ -348,6 +350,30 @@ func ProvideAccountTestService(
 	service.SetOpenAIGatewayService(openAIGatewayService)
 	service.SetSettingService(settingService)
 	service.SetProbeCostRecorder(probeCostRecorder)
+	service.SetPluginManager(pluginManager)
+	if p, ok := httpUpstream.(AstraGatewayRuntimeProvider); ok {
+		p.SetAstraGatewayPreparer(service.prepareAstraGatewaySource)
+	}
+	settingService.SetAstraRoutingOnSaved(service.StartAstraAutomaticSetup)
+	if recorder, ok := httpUpstream.(AstraGatewayHistoryRecorder); ok {
+		if history, ok := settingService.settingRepo.(AstraGatewayHistoryRepository); ok {
+			recorder.SetAstraGatewayHistoryRecorder(func(row AstraGatewayHistoryRecord, passed bool) {
+				if row.Gateway == "" {
+					return
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				if err := history.RecordAstraGateway(ctx, row, passed); err != nil {
+					logger.L().Warn("astra gateway history persistence failed")
+				}
+			})
+		}
+	}
+	stopScheduling := service.startAstraAccountScheduling()
+	openAIGatewayService.stopAstraSetup = func() {
+		stopScheduling()
+		service.StopAstraAutomaticSetup()
+	}
 	return service
 }
 
@@ -610,7 +636,9 @@ func ProvideRateLimitService(
 ) *RateLimitService {
 	svc := NewRateLimitService(accountRepo, usageRepo, cfg, geminiQuotaService, tempUnschedCache)
 	svc.accountOps = accountOps
-	svc.qualityTrigger = newQuality5xxTrigger(rdb)
+	if rdb != nil {
+		svc.qualityTrigger = &quality5xxTrigger{queue: qualityqueue.NewRedis(rdb)}
+	}
 	if svc.qualityTrigger != nil {
 		svc.qualityTrigger.immediate, _ = accountRepo.(quality5xxImmediateRepository)
 	}
@@ -786,7 +814,9 @@ func ProvideScheduledTestRunnerService(
 	monitor *ChannelMonitorV2Service,
 ) *ScheduledTestRunnerService {
 	svc := NewScheduledTestRunnerService(planRepo, scheduledSvc, accountTestSvc, rateLimitSvc, cfg)
-	svc.qualityTrigger = newQuality5xxTrigger(rdb)
+	if rdb != nil {
+		svc.qualityTrigger = &quality5xxTrigger{queue: qualityqueue.NewRedis(rdb)}
+	}
 	svc.judgeQuality = judge.Judge
 	svc.groupTests = groupTests
 	if groupTests != nil {
@@ -1166,6 +1196,8 @@ var ProviderSet = wire.NewSet(
 	ProvideIdempotencyCleanupService,
 	NewPelicanShowcaseService,
 	NewPelicanGroupTestService,
+	NewControlledExperimentGateway,
+	NewControlledExperimentService,
 	ProvideScheduledTestService,
 	ProvideScheduledTestRunnerService,
 	ProvideAccountAdmissionService,
@@ -1195,6 +1227,8 @@ var ProviderSet = wire.NewSet(
 	ProvideAccountModelDetectionService,
 	ProvideChannelMonitorV2Service,
 	ProvideChannelMonitorV2Aggregator,
+	ProvideChannelMonitorV3Service,
+	NewSupportTicketService,
 	NewChannelMonitorRequestTemplateService,
 	ProvideUserPlatformQuotaUsageFlusher,
 )
@@ -1417,6 +1451,12 @@ func ProvideChannelMonitorV2Service(repo ChannelMonitorV2Repository, settingServ
 	return svc
 }
 
+// ProvideChannelMonitorV3Service wires the component status page. It reads
+// the V2 passive aggregates, which the V2 aggregator keeps in v2 and v3 mode.
+func ProvideChannelMonitorV3Service(repo ChannelMonitorV3Repository, groupRepo GroupRepository) *ChannelMonitorV3Service {
+	return NewChannelMonitorV3Service(repo, groupRepo)
+}
+
 // ProvideChannelMonitorV2Aggregator starts the passive minute-rollup worker.
 // Aggregation only runs when channel_monitor_enabled=true and mode=v2 (and V2 config enabled).
 // Set CHANNEL_MONITOR_V2_DISABLE_AGGREGATOR=1 to skip Start (local demo with seeded facts).
@@ -1429,8 +1469,11 @@ func ProvideChannelMonitorV2Aggregator(repo ChannelMonitorV2Repository, db *sql.
 	return aggregator
 }
 
-func ProvideAccountOpsService(settings SettingRepository, repo AccountOpsRepository, email *EmailService, accounts AccountRepository, groups GroupRepository, cfg *config.Config) *AccountOpsService {
+func ProvideAccountOpsService(settings SettingRepository, repo AccountOpsRepository, email *EmailService, accounts AccountRepository, groups GroupRepository, cfg *config.Config, encryptor SecretEncryptor, usageCache *UsageCache, usageLogs UsageLogRepository, geminiQuota *GeminiQuotaService) *AccountOpsService {
 	svc := NewAccountOpsService(settings, repo, email)
+	svc.SetNotificationDependencies(accounts, encryptor, cfg.Totp.EncryptionKeyConfigured, cfg.Timezone)
+	svc.SetNotificationUsageCache(usageCache)
+	svc.SetNotificationQuotaReaders(usageLogs, geminiQuota)
 	svc.autoAccounts, _ = accounts.(AccountConcurrencyRepository)
 	svc.autoGroups = groups
 	svc.start(cfg.RunsBackgroundJobs())

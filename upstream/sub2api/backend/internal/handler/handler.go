@@ -40,6 +40,7 @@ type AdminHandlers struct {
 	APIKey                 *admin.AdminAPIKeyHandler
 	ScheduledTest          *admin.ScheduledTestHandler
 	PelicanGroupTest       *admin.PelicanGroupTestHandler
+	ControlledExperiment   *admin.ControlledExperimentHandler
 	Channel                *admin.ChannelHandler
 	ChannelMonitor         *admin.ChannelMonitorHandler
 	ChannelMonitorTemplate *admin.ChannelMonitorRequestTemplateHandler
@@ -68,6 +69,8 @@ type Handlers struct {
 	MonitorV4             *MonitorV4Handler
 	CodexRadar            *CodexRadarInsightsHandler
 	CodexRadarCommunity   *CodexRadarCommunityHandler
+	SupportTicket         *SupportTicketHandler
+	ChannelMonitorV3      *ChannelMonitorV3Handler
 	ChannelMonitorV2      *ChannelMonitorV2Handler
 	Admin                 *AdminHandlers
 	Gateway               *GatewayHandler

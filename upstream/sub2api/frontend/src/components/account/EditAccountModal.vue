@@ -32,7 +32,7 @@
       </div>
 
       <div
-        v-if="account.platform === 'openai' && account.type === 'oauth' && !isSparkShadow"
+        v-if="account.platform === 'openai' && account.type === 'oauth' && !isSparkShadow && globalPrismEnabled"
         class="rounded-lg border border-gray-200 p-3 dark:border-dark-600"
         data-testid="openai-prism-browser-oauth-settings"
       >
@@ -605,6 +605,26 @@
           </div>
         </div>
 
+      </div>
+
+      <div
+        v-if="account.platform === 'grok'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <label class="input-label mb-0">{{ t('admin.accounts.grokSkipForbiddenPause.title') }}</label>
+            <p id="grok-skip-forbidden-pause-hint" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.grokSkipForbiddenPause.hint') }}
+            </p>
+          </div>
+          <Toggle
+            v-model="grokSkipForbiddenPause"
+            data-testid="grok-skip-forbidden-pause-toggle"
+            :aria-label="t('admin.accounts.grokSkipForbiddenPause.title')"
+            aria-describedby="grok-skip-forbidden-pause-hint"
+          />
+        </div>
       </div>
 
       <!-- Grok OAuth client-tool prompt cache opt-in -->
@@ -1729,8 +1749,9 @@
               )
             }}
           </p>
+          <p v-if="isNewAPIUpstream" class="input-hint mt-3">{{ t('admin.accounts.upstreamBilling.newAPI.groupRatioHint') }}</p>
           <div
-            v-if="account?.type === 'apikey'"
+            v-if="account?.type === 'apikey' && !isNewAPIUpstream"
             class="mt-3 flex items-center justify-between gap-3"
           >
             <div class="min-w-0">
@@ -1752,7 +1773,7 @@
         <div>
           <div class="mb-2 flex items-center justify-between gap-1">
             <label class="input-label mb-0" for="account-cost-multiplier">{{ t('admin.accounts.costMultiplier') }}</label>
-            <div v-if="account?.type === 'apikey'" class="flex shrink-0 items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+            <div v-if="account?.type === 'apikey' && !isNewAPIUpstream" class="flex shrink-0 items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
               <span>{{ t('admin.accounts.costMultiplierAutoSync') }}</span>
               <Toggle
                 v-model="costMultiplierAutoSync"
@@ -1850,7 +1871,7 @@
         <p class="input-hint">{{ t('admin.accounts.openai.copilotSDKDesc') }}</p>
       </div>
 
-      <div v-if="account?.platform === 'openai' && account?.type === 'oauth' && !isSparkShadow"
+      <div v-if="account?.platform === 'openai' && account?.type === 'oauth' && !isSparkShadow && globalBpsEnabled"
         class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="flex items-center justify-between gap-4">
           <div>
@@ -1970,7 +1991,7 @@
         </div>
       </div>
 
-      <AccountAutoBPSSection v-if="autoBPSSupported" v-model:draft="autoBPS.draft.value" :groups="groups"
+      <AccountAutoBPSSection v-if="autoBPSSupported && globalBpsEnabled" v-model:draft="autoBPS.draft.value" :groups="groups"
         :loading="autoBPS.loading.value" :load-error="autoBPS.loadError.value" :has-rule="!!autoBPS.rule.value"
         :conflicting-rule-id="autoBPS.conflictingRule.value?.id" />
 
@@ -3450,6 +3471,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const globalBpsEnabled = computed(() => appStore.cachedPublicSettings?.excel_bps_enabled !== false)
+const globalPrismEnabled = computed(() => appStore.cachedPublicSettings?.prism_browser_enabled === true)
 const browserTimeZone = getBrowserTimeZone()
 
 const selectableGroups = computed(() => {
@@ -3787,6 +3810,7 @@ const allowedModels = ref<string[]>([])
 const DEFAULT_POOL_MODE_RETRY_COUNT = 3
 const MAX_POOL_MODE_RETRY_COUNT = 10
 const DEFAULT_POOL_MODE_RETRY_STATUS_CODES = [401, 403, 429]
+const GROK_SKIP_FORBIDDEN_PAUSE_EXTRA_KEY = 'grok_skip_forbidden_pause'
 const GROK_CLIENT_TOOL_CACHE_EXTRA_KEY = 'grok_client_tool_cache_enabled'
 const poolModeEnabled = ref(false)
 const poolModeRetryCount = ref(DEFAULT_POOL_MODE_RETRY_COUNT)
@@ -3836,6 +3860,7 @@ const headerOverrideCapable = computed(
 // Grok OAuth 自定义上游地址（仅转发端点；OAuth 授权/令牌刷新不受影响）
 const grokOAuthCustomBaseUrlEnabled = ref(false)
 const grokOAuthBaseUrl = ref('')
+const grokSkipForbiddenPause = ref(false)
 // Grok Free OAuth accounts use client-tool prompt caching by default. Keep an
 // explicit false in the account extra as the opt-out signal.
 const grokClientToolCacheEnabled = ref(true)
@@ -3894,6 +3919,7 @@ const upstreamBillingRateSyncEnabled = ref(false)
 const rateMultiplierMode = ref<'auto' | 'manual' | 'native'>('auto')
 const activeProbeEnabled = ref(true)
 const modelDetectionEnabled = ref(true)
+const isNewAPIUpstream = computed(() => props.account?.extra?.upstream_billing_provider === 'new_api')
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
 // 上游ID：直接上游声明请求标识的响应头名，留空不记录。
 const upstreamRequestIdHeader = ref('')
@@ -4454,7 +4480,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   form.load_factor = newAccount.load_factor ?? null
   form.priority = newAccount.priority
   costMultiplier.value = readAccountCostMultiplier(newAccount.extra)
-  costMultiplierAutoSync.value = newAccount.extra?.cost_multiplier_auto_sync !== false
+  costMultiplierAutoSync.value = newAccount.extra?.upstream_billing_provider !== 'new_api' && newAccount.extra?.cost_multiplier_auto_sync !== false
   form.rate_multiplier = newAccount.rate_multiplier ?? 1
   form.group_rate_multiplier = newAccount.group_rate_multiplier ?? 1
   form.status = (newAccount.status === 'active' || newAccount.status === 'inactive' || newAccount.status === 'error')
@@ -4499,7 +4525,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 		typeof extra?.auto_reset_credit_7d_threshold === 'number' ? extra.auto_reset_credit_7d_threshold * 100 : 100
 	upstreamBillingAutoProbeEnabled.value = extra?.upstream_billing_probe_enabled === true
   upstreamBillingRateSyncEnabled.value =
-    upstreamBillingAutoProbeEnabled.value && extra?.upstream_billing_rate_sync_enabled === true
+    extra?.upstream_billing_provider !== 'new_api' && upstreamBillingAutoProbeEnabled.value && extra?.upstream_billing_rate_sync_enabled === true
   rateMultiplierMode.value = upstreamBillingRateSyncEnabled.value ? 'auto' : 'manual'
 
   // Load OpenAI passthrough toggle (OpenAI OAuth/SetupToken/API Key)
@@ -4731,6 +4757,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   // Load Grok OAuth custom upstream URL state（存储的官方地址视同未定制）
   grokOAuthCustomBaseUrlEnabled.value = false
   grokOAuthBaseUrl.value = ''
+  grokSkipForbiddenPause.value =
+    newAccount.platform === 'grok' && newAccount.extra?.[GROK_SKIP_FORBIDDEN_PAUSE_EXTRA_KEY] === true
   const grokClientToolCacheSetting =
     newAccount.platform === 'grok' && newAccount.type === 'oauth'
       ? newAccount.extra?.[GROK_CLIENT_TOOL_CACHE_EXTRA_KEY]
@@ -5924,6 +5952,14 @@ const handleSubmit = async () => {
       // backend applies the default-enabled policy to missing values.
       newExtra[GROK_CLIENT_TOOL_CACHE_EXTRA_KEY] = grokClientToolCacheEnabled.value
       updatePayload.extra = newExtra
+    }
+
+    if (props.account.platform === 'grok') {
+      updatePayload.extra = {
+        ...((props.account.extra as Record<string, unknown>) || {}),
+        ...((updatePayload.extra as Record<string, unknown>) || {}),
+        [GROK_SKIP_FORBIDDEN_PAUSE_EXTRA_KEY]: grokSkipForbiddenPause.value
+      }
     }
 
     // OpenAI: 手动覆盖订阅档位 plan_type（Plus / Pro 20x / Pro 5x / Business Standard / Business Premium / Free）。

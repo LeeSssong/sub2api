@@ -94,6 +94,8 @@ function defineFlag<K extends keyof PublicSettings>(
  * public-settings-driven switch; see the "Adding a new flag" checklist above.
  */
 export const FeatureFlags = {
+  excelBps: defineFlag({ key: 'excel_bps_enabled', mode: 'opt-out', label: 'Excel / BPS' }),
+  prismBrowser: defineFlag({ key: 'prism_browser_enabled', mode: 'opt-in', label: 'Prism browser bridge' }),
   channelMonitor: defineFlag({
     key: 'channel_monitor_enabled',
     mode: 'opt-out',
@@ -139,6 +141,11 @@ export const FeatureFlags = {
     mode: 'opt-in',
     label: 'Affiliate',
   }),
+  supportTickets: defineFlag({
+    key: 'support_ticket_enabled',
+    mode: 'opt-in',
+    label: 'Support Tickets',
+  }),
 } as const
 
 export type RegisteredFeatureFlag = keyof typeof FeatureFlags
@@ -183,13 +190,13 @@ export function isChannelMonitorRouteEnabled(): boolean {
   return isFeatureFlagEnabled(FeatureFlags.channelMonitor)
 }
 
-export type ChannelMonitorMode = 'v1' | 'v2' | 'native_probe' | 'hybrid_performance'
+export type ChannelMonitorMode = 'v1' | 'v2' | 'v3' | 'native_probe' | 'hybrid_performance'
 
-/** Exclusive channel-monitor implementation. Invalid/missing → v1 (opt-in to v2). */
+/** Exclusive channel-monitor implementation. Invalid/missing → v1 (opt-in to v2/v3). */
 export function getChannelMonitorMode(): ChannelMonitorMode {
   const appStore = useAppStore()
   const mode = appStore.cachedPublicSettings?.channel_monitor_mode
-  if (mode === 'v2' || mode === 'native_probe' || mode === 'hybrid_performance') {
+  if (mode === 'v2' || mode === 'v3' || mode === 'native_probe' || mode === 'hybrid_performance') {
     return mode
   }
   return 'v1'
@@ -209,6 +216,10 @@ export function isChannelMonitorNativeProbeMode(): boolean {
 
 export function isChannelMonitorHybridMode(): boolean {
   return isChannelMonitorRouteEnabled() && getChannelMonitorMode() === 'hybrid_performance'
+}
+
+export function isChannelMonitorV3Mode(): boolean {
+  return isChannelMonitorRouteEnabled() && getChannelMonitorMode() === 'v3'
 }
 
 export function getChannelMonitorRefreshIntervalSeconds(): number {

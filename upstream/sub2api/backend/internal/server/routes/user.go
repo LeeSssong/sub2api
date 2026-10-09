@@ -131,6 +131,18 @@ func RegisterUserRoutes(
 			announcements.POST("/:id/read", h.Announcement.MarkRead)
 		}
 
+		// 网站工单（关闭时 service 返回 SUPPORT_TICKET_DISABLED）
+		tickets := authenticated.Group("/support-tickets")
+		{
+			tickets.GET("", h.SupportTicket.List)
+			tickets.POST("", h.SupportTicket.Create)
+			tickets.GET("/summary", h.SupportTicket.Summary)
+			tickets.GET("/:id", h.SupportTicket.Get)
+			tickets.POST("/:id/messages", h.SupportTicket.Reply)
+			tickets.POST("/:id/close", h.SupportTicket.Close)
+			tickets.POST("/:id/reopen", h.SupportTicket.Reopen)
+		}
+
 		// 卡密兑换
 		redeem := authenticated.Group("/redeem")
 		{
@@ -173,6 +185,15 @@ func RegisterUserRoutes(
 			monitorV2.GET("/matrix", h.ChannelMonitorV2.Matrix)
 			monitorV2.GET("/errors", h.ChannelMonitorV2.Errors)
 			monitorV2.GET("/users", h.ChannelMonitorV2.Users)
+		}
+
+		// V3 component status page requires feature on + mode=v3.
+		monitorV3 := authenticated.Group("/channel-monitor-v3")
+		monitorV3.Use(panelRateLimiter.Heavy())
+		monitorV3.Use(channelMonitorModeV3Guard(settingService))
+		{
+			monitorV3.GET("/status", h.ChannelMonitorV3.Status)
+			monitorV3.GET("/incidents", h.ChannelMonitorV3.Incidents)
 		}
 	}
 }

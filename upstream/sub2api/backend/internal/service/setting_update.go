@@ -482,6 +482,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 
 	// Channel monitor feature switch
+	updates[SettingKeyExcelBPSEnabled] = strconv.FormatBool(settings.ExcelBPSEnabled)
 	updates[SettingKeyChannelMonitorEnabled] = strconv.FormatBool(settings.ChannelMonitorEnabled)
 	updates[SettingKeyChannelMonitorMode] = normalizeChannelMonitorMode(settings.ChannelMonitorMode)
 	if v := clampChannelMonitorInterval(settings.ChannelMonitorDefaultIntervalSeconds); v > 0 {
@@ -490,6 +491,15 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyChannelMonitorHideThroughput] = strconv.FormatBool(settings.ChannelMonitorHideThroughput)
 	updates[SettingKeyChannelMonitorShowQuota] = strconv.FormatBool(settings.ChannelMonitorShowQuota)
 	updates[SettingKeyChannelMonitorHideUserRanking] = strconv.FormatBool(settings.ChannelMonitorHideUserRanking)
+	updates[SettingKeyPrismBrowserEnabled] = strconv.FormatBool(settings.PrismBrowserEnabled)
+	baseURL := strings.TrimSpace(settings.PrismBrowserBaseURL)
+	if baseURL == "" {
+		baseURL = "http://127.0.0.1:8319/v1"
+	}
+	updates[SettingKeyPrismBrowserBaseURL] = baseURL
+	if strings.TrimSpace(settings.PrismBrowserAPIKey) != "" {
+		updates[SettingKeyPrismBrowserAPIKey] = strings.TrimSpace(settings.PrismBrowserAPIKey)
+	}
 
 	// Grok model mapping policy
 	if v := strings.TrimSpace(settings.GrokDefaultTextModel); v != "" {
@@ -520,6 +530,15 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyModelPlazaRequireAuth] = strconv.FormatBool(settings.ModelPlazaRequireAuth)
 	updates[SettingKeyModelPlazaDescription] = settings.ModelPlazaDescription
 	updates[SettingKeyPluginManagementEnabled] = strconv.FormatBool(settings.PluginManagementEnabled)
+
+	// Support tickets switch + form config
+	updates[SettingKeySupportTicketEnabled] = strconv.FormatBool(settings.SupportTicketEnabled)
+	ticketConfig, ticketConfigErr := NormalizeSupportTicketConfig(settings.SupportTicket)
+	if ticketConfigErr != nil {
+		return nil, infraerrors.BadRequest("INVALID_SUPPORT_TICKET_CONFIG", ticketConfigErr.Error())
+	}
+	ticketConfigJSON, _ := json.Marshal(ticketConfig)
+	updates[SettingKeySupportTicketConfig] = string(ticketConfigJSON)
 
 	// Affiliate (邀请返利) feature switch
 	updates[SettingKeyAffiliateEnabled] = strconv.FormatBool(settings.AffiliateEnabled)

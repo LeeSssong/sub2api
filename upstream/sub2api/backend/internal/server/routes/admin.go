@@ -62,6 +62,7 @@ func RegisterAdminRoutes(
 
 		// 公告管理
 		registerAnnouncementRoutes(admin, h)
+		registerSupportTicketRoutes(admin, h)
 
 		// OpenAI OAuth
 		registerOpenAIOAuthRoutes(admin, h)
@@ -138,6 +139,7 @@ func RegisterAdminRoutes(
 
 		// 定时测试计划
 		registerScheduledTestRoutes(admin, h)
+		registerControlledExperimentRoutes(admin, h)
 
 		// 鹈鹕测智用户展示
 		registerPelicanShowcaseRoutes(admin, h)
@@ -148,6 +150,7 @@ func RegisterAdminRoutes(
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h, settingService)
 		registerChannelMonitorV2Routes(admin, h, settingService)
+		registerChannelMonitorV3Routes(admin, h, settingService)
 
 		// 账号监控
 		registerAccountMonitorRoutes(admin, h, stepUpAuth)
@@ -421,6 +424,9 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/upstream-billing-probe/batch", h.Admin.Account.ProbeUpstreamBillingBatch)
 		accounts.GET("/ollama-cloud-usage/settings", h.Admin.Account.GetOllamaCloudUsageSettings)
 		accounts.PUT("/ollama-cloud-usage/settings", h.Admin.Account.UpdateOllamaCloudUsageSettings)
+		accounts.GET("/astra-gateway/status", h.Admin.Account.AstraGatewayStatus)
+		accounts.GET("/astra-gateway/history", h.Admin.Account.AstraGatewayHistory)
+		accounts.POST("/astra-gateway/test", h.Admin.Account.AstraGatewayTest)
 		accounts.GET("/codex-harvest-flow", h.Admin.Account.GetCodexHarvestFlow)
 		accounts.GET("/codex-harvest-controls", h.Admin.Account.GetCodexHarvestControls)
 		accounts.PUT("/codex-harvest-controls", h.Admin.Account.UpdateCodexHarvestControls)
@@ -446,6 +452,10 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/:id/external-command/v1", h.Admin.Account.UpdateExternalCommandV1)
 		accounts.GET("/:id/grok-media-eligibility", h.Admin.Account.GetGrokMediaEligibility)
 		accounts.PUT("/:id/grok-media-eligibility", h.Admin.Account.UpdateGrokMediaEligibility)
+		accounts.GET("/:id/upstream-billing-probe/config", h.Admin.Account.GetNewAPIConfig)
+		accounts.POST("/:id/upstream-billing-probe/config/preview", h.Admin.Account.PreviewNewAPIConfig)
+		accounts.PUT("/:id/upstream-billing-probe/config", h.Admin.Account.SaveNewAPIConfig)
+		accounts.DELETE("/:id/upstream-billing-probe/config", h.Admin.Account.DeleteNewAPIConfig)
 		accounts.PUT("/:id/upstream-billing-probe", h.Admin.Account.SetUpstreamBillingProbeEnabled)
 		accounts.POST("/:id/upstream-billing-probe", h.Admin.Account.ProbeUpstreamBilling)
 		accounts.GET("/:id/ollama-cloud-usage", h.Admin.Account.GetOllamaCloudUsage)
@@ -479,6 +489,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAu
 		accounts.POST("/:id/schedulable", h.Admin.Account.SetSchedulable)
 		accounts.POST("/models/sync-upstream-preview", h.Admin.Account.SyncUpstreamModelsPreview)
 		accounts.GET("/:id/models", h.Admin.Account.GetAvailableModels)
+		accounts.GET("/:id/models/reasoning", h.Admin.Account.GetModelReasoning)
 		accounts.POST("/:id/models/sync-upstream", h.Admin.Account.SyncUpstreamModels)
 		accounts.POST("/batch", h.Admin.Account.BatchCreate)
 		// 账号导出泄露上游凭证原文——要求 step-up 2FA
@@ -528,6 +539,20 @@ func registerAnnouncementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		announcements.PUT("/:id", h.Admin.Announcement.Update)
 		announcements.DELETE("/:id", h.Admin.Announcement.Delete)
 		announcements.GET("/:id/read-status", h.Admin.Announcement.ListReadStatus)
+	}
+}
+
+// registerSupportTicketRoutes serves the admin side of support tickets. The
+// service answers SUPPORT_TICKET_DISABLED while the feature switch is off.
+func registerSupportTicketRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	tickets := admin.Group("/support-tickets")
+	{
+		tickets.GET("", h.SupportTicket.AdminList)
+		tickets.GET("/summary", h.SupportTicket.AdminSummary)
+		tickets.GET("/:id", h.SupportTicket.AdminGet)
+		tickets.POST("/:id/messages", h.SupportTicket.AdminReply)
+		tickets.POST("/:id/status", h.SupportTicket.AdminSetStatus)
+		tickets.DELETE("/:id", h.SupportTicket.AdminDelete)
 	}
 }
 
@@ -648,6 +673,8 @@ func registerPromoCodeRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	adminSettings := admin.Group("/settings")
 	{
+		adminSettings.GET("/astra-routing", h.Admin.Setting.GetAstraRouting)
+		adminSettings.PUT("/astra-routing", h.Admin.Setting.UpdateAstraRouting)
 		adminSettings.GET("", h.Admin.Setting.GetSettings)
 		adminSettings.PUT("", h.Admin.Setting.UpdateSettings)
 		adminSettings.POST("/test-smtp", h.Admin.Setting.TestSMTPConnection)
@@ -830,7 +857,16 @@ func registerScheduledTestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	admin.GET("/account-ops/auto-config/events", h.Admin.AccountOps.ListAutoConfigEvents)
 	admin.GET("/account-ops/config", h.Admin.AccountOps.GetConfig)
 	admin.PUT("/account-ops/config", h.Admin.AccountOps.SaveConfig)
+	admin.PUT("/account-ops/notification-settings", h.Admin.AccountOps.SaveNotificationSettings)
+	admin.PUT("/account-ops/webhooks/:id", h.Admin.AccountOps.SaveWebhook)
+	admin.DELETE("/account-ops/webhooks/:id", h.Admin.AccountOps.DeleteWebhook)
+	admin.PUT("/account-ops/rules/batch", h.Admin.AccountOps.SaveRulesBatch)
+	admin.PUT("/account-ops/rules/:id", h.Admin.AccountOps.SaveRule)
+	admin.DELETE("/account-ops/rules/:id", h.Admin.AccountOps.DeleteRule)
 	admin.GET("/account-ops/alerts", h.Admin.AccountOps.List)
+	admin.GET("/account-ops/balance-accounts", h.Admin.AccountOps.BalanceAccounts)
+	admin.GET("/account-ops/threshold-accounts", h.Admin.AccountOps.ThresholdAccounts)
+	admin.POST("/account-ops/webhooks/:id/test", h.Admin.AccountOps.TestWebhook)
 	// 智能运维 → 凭证守护：账号令牌巡检 / 自动重登 / 错误态自愈
 	admin.GET("/account-ops/token-guard/status", h.Admin.AccountTokenGuard.Status)
 	admin.PUT("/account-ops/token-guard/config", h.Admin.AccountTokenGuard.SaveConfig)
@@ -877,6 +913,19 @@ func registerScheduledTestRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 
 // Machine readers use admin authentication but receive the same user-visible gallery.
 // Reuse the public handlers so visibility, retention and statistics rules stay identical.
+// Admins browse the gallery through the user page. The Smart Ops page edits the gallery
+// settings and the group tests that feed it.
+func registerControlledExperimentRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	experiments := admin.Group("/controlled-experiments")
+	experiments.Use(h.Admin.ControlledExperiment.FullAdmin)
+	experiments.GET("/catalog", h.Admin.ControlledExperiment.Catalog)
+	experiments.GET("", h.Admin.ControlledExperiment.List)
+	experiments.POST("", h.Admin.ControlledExperiment.Create)
+	experiments.GET("/:id", h.Admin.ControlledExperiment.Report)
+	experiments.POST("/:id/start", h.Admin.ControlledExperiment.Start)
+	experiments.POST("/:id/stop", h.Admin.ControlledExperiment.Stop)
+}
+
 func registerPelicanShowcaseRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	admin.GET("/pelican-showcase/settings", h.PelicanShowcase.GetSettings)
 	admin.PUT("/pelican-showcase/settings", h.PelicanShowcase.UpdateSettings)
@@ -1045,6 +1094,29 @@ func registerChannelMonitorV2Routes(admin *gin.RouterGroup, h *handler.Handlers,
 	}
 }
 
+// registerChannelMonitorV3Routes keeps editing and previewing available in any
+// mode so a site can be prepared before switching. The preview has data
+// whenever the passive aggregation runs (v2 or v3).
+func registerChannelMonitorV3Routes(admin *gin.RouterGroup, h *handler.Handlers, settingService *service.SettingService) {
+	admin.PUT("/channel-monitor-mode", h.ChannelMonitorV3.SetMode)
+
+	monitor := admin.Group("/channel-monitor-v3")
+	monitor.Use(channelMonitorAdminFeatureGuard(settingService))
+	{
+		monitor.GET("/settings", h.ChannelMonitorV3.GetSettings)
+		monitor.PUT("/config", h.ChannelMonitorV3.UpdateConfig)
+		monitor.POST("/categories", h.ChannelMonitorV3.CreateCategory)
+		monitor.PUT("/categories/:id", h.ChannelMonitorV3.UpdateCategory)
+		monitor.DELETE("/categories/:id", h.ChannelMonitorV3.DeleteCategory)
+		monitor.POST("/components", h.ChannelMonitorV3.CreateComponent)
+		monitor.PUT("/components/:id", h.ChannelMonitorV3.UpdateComponent)
+		monitor.DELETE("/components/:id", h.ChannelMonitorV3.DeleteComponent)
+		monitor.POST("/reorder", h.ChannelMonitorV3.Reorder)
+		monitor.GET("/status", h.ChannelMonitorV3.Status)
+		monitor.GET("/incidents", h.ChannelMonitorV3.Incidents)
+	}
+}
+
 func channelMonitorAdminFeatureGuard(settingService *service.SettingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if settingService != nil && settingService.GetChannelMonitorRuntime(c.Request.Context()).Enabled {
@@ -1058,6 +1130,15 @@ func channelMonitorAdminFeatureGuard(settingService *service.SettingService) gin
 
 // channelMonitorModeV2Guard requires feature enabled and channel_monitor_mode=v2.
 func channelMonitorModeV2Guard(settingService *service.SettingService) gin.HandlerFunc {
+	return channelMonitorModeGuard(settingService, service.ChannelMonitorRuntime.V2Active)
+}
+
+// channelMonitorModeV3Guard requires feature enabled and channel_monitor_mode=v3.
+func channelMonitorModeV3Guard(settingService *service.SettingService) gin.HandlerFunc {
+	return channelMonitorModeGuard(settingService, service.ChannelMonitorRuntime.V3Active)
+}
+
+func channelMonitorModeGuard(settingService *service.SettingService, allowed func(service.ChannelMonitorRuntime) bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if settingService == nil {
 			response.ErrorFrom(c, service.ErrChannelMonitorDisabled)
@@ -1070,7 +1151,7 @@ func channelMonitorModeV2Guard(settingService *service.SettingService) gin.Handl
 			c.Abort()
 			return
 		}
-		if !rt.PassiveAggregationAllowed() {
+		if !allowed(rt) {
 			response.ErrorFrom(c, service.ErrChannelMonitorModeMismatch)
 			c.Abort()
 			return

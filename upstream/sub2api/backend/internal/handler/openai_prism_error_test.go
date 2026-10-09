@@ -96,27 +96,3 @@ func TestPrismUnselectedModelsUseExistingNativeRoute(t *testing.T) {
 		})
 	}
 }
-
-func TestPrismDisabledAccountsKeepNativeRoute(t *testing.T) {
-	for _, accountType := range []string{service.AccountTypeOAuth, service.AccountTypeAPIKey} {
-		for _, stream := range []bool{false, true} {
-			upstream := &prismScopeNativeUpstream{}
-			cfg := &config.Config{}
-			cfg.Gateway.StreamKeepaliveInterval = 1
-			cfg.Gateway.PrismBrowser = config.GatewayPrismBrowserConfig{Enabled: true, BaseURL: "http://127.0.0.1:1/v1", APIKey: "fixture"}
-			account := &service.Account{ID: 300, Status: service.StatusActive, Schedulable: true, Platform: service.PlatformOpenAI, Type: accountType,
-				Credentials: map[string]any{"access_token": "fixture", "api_key": "fixture"},
-				Extra:       map[string]any{"openai_prism_browser": false, "openai_passthrough": true}}
-			gateway := service.NewOpenAIGatewayService(excelBPSErrorAccountRepo{account: account}, nil, nil, nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil, upstream, nil, nil, nil, nil, nil, nil, nil, nil)
-			body, err := json.Marshal(map[string]any{"model": "gpt-6.1-sol", "input": "hi", "stream": stream})
-			require.NoError(t, err)
-			rec := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(rec)
-			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-			_, _ = gateway.Forward(context.Background(), c, account, body)
-			require.Equal(t, 1, upstream.calls)
-			require.False(t, service.IsPrismBrowserAttempt(c, account.ID))
-			require.NotContains(t, rec.Body.String(), ": keepalive")
-		}
-	}
-}

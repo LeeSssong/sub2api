@@ -126,6 +126,7 @@ func provideCleanup(
 	openAIGateway *service.OpenAIGatewayService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	accountAdmission *service.AccountAdmissionService,
+	controlledExperiment *service.ControlledExperimentService,
 	accountOps *service.AccountOpsService,
 	accountTokenGuard *service.AccountTokenGuardService,
 	accountTokenGuardV2 *service.AccountTokenGuardV2Service,
@@ -418,6 +419,9 @@ func provideCleanup(
 				return nil
 			}},
 			{"ScheduledTestRunnerService", func() error {
+				if controlledExperiment != nil {
+					controlledExperiment.Stop()
+				}
 				if scheduledTestRunner != nil {
 					scheduledTestRunner.Stop()
 				}

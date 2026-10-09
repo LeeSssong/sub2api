@@ -3,6 +3,8 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +23,14 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
+
+func defaultPrismBrowserAPIKey() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b)
+}
 
 // InitializeDefaultSettings 初始化默认设置
 func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
@@ -190,6 +200,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOpsQueryModeDefault:          "auto",
 		SettingKeyOpsMetricsIntervalSeconds:    "60",
 
+		// Protocol feature defaults
+		SettingKeyExcelBPSEnabled: "true",
+
 		// Channel monitor defaults (enabled, 60s)
 		SettingKeyChannelMonitorEnabled:                "true",
 		SettingKeyChannelMonitorMode:                   ChannelMonitorModeV1,
@@ -197,6 +210,11 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyChannelMonitorHideThroughput:         "true",
 		SettingKeyChannelMonitorShowQuota:              "false",
 		SettingKeyChannelMonitorHideUserRanking:        "false",
+		SettingKeyPrismBrowserEnabled:                  "false",
+		SettingKeyPrismBrowserBaseURL:                  "http://127.0.0.1:8319/v1",
+		// Generate a disabled-by-default bridge key so enabling the feature does
+		// not require a fragile hand-written secret during first-run setup.
+		SettingKeyPrismBrowserAPIKey: defaultPrismBrowserAPIKey(),
 
 		// Grok compatibility defaults: cross-client mapping stays enabled unless
 		// operators explicitly disable it.
@@ -218,6 +236,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyModelPlazaRequireAuth:   "false",
 		SettingKeyModelPlazaDescription:   "",
 		SettingKeyPluginManagementEnabled: "false",
+
+		// Support tickets (default disabled; opt-in). A missing config means the defaults.
+		SettingKeySupportTicketEnabled: "false",
 
 		// Affiliate (邀请返利) feature (default disabled; opt-in)
 		SettingKeyAffiliateEnabled:              "false",
@@ -826,6 +847,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 
 	// Channel monitor feature (default: enabled, 60s)
+	result.ExcelBPSEnabled = !isFalseSettingValue(settings[SettingKeyExcelBPSEnabled])
 	result.ChannelMonitorEnabled = !isFalseSettingValue(settings[SettingKeyChannelMonitorEnabled])
 	result.ChannelMonitorMode = normalizeChannelMonitorMode(settings[SettingKeyChannelMonitorMode])
 	result.ChannelMonitorDefaultIntervalSeconds = parseChannelMonitorInterval(
@@ -838,6 +860,13 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	// （与 setting_public.go 公开读取路径保持一致）。
 	result.ChannelMonitorShowQuota = settings[SettingKeyChannelMonitorShowQuota] == "true"
 	result.ChannelMonitorHideUserRanking = isTrueSettingValue(settings[SettingKeyChannelMonitorHideUserRanking])
+	result.PrismBrowserEnabled = settings[SettingKeyPrismBrowserEnabled] == "true"
+	result.PrismBrowserBaseURL = strings.TrimSpace(settings[SettingKeyPrismBrowserBaseURL])
+	if result.PrismBrowserBaseURL == "" {
+		result.PrismBrowserBaseURL = "http://127.0.0.1:8319/v1"
+	}
+	result.PrismBrowserAPIKey = settings[SettingKeyPrismBrowserAPIKey]
+	result.PrismBrowserAPIKeyConfigured = strings.TrimSpace(result.PrismBrowserAPIKey) != ""
 
 	// Grok default mapping policy
 	result.GrokDefaultTextModel = strings.TrimSpace(settings[SettingKeyGrokDefaultTextModel])
@@ -868,6 +897,14 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.ModelPlazaRequireAuth = settings[SettingKeyModelPlazaRequireAuth] == "true"
 	result.ModelPlazaDescription = settings[SettingKeyModelPlazaDescription]
 	result.PluginManagementEnabled = settings[SettingKeyPluginManagementEnabled] == "true"
+
+	// Support tickets (default: disabled; strict true). A corrupt config is shown as the
+	// defaults so the admin page still loads; the runtime reader fails closed on it.
+	result.SupportTicketEnabled = settings[SettingKeySupportTicketEnabled] == "true"
+	result.SupportTicket = DefaultSupportTicketConfig()
+	if ticketConfig, err := parseSupportTicketConfig(settings[SettingKeySupportTicketConfig]); err == nil {
+		result.SupportTicket = ticketConfig
+	}
 
 	// Affiliate (邀请返利) feature (default: disabled; strict true)
 	result.AffiliateEnabled = settings[SettingKeyAffiliateEnabled] == "true"

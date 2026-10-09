@@ -395,11 +395,15 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		PaymentAlipayMobilePrecreateDeepLink:                   paymentCfg.AlipayMobilePrecreateDeepLink,
 
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
+		ExcelBPSEnabled:                      settings.ExcelBPSEnabled,
 		ChannelMonitorMode:                   settings.ChannelMonitorMode,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
 		ChannelMonitorHideThroughput:         settings.ChannelMonitorHideThroughput,
 		ChannelMonitorShowQuota:              settings.ChannelMonitorShowQuota,
 		ChannelMonitorHideUserRanking:        settings.ChannelMonitorHideUserRanking,
+		PrismBrowserEnabled:                  settings.PrismBrowserEnabled,
+		PrismBrowserBaseURL:                  settings.PrismBrowserBaseURL,
+		PrismBrowserAPIKeyConfigured:         settings.PrismBrowserAPIKeyConfigured,
 
 		GrokDefaultTextModel:           settings.GrokDefaultTextModel,
 		GrokCrossClientModelMapEnabled: settings.GrokCrossClientModelMapEnabled,
@@ -414,6 +418,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		ModelPlazaRequireAuth:   settings.ModelPlazaRequireAuth,
 		PluginManagementEnabled: settings.PluginManagementEnabled,
 		ModelPlazaDescription:   settings.ModelPlazaDescription,
+
+		SupportTicketEnabled: settings.SupportTicketEnabled,
+		SupportTicket:        settings.SupportTicket,
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 
