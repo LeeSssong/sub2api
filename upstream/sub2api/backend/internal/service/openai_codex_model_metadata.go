@@ -143,7 +143,7 @@ func groupCodexModelMetadata(
 	group *Group,
 	compositeRoutes []CompositeModelRoute,
 	compositeRoutesAvailable bool,
-) (codexModelMetadataOverride, bool) {
+) (result codexModelMetadataOverride, found bool) {
 	modelID = strings.TrimSpace(modelID)
 	if modelID == "" {
 		return codexModelMetadataOverride{}, false
@@ -187,6 +187,49 @@ func groupCodexModelMetadata(
 			}
 		}
 	}
+	// Fast has a dedicated eligibility gate, so a single manually marked account
+	// can advertise priority even when other accounts serving this model cannot.
+	// Other capabilities retain the existing intersection semantics.
+	defer func() {
+		if !found {
+			return
+		}
+		for i := range accounts {
+			account := &accounts[i]
+			if account.Platform != platform || (routed && !containsInt64(routedAccountIDs, account.ID)) {
+				continue
+			}
+			lookup := upstreamModel
+			if explicitClaims {
+				if !codexExplicitModelMappingClaims(*account, modelID) {
+					continue
+				}
+				lookup = modelID
+			} else if !account.IsModelSupported(upstreamModel) {
+				continue
+			}
+			_, fastUpstreamModel := resolveOpenAIForwardMappedModels(account, lookup, false)
+			if !account.SupportsOpenAIFastUpstreamModel(fastUpstreamModel) {
+				continue
+			}
+			if result.CodexToolCapabilities == nil {
+				result.CodexToolCapabilities = map[string]json.RawMessage{}
+			}
+			var tiers []configuredCodexServiceTier
+			_ = json.Unmarshal(result.CodexToolCapabilities["service_tiers"], &tiers)
+			for _, tier := range tiers {
+				if tier.ID == OpenAIFastTierPriority {
+					return
+				}
+			}
+			tiers = append(tiers, configuredCodexServiceTier{ID: OpenAIFastTierPriority, Name: "Fast", Description: "Priority processing"})
+			encoded, err := json.Marshal(tiers)
+			if err == nil {
+				result.CodexToolCapabilities["service_tiers"] = encoded
+			}
+			return
+		}
+	}()
 	// 别名已被显式路由声明时，"多个账号映射到不同上游"是故障转移的正常写法，不是歧义，
 	// 因此不再失败即关闭；能力回落到与单账号无快照时相同的按名推导。
 	explicitTargetsConflict := explicitClaims && !routed &&

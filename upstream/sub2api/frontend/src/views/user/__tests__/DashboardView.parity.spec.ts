@@ -1,4 +1,4 @@
-vi.mock('@/features/ai-tools/routeTimeline',()=>({getRouteTimeline:(...args:unknown[])=>mocks.timeline(...args)}))
+vi.mock('@/features/ai-tools/routeTimeline',async importOriginal=>({...await importOriginal<typeof import('@/features/ai-tools/routeTimeline')>(),getRouteTimeline:(...args:unknown[])=>mocks.timeline(...args)}))
 import { createI18n } from 'vue-i18n'
 import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,16 +13,92 @@ vi.mock('@/features/monitor-v4/api',()=>({getHybridPerformanceSnapshot:mocks.sna
 vi.mock('@/features/ai-tools/api',()=>({checkLines:mocks.check,getGroupModels:mocks.models}))
 const groups=[{id:1,name:'GPT-Pro',platform:'openai',rate_multiplier:1,status:'active'},{id:2,name:'未关联线路',platform:'openai',rate_multiplier:.5,status:'active'}]
 const metric=(id:number)=>({id,tool_ids:['codex'],success_rate:98,request_count:100,success_count:98,ttft_p50_ms:2160,latency_p50_ms:6500,real_request_count:100,real_success_count:98,source_updated_at:new Date().toISOString()})
+const slaPoint=(group_id:number,request_count=100,success_count=98)=>({group_id,start:'2026-10-08T10:00:00Z',end:'2026-10-08T11:00:00Z',request_count,success_count,cache_hit_rate:null,ttft_p50_ms:null})
 const deferred=<T,>()=>{let resolve!:(value:T)=>void;let reject!:(reason?:unknown)=>void;const promise=new Promise<T>((res,rej)=>{resolve=res;reject=rej});return {promise,resolve,reject}}
 const make=()=>mount(Dashboard,{global:{plugins:[createI18n({legacy:false,locale:'zh',messages:{}})],stubs:{AppLayout:{template:'<div><slot/></div>'},BaseDialog:{props:['show','title'],template:'<div v-if="show" role="dialog"><h3>{{title}}</h3><slot/><slot name="footer"/></div>'},CreateLineKeyDialog:{name:'CreateLineKeyDialog',props:['show','initialGroupId'],template:'<div v-if="show" data-testid="create-key">{{initialGroupId}}</div>'}}}})
 beforeEach(()=>{vi.clearAllMocks();clearDashboardWorkspaceSnapshot();mocks.models.mockResolvedValue([{group_id:1,supported_models:['gpt-5.4','gpt-5.2'],official_pricing:{'gpt-5.4':{input_price:2.5e-6,cache_read_price:.25e-6,output_price:15e-6}}},{group_id:2,supported_models:['gpt-5.4','custom-model']},{group_id:99,supported_models:['private-model']}]);mocks.groups.mockResolvedValue(groups);mocks.rates.mockResolvedValue({});mocks.keys.mockResolvedValue({items:[{id:1,group_id:1,status:'inactive',group:groups[0]}],total:1});mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>metric(g.id))});mocks.check.mockResolvedValue([{group_id:1,status:'success',ttft_ms:1230}])})
 describe('原型AI工具交互',()=>{
+ beforeEach(()=>{mocks.timeline.mockReset();mocks.timeline.mockResolvedValue(groups.map(g=>slaPoint(g.id)))})
+ it('uses group SLA timeline counts for the detail total instead of the logical snapshot',async()=>{
+  const point=(group_id:number,request_count:number,success_count:number,start='2026-10-08T10:00:00Z',end='2026-10-08T11:00:00Z')=>({group_id,start,end,request_count,success_count,cache_hit_rate:.5,ttft_p50_ms:1000})
+  mocks.timeline.mockResolvedValueOnce([point(1,2,1),point(1,10,9,'2026-10-08T11:00:00Z','2026-10-08T12:00:00Z'),point(2,2,0)])
+  const w=make();await flushPromises()
+  await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
+  const cards=w.findAll('.route-detail-card')
+  const firstCard=()=>w.findAll('.route-detail-card').find(c=>c.get('h3').text()==='GPT-Pro')!
+  const first=firstCard()
+  expect(firstCard().get('.success-rate').text()).toBe('83.33%')
+  expect(first.get('.detail-request-sample').text()).toContain('10 / 12')
+  expect(first.get('.detail-quality-label').attributes('title')).toContain('SLA')
+  expect(cards.find(c=>c.get('h3').text()==='未关联线路')!.get('.success-rate').text()).toBe('0%')
+  // The hourly status and best route still use the existing monitor metrics.
+  expect(first.get('.route-health').text()).toBe('正常运行')
+  mocks.timeline.mockResolvedValueOnce([point(1,12,10,'2026-10-08T00:00:00Z','2026-10-09T00:00:00Z'),point(2,2,0)])
+  await w.get('select[aria-label="线路图粒度"]').setValue('day');await flushPromises()
+  expect(firstCard().get('.success-rate').text()).toBe('83.33%')
+  const pending=deferred<unknown[]>()
+  mocks.timeline.mockImplementationOnce(()=>pending.promise)
+  await w.findAll('button').find(b=>b.text()==='近 7 天')!.trigger('click');await flushPromises()
+  expect(firstCard().element).not.toBe(first.element)
+  expect(firstCard().get('.success-rate').text()).toBe('—')
+  pending.reject(new Error('offline'));await flushPromises()
+  expect(firstCard().get('.success-rate').text()).toBe('—')
+  expect(w.text()).toContain('线路走势读取失败')
+  w.unmount()
+ })
+ it('shows the line check limit and allows retry after the server cooldown',async()=>{
+  vi.useFakeTimers()
+  const w=make()
+  try {
+   await flushPromises()
+   mocks.check.mockRejectedValueOnce({status:429,code:'LINE_CHECK_RATE_LIMITED',metadata:{retry_after_seconds:3}})
+   const button=w.get('button[aria-label="检查线路"]')
+   await button.trigger('click');await flushPromises()
+   expect(w.text()).toContain('每分钟最多检查 30 次，请在 3 秒后重试。')
+   expect(button.attributes('disabled')).toBeDefined()
+   await button.trigger('click');await flushPromises()
+   expect(mocks.check).toHaveBeenCalledTimes(1)
+   await vi.advanceTimersByTimeAsync(3000);await flushPromises()
+   expect(button.attributes('disabled')).toBeUndefined()
+   await button.trigger('click');await flushPromises()
+   expect(mocks.check).toHaveBeenCalledTimes(2)
+   expect(w.text()).not.toContain('每分钟最多检查')
+  } finally { w.unmount();vi.useRealTimers() }
+ })
+ it('orders detail cards by effective multiplier across periods without changing the best route',async()=>{
+  const candidates=[
+   {id:1,name:'高倍率最佳线路',platform:'openai',rate_multiplier:1,status:'active'},
+   {id:2,name:'专属低倍率',platform:'openai',rate_multiplier:.8,status:'active'},
+   {id:3,name:'同倍率正常线路',platform:'openai',rate_multiplier:.2,status:'active'},
+   {id:4,name:'同倍率异常线路',platform:'openai',rate_multiplier:.2,status:'inactive'},
+   {id:5,name:'未知倍率',platform:'openai',rate_multiplier:NaN,status:'active'},
+   {id:6,name:'零倍率',platform:'openai',rate_multiplier:1,status:'active'},
+  ]
+  mocks.groups.mockResolvedValue(candidates)
+  mocks.keys.mockResolvedValue({items:[],total:0})
+  mocks.rates.mockResolvedValue({2:.1,6:0})
+  mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:candidates.map(g=>({
+   ...metric(g.id),cache_hit_rate:.5,ttft_p50_ms:1000,
+   real_success_count:g.id===1?100:g.id===3?90:20,
+  }))})
+  const w=make();await flushPromises()
+  expect(w.get('.tool-card .tool-best .best').text()).toBe('高倍率最佳线路')
+  await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
+  for(const period of ['近 24 小时','近 1 小时','近 7 天']){
+   await w.findAll('.detail-period-segment button').find(b=>b.text()===period)!.trigger('click');await flushPromises()
+   const cards=w.findAll('.route-detail-card')
+   expect(cards.map(card=>card.get('h3').text())).toEqual(['零倍率','专属低倍率','同倍率正常线路','同倍率异常线路','高倍率最佳线路','未知倍率'])
+   expect(cards.slice(0,5).map(card=>card.get('.rate-badge').text())).toEqual(['0.0x倍率','0.1x倍率','0.2x倍率','0.2x倍率','1.0x倍率'])
+   expect(cards.find(card=>card.find('.best-route-badge').exists())!.get('h3').text()).toBe('高倍率最佳线路')
+  }
+  w.unmount()
+ })
  it('reveals request counts only on success-rate hover or focus and associates the selected route',async()=>{
   const w=make();await flushPromises()
   await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
   const cards=w.findAll('article.route-detail-card')
   expect(cards).toHaveLength(2)
-  expect(cards[0].get('.detail-request-sample').text()).toBe('98 / 100 次请求成功')
+  expect(cards[0].get('.detail-request-sample').text()).toBe('98 / 100 次请求成功（后台 SLA，排除业务限制）')
   const sample=cards[0].get('.detail-request-sample')
   const success=cards[0].get('.detail-success-hover')
   // Detached jsdom fixtures cache computed styles; verify the v-show state directly.
@@ -107,15 +183,16 @@ describe('原型AI工具交互',()=>{
   expect(w.get('[data-testid="create-key"]').text()).toBe('')
   w.unmount()
  })
- it('distinguishes zero real requests from missing statistics in cards',async()=>{
+ it('distinguishes zero SLA requests from missing timeline points in cards',async()=>{
+  mocks.timeline.mockResolvedValue([slaPoint(1,0,0)])
   mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:[{...metric(1),real_request_count:0,real_success_count:0}]})
   const w=make();await flushPromises()
   await w.get('button[aria-label="Codex 线路详情"]').trigger('click');await flushPromises()
   const cards=w.findAll('.route-detail-card')
   const zero=cards.find(c=>c.text().includes('GPT-Pro'))!
   const missing=cards.find(c=>c.text().includes('未关联线路'))!
-  expect(zero.get('.detail-request-sample').text()).toBe('0 / 0 次请求成功')
-  expect(missing.get('.detail-request-sample').text()).toBe('— / — 次请求成功')
+  expect(zero.get('.detail-request-sample').text()).toBe('0 / 0 次请求成功（后台 SLA，排除业务限制）')
+  expect(missing.get('.detail-request-sample').text()).toBe('— / — 次请求成功（后台 SLA，排除业务限制）')
   expect(zero.get('.success-rate').text()).toBe('暂无数据')
   expect(missing.get('.success-rate').text()).toBe('暂无数据')
   w.unmount()
@@ -167,6 +244,7 @@ describe('原型AI工具交互',()=>{
  })
 
  it.each([[0,'red'],[69.9,'red'],[70,'amber'],[89.9,'amber'],[90,'green'],[100,'green'],[null,'muted']] as const)('uses the shared success-rate tone for %s in the route list and detail cards',async(rate,tone)=>{
+  mocks.timeline.mockResolvedValue(groups.map(g=>slaPoint(g.id,rate===null?0:1000,rate===null?0:rate*10)))
   mocks.snapshot.mockResolvedValue({generated_at:new Date().toISOString(),groups:groups.map(g=>({...metric(g.id),success_rate:rate,request_count:rate===null?0:100,real_request_count:rate===null?0:1000,real_success_count:rate===null?0:rate*10}))})
   const w=make();await flushPromises()
   expect(w.get('.route-row .rate').attributes('data-tone')).toBe(tone)

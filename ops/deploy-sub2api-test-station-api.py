@@ -210,6 +210,18 @@ def rollback(release):
     print('test_station_api status=rolled_back', flush=True)
 
 
+def verify_migration_checksums(expected, rows):
+    if not isinstance(expected, dict) or not expected:
+        raise ValueError('migration checksums required')
+    applied = {}
+    for row in rows.splitlines():
+        name, checksum = row.split('|', 1)
+        applied[name] = checksum
+    for name, checksum in expected.items():
+        if not re.fullmatch(r'[a-f0-9]{64}', checksum) or applied.get(name) != checksum:
+            raise ValueError('migration not applied with expected checksum: ' + name)
+
+
 def deploy(bundle):
     manifest = json.loads((bundle / 'manifest.json').read_text())
     commit, tree = manifest['source_commit'], manifest['source_tree']
@@ -240,6 +252,14 @@ def deploy(bundle):
     config = json.loads(run(['docker', 'compose', '-p', PROJECT, '--env-file', str(old_env), '-f', str(old_config), 'config', '--format', 'json']))
     if config['networks']['test-station']['name'] != PROJECT + '-network':
         raise ValueError('network mismatch')
+    db_id = run(['docker', 'ps', '-q', '--filter', 'label=com.docker.compose.project=' + PROJECT,
+                 '--filter', 'label=com.docker.compose.service=test-station-postgres']).strip()
+    if not db_id or '\n' in db_id:
+        raise ValueError('expected exactly one isolated database')
+    rows = run(['docker', 'exec', '-i', db_id, 'sh', '-c',
+                'exec psql -X -v ON_ERROR_STOP=1 -At -U "$POSTGRES_USER" -d "$POSTGRES_DB"'],
+               b"SELECT filename || '|' || checksum FROM schema_migrations ORDER BY filename;\n")
+    verify_migration_checksums(manifest.get('migration_checksums'), rows)
     caddy_id = run(['docker', 'ps', '-q', '--filter', 'label=com.docker.compose.project=' + PROJECT,
                     '--filter', 'label=com.docker.compose.service=test-station-caddy']).strip()
     if not caddy_id or '\n' in caddy_id:
@@ -301,15 +321,17 @@ def deploy(bundle):
             healthy(new_worker)
             meta['candidate_worker_container'] = new_worker
             meta['stage_seconds']['worker_replace'] = round(time.monotonic() - worker_started, 2)
+        cutover_at = time.time()
         reload_caddy(caddy_id, new_caddy)
         public_probes()
         private_write(caddy_path, new_caddy)
         private_write(release / 'Caddyfile', new_caddy)
         meta['result'] = 'promoted'
-        meta['promoted_at'] = time.time()
+        meta['promoted_at'] = cutover_at
         save(release / 'deployment.json', meta)
         state = dict(previous, source_commit=commit, source_tree=tree, image_id=image_id, image_tag=image,
             release_dir=str(release), previous_release_dir=previous['release_dir'], active_api_container=candidate_id,
+            migration_set_sha256=manifest['migration_set_sha256'],
             active_api_service=service, api_only_release=not update_worker, binary_sha256=manifest['binary_sha256'], result='succeeded', rolled_back=False)
         if update_worker:
             state['active_worker_container'] = new_worker
@@ -342,7 +364,8 @@ def finalize(release):
         if not remaining or time.time() >= deadline:
             break
         time.sleep(min(2, max(0, deadline - time.time())))
-    run(['docker', 'stop', '--time', '10', meta['previous_api_container']])
+    stop_grace = max(0, min(10, int(deadline - time.time())))
+    run(['docker', 'stop', '--time', str(stop_grace), meta['previous_api_container']])
     meta['result'] = 'succeeded'
     meta['drain'] = {'seconds': round(time.monotonic() - start, 2), 'remaining_at_deadline': remaining, 'maximum_seconds': 300}
     save(release / 'deployment.json', meta)

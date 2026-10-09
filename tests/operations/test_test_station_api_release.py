@@ -16,12 +16,12 @@ SPEC.loader.exec_module(release)
 
 
 class ReleaseScopeTests(unittest.TestCase):
-    def check_scope(self, paths, update_worker=False):
+    def check_scope(self, paths, update_worker=False, deleted_migration=False):
         shell = (ROOT / 'ops/release-sub2api-test-station-api.sh').read_text()
         gate = shell[shell.index('while IFS= read -r path; do'):shell.index('binary_commit=$commit')]
-        script = 'fail(){ echo "$1" >&2; exit 1; }; git(){ printf "%s\\n" "$CHANGED_PATHS"; }; ' + gate
+        script = 'fail(){ echo "$1" >&2; exit 1; }; git(){ if [[ "$*" == *--diff-filter=D* ]]; then printf "%s\\n" "$DELETED_MIGRATION"; else printf "%s\\n" "$CHANGED_PATHS"; fi; }; ' + gate
         return subprocess.run(['bash', '-c', script], capture_output=True, text=True,
-            env=dict(os.environ, CHANGED_PATHS='\n'.join(paths), update_worker=str(update_worker).lower(), previous='old'))
+            env=dict(os.environ, CHANGED_PATHS='\n'.join(paths), update_worker=str(update_worker).lower(), previous='old', root=str(ROOT), DELETED_MIGRATION='upstream/sub2api/backend/migrations/266_quality_traffic_snapshots.sql' if deleted_migration else ''))
 
     def test_frontend_design_rules_allow_api_only_release_without_widening_runtime_scope(self):
         result = self.check_scope(['upstream/sub2api/frontend/DESIGN.md',
@@ -30,6 +30,18 @@ class ReleaseScopeTests(unittest.TestCase):
         for path in ['package.json', 'pnpm-lock.yaml', 'vite.config.ts']:
             with self.subTest(path=path):
                 self.assertNotEqual(self.check_scope(['upstream/sub2api/frontend/' + path]).returncode, 0)
+
+    def test_snapshot_removal_requires_worker_and_only_deleted_migration(self):
+        paths = ['upstream/sub2api/backend/internal/repository/usage_log_repo_insert.go',
+                 'upstream/sub2api/backend/ent/schema/usage_log.go',
+                 'upstream/sub2api/backend/internal/service/quality_traffic.go']
+        self.assertNotEqual(self.check_scope(paths).returncode, 0)
+        self.assertEqual(self.check_scope(paths, True).returncode, 0)
+        migration = ['upstream/sub2api/backend/migrations/266_quality_traffic_snapshots.sql']
+        self.assertNotEqual(self.check_scope(migration, True).returncode, 0)
+        self.assertNotEqual(self.check_scope(migration, False, True).returncode, 0)
+        self.assertEqual(self.check_scope(migration, True, True).returncode, 0)
+        self.assertNotEqual(self.check_scope(['upstream/sub2api/backend/migrations/999.sql'], True, True).returncode, 0)
 
     def test_native_group_catalog_changes_allow_api_only_release(self):
         paths = ['internal/handler/' + name for name in (
@@ -59,10 +71,101 @@ class ReleaseScopeTests(unittest.TestCase):
         result = self.check_scope(['upstream/sub2api/backend/' + path for path in paths])
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_line_check_rate_limit_allows_only_reviewed_api_files(self):
+        paths = ['internal/middleware/line_check_rate_limiter.go',
+                 'internal/server/middleware/line_check_rate_limit.go',
+                 'internal/server/middleware/panel_rate_limit.go',
+                 'internal/server/routes/monitor_v4_check_rate_limit_test.go']
+        result = self.check_scope(['upstream/sub2api/backend/' + path for path in paths])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/server/middleware/auth.go']).returncode, 0)
+
+    def test_manual_check_admission_changes_allow_api_only_release(self):
+        paths = ['upstream/sub2api/backend/internal/service/' + name for name in
+                 ('monitor_v4.go', 'monitor_v4_check.go', 'monitor_v4_check_test.go')]
+        result = self.check_scope(paths)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/service/monitor_v4_runtime.go']).returncode, 0)
+
     def test_monitor_changes_still_require_worker_update(self):
-        paths = ['upstream/sub2api/backend/internal/service/monitor_v4.go']
+        paths = ['upstream/sub2api/backend/internal/service/monitor_v4_runtime.go']
         self.assertNotEqual(self.check_scope(paths).returncode, 0)
         self.assertEqual(self.check_scope(paths, True).returncode, 0)
+
+    def test_route_sla_read_queries_allow_api_only_without_widening_worker_scope(self):
+        paths = ['internal/service/monitor_v4_timeline.go', 'internal/service/monitor_v4_timeline_test.go',
+                 'internal/handler/monitor_v4_handler_test.go', 'internal/repository/monitor_v4_timeline.go',
+                 'internal/repository/ops_repo_dashboard.go', 'internal/repository/ops_sla_sql.go',
+                 'internal/repository/route_sla_timeline_postgres_test.go',
+                 'scripts/verify_prototype_monitor_postgres.py']
+        result = self.check_scope(['upstream/sub2api/backend/' + path for path in paths])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/service/monitor_v4_refresh.go']).returncode, 0)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/repository/account_monitor_repo.go']).returncode, 0)
+
+    def test_account_probe_event_fix_requires_worker_update(self):
+        paths = ['upstream/sub2api/backend/internal/service/' + name for name in (
+            'account_test_service.go', 'account_test_service_openai_test.go',
+            'account_monitor_probe_test.go', 'account_probe_cost_test.go')]
+        self.assertNotEqual(self.check_scope(paths).returncode, 0)
+        self.assertEqual(self.check_scope(paths, True).returncode, 0)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/service/account_service.go'], True).returncode, 0)
+
+    def test_route_stream_cache_query_and_tests_allow_api_only_release(self):
+        paths = ['upstream/sub2api/backend/internal/repository/' + name for name in
+                 ('monitor_v4_timeline.go', 'monitor_v4_timeline_test.go', 'route_cache_timeline_postgres_test.go')]
+        result = self.check_scope(paths)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.check_scope([
+            'upstream/sub2api/backend/internal/repository/account_monitor_repo.go']).returncode, 0)
+
+    def test_brand_icon_http_and_separate_homepage_allow_api_only_release(self):
+        paths = ['upstream/sub2api/backend/internal/web/' + name for name in
+                 ['embed_on.go', 'embed_test.go', 'favicon.go', 'favicon_test.go']]
+        paths += ['homepage/src/domain/branding.ts', 'infra/independent-test-station/Dockerfile.homepage']
+        result = self.check_scope(paths)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotEqual(self.check_scope(['infra/independent-test-station/compose.yaml']).returncode, 0)
+
+    def test_production_sync_requires_worker_and_preserves_dependency_gate(self):
+        paths = ['upstream/sub2api/backend/internal/repository/intelligence_rules.go',
+                 'upstream/sub2api/backend/internal/service/quality_supported_models.go',
+                 'upstream/sub2api/backend/migrations/265_monitor_v4_legacy_default.sql',
+                 'upstream/sub2api/backend/migrations/deferred/241_remove_monitor_v4_operational_flag.sql',
+                 'upstream/sub2api/Dockerfile']
+        self.assertNotEqual(self.check_scope(paths).returncode, 0)
+        self.assertEqual(self.check_scope(paths, True).returncode, 0)
+
+
+class MigrationPreflightTests(unittest.TestCase):
+    def test_applied_unchanged_migrations_accept_retained_history(self):
+        release.verify_migration_checksums({'265.sql': 'a'*64}, '265.sql|'+'a'*64+'\n241.sql|'+'b'*64+'\n')
+
+    def test_missing_or_changed_migration_refuses_before_candidate(self):
+        for rows in ['', '265.sql|'+'b'*64+'\n']:
+            with self.subTest(rows=rows), self.assertRaises(ValueError):
+                release.verify_migration_checksums({'265.sql': 'a'*64}, rows)
+
+
+class DrainDeadlineTests(unittest.TestCase):
+    def test_expired_deadline_does_not_add_another_stop_grace_period(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / 'releases' / ('a'*40)
+            target.mkdir(parents=True)
+            (root / 'release-state.json').write_text(json.dumps({'source_commit': 'a'*40}))
+            (target / 'deployment.json').write_text(json.dumps(dict(source_commit='a'*40,
+                result='promoted', promoted_at=600, previous_api_container='old-api')))
+            rows = ' 0: 00000000:1F90 0100007F:C123 01\n'
+            with patch.object(release, 'ROOT', root), patch.object(release.time, 'time', return_value=1000), \
+                 patch.object(release, 'run', return_value=rows) as commands, contextlib.redirect_stdout(io.StringIO()):
+                release.finalize(target)
+            self.assertIn(unittest.mock.call(['docker', 'stop', '--time', '0', 'old-api']), commands.call_args_list)
 
 
 class APIReleaseTests(unittest.TestCase):
@@ -139,7 +242,7 @@ class APIReleaseTests(unittest.TestCase):
 
 
 class HostFlowTests(unittest.TestCase):
-    def exercise(self, fail_probe=False, update_worker=False, fail_worker=False, fail_rollback_probe=False):
+    def exercise(self, fail_probe=False, update_worker=False, fail_worker=False, fail_rollback_probe=False, fail_migration=False):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / 'station'
             old_release = root / 'releases' / ('b' * 40)
@@ -157,7 +260,7 @@ class HostFlowTests(unittest.TestCase):
             bundle.mkdir()
             (bundle / 'sub2api').write_bytes(b'binary')
             (bundle / 'manifest.json').write_text(json.dumps({'source_commit': 'a' * 40, 'source_tree': 'd' * 40,
-                'previous_commit': 'b' * 40, 'base_image_id': 'base', 'update_worker': update_worker, 'binary_sha256': release.hashlib.sha256(b'binary').hexdigest()}))
+                'previous_commit': 'b' * 40, 'base_image_id': 'base', 'update_worker': update_worker, 'migration_checksums': {'265.sql': 'a'*64}, 'migration_set_sha256': 'c'*64, 'binary_sha256': release.hashlib.sha256(b'binary').hexdigest()}))
             config = {'services': {'test-station-api': {'image': 'old', 'environment': {'SERVER_PROCESS_ROLE': 'api'}, 'networks': ['test-station']},
                 'test-station-worker': {'image': 'old-worker-image', 'environment': {'SERVER_PROCESS_ROLE': 'worker'}, 'volumes': ['app:/app/data']}, 'test-station-detector': {'image': 'old'}},
                 'networks': {'test-station': {'name': 'sub2api-test-station-network'}}}
@@ -171,6 +274,8 @@ class HostFlowTests(unittest.TestCase):
                     worker_restored = "previous-worker-compose.json" in " ".join(args)
                 if args[-3:] == ["ps", "-q", "test-station-worker"]:
                     return "new-worker"
+                if 'psql' in ' '.join(args):
+                    return '' if fail_migration else '265.sql|'+'a'*64+'\n'
                 if args[:3] == ['docker', 'ps', '-q']:
                     return 'caddy' if 'label=com.docker.compose.service=test-station-caddy' in args else 'restored-worker' if 'label=com.docker.compose.service=test-station-worker' in args and worker_restored else 'new-worker' if 'label=com.docker.compose.service=test-station-worker' in args and worker_started else 'old-worker' if 'label=com.docker.compose.service=test-station-worker' in args else 'old-api'
                 if args[-3:] == ['config', '--format', 'json']:
@@ -201,6 +306,13 @@ class HostFlowTests(unittest.TestCase):
                  patch.object(release, 'inspect', side_effect=inspected), \
                  patch.object(release, 'healthy', side_effect=readiness), patch.object(release, 'reload_caddy') as reloads, \
                  patch.object(release, 'public_probes', side_effect=probes), contextlib.redirect_stdout(io.StringIO()):
+                if fail_migration:
+                    with self.assertRaises(ValueError):
+                        release.deploy(bundle)
+                    self.assertFalse(any('up' in call.args[0] or 'build' in call.args[0] for call in commands.call_args_list))
+                    self.assertEqual(json.loads((root / 'release-state.json').read_text()), previous)
+                    self.assertFalse((root / 'releases' / ('a'*40)).exists())
+                    return
                 if fail_probe or fail_worker:
                     with self.assertRaises(RuntimeError):
                         release.deploy(bundle)
@@ -236,6 +348,9 @@ class HostFlowTests(unittest.TestCase):
                         self.assertEqual(state['active_worker_container'], 'new-worker')
                 else:
                     self.assertEqual(len(starts), 1)
+
+    def test_pending_migration_refuses_before_build_or_start(self):
+        self.exercise(fail_migration=True)
 
     def test_ready_candidate_then_route_then_drain_without_restarting_jobs(self):
         self.exercise()

@@ -3,11 +3,59 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAccountMonitorProbeObservesResponsesEvents(t *testing.T) {
+	for _, tc := range []struct {
+		name, body, status string
+		wantTTFT           bool
+	}{
+		{"text", "data: {\"type\":\"response.output_text.delta\",\"delta\":\"ok\"}\n\ndata: {\"type\":\"response.completed\"}\n\n", "success", true},
+		{"completion_without_text", "data: {\"type\":\"response.completed\"}\n\n", "success", false},
+		{"empty_stream", "data: [DONE]\n\n", "failed", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			account := &Account{ID: 17, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "key"}}
+			svc := newProbeModelTestService(account, &probeModelHTTPStub{body: tc.body}, &probeRecorderStub{})
+			result, err := svc.ProbeAccountConnection(context.Background(), 17, "gpt-5", "ping", AccountTestModeDefault)
+			require.NoError(t, err)
+			require.Equal(t, tc.status, result.Status)
+			if tc.wantTTFT {
+				require.NotNil(t, result.TTFTMS)
+				require.Equal(t, "success", monitorV4CheckStatus(result))
+			} else {
+				require.Nil(t, result.TTFTMS)
+			}
+			if tc.status == "failed" {
+				require.Equal(t, "malformed_stream", result.ErrorCode)
+			} else {
+				require.Empty(t, result.ErrorCode)
+			}
+		})
+	}
+}
+
+func TestAccountMonitorProbeIgnoresSuppressedCompletion(t *testing.T) {
+	ctx, observer, cleanup := newAccountMonitorProbeContext(context.Background())
+	defer cleanup()
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/probe", nil).WithContext(ctx)
+	c.Set(accountTestSuppressCompletionContextKey, true)
+	svc := &AccountTestService{}
+	svc.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	require.True(t, observer.completedAt.IsZero())
+	c.Set(accountTestSuppressCompletionContextKey, false)
+	svc.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	require.False(t, observer.completedAt.IsZero())
+}
 
 func TestAccountMonitorProbeResultRejectsSuccessfulEmptyStream(t *testing.T) {
 	startedAt := time.Date(2026, 7, 25, 8, 0, 0, 0, time.UTC)

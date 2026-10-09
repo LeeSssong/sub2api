@@ -17,14 +17,40 @@ func TestMonitorV4CheckStatusNeverInventsTimeout(t *testing.T) {
 	fast := 80.0
 	require.Equal(t, "success", monitorV4CheckStatus(AccountMonitorProbeResult{Status: "success", TTFTMS: &fast}))
 }
-func TestMonitorV4CheckAdmissionBoundsConcurrencyAndCooldown(t *testing.T) {
+func TestMonitorV4CheckAdmissionAllowsImmediateSequentialChecks(t *testing.T) {
 	s := &MonitorV4Service{}
-	now := time.Now()
-	require.NoError(t, s.beginCheck(1, now))
-	require.Error(t, s.beginCheck(1, now))
+	require.NoError(t, s.beginCheck(1))
+	require.Error(t, s.beginCheck(1))
 	s.finishCheck(1)
-	require.Error(t, s.beginCheck(1, now.Add(time.Second)))
-	require.NoError(t, s.beginCheck(1, now.Add(time.Minute)))
+	require.NoError(t, s.beginCheck(1))
+	s.finishCheck(1)
+	require.NoError(t, s.beginCheck(1))
+}
+
+func TestMonitorV4CheckAdmissionKeepsConcurrencyBound(t *testing.T) {
+	s := &MonitorV4Service{}
+	for id := int64(1); id <= 4; id++ {
+		require.NoError(t, s.beginCheck(id))
+	}
+	require.Error(t, s.beginCheck(5))
+	s.finishCheck(1)
+	require.NoError(t, s.beginCheck(5))
+	require.Error(t, s.beginCheck(5))
+	for id := int64(2); id <= 5; id++ {
+		s.finishCheck(id)
+	}
+	require.Zero(t, s.checkCount)
+}
+
+func TestMonitorV4CheckAllowsImmediateRepeatedServiceCalls(t *testing.T) {
+	native := &checkNativeStub{}
+	s := NewMonitorV4Service(nil, checkAvailableStub{active: []Group{{ID: 7, Status: StatusActive}}}, native, nil, nil)
+	for i := 0; i < 30; i++ {
+		result, err := s.Check(context.Background(), 42, []int64{7})
+		require.NoError(t, err, "sequential request %d must not hit an obsolete cooldown", i+1)
+		require.Equal(t, "success", result[0].Status)
+	}
+	require.Len(t, native.calls, 30)
 }
 
 type checkAvailableStub struct{ active, linked []Group }

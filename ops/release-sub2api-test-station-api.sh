@@ -10,7 +10,7 @@ commit=$(git rev-parse HEAD)
 tree=$(git rev-parse 'HEAD^{tree}')
 [[ "$commit" == $(git rev-parse origin/main) && "$tree" == $(git rev-parse 'origin/main^{tree}') ]] || fail 'main must match pushed origin/main'
 : "${TEST_STATION_APPROVED_HOST:?explicitly approved test-station host required}"
-[[ "$TEST_STATION_APPROVED_HOST" == 43.133.75.82 || "$TEST_STATION_APPROVED_HOST" == 49.51.203.200 ]] || fail 'invalid test-station host'
+[[ "$TEST_STATION_APPROVED_HOST" == 43.133.75.82 ]] || fail 'invalid test-station host'
 ssh_opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -o ServerAliveInterval=10 -o ServerAliveCountMax=18)
 config=$(ssh -G "${ssh_opts[@]}" sub2api-test-station 2>/dev/null)
 grep -Fqx "hostname $TEST_STATION_APPROVED_HOST" <<<"$config" || fail 'SSH alias differs from approved host'
@@ -25,13 +25,100 @@ update_worker=${TEST_STATION_UPDATE_WORKER:-false}
 # Monitor service changes require the same new binary in API and singleton worker.
 # Native group catalogue handlers and their read-only tool mapping can update API only.
 # The reviewed user popularity projection reuses native read-only aggregates, API only.
-# Runtime dependency, migration and other backend changes remain excluded.
+# The reviewed manual check admission only affects API handlers; worker work is unchanged.
+# Route SLA timeline and admin raw counts are read-only API queries, not worker jobs.
+# Runtime dependencies and unreviewed backend changes remain excluded.
+# The exact production integration files require the serialized worker update.
+# Embedded migrations must already be applied with identical checksums on the host.
+# Homepage files are deployed independently and are not inputs to the API binary.
+# The embedded brand icon handler only reads existing public settings.
 while IFS= read -r path; do
   case "$path" in
+    # Reviewed removal of request quality snapshots; API and worker must agree.
+    upstream/sub2api/backend/ent/migrate/schema.go|\
+    upstream/sub2api/backend/ent/mutation.go|\
+    upstream/sub2api/backend/ent/schema/usage_log.go|\
+    upstream/sub2api/backend/ent/usagelog.go|\
+    upstream/sub2api/backend/ent/usagelog/usagelog.go|\
+    upstream/sub2api/backend/ent/usagelog/where.go|\
+    upstream/sub2api/backend/ent/usagelog_create.go|\
+    upstream/sub2api/backend/ent/usagelog_update.go|\
+    upstream/sub2api/backend/internal/handler/gateway_web_search.go|\
+    upstream/sub2api/backend/internal/handler/grok_audio.go|\
+    upstream/sub2api/backend/internal/handler/openai_gateway_handler.go|\
+    upstream/sub2api/backend/internal/repository/account_quality.go|\
+    upstream/sub2api/backend/internal/repository/monitor_v4_quality_traffic.go|\
+    upstream/sub2api/backend/internal/repository/quality_traffic.go|\
+    upstream/sub2api/backend/internal/repository/quality_traffic_postgres_test.go|\
+    upstream/sub2api/backend/internal/repository/usage_log_snapshot_removal_postgres_test.go|\
+    upstream/sub2api/backend/internal/repository/usage_log_repo_insert.go|\
+    upstream/sub2api/backend/internal/repository/usage_log_repo_insert_shape_unit_test.go|\
+    upstream/sub2api/backend/internal/repository/usage_log_repo_request_type_test.go|\
+    upstream/sub2api/backend/internal/repository/usage_log_session_id_unit_test.go|\
+    upstream/sub2api/backend/internal/service/antigravity_gateway_claude.go|\
+    upstream/sub2api/backend/internal/service/antigravity_gateway_compat.go|\
+    upstream/sub2api/backend/internal/service/antigravity_gateway_gemini.go|\
+    upstream/sub2api/backend/internal/service/antigravity_gateway_upstream.go|\
+    upstream/sub2api/backend/internal/service/gateway_forward.go|\
+    upstream/sub2api/backend/internal/service/gateway_forward_as_chat_completions.go|\
+    upstream/sub2api/backend/internal/service/gateway_forward_as_responses.go|\
+    upstream/sub2api/backend/internal/service/gateway_service.go|\
+    upstream/sub2api/backend/internal/service/gateway_systemone.go|\
+    upstream/sub2api/backend/internal/service/gateway_usage_billing.go|\
+    upstream/sub2api/backend/internal/service/gemini_chat_completions_compat_service.go|\
+    upstream/sub2api/backend/internal/service/gemini_messages_compat_service.go|\
+    upstream/sub2api/backend/internal/service/grok_audio.go|\
+    upstream/sub2api/backend/internal/service/grok_media.go|\
+    upstream/sub2api/backend/internal/service/openai_alpha_search.go|\
+    upstream/sub2api/backend/internal/service/openai_embeddings.go|\
+    upstream/sub2api/backend/internal/service/openai_gateway_chat_completions.go|\
+    upstream/sub2api/backend/internal/service/openai_gateway_forward.go|\
+    upstream/sub2api/backend/internal/service/openai_gateway_messages.go|\
+    upstream/sub2api/backend/internal/service/openai_gateway_service.go|\
+    upstream/sub2api/backend/internal/service/openai_gateway_usage.go|\
+    upstream/sub2api/backend/internal/service/openai_images.go|\
+    upstream/sub2api/backend/internal/service/openai_live.go|\
+    upstream/sub2api/backend/internal/service/openai_ws_forwarder_ingress.go|\
+    upstream/sub2api/backend/internal/service/openai_ws_forwarder_v2.go|\
+    upstream/sub2api/backend/internal/service/openai_ws_http_bridge.go|\
+    upstream/sub2api/backend/internal/service/openai_ws_v2_passthrough_adapter.go|\
+    upstream/sub2api/backend/internal/service/pelican_scheduled.go|\
+    upstream/sub2api/backend/internal/service/quality_traffic.go|\
+    upstream/sub2api/backend/internal/service/quality_traffic_test.go|\
+    upstream/sub2api/backend/internal/service/scheduled_test_port.go|\
+    upstream/sub2api/backend/internal/service/seedance.go|\
+    upstream/sub2api/backend/internal/service/usage_log.go)
+      [[ "$update_worker" == true ]] || fail 'snapshot removal requires a worker update' ;;
+    upstream/sub2api/backend/migrations/266_quality_traffic_snapshots.sql)
+      [[ "$update_worker" == true && ! -e "$root/$path" &&
+         "$(git diff --diff-filter=D --name-only "$previous" HEAD -- "$path")" == "$path" ]] \
+        || fail 'only deletion of snapshot migration with worker update is supported' ;;
     upstream/sub2api/frontend/src/*|upstream/sub2api/frontend/DESIGN.md|docs/*|ops/*|tests/*|artifacts/*) ;;
+    homepage/*|infra/independent-test-station/Dockerfile.homepage|\
+    upstream/sub2api/backend/internal/web/embed_on.go|\
+    upstream/sub2api/backend/internal/web/embed_test.go|\
+    upstream/sub2api/backend/internal/web/favicon.go|\
+    upstream/sub2api/backend/internal/web/favicon_test.go) ;;
     upstream/sub2api/backend/internal/handler/usage_handler.go|\
     upstream/sub2api/backend/internal/handler/usage_model_popularity.go|\
     upstream/sub2api/backend/internal/handler/usage_model_popularity_test.go|\
+    upstream/sub2api/backend/internal/middleware/line_check_rate_limiter.go|\
+    upstream/sub2api/backend/internal/server/middleware/line_check_rate_limit.go|\
+    upstream/sub2api/backend/internal/server/middleware/panel_rate_limit.go|\
+    upstream/sub2api/backend/internal/server/routes/monitor_v4_check_rate_limit_test.go|\
+    upstream/sub2api/backend/internal/service/monitor_v4.go|\
+    upstream/sub2api/backend/internal/service/monitor_v4_check.go|\
+    upstream/sub2api/backend/internal/service/monitor_v4_check_test.go|\
+    upstream/sub2api/backend/internal/service/monitor_v4_timeline.go|\
+    upstream/sub2api/backend/internal/service/monitor_v4_timeline_test.go|\
+    upstream/sub2api/backend/internal/handler/monitor_v4_handler_test.go|\
+    upstream/sub2api/backend/internal/repository/monitor_v4_timeline.go|\
+    upstream/sub2api/backend/internal/repository/monitor_v4_timeline_test.go|\
+    upstream/sub2api/backend/internal/repository/route_cache_timeline_postgres_test.go|\
+    upstream/sub2api/backend/internal/repository/ops_repo_dashboard.go|\
+    upstream/sub2api/backend/internal/repository/ops_sla_sql.go|\
+    upstream/sub2api/backend/internal/repository/route_sla_timeline_postgres_test.go|\
+    upstream/sub2api/backend/scripts/verify_prototype_monitor_postgres.py|\
     upstream/sub2api/backend/internal/server/routes/user.go|\
     upstream/sub2api/backend/internal/handler/api_key_handler.go|\
     upstream/sub2api/backend/internal/handler/gateway_handler.go|\
@@ -45,8 +132,29 @@ while IFS= read -r path; do
     upstream/sub2api/backend/internal/service/model_plaza_service_test.go|\
     upstream/sub2api/backend/internal/service/group_tool_mapping.go|\
     upstream/sub2api/backend/internal/service/api_key_group_tool_mapping_test.go) ;;
+    upstream/sub2api/backend/internal/service/account_test_service.go|\
+    upstream/sub2api/backend/internal/service/account_test_service_openai_test.go|\
+    upstream/sub2api/backend/internal/service/account_monitor_probe_test.go|\
+    upstream/sub2api/backend/internal/service/account_probe_cost_test.go|\
     upstream/sub2api/backend/internal/service/monitor_v4*.go)
       [[ "$update_worker" == true ]] || fail 'monitor backend changes require a worker update' ;;
+    upstream/sub2api/Dockerfile|\
+    upstream/sub2api/backend/internal/repository/account_quality_models.go|\
+    upstream/sub2api/backend/internal/repository/account_quality_models_test.go|\
+    upstream/sub2api/backend/internal/repository/intelligence_rules.go|\
+    upstream/sub2api/backend/internal/repository/intelligence_rules_integration_test.go|\
+    upstream/sub2api/backend/internal/repository/migrations_runner.go|\
+    upstream/sub2api/backend/internal/repository/migrations_test_main_online_test.go|\
+    upstream/sub2api/backend/internal/repository/pelican_group_tests_repo.go|\
+    upstream/sub2api/backend/internal/service/model_rate_limit.go|\
+    upstream/sub2api/backend/internal/service/pelican_scheduled.go|\
+    upstream/sub2api/backend/internal/service/quality_supported_models.go|\
+    upstream/sub2api/backend/internal/service/quality_supported_models_test.go|\
+    upstream/sub2api/backend/migrations/265_monitor_v4_legacy_default.sql|\
+    upstream/sub2api/backend/migrations/241_remove_monitor_v4_operational_flag.sql|\
+    upstream/sub2api/backend/migrations/deferred/241_remove_monitor_v4_operational_flag.sql|\
+    upstream/sub2api/backend/migrations/deferred/README.md)
+      [[ "$update_worker" == true ]] || fail 'production integration requires a worker update' ;;
     *) fail "release excludes unsupported runtime changes: $path" ;;
   esac
 done < <(git diff --name-only "$previous" HEAD)
@@ -87,6 +195,12 @@ root=pathlib.Path(sys.argv[1]); previous=json.loads((root/'previous-state.json')
 manifest={'source_commit':sys.argv[2],'source_tree':sys.argv[3], 'previous_commit':previous['source_commit'],
           'base_image_id':previous['image_id'],'binary_sha256':hashlib.sha256((root/'sub2api').read_bytes()).hexdigest(),
           'binary_source_commit':sys.argv[4], 'binary_source_tree':sys.argv[5], 'update_worker':sys.argv[6]=='true'}
+migrations=root.parents[1]/'upstream/sub2api/backend/migrations'
+manifest['migration_checksums']={p.name:hashlib.sha256(p.read_text().strip().encode()).hexdigest() for p in sorted(migrations.glob('*.sql')) if p.read_text().strip()}
+digest=hashlib.sha256()
+for name, checksum in sorted(manifest['migration_checksums'].items()):
+    digest.update((name+'\0'+checksum+'\n').encode())
+manifest['migration_set_sha256']=digest.hexdigest()
 (root/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 PY
 [[ -z $(git status --porcelain) && "$commit" == $(git rev-parse HEAD) ]] || fail 'source changed during build'

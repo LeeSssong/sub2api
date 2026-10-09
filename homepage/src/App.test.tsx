@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -25,6 +25,28 @@ const validReport: ThirdPartyReport = {
 }
 
 describe('App', () => {
+  it('uses the configured brand logo throughout the homepage and falls back on image failure', () => {
+    const { container, rerender } = render(<App
+      config={{ ...DEFAULT_SITE_CONFIG, siteLogo: '/uploads/new-logo.png' }}
+      session={guest}
+      {...themeProps}
+    />)
+    const logos = container.querySelectorAll('.brand-link img, .gateway-chip img, .gateway-node img')
+    expect(logos).toHaveLength(3)
+    for (const logo of logos) {
+      expect(logo).toHaveAttribute('src', '/uploads/new-logo.png')
+      fireEvent.error(logo)
+      expect(logo).toHaveAttribute('src', '/home-assets/xingqiao-logo-256-v1.webp')
+    }
+
+    rerender(<App
+      config={{ ...DEFAULT_SITE_CONFIG, siteLogo: '/uploads/newer-logo.svg' }}
+      session={guest}
+      {...themeProps}
+    />)
+    for (const logo of logos) expect(logo).toHaveAttribute('src', '/uploads/newer-logo.svg')
+  })
+
   it('defines complete semantic light and dark theme contracts', () => {
     const styles = readFileSync(resolve(process.cwd(), 'src/styles.css'), 'utf8')
 

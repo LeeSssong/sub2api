@@ -13,6 +13,14 @@ describe('updateFavicon', () => {
     expect(link?.href).toBe('https://example.com/custom-logo.png')
   })
 
+  it('re-registers an injected icon even when its URL already matches', () => {
+    document.head.innerHTML = '<link rel="icon" href="/branding/favicon/02039e14">'
+    const previous = document.querySelector('link[rel="icon"]')
+    updateFavicon('data:image/png;base64,AA==')
+    expect(previous?.isConnected).toBe(false)
+    expect(document.querySelector('link[rel="icon"]')?.getAttribute('href')).toBe('/branding/favicon/02039e14')
+  })
+
   it.each([
     ['https://example.com/logo.png?v=2', 'image/png'],
     ['/uploads/logo.jpeg', 'image/jpeg'],
@@ -28,6 +36,14 @@ describe('updateFavicon', () => {
     updateFavicon('/uploads/custom.png')
     updateFavicon('')
     expect(document.querySelector('link[rel="icon"]')?.getAttribute('href')).toBe(DEFAULT_SITE_LOGO)
+  })
+
+  it('serves uploaded favicons through versioned HTTP URLs for Safari', () => {
+    updateFavicon('data:image/png;base64,AA==')
+    const first = document.querySelector('link[rel="icon"]')?.getAttribute('href')
+    expect(first).toBe('/branding/favicon/02039e14')
+    updateFavicon('data:image/png;base64,AQ==')
+    expect(document.querySelector('link[rel="icon"]')?.getAttribute('href')).not.toBe(first)
   })
 
   it('removes competing icons and lets the browser detect unknown MIME types', () => {

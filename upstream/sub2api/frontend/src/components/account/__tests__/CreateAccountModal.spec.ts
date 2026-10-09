@@ -246,6 +246,20 @@ function expectWSAcceleration(extra: unknown, enabled: boolean) {
 }
 
 describe('CreateAccountModal OpenAI long-context billing', () => {
+  it('creates an account with manual Fast capability and mapped model scope', async () => {
+    createAccountMock.mockReset().mockResolvedValue({ id: 42, platform: 'openai', type: 'apikey' })
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'OpenAI')
+    await selectButtonByText(wrapper, 'API Key')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('Fast upstream')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+    await wrapper.get('[data-testid="openai-fast-supported"]').trigger('click')
+    await wrapper.get('[data-testid="openai-fast-models"]').setValue('gpt-5.5, gpt-6-astra')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra).toMatchObject({ openai_fast_supported: true, openai_fast_models: ['gpt-5.5', 'gpt-6-astra'] })
+  })
+
   it('offers WS SSE acceleration for OpenAI OAuth even while WS mode is off', async () => {
     const wrapper = mountModal()
     expect(wrapper.find('[data-testid="create-openai-ws-sse-acceleration"]').exists()).toBe(false)

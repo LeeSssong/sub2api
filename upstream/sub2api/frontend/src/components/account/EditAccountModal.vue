@@ -2532,6 +2532,13 @@
         />
       </div>
 
+      <OpenAIFastCapabilityFields
+        v-if="account?.platform === 'openai'"
+        id="editaccountmodal-fast"
+        v-model:supported="openAIFastSupported"
+        v-model:models="openAIFastModels"
+      />
+
       <!-- OpenAI API 长上下文计费开关 -->
       <div
         v-if="account?.platform === 'openai' && !isSparkShadow && !hideAccountLongContextBilling && (account?.type === 'oauth' || account?.type === 'setup-token' || account?.type === 'apikey')"
@@ -3341,6 +3348,8 @@
 </template>
 
 <script setup lang="ts">
+import OpenAIFastCapabilityFields from './OpenAIFastCapabilityFields.vue'
+import { readFastModels, writeFastCapability } from './accountFast'
 import { DEFAULT_ACCOUNT_COST_MULTIPLIER, isValidAccountCostMultiplier, readAccountCostMultiplier } from '@/utils/accountCost'
 
 import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
@@ -4026,6 +4035,8 @@ const copilotSDKEnabled = ref(false)
 const openaiPassthroughEnabled = ref(false)
 // OpenAI Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
 const openaiFlattenNamespacesEnabled = ref(false)
+const openAIFastSupported = ref(false)
+const openAIFastModels = ref('')
 const openAILongContextBillingEnabled = ref(false)
 // OpenAI 订阅档位（Plus / Pro 20x / Pro 5x / Business Standard / Business Premium / Free）手动覆盖值,
 // 存于 credentials.plan_type;'' 表示清空/自动识别
@@ -4510,6 +4521,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   mixedScheduling.value = false
   allowOverages.value = false
 	const extra = newAccount.extra as Record<string, unknown> | undefined
+  openAIFastSupported.value = newAccount.platform === 'openai' && extra?.openai_fast_supported === true
+  openAIFastModels.value = readFastModels(extra)
 	mixedScheduling.value = extra?.mixed_scheduling === true
 	allowOverages.value = extra?.allow_overages === true
 	upstreamRequestIdHeader.value = readUpstreamRequestIdHeader(extra)
@@ -6226,6 +6239,7 @@ const handleSubmit = async () => {
       } else {
         delete newExtra.openai_copilot_sdk
       }
+      writeFastCapability(newExtra, openAIFastSupported.value, openAIFastModels.value)
       if (openaiPassthroughEnabled.value) {
         newExtra.openai_passthrough = true
       } else {

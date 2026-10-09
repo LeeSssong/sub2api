@@ -2,14 +2,16 @@ import { Menu, Moon, Sun, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { SessionState } from '../domain/session'
 import type { Theme } from '../domain/themeSchedule'
+import { BrandLogo } from './BrandLogo'
 
 interface HeaderProps {
+  siteLogo?: string
   session: SessionState
   theme: Theme
   onToggleTheme: () => void
 }
 
-export function Header({ session, theme, onToggleTheme }: HeaderProps) {
+export function Header({ siteLogo, session, theme, onToggleTheme }: HeaderProps) {
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const dashboardHref = session.kind === 'admin' ? '/admin/dashboard' : '/dashboard'
@@ -36,7 +38,7 @@ export function Header({ session, theme, onToggleTheme }: HeaderProps) {
     >
       <nav className="nav-shell" aria-label="主导航">
         <a className="brand-link" href="/" aria-label="星桥首页">
-          <img src="/home-assets/xingqiao-logo-256-v1.webp" alt="" width="34" height="34" />
+          <BrandLogo src={siteLogo} width={34} height={34} />
           <span>星桥</span>
         </a>
         <div className="desktop-nav">

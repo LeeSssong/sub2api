@@ -3248,6 +3248,13 @@
         </div>
       </div>
 
+      <OpenAIFastCapabilityFields
+        v-if="form.platform === 'openai'"
+        id="createaccountmodal-fast"
+        v-model:supported="openAIFastSupported"
+        v-model:models="openAIFastModels"
+      />
+
       <!-- OpenAI API 长上下文计费开关 -->
       <div
         v-if="form.platform === 'openai' && !hideAccountLongContextBilling && (accountCategory === 'oauth-based' || accountCategory === 'apikey')"
@@ -3948,6 +3955,8 @@
 </template>
 
 <script setup lang="ts">
+import OpenAIFastCapabilityFields from './OpenAIFastCapabilityFields.vue'
+import { writeFastCapability } from './accountFast'
 import { DEFAULT_ACCOUNT_COST_MULTIPLIER, isValidAccountCostMultiplier } from '@/utils/accountCost'
 
 import OpenAITwoFAImport from './OpenAITwoFAImport.vue'
@@ -4542,6 +4551,8 @@ const copilotSDKEnabled = ref(false)
 const openaiPassthroughEnabled = ref(false)
 // OpenAI Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
 const openaiFlattenNamespacesEnabled = ref(false)
+const openAIFastSupported = ref(false)
+const openAIFastModels = ref('')
 const openAILongContextBillingEnabled = ref(false)
 const openAILongContextBillingTouched = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
@@ -5516,6 +5527,8 @@ const resetForm = () => {
   copilotSDKEnabled.value = false
   openaiPassthroughEnabled.value = false
   openaiFlattenNamespacesEnabled.value = false
+  openAIFastSupported.value = false
+  openAIFastModels.value = ''
   openAILongContextBillingEnabled.value = false
   openAILongContextBillingTouched.value = false
   openAICompactMode.value = 'auto'
@@ -5588,6 +5601,7 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
   }
 
   const extra: Record<string, unknown> = { ...(base || {}) }
+  writeFastCapability(extra, openAIFastSupported.value, openAIFastModels.value)
   if (isOpenAIBPSOAuth.value) {
     extra.openai_excel_bps = true
     extra.openai_excel_bps_models = [...new Set(bpsOAuthModels.value.map(m => m.trim()).filter(Boolean))]

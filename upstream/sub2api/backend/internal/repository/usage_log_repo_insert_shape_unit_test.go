@@ -39,6 +39,8 @@ func newSQLCapturingMock(t *testing.T, captured *[]string) (*sql.DB, sqlmock.Sql
 // 都等于 usageLogInsertArgTypes，且占位符恰为 $1..$N 各出现一次。
 func requireStaticInsertMatchesArgTypes(t *testing.T, query string) {
 	t.Helper()
+	require.NotContains(t, query, "quality_request_started_at", "usage writes must work without snapshot columns")
+	require.NotContains(t, query, "quality_status", "usage writes must work without snapshot columns")
 	m := usageLogStaticInsertShapeRe.FindStringSubmatch(query)
 	require.Len(t, m, 3, "unrecognised INSERT shape:\n%s", query)
 
@@ -129,7 +131,7 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 	})
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 
-	idx := len(prepared.args) - 4
+	idx := 4
 	arg, ok := prepared.args[idx].(sql.NullString)
 	require.True(t, ok, "upstream_request_id arg should be sql.NullString, got %T", prepared.args[idx])
 	require.True(t, arg.Valid)

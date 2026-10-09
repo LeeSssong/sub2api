@@ -1,6 +1,7 @@
 import { AppWindow, Bot, CircleGauge, Route, Send, Sparkles } from 'lucide-react'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useReducedMotionPreference } from '../hooks/useReducedMotion'
+import { BrandLogo } from '../components/BrandLogo'
 
 type Phase = 'send' | 'route' | 'observe'
 
@@ -18,7 +19,7 @@ export function phaseForCycleProgress(progress: number): Phase {
   return progress < .3 ? 'send' : progress < .55 ? 'route' : 'observe'
 }
 
-export function RequestJourney() {
+export function RequestJourney({ siteLogo }: { siteLogo?: string }) {
   const root = useRef<HTMLElement>(null)
   const reduced = useReducedMotionPreference()
   const [phase, setPhase] = useState<Phase>('send')
@@ -105,7 +106,7 @@ export function RequestJourney() {
           <div className="request-map" aria-label="应用经星桥连接模型通道">
             <div className="map-node app-node"><AppWindow aria-hidden="true" /><span>你的应用</span></div>
             <div className="map-track map-track--out" data-flow-direction="forward" style={trackStyle(outgoingProgress)} aria-hidden="true"><i /></div>
-            <div className="map-node gateway-node"><img src="/home-assets/xingqiao-logo-256-v1.webp" alt="" /><span>星桥</span><i /></div>
+            <div className="map-node gateway-node"><BrandLogo src={siteLogo} /><span>星桥</span><i /></div>
             <div className="map-track map-track--route" data-flow-direction="forward" data-telemetry-source="route" style={trackStyle(routedProgress)} aria-hidden="true"><i /></div>
             <div className="provider-stack">
               <span><Bot aria-hidden="true" />OpenAI</span>

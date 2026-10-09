@@ -924,7 +924,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// 生图意图只影响能力路由与图片计费，不关门：混合 /v1/responses 请求的
 	// token 计费部分仍受利润门保护，独立图片/视频端点才在门外。
 	pricingCtx, pricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
-	c.Request = c.Request.WithContext(pricingCtx)
+	c.Request = c.Request.WithContext(h.gatewayService.WithOpenAIFastRoutingContext(pricingCtx, body))
 
 	for {
 		// Streaming Forward intentionally detaches the upstream request so usage can
@@ -952,6 +952,11 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		if err != nil {
 			if failoverClientGone(c) {
 				reqLog.Info("openai.account_select_aborted_client_disconnected", zap.Error(err))
+				return
+			}
+			if errors.Is(err, service.ErrOpenAIFastUnavailable) || errors.Is(err, service.ErrOpenAIFastContinuation) {
+				cls := classifySelectionFailureError(err, noAccountErrorClassification{})
+				h.handleStreamingAwareError(c, cls.Status, cls.ErrType, cls.Message, streamStarted)
 				return
 			}
 			err = rpmAdmission.selectionError(err)
@@ -1590,7 +1595,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 
 	// 分组利润控制：Messages 文本入口同样请求级装门并固定 pricingAt。
 	msgPricingCtx, pricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
-	c.Request = c.Request.WithContext(msgPricingCtx)
+	c.Request = c.Request.WithContext(h.gatewayService.WithOpenAIFastRoutingContext(msgPricingCtx, body))
 
 	for {
 		if failoverClientGone(c) {
@@ -1618,6 +1623,11 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		if err != nil {
 			if failoverClientGone(c) {
 				reqLog.Info("openai_messages.account_select_aborted_client_disconnected", zap.Error(err))
+				return
+			}
+			if errors.Is(err, service.ErrOpenAIFastUnavailable) || errors.Is(err, service.ErrOpenAIFastContinuation) {
+				cls := classifySelectionFailureError(err, noAccountErrorClassification{})
+				h.anthropicStreamingAwareError(c, cls.Status, cls.ErrType, cls.Message, streamStarted)
 				return
 			}
 			err = rpmAdmission.selectionError(err)
@@ -3045,7 +3055,8 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	// 继续按建连时刻的谷价计费。生图意图只影响能力路由与图片计费，不关门。
 	// 建连时刻只用于选号/准入，不作为任何 turn 的计费定价时刻。
 	wsPricingCtx, _ := h.gatewayService.WithOpenAIRequestPricingContext(ctx, apiKey.GroupID)
-	ctx = wsPricingCtx
+	ctx = h.gatewayService.WithOpenAIFastRoutingContext(wsPricingCtx, firstMessage)
+	c.Request = c.Request.WithContext(ctx)
 
 	for {
 		if !service.OpenAIWSIngressCanFailover(ctx, c) {
@@ -3067,6 +3078,10 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			requestPlatform,
 		)
 		if err != nil {
+			if errors.Is(err, service.ErrOpenAIFastUnavailable) || errors.Is(err, service.ErrOpenAIFastContinuation) {
+				closeOpenAIClientWS(wsConn, coderws.StatusTryAgainLater, err.Error())
+				return
+			}
 			err = rpmAdmission.selectionError(err)
 			if errors.Is(err, service.ErrOpenAIRPMExhausted) {
 				closeOpenAIClientWS(wsConn, coderws.StatusTryAgainLater, "All eligible OpenAI OAuth accounts are at their per-minute request limit; retry after the current minute resets")

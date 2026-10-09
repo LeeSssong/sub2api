@@ -8,35 +8,25 @@ const points = [95, 80, 50, null].map((rate, i) => ({
   cache_hit_rate: i === 1 || rate === null ? null : 0.75, ttft_p50_ms: rate === null ? null : 1250,
 }))
 describe('RouteHistoryStrip metric chart', () => {
-  it('does not fabricate round counts when an older API has no quality fields', async () => {
-    const w = mount(RouteHistoryStrip, { props: { points, loading: false, error: false } })
+  it.each([
+    {},
+    { usage_request_count: 100, quality_snapshot_request_count: 100, degraded_request_count: 5 },
+    { usage_request_count: 0, quality_snapshot_request_count: 0, degraded_request_count: 0 },
+    { usage_request_count: 100, quality_snapshot_request_count: 80, degraded_request_count: 5 },
+  ])('keeps removed quality metrics out of every chart surface: %j', async counters => {
+    const w = mount(RouteHistoryStrip, { props: { points: points.map(p => ({ ...p, ...counters })), loading: false, error: false } })
+    expect(w.findAll('.chart-legend button').map(button => button.text())).toEqual(['请求成功率', '首字 P50', '缓存命中率'])
+    expect(w.findAll('[data-series]').map(line => line.attributes('data-series'))).toEqual(['success', 'ttft', 'cache'])
     await w.get('[data-point="0"]').trigger('click')
-    expect(w.get('.tooltip-row.degradation b').text()).toBe('0%')
-    expect(w.get('.tooltip-row.degradation small').text()).toBe('')
-    expect(w.get('.chart-tooltip').text()).toContain('无有效评分，按 0% 展示')
-  })
-  it('shows suspected degradation once per graded round and connects no-sample points at zero', async () => {
-    const samples = points.map((p,i) => ({...p, graded_round_count: i===1 ? 0 : 4, suspected_degraded_round_count: i===0 ? 1 : 0}))
-    const w = mount(RouteHistoryStrip, {props:{points:samples,loading:false,error:false}})
-    expect(w.get('.chart-legend button.degradation').text()).toContain('疑似降智率')
-    expect(w.get('[data-series="degradation"]').attributes('d')?.match(/M/g)).toHaveLength(1)
-    expect(w.get('[data-series="degradation"]').attributes('d')?.match(/L/g)).toHaveLength(3)
-    expect(w.findAll('g.degradation circle')).toHaveLength(4)
-    await w.get('[data-point="0"]').trigger('click')
-    expect(w.get('.tooltip-row.degradation b').text()).toBe('25%')
-    expect(w.get('.tooltip-row.degradation small').text()).toBe('（1／4 轮）')
-    expect(w.get('.chart-tooltip').text()).not.toContain('无有效评分')
-    await w.get('[data-point="1"]').trigger('click')
-    expect(w.get('.tooltip-row.degradation b').text()).toBe('0%')
-    expect(w.get('.tooltip-row.degradation small').text()).toBe('（0／0 轮）')
-    expect(w.get('.chart-tooltip').text()).toContain('无有效评分，按 0% 展示')
-    expect(w.get('[data-point="1"]').attributes('aria-label')).toContain('疑似降智率 0%（无有效评分，按 0% 展示）')
-    await w.get('.chart-legend button.degradation').trigger('click')
-    expect(w.find('[data-series="degradation"]').exists()).toBe(false)
+    expect(w.findAll('.tooltip-row span').map(label => label.text())).toEqual(['请求成功率', '首字 P50', '缓存命中率'])
+    expect(w.get('.tooltip-row.success b').text()).toBe('95%')
+    expect(w.get('.tooltip-row.success small').text()).toBe('（95／100）')
+    expect(w.get('.chart-tooltip').text()).not.toMatch(/降智|无用量请求|缺少请求时/)
+    expect(w.get('[data-point="0"]').attributes('aria-label')).not.toContain('降智')
   })
   it('renders three separately scaled series and renders missing samples at zero with an explicit hint', () => {
     const w = mount(RouteHistoryStrip, { props: { points, loading: false, error: false } })
-    expect(w.findAll('[data-series]')).toHaveLength(4)
+    expect(w.findAll('[data-series]')).toHaveLength(3)
     expect(w.get('[data-series="cache"]').attributes('d')?.match(/M/g)).toHaveLength(1)
     expect(w.get('[data-series="success"]').attributes('d')?.match(/L/g)).toHaveLength(3)
     expect(w.text()).toContain('100%')
@@ -59,7 +49,7 @@ describe('RouteHistoryStrip metric chart', () => {
   it('toggles curves and shows a transient tooltip for hover, touch and keyboard',async()=>{
     const w=mount(RouteHistoryStrip,{props:{points,loading:false,error:false}})
     expect(w.find('.chart-tooltip').exists()).toBe(false)
-    expect(w.findAll('.legend-check')).toHaveLength(4)
+    expect(w.findAll('.legend-check')).toHaveLength(3)
     await w.get('.chart-legend button.cache .legend-check').trigger('click')
     expect(w.find('[data-series="cache"]').exists()).toBe(false)
     expect(w.get('.chart-legend button.cache').attributes('aria-pressed')).toBe('false')
@@ -68,7 +58,7 @@ describe('RouteHistoryStrip metric chart', () => {
     await w.get('.chart-plot').trigger('mouseleave');expect(w.find('.chart-tooltip').exists()).toBe(false)
     await w.get('[data-point="1"]').trigger('click');expect(w.get('.tooltip-row.cache b').text()).toBe('0%');expect(w.get('.tooltip-note').text()).toContain('无样本')
     await w.get('.chart-plot').trigger('keydown',{key:'Escape'});expect(w.find('.chart-tooltip').exists()).toBe(false)
-    await w.get('.chart-legend button.cache').trigger('click');expect(w.findAll('[data-series]')).toHaveLength(4)
+    await w.get('.chart-legend button.cache').trigger('click');expect(w.findAll('[data-series]')).toHaveLength(3)
   })
   it('keeps loading and failure distinct from no requests', () => {
     const w = mount(RouteHistoryStrip, { props: { points: [], loading: true, error: false } })

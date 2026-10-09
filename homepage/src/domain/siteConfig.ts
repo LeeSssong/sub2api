@@ -1,3 +1,5 @@
+import { DEFAULT_SITE_LOGO, resolveSiteLogo } from './branding'
+
 export type ReportStatus = 'verified' | 'reference' | 'archived'
 
 export interface ThirdPartyReport {
@@ -12,6 +14,7 @@ export interface ThirdPartyReport {
 export interface SiteConfig {
   version: 1
   apiOrigin: string
+  siteLogo: string
   support: { qqGroup: string }
   thirdPartyReports: ThirdPartyReport[]
 }
@@ -19,6 +22,7 @@ export interface SiteConfig {
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
   version: 1,
   apiOrigin: '',
+  siteLogo: DEFAULT_SITE_LOGO,
   support: { qqGroup: '1080152144' },
   thirdPartyReports: [],
 }
@@ -80,7 +84,7 @@ function fallback(origin: string): SiteConfig {
   }
 }
 
-export async function loadSiteConfig(fetcher: Fetcher, origin: string): Promise<SiteConfig> {
+async function loadStaticConfig(fetcher: Fetcher, origin: string): Promise<SiteConfig> {
   const safeFallback = fallback(origin)
 
   try {
@@ -107,10 +111,39 @@ export async function loadSiteConfig(fetcher: Fetcher, origin: string): Promise<
     return {
       version: 1,
       apiOrigin: resolveApiOrigin(source.apiOrigin, origin),
+      siteLogo: DEFAULT_SITE_LOGO,
       support: { qqGroup: /^\d{10}$/.test(qqGroup) ? qqGroup : DEFAULT_SITE_CONFIG.support.qqGroup },
       thirdPartyReports: reports,
     }
   } catch {
     return safeFallback
   }
+}
+
+async function loadPublicLogo(fetcher: Fetcher, origin: string): Promise<string> {
+  try {
+    const response = await fetcher(new URL('/api/v1/settings/public', origin), {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    })
+    if (!response.ok) return DEFAULT_SITE_LOGO
+    const value: unknown = await response.json()
+    if (!value || typeof value !== 'object') return DEFAULT_SITE_LOGO
+    const source = value as Record<string, unknown>
+    if (source.code !== undefined && source.code !== 0) return DEFAULT_SITE_LOGO
+    const settings = source.data ?? source
+    if (!settings || typeof settings !== 'object') return DEFAULT_SITE_LOGO
+    return resolveSiteLogo((settings as Record<string, unknown>).site_logo)
+  } catch {
+    return DEFAULT_SITE_LOGO
+  }
+}
+
+export async function loadSiteConfig(fetcher: Fetcher, origin: string): Promise<SiteConfig> {
+  // Branding comes from Sub2API, independently of the static homepage settings.
+  const [config, siteLogo] = await Promise.all([
+    loadStaticConfig(fetcher, origin),
+    loadPublicLogo(fetcher, origin),
+  ])
+  return { ...config, siteLogo }
 }
