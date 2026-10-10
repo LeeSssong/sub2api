@@ -162,6 +162,60 @@ september28_old_worker_compatible() {
   [[ "$result" == t ]]
 }
 
+october10_fence_release() {
+  [[ -n "${october10_fence_marker:-}" ]] || return 0
+  touch "$october10_fence_marker.release"
+  wait "$october10_fence_pid" || true
+  rm -f "$october10_fence_marker" "$october10_fence_marker.release"
+  october10_fence_marker=''
+}
+
+october10_fence_acquire() {
+  local postgres=$1 marker=$2
+  reauth_lifecycle pause || return 1
+  october10_fence_marker=$marker
+  python3 - "$postgres" "$marker" <<'PY_OCTOBER10_FENCE' &
+import pathlib,subprocess,sys,time,selectors
+postgres,marker=sys.argv[1:];path=pathlib.Path(marker);release=pathlib.Path(marker+'.release')
+command=['docker','exec','-i',postgres,'sh','-c','exec psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"','october10-fence']
+holder=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,bufsize=1)
+try:
+ sql="""BEGIN;
+SET LOCAL lock_timeout='100ms'; SET LOCAL statement_timeout='2s';
+SET LOCAL idle_in_transaction_session_timeout='900s';
+LOCK TABLE openai_oauth_reauth_tasks, openai_totp_rotations, openai_excel_oauth_credentials, payment_orders, accounts, groups, user_platform_quotas, composite_model_routes IN SHARE MODE;
+SELECT NOT EXISTS (SELECT 1 FROM openai_totp_rotations WHERE state NOT IN ('succeeded','failed')) AND NOT EXISTS (SELECT 1 FROM openai_oauth_reauth_tasks WHERE oauth_profile='excel' AND status IN ('queued','running','callback_processing')) AND NOT EXISTS (SELECT 1 FROM openai_excel_oauth_credentials) AND NOT EXISTS (SELECT 1 FROM payment_orders WHERE subscription_renewal_mode='restart' AND status IN ('pending','paid','fulfilling')) AND NOT EXISTS (SELECT 1 FROM accounts WHERE platform IN ('cline','command_code')) AND NOT EXISTS (SELECT 1 FROM groups WHERE platform IN ('cline','command_code')) AND NOT EXISTS (SELECT 1 FROM user_platform_quotas WHERE platform IN ('cline','command_code')) AND NOT EXISTS (SELECT 1 FROM composite_model_routes WHERE target_platform IN ('cline','command_code'));
+"""
+ holder.stdin.write(sql);holder.stdin.flush()
+ with selectors.DefaultSelector() as selector:
+  selector.register(holder.stdout,selectors.EVENT_READ)
+  line=holder.stdout.readline().strip() if selector.select(3) else ''
+ if line!='t':path.write_text('blocked');sys.exit(1)
+ path.write_text('ready')
+ deadline=time.monotonic()+890
+ while not release.exists():
+  if holder.poll() is not None or time.monotonic()>deadline:raise RuntimeError('fence expired')
+  time.sleep(.2)
+ holder.communicate('ROLLBACK;\n',timeout=5)
+finally:
+ if holder.poll() is None:
+  holder.kill();holder.communicate()
+PY_OCTOBER10_FENCE
+  october10_fence_pid=$!
+  local attempt
+  for attempt in {1..40}; do
+    if [[ -f "$marker" ]]; then
+      [[ "$(cat "$marker")" == ready ]] && return 0
+      break
+    fi
+    kill -0 "$october10_fence_pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  october10_fence_release
+  reauth_lifecycle resume || true
+  return 1
+}
+
 rollback_committed_release() {
   [[ $# == 3 && "$1" == --rollback && "$2" == --record ]] || fail 'rollback requires --record <successful-release-record>'
   local record=$3 root=${RELEASE_RECORD_ROOT:?RELEASE_RECORD_ROOT is required}
@@ -208,7 +262,7 @@ rollback_committed_release() {
     if [[ ( "$previous_hash" == "$FUSION_2813_OLD_MIGRATIONS_HASH" && "$current_hash" == "$FUSION_2813_NEW_MIGRATIONS_HASH" ) \
         || ( "$previous_hash" == "$SEPTEMBER_26_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_26_NEW_MIGRATIONS_HASH" ) \
         || ( "$previous_hash" == "$BPS_OBSERVER_OLD_MIGRATIONS_HASH" && "$current_hash" == "$BPS_OBSERVER_NEW_MIGRATIONS_HASH" ) \
-        || ( "$previous_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) ]]; then
+        || ( "$previous_hash" == "$SEPTEMBER_28_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_29_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$SEPTEMBER_30_OLD_MIGRATIONS_HASH" && "$current_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_01_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_02_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_03_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" ) || ( "$previous_hash" == "$OCTOBER_10_OLD_MIGRATIONS_HASH" && "$current_hash" == "$OCTOBER_10_NEW_MIGRATIONS_HASH" ) ]]; then
       # Reviewed additive transitions keep old readers compatible with new schema.
       :
     else
@@ -326,6 +380,7 @@ rollback_committed_release() {
         [[ "$restored_status" == healthy && "$(docker inspect "$restored_id" --format '{{.Image}}')" == "$(docker image inspect --format '{{.Id}}' "$current_worker")" ]] || recovery_ok=false
       fi
     fi
+    october10_fence_release
     reauth_lifecycle resume || recovery_ok=false
     if [[ "$recovery_ok" != true ]]; then
       printf 'blue-green rollback recovery failed; lock retained for manual intervention: %s\n' "$lock_dir" >&2
@@ -359,6 +414,10 @@ rollback_committed_release() {
     || fail 'previous API runtime is not the expected image'
   "${compose[@]}" exec -T -e "SUB2API_ACTIVE_UPSTREAM=$previous_upstream" caddy \
     caddy validate --config - --adapter caddyfile <"$deploy_root/Caddyfile" >/dev/null
+  if [[ "$current_hash" == "$OCTOBER_10_NEW_MIGRATIONS_HASH" && "$previous_hash" == "$OCTOBER_10_OLD_MIGRATIONS_HASH" ]]; then
+    october10_fence_acquire "$postgres_id" "$root/.october10-rollback-fence" \
+      || fail 'October 10 rollback blocked by new tasks/data or a busy writer; current route retained'
+  fi
   switched=true
   "${compose[@]}" exec -T -e "SUB2API_ACTIVE_UPSTREAM=$previous_upstream" caddy \
     caddy reload --config - --adapter caddyfile <"$deploy_root/Caddyfile" >/dev/null
@@ -380,7 +439,7 @@ rollback_committed_release() {
     september28_drain_candidate "$("${compose[@]}" ps -q "sub2api-$current_slot")" \
       || fail 'candidate API could not drain during rollback'
     september28_candidate_stopped=true
-    september28_old_worker_compatible "$postgres_id" \
+    [[ -n "${october10_fence_marker:-}" ]] || september28_old_worker_compatible "$postgres_id" \
       || fail 'new BPS rules or ownership require compatible recovery; new worker retained'
     september28_compatibility_blocked=false
     worker_changed=true
@@ -402,6 +461,7 @@ rollback_committed_release() {
   done
   [[ "$(docker inspect "$("${restore_compose[@]}" ps -q sub2api-worker)" --format '{{.Image}}')" == "$(docker image inspect --format '{{.Id}}' "$old_worker")" ]] \
     || fail 'previous worker runtime image mismatch'
+  october10_fence_release
   reauth_lifecycle resume || fail 'reauth could not resume after rollback'
   local state_tmp env_tmp
   state_tmp=$(mktemp "$root/.rollback-state.XXXXXX")
@@ -1529,6 +1589,10 @@ restore_previous() {
     [[ "$rollback_migrations_hash" == "$state_migrations_hash" \
         || "$rollback_migrations_hash" == "$migrations_hash" ]] || return 1
   fi
+  if [[ "$migrations_hash" == "$OCTOBER_10_NEW_MIGRATIONS_HASH" && "$worker_update_started" == true ]]; then
+    october10_fence_acquire "$rollback_postgres_id" "$record_root/.$attempt_id.october10-fence" \
+      || { failure_reason=october10_compatible_recovery_required; return 1; }
+  fi
   if [[ "$cutover_attempted" == true ]]; then
     if validate_upstream "$previous_upstream"; then
       run_caddy_config_command "$previous_upstream" validate >/dev/null 2>&1 || rollback_ok=false
@@ -1539,7 +1603,7 @@ restore_previous() {
   fi
   if [[ "$rollback_ok" == true && "$online_migration_transition" == true && ( "$migrations_hash" == "$SEPTEMBER_28_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$SEPTEMBER_29_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$SEPTEMBER_30_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_01_NEW_MIGRATIONS_HASH" || ( "$migrations_hash" == "$OCTOBER_02_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_03_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_09_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$OCTOBER_10_NEW_MIGRATIONS_HASH" || "$migrations_hash" == "$MONITOR_V4_NEW_MIGRATIONS_HASH" ) ) ) && "$cutover_attempted" == true ]]; then
     september28_drain_candidate "$(resolve_container_id "sub2api-$candidate_slot")" || return 1
-    if ! september28_old_worker_compatible "$rollback_postgres_id"; then
+    if [[ -z "${october10_fence_marker:-}" ]] && ! september28_old_worker_compatible "$rollback_postgres_id"; then
       failure_reason=september28_bps_compatibility_recovery_required
       printf 'Old API route restored; new BPS rules/ownership or unavailable probe require compatible recovery; new worker retained\n' >&2
       return 1
@@ -1650,6 +1714,7 @@ on_exit() {
     jq '.drain = ((.drain // {}) + {status:"failed"})' "$record_path" >"$record_path.drain.tmp" &&
       chmod 0600 "$record_path.drain.tmp" && mv "$record_path.drain.tmp" "$record_path"
   fi
+  october10_fence_release
   if ! reauth_lifecycle resume; then
     printf 'Reauth resume failed; inspect dedicated worker before next release\n' >&2
     status=1

@@ -234,6 +234,14 @@ set -euo pipefail
 printf 'docker %s\n' "$*" >>"${FAKE_EVENT_LOG:?}"
 scenario=${FAKE_SCENARIO:-success}
 case "$*" in
+  *'october10-fence'*)
+    while IFS= read -r line; do
+      case "$line" in
+        SELECT*) printf '%s\n' "${FAKE_SEPTEMBER28_COMPAT:-t}" ;;
+        'ROLLBACK;') exit 0 ;;
+      esac
+    done
+    ;;
   *'exec postgres-id sh -c '*'pg_dump'*) printf 'fixture custom archive\n' ;;
   *'exec -i postgres-id pg_restore -l'*) [[ "$scenario" != pelican_backup_validation_failure ]] ;;
   *'exec -i postgres-id sh -c '*'pg_restore --clean'*) cat >/dev/null; touch "${FAKE_EVENT_LOG}.database-restored" ;;
