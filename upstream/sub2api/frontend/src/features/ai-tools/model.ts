@@ -32,13 +32,13 @@ function freshSnapshot(now: number, generatedAt?: string | null): boolean {
   const observed = generatedAt ? Date.parse(generatedAt) : NaN
   return Number.isFinite(observed) && observed <= now && now - observed <= SNAPSHOT_FRESHNESS_MS
 }
-function validRealCounts(metric?: MonitorV4Group): metric is MonitorV4Group {
-  return !!metric && Number.isSafeInteger(metric.real_request_count) && metric.real_request_count >= 0
-    && Number.isSafeInteger(metric.real_success_count) && metric.real_success_count >= 0 && metric.real_success_count <= metric.real_request_count
+function validSLACounts(metric?: MonitorV4Group): metric is MonitorV4Group & { sla_request_count: number; sla_success_count: number } {
+  return !!metric && Number.isSafeInteger(metric.sla_request_count) && metric.sla_request_count! >= 0
+    && Number.isSafeInteger(metric.sla_success_count) && metric.sla_success_count! >= 0 && metric.sla_success_count! <= metric.sla_request_count!
 }
 export function routeHealth(metric?: MonitorV4Group, now = Date.now(), snapshotGeneratedAt?: string | null): RouteHealth {
-  if (!freshSnapshot(now,snapshotGeneratedAt) || !validRealCounts(metric) || metric.real_request_count === 0) return noRouteData()
-  return routeCountHealth(metric.real_success_count, metric.real_request_count)
+  if (!freshSnapshot(now,snapshotGeneratedAt) || !validSLACounts(metric) || metric.sla_request_count === 0) return noRouteData()
+  return routeCountHealth(metric.sla_success_count, metric.sla_request_count)
 }
 export function routeCountHealth(success?: number, requests?: number): RouteHealth {
   if (!Number.isSafeInteger(success) || !Number.isSafeInteger(requests) || requests! <= 0 || success! < 0 || success! > requests!) return noRouteData()
@@ -46,10 +46,10 @@ export function routeCountHealth(success?: number, requests?: number): RouteHeal
   return rate >= 90 ? {kind:'success',text:'正常运行',rate} : rate >= 70 ? {kind:'warning',text:'波动',rate} : {kind:'danger',text:'异常',rate}
 }
 export function aggregateRouteHealth(metrics: (MonitorV4Group | undefined)[], now = Date.now(), snapshotGeneratedAt?: string | null): RouteHealth {
-  if (!freshSnapshot(now,snapshotGeneratedAt) || metrics.some(m=>!validRealCounts(m))) return noRouteData()
-  const real_request_count = metrics.reduce((sum,m)=>sum+(m?.real_request_count ?? 0),0)
-  const real_success_count = metrics.reduce((sum,m)=>sum+(m?.real_success_count ?? 0),0)
-  return routeHealth({real_request_count,real_success_count} as MonitorV4Group)
+  if (!freshSnapshot(now,snapshotGeneratedAt) || metrics.some(m=>!validSLACounts(m))) return noRouteData()
+  const sla_request_count = metrics.reduce((sum,m)=>sum+(m?.sla_request_count ?? 0),0)
+  const sla_success_count = metrics.reduce((sum,m)=>sum+(m?.sla_success_count ?? 0),0)
+  return routeHealth({sla_request_count,sla_success_count} as MonitorV4Group)
 }
 // Keep a value below a threshold visibly below it (89.99 must not display as 90%).
 export function routeSuccessLabel(health: RouteHealth): string {
@@ -64,7 +64,7 @@ export function routeHealthTone(health: RouteHealth): 'green' | 'amber' | 'red' 
 export function compareQuality(a: Group,b: Group, metrics: Map<number,MonitorV4Group>, rates: Record<number,number>,now=Date.now(),snapshotGeneratedAt?:string|null): number {
   const am=metrics.get(a.id),bm=metrics.get(b.id)
   return (routeHealth(bm,now,snapshotGeneratedAt).rate??-1)-(routeHealth(am,now,snapshotGeneratedAt).rate??-1)
-    || (bm?.real_request_count??0)-(am?.real_request_count??0)
+    || (bm?.sla_request_count??0)-(am?.sla_request_count??0)
     || (am?.ttft_p50_ms??Infinity)-(bm?.ttft_p50_ms??Infinity)
     || (am?.latency_p50_ms??Infinity)-(bm?.latency_p50_ms??Infinity)
     || (rates[a.id]??a.rate_multiplier)-(rates[b.id]??b.rate_multiplier) || a.id-b.id
@@ -77,10 +77,10 @@ export interface WeightedRouteRanking {
   ttftScore: number
   ttftP50Ms: number
 }
-function weightedMetric(metric: MonitorV4Group | undefined, now: number, snapshotGeneratedAt?: string | null): metric is MonitorV4Group & { cache_hit_rate: number; ttft_p50_ms: number } {
+function weightedMetric(metric: MonitorV4Group | undefined, now: number, snapshotGeneratedAt?: string | null): metric is MonitorV4Group & { sla_request_count: number; sla_success_count: number; cache_hit_rate: number; ttft_p50_ms: number } {
   return freshSnapshot(now, snapshotGeneratedAt)
-    && validRealCounts(metric)
-    && metric.real_request_count > 0
+    && validSLACounts(metric)
+    && metric.sla_request_count > 0
     && typeof metric.cache_hit_rate === 'number'
     && Number.isFinite(metric.cache_hit_rate)
     && metric.cache_hit_rate >= 0
@@ -107,7 +107,7 @@ export function rankWeightedRoutes(
   const slowest = Math.max(...ttfts)
   const range = slowest - fastest
   return candidates.map(({ group, metric }) => {
-    const successRate = metric.real_success_count / metric.real_request_count * 100
+    const successRate = metric.sla_success_count / metric.sla_request_count * 100
     const cacheHitRate = metric.cache_hit_rate * 100
     const ttftScore = range === 0 ? 100 : (slowest - metric.ttft_p50_ms) / range * 100
     return {

@@ -30,8 +30,8 @@
             <i aria-hidden="true" />{{ line(option).statusLabel }}
           </span>
         </div>
-        <small class="line-option-meta">关联密钥 {{ line(option).linkedCount == null ? '暂不可用' : `${line(option).linkedCount} 把` }}</small>
-        <small class="line-option-meta">近 1 小时成功率 <span class="line-success-rate" :data-tone="line(option).successTone">{{ line(option).successLabel }}</span> · 首字 {{ line(option).ttftLabel }}</small>
+        <small class="line-option-meta" title="请求成功率采用后台 SLA，排除业务限制及客户端取消">关联密钥 {{ line(option).linkedCount == null ? '暂不可用' : `${line(option).linkedCount} 把` }}</small>
+        <small class="line-option-meta" title="请求成功率采用后台 SLA，排除业务限制及客户端取消">近 1 小时成功率 <span class="line-success-rate" :data-tone="line(option).successTone">{{ line(option).successLabel }}</span> · 首字 {{ line(option).ttftLabel }}</small>
       </div>
     </template>
   </Select>

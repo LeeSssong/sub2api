@@ -8,7 +8,7 @@ import LineSelect from '../LineSelect.vue'
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 
 const group = { id: 1, name: 'GPT Plus', platform: 'openai', status: 'active', rate_multiplier: 1.2 } as Group
-const metric = { real_request_count:100,real_success_count:97,success_rate: 97, ttft_p50_ms: 2160 } as MonitorV4Group
+const metric = { sla_request_count:100,sla_success_count:97,success_rate: 97, ttft_p50_ms: 2160 } as MonitorV4Group
 const wrappers: Array<ReturnType<typeof mount>> = []
 afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()); document.body.innerHTML = ''; vi.useRealTimers() })
 

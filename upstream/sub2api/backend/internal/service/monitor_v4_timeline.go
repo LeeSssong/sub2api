@@ -74,3 +74,43 @@ func (s *MonitorV4Service) TimelineWithGranularity(ctx context.Context, userID i
 	}
 	return &MonitorV4Timeline{SuccessRateBasis: "ops_sla", Granularity: granularity, Window: window, GeneratedAt: snapshot.GeneratedAt, Points: points}, nil
 }
+
+// MonitorV4SLACounts is the admin SLA projection, separate from experience/probe counts.
+type MonitorV4SLACounts struct {
+	RequestCount int
+	SuccessCount int
+}
+
+// SLACounts uses the already-authorized snapshot's exact persisted time bounds.
+// This read-only API projection does not change the worker's stored monitor metrics.
+func (s *MonitorV4Service) SLACounts(ctx context.Context, snapshot *MonitorV4Snapshot) (map[int64]MonitorV4SLACounts, error) {
+	reader, ok := s.native.(MonitorV4TimelineReader)
+	if !ok {
+		return nil, fmt.Errorf("SLA timeline reader unavailable")
+	}
+	if snapshot == nil || !snapshot.WindowEnd.After(snapshot.WindowStart) {
+		return nil, fmt.Errorf("invalid SLA snapshot bounds")
+	}
+	counts := make(map[int64]MonitorV4SLACounts, len(snapshot.Groups))
+	ids := make([]int64, 0, len(snapshot.Groups))
+	for _, g := range snapshot.Groups {
+		ids = append(ids, g.ID)
+		counts[g.ID] = MonitorV4SLACounts{}
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	points, err := reader.ReadMonitorV4Timeline(ctx, ids, snapshot.WindowStart, snapshot.WindowEnd, time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range points {
+		count, visible := counts[p.GroupID]
+		if !visible || p.RequestCount < 0 || p.SuccessCount < 0 || p.SuccessCount > p.RequestCount {
+			return nil, fmt.Errorf("invalid SLA timeline counts")
+		}
+		count.RequestCount += p.RequestCount
+		count.SuccessCount += p.SuccessCount
+		counts[p.GroupID] = count
+	}
+	return counts, nil
+}

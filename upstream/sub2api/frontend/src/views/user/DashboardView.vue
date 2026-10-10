@@ -56,7 +56,7 @@
                   <img class="provider-logo" :src="providerIcon(group.platform)" alt="" />
                   <h3 :id="`detail-route-${group.id}`">{{ group.name }}</h3>
                   <span class="rate-badge">{{ rateLabel(group) }}</span>
-                  <span class="route-health" :class="stateOf(group).kind" title="近 1 小时真实请求状态"><span class="dot" :class="stateOf(group).kind" aria-hidden="true"></span>{{ stateOf(group).text }}</span>
+                  <span class="route-health" :class="detailSLAHealth(group).kind" title="所选统计范围的后台 SLA 状态"><span class="dot" :class="detailSLAHealth(group).kind" aria-hidden="true"></span>{{ detailSLAHealth(group).text }}</span>
                 </div>
               </div>
               <button v-if="group.status==='active'" class="xq-button detail-associate-button" :data-detail-group-id="group.id" @click="openCreate(selectedTool!,group.id)">关联密钥</button>
@@ -66,7 +66,7 @@
               <div class="detail-quality-value detail-success-hover" tabindex="0" role="group" :aria-describedby="`detail-request-sample-${group.id}`" @mouseenter="detailSampleGroup=group.id" @mouseleave="detailSampleGroup=null" @focusin="detailSampleGroup=group.id" @focusout="detailSampleGroup=null" @click="detailSampleGroup=group.id" @keydown.esc.stop="detailSampleGroup=null">
                 <span class="detail-quality-label" title="与后台对应分组的 SLA 一致，排除业务限制及客户端取消">请求成功率</span>
                 <strong class="success-rate success-rate-tone" :data-tone="routeHealthTone(detailSLAHealth(group))">{{ timelineLoading || timelineError ? '—' : routeSuccessLabel(detailSLAHealth(group)) }}</strong>
-                <span v-show="detailSampleGroup===group.id" :id="`detail-request-sample-${group.id}`" class="detail-request-sample" role="tooltip">{{ detailSLACounts.get(group.id)?.success_count ?? '—' }} / {{ detailSLACounts.get(group.id)?.request_count ?? '—' }} 次请求成功（后台 SLA，排除业务限制）</span>
+                <span v-show="detailSampleGroup===group.id" :id="`detail-request-sample-${group.id}`" class="detail-request-sample" role="tooltip">{{ detailSLACounts.get(group.id)?.success_count ?? '—' }} / {{ detailSLACounts.get(group.id)?.request_count ?? '—' }} 次请求成功（后台 SLA，排除业务限制及客户端取消）</span>
               </div>
             </div>
             <RouteHistoryStrip :points="timelinePoints.filter(point=>point.group_id===group.id)" :loading="timelineLoading" :error="timelineError" />
@@ -165,7 +165,7 @@ function successLabel(g:Group,ms:Map<number,MonitorV4Group>,hour:boolean){
   const health=metricHealth(g,ms,hour)
   return routeSuccessLabel(health)
 }
-function statsHint(g:Group){const m=metricsById.value.get(g.id);return !m||statsFailed.value?'统计读取失败，请刷新重试':'最近 1 小时真实请求\n成功请求：'+m.real_success_count+' 次\n总请求：'+m.real_request_count+' 次'}
+function statsHint(g:Group){const m=metricsById.value.get(g.id);return !m||statsFailed.value||m.sla_request_count==null||m.sla_success_count==null?'SLA 统计暂不可用，请刷新重试':'最近 1 小时后台 SLA（排除业务限制及客户端取消）\n成功请求：'+m.sla_success_count+' 次\n总请求：'+m.sla_request_count+' 次'}
 function checkOf(g:Group){
   if(g.status!=='active')return {kind:'muted',text:'线路已停用'}
   if(checking.value&&counts.value.has(g.id))return {kind:'warning',text:'检查中…'}

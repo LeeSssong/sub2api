@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -171,4 +172,49 @@ func TestMonitorV4TimelineHandlerAuthAndWindow(t *testing.T) {
 			require.Zero(t, stub.user)
 		}
 	}
+}
+
+type monitorV4SLASnapshotterStub struct{ monitorV4SnapshotterStub }
+
+func (s *monitorV4SLASnapshotterStub) SLACounts(_ context.Context, snapshot *service.MonitorV4Snapshot) (map[int64]service.MonitorV4SLACounts, error) {
+	return map[int64]service.MonitorV4SLACounts{6: {SuccessCount: 660, RequestCount: 667}, 7: {}}, nil
+}
+func TestMonitorV4SnapshotExposesSLAWithoutReplacingLegacyCounts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	stub := &monitorV4SLASnapshotterStub{monitorV4SnapshotterStub{snapshot: &service.MonitorV4Snapshot{Groups: []service.MonitorV4Group{{ID: 6, RealSuccessCount: 660, RealRequestCount: 841}, {ID: 7}}}}}
+	c, r := func() (*gin.Context, *httptest.ResponseRecorder) {
+		r := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(r)
+		c.Request = httptest.NewRequest("GET", "/api/v1/monitor-v4?window=1h", nil)
+		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 42})
+		return c, r
+	}()
+	NewMonitorV4Handler(stub).Snapshot(c)
+	require.Equal(t, 200, r.Code)
+	var envelope struct {
+		Data struct {
+			Groups []map[string]any `json:"groups"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(r.Body.Bytes(), &envelope))
+	require.Equal(t, float64(667), envelope.Data.Groups[0]["sla_request_count"])
+	require.Equal(t, float64(660), envelope.Data.Groups[0]["sla_success_count"])
+	require.Equal(t, float64(841), envelope.Data.Groups[0]["real_request_count"])
+	require.Equal(t, float64(0), envelope.Data.Groups[1]["sla_request_count"])
+}
+
+type monitorV4SLAErrorStub struct{ monitorV4SnapshotterStub }
+
+func (s *monitorV4SLAErrorStub) SLACounts(context.Context, *service.MonitorV4Snapshot) (map[int64]service.MonitorV4SLACounts, error) {
+	return nil, errors.New("SLA unavailable")
+}
+func TestMonitorV4SnapshotFailsClosedWhenSLACountsFail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(r)
+	c.Request = httptest.NewRequest("GET", "/api/v1/monitor-v4?window=1h", nil)
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 42})
+	NewMonitorV4Handler(&monitorV4SLAErrorStub{monitorV4SnapshotterStub{snapshot: &service.MonitorV4Snapshot{}}}).Snapshot(c)
+	require.Equal(t, 500, r.Code)
+	require.NotContains(t, r.Body.String(), "real_request_count")
 }

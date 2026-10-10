@@ -27,6 +27,8 @@ type monitorV4GroupResponse struct {
 	Name                      string   `json:"name"`
 	Platform                  string   `json:"platform"`
 	RateMultiplier            float64  `json:"rate_multiplier"`
+	SLARequestCount           *int     `json:"sla_request_count"`
+	SLASuccessCount           *int     `json:"sla_success_count"`
 	SuccessRate               *float64 `json:"success_rate"`
 	RequestCount              int      `json:"request_count"`
 	SuccessCount              int      `json:"success_count"`
@@ -92,8 +94,23 @@ func (h *MonitorV4Handler) Snapshot(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	slaCounts := map[int64]service.MonitorV4SLACounts(nil)
+	if reader, ok := h.service.(interface {
+		SLACounts(context.Context, *service.MonitorV4Snapshot) (map[int64]service.MonitorV4SLACounts, error)
+	}); ok {
+		slaCounts, err = reader.SLACounts(c.Request.Context(), snapshot)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
 	groups := make([]monitorV4GroupResponse, 0, len(snapshot.Groups))
 	for _, group := range snapshot.Groups {
+		var slaRequestCount, slaSuccessCount *int
+		if count, ok := slaCounts[group.ID]; ok {
+			slaRequestCount = &count.RequestCount
+			slaSuccessCount = &count.SuccessCount
+		}
 		var updatedAt *string
 		if group.SourceUpdatedAt != nil {
 			value := group.SourceUpdatedAt.UTC().Format(time.RFC3339)
@@ -101,6 +118,7 @@ func (h *MonitorV4Handler) Snapshot(c *gin.Context) {
 		}
 		groups = append(groups, monitorV4GroupResponse{
 			ToolIDs: group.ToolIDs, Status: group.Status,
+			SLARequestCount: slaRequestCount, SLASuccessCount: slaSuccessCount,
 			ID: group.ID, Name: group.Name, Platform: group.Platform, RateMultiplier: group.RateMultiplier,
 			SuccessRate: group.SuccessRate, RequestCount: group.RequestCount, SuccessCount: group.SuccessCount,
 			RealRequestCount: group.RealRequestCount, RealSuccessCount: group.RealSuccessCount,

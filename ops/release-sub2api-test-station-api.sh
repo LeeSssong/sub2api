@@ -111,6 +111,8 @@ while IFS= read -r path; do
     upstream/sub2api/backend/internal/service/monitor_v4_check_test.go|\
     upstream/sub2api/backend/internal/service/monitor_v4_timeline.go|\
     upstream/sub2api/backend/internal/service/monitor_v4_timeline_test.go|\
+    upstream/sub2api/backend/internal/service/monitor_v4_sla_test.go|\
+    upstream/sub2api/backend/internal/handler/monitor_v4_handler.go|\
     upstream/sub2api/backend/internal/handler/monitor_v4_handler_test.go|\
     upstream/sub2api/backend/internal/repository/monitor_v4_timeline.go|\
     upstream/sub2api/backend/internal/repository/monitor_v4_timeline_test.go|\
