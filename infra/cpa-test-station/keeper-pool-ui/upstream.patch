@@ -17,7 +17,7 @@ index 0000000..096f3ad
 +@media (max-width: 700px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 16px; } .footer { grid-template-columns: 1fr; gap: 12px; } }
 diff --git a/web/src/components/usage/pool/PoolQuotaCard.tsx b/web/src/components/usage/pool/PoolQuotaCard.tsx
 new file mode 100644
-index 0000000..669e847
+index 0000000..54101d7
 --- /dev/null
 +++ b/web/src/components/usage/pool/PoolQuotaCard.tsx
 @@ -0,0 +1,144 @@
@@ -97,12 +97,12 @@ index 0000000..669e847
 +        throw new Error('请先在模型价格中配置价格，并将价格倍率设为 1；扣费倍率在此单独输入')
 +      }
 +      const rules = await Promise.all(pricing.pricing.map(v => fetchPricingRules(v.model, abort.signal)))
-+      if (rules.some(v => v.rules.some(r => r.multiplier !== 1))) throw new Error('模型价格存在额外倍率规则，请先统一为 1×')
++      if (rules.some(v => (v.rules ?? []).some(r => r.multiplier !== 1))) throw new Error('模型价格存在额外倍率规则，请先统一为 1×')
 +      const pricingKey = JSON.stringify(pricing.pricing.slice().sort((a, b) => a.model.localeCompare(b.model)))
 +      if (force || Date.now() - lastRefresh.current > 4 * 60 * 1000) {
 +        const submittedAt = Date.now() - 1000
 +        const tasks = await refreshUsageQuotas(indexes, abort.signal)
-+        if (tasks.rejected.some(v => !['duplicate', 'duplicate_request'].includes(v.error))) throw new Error('部分账号配额刷新被拒绝，请检查凭证状态')
++        if ((tasks.rejected ?? []).some(v => !['duplicate', 'duplicate_request'].includes(v.error))) throw new Error('部分账号配额刷新被拒绝，请检查凭证状态')
 +        lastRefresh.current = Date.now()
 +        // The native refresh queue is asynchronous. Read only completed, newly refreshed cache entries.
 +        for (let attempt = 0; attempt < 30; attempt++) {
@@ -207,7 +207,7 @@ index 0000000..2a7b0fc
 +}
 diff --git a/web/src/components/usage/pool/test/PoolQuotaCard.test.tsx b/web/src/components/usage/pool/test/PoolQuotaCard.test.tsx
 new file mode 100644
-index 0000000..853c8f7
+index 0000000..38fbda4
 --- /dev/null
 +++ b/web/src/components/usage/pool/test/PoolQuotaCard.test.tsx
 @@ -0,0 +1,55 @@
@@ -221,7 +221,7 @@ index 0000000..853c8f7
 +const refresh = vi.fn()
 +vi.mock('@/lib/api', () => ({
 +  fetchPricing: (...args: unknown[]) => pricing(...args),
-+  fetchPricingRules: async () => ({ rules: [] }),
++  fetchPricingRules: async () => ({ rules: null }),
 +  fetchUsageIdentities: async () => ({ identities: [
 +    { auth_type: 1, type: 'codex', disabled: false, is_deleted: false, identity: 'b' },
 +    { auth_type: 1, type: 'codex', disabled: false, is_deleted: false, identity: 'a' },
@@ -238,7 +238,7 @@ index 0000000..853c8f7
 +  const values = new Map<string, string>()
 +  Object.defineProperty(window, 'localStorage', { configurable: true, value: { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value), clear: () => values.clear() } })
 +  pricing.mockResolvedValue({ pricing: [{ model: 'model', price_multiplier: 1 }] })
-+  refresh.mockResolvedValue({ accepted: 2, tasks: [], rejected: [] })
++  refresh.mockResolvedValue({ accepted: 2, tasks: [], rejected: null })
 +  cache.mockImplementation(async () => ({ items: ['a', 'b'].map(id => ({ auth_index: id, status: 'completed', refreshed_at: new Date().toISOString(), quota: { subscription: { plan: 'same' }, quota: [{ scope: 'window', window: { seconds: 604800 }, usedPercent: 5, resetAt: '2026-10-18T00:00:00Z' }] } })) }))
 +  container = document.createElement('div')
 +  document.body.appendChild(container)
