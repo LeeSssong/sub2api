@@ -12,6 +12,7 @@
     @media(max-width:520px){.topbar{height:61px}.topbar-inner{padding:0 16px}.crumb{display:none}.shell{padding:25px 15px 32px}.page-heading{align-items:flex-start;gap:10px}h1{font-size:25px}.page-heading .subtitle{max-width:220px}.page-heading button{font-size:11px;padding:7px 9px}.steps{gap:5px}.step{padding:9px 7px;gap:6px;font-size:10px;align-items:flex-start}.step-num{width:18px;height:18px;font-size:9px;margin-top:1px}.metrics{grid-template-columns:1fr 1fr}.metric{padding:15px 17px}.metric:nth-child(3){border-left:0;border-top:1px solid var(--line)}.metric:nth-child(4){border-top:1px solid var(--line)}.metric-value{font-size:24px}.metric-value.word{font-size:18px}.card-head{padding:19px 17px 16px}.card-body{padding:0 17px 20px}.card-foot{padding:13px 17px}.search-wrap{padding:0 17px 14px}.selection-tools{padding:0 13px 10px}.check-col{width:35px;padding-left:17px}.phase-col{width:105px}.standby-col{width:53px;padding-right:13px}td,th{padding-left:7px;padding-right:7px}.login-wrap{margin:27px auto 50px}.login-card{padding:24px}.session span{display:none}.footer{align-items:flex-start;flex-direction:column;gap:8px}.two-col{gap:0 10px}.card-head .counter{padding:3px 6px;font-size:10px}.selection-tools button{font-size:11px;padding:5px 7px}.selection-tools span{font-size:10px}}
     .metric-value.money{font-size:22px;letter-spacing:-.4px}.metric-value.money[data-compact=true]{font-size:16px}@media(max-width:520px){.metric-value.money{font-size:18px}.metric-value.money[data-compact=true]{font-size:12px}}
     @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+      .account-tabs{display:flex;gap:6px;padding:2px 23px 15px;overflow-x:auto;scrollbar-width:thin}.account-tabs button{font-size:12px;padding:6px 10px;border-color:transparent;background:var(--soft);font-weight:500}.account-tabs button[aria-selected=true]{background:#252525;color:#fff}.account-tabs button:focus-visible{outline-offset:1px}.priority-col{width:103px;text-align:right}.account-priority{width:85px;min-height:34px;padding:5px 8px;border:1px solid #dcdcd9;border-radius:6px;text-align:right;background:#fff}.account-priority[aria-invalid=true]{border-color:#9c302c}.account-pagination{display:flex;align-items:center;justify-content:flex-end;gap:9px;padding:12px 23px;border-top:1px solid var(--line)}.account-pagination span{font-size:12px;color:var(--muted)}.priority-help{padding:0 23px 13px}.phase-col{min-width:160px}.update-version{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}.update-version strong{font-size:20px;font-variant-numeric:tabular-nums}.update-status{font-size:13px;margin:0 0 12px;white-space:pre-line}.update-actions{display:flex;flex-wrap:wrap;gap:8px}.update-progress{width:100%;height:5px;margin:0 0 12px;accent-color:#333}@media(max-width:600px){.account-tabs{padding-left:16px;padding-right:16px}.priority-help{padding-left:16px;padding-right:16px}.account-pagination{padding:12px 16px}.priority-col{width:85px}.account-priority{width:77px}.phase-col{min-width:135px}}
   </style>
 </head>
 <body>
@@ -35,17 +36,31 @@
       <section class="metrics" aria-label="当前状态">
         <div class="metric"><div class="metric-label">网关状态</div><div id="gatewayState" class="metric-value word">—</div><div id="gatewayNote" class="metric-note">等待读取</div></div>
         <div class="metric"><div class="metric-label">可用余额（USD）</div><div id="available" class="metric-value money">—</div><div id="balanceNote" class="metric-note">尚未确认余额</div><div id="grantedNote" class="metric-note"></div></div>
-        <div class="metric"><div class="metric-label">就绪账号</div><div id="readyCount" class="metric-value">—</div><div id="readyNote" class="metric-note">等待读取</div><div id="waitingRequests" class="metric-note" hidden></div></div>
+        <div class="metric"><div class="metric-label">可用账号</div><div id="readyCount" class="metric-value">—</div><div id="readyNote" class="metric-note">等待读取</div><div id="waitingRequests" class="metric-note" hidden></div></div>
         <div class="metric"><div class="metric-label">已消费（USD）</div><div id="consumed" class="metric-value money">—</div><div id="consumedNote" class="metric-note">成功业务 token 费用</div><div id="multiplierNote" class="metric-note"></div></div>
       </section>
+      <div id="runtimeNotice" class="notice" role="status" aria-live="polite" hidden></div>
       <div class="workspace">
         <div class="stack">
           <section class="card" aria-labelledby="accountsTitle">
             <div class="card-head"><div><h2 id="accountsTitle">使用哪些账号</h2><p>从 CLIProxyAPI 已登录的 Codex 账号中选择。</p></div><span id="selectionCount" class="counter">已选 0 个</span></div>
+            <div id="accountTabs" class="account-tabs" role="tablist" aria-label="账号状态">
+              <button id="accountTab-all" type="button" role="tab" aria-selected="true" aria-controls="accountPanel" tabindex="0">全部</button>
+              <button id="accountTab-ready" type="button" role="tab" aria-selected="false" aria-controls="accountPanel" tabindex="-1">可用</button>
+              <button id="accountTab-waiting" type="button" role="tab" aria-selected="false" aria-controls="accountPanel" tabindex="-1">待用</button>
+              <button id="accountTab-rate" type="button" role="tab" aria-selected="false" aria-controls="accountPanel" tabindex="-1">OpenAI 限流</button>
+              <button id="accountTab-quota" type="button" role="tab" aria-selected="false" aria-controls="accountPanel" tabindex="-1">额度用完</button>
+              <button id="accountTab-action" type="button" role="tab" aria-selected="false" aria-controls="accountPanel" tabindex="-1">需要处理</button>
+              <button id="accountTab-off" type="button" role="tab" aria-selected="false" aria-controls="accountPanel" tabindex="-1">未启用</button>
+            </div>
             <div class="search-wrap"><input id="accountSearch" class="search" type="search" placeholder="搜索账号名称" aria-label="搜索账号名称" autocomplete="off"></div>
-            <div class="selection-tools"><button id="selectVisible" class="quiet small" type="button">选择当前结果</button><button id="clearSelection" class="quiet small" type="button">清空选择</button><span id="searchCount"></span></div>
-            <div class="table-wrap"><table><thead><tr><th class="check-col"><span aria-label="选择">选</span></th><th class="account-col">账号</th><th class="phase-col">主票据</th><th class="standby-col">备用</th></tr></thead><tbody id="accountRows"></tbody></table></div>
+            <div class="selection-tools"><button id="selectVisible" class="quiet small" type="button">选择本页</button><button id="clearSelection" class="quiet small" type="button">清空选择</button><span id="searchCount"></span></div>
+            <p id="priorityHelp" class="hint priority-help">优先级数字越小越优先；相同数字由系统自动选优。保存后生效，不会中断正在使用的账号。</p>
+            <div id="accountPanel" role="tabpanel" aria-labelledby="accountTab-all">
+            <div class="table-wrap"><table><thead><tr><th class="check-col"><span aria-label="选择">选</span></th><th class="account-col">账号</th><th class="phase-col">状态</th><th class="priority-col">优先级</th></tr></thead><tbody id="accountRows"></tbody></table></div>
             <div id="accountEmpty" class="empty">尚无可选账号。请先在 CLIProxyAPI 中登录 Codex。</div>
+            <div id="accountPagination" class="account-pagination" hidden><button id="accountPrevious" class="small" type="button" aria-label="上一页账号">上一页</button><span id="accountPage" aria-live="polite"></span><button id="accountNext" class="small" type="button" aria-label="下一页账号">下一页</button></div>
+            </div>
             <div class="card-foot"><div><span id="accountFoot" class="hint">勾选后点击“保存并连接”生效。</span><br><a id="openAccounts" href="/management.html#/oauth" target="_top" class="hint">在 CPA 中登录账号 →</a></div><button id="sync" class="small" type="button">同步账号</button></div>
           </section>
           <section class="card" aria-labelledby="clientTitle">
@@ -60,14 +75,24 @@
               <div class="field"><label for="gatewayURL">网关地址</label><input id="gatewayURL" type="url" required placeholder="填写你的网关 HTTPS 地址" autocomplete="off" spellcheck="false"><p class="hint">填写网关首页地址，使用 HTTPS。</p></div>
               <div class="field"><label for="dataDir">插件数据目录</label><input id="dataDir" type="text" required placeholder="填写此插件的持久数据绝对路径" autocomplete="off" spellcheck="false"><p class="hint">CLIProxyAPI 服务器上的可写绝对路径。Docker 部署时请挂载为持久目录。</p></div>
               <div class="field"><span class="label">业务执行位置</span><span id="executionModeLabel"></span><p id="executionModeHint" class="hint"></p></div>
-              <div class="field"><label for="ticketMode">打票模式</label><select id="ticketMode"><option value="personal">个人模式</option><option value="relay">中转模式</option></select><p id="ticketModeHint" class="hint">个人模式先准备一个账号，不留备选票；闲置 10 分钟且无等待或进行中的请求时暂停打新票。再次使用可能需要等待。</p><p id="ticketModeStatus" class="hint"></p></div>
+              <div class="field"><label for="chargeMode">计费方式</label><select id="chargeMode"><option value="token">按 Token</option><option value="request">按成功请求次数</option></select><p id="chargeModeStatus" class="hint">计费方式尚待网关确认。</p><p id="requestPriceStatus" class="hint"></p></div>
+              <div class="field"><label for="ticketMode">打票模式</label><select id="ticketMode"><option value="personal">个人模式</option><option value="relay">中转模式</option></select><p id="ticketModeHint" class="hint">个人模式持续准备一个可用账号，票据到期后自动补充。</p><p id="ticketModeStatus" class="hint"></p></div>
+              <div id="concurrencyModeControl" class="field" hidden><label for="relayConcurrencyMode">并发方式</label><select id="relayConcurrencyMode"><option value="manual">手动设置</option><option value="auto">自动设置</option></select><p id="autoConcurrencySummary" class="hint" aria-live="polite" hidden></p></div>
+              <div id="rotationControls" class="field" hidden><label for="relayActiveAccounts">并发账号数（0为全部）</label><input id="relayActiveAccounts" type="number" min="0" max="1000" step="1" value="0"><p class="hint">同时工作的账号数量</p></div><div id="rotationMinutesControl" class="field" hidden><label for="relayNoTicketMinutes">连续无票分钟数</label><input id="relayNoTicketMinutes" type="number" min="1" max="1440" step="1" value="5"><p class="hint">达到后自动换一个账号尝试。</p></div>
               <div class="field"><label for="relayModels">业务模型</label><textarea id="relayModels" required spellcheck="false" placeholder="gpt-6-astra"></textarea><p class="hint">填写原始模型名，每行一个，也可用逗号分隔。票据验证自动跟随业务模型，无需单独配置。</p><p id="supportedModelsNote" class="hint"></p></div>
+              <div class="field"><label for="ticketWaitMode">无票时</label><select id="ticketWaitMode"><option value="wait">继续等待</option><option value="timeout">限时等待，超时后报错</option></select><p class="hint">继续等待仍受请求超时限制。</p><p id="waitingPolicyStatus" class="notice" data-kind="error" role="status" hidden></p></div>
+              <div id="ticketWaitSecondsControl" class="field" hidden><label for="ticketWaitSeconds">最多等待（秒）</label><input id="ticketWaitSeconds" type="number" min="0" max="3600" step="1" value="0"><p class="hint">0 秒表示无票立即报错；可设置 0–3600 秒。只限制发送前的等待，不缩短发送后的请求超时。</p></div>
+              <div class="field"><label for="requeueOnStateReplace">票据状态变化后</label><select id="requeueOnStateReplace"><option value="true">重新等待可用票据</option><option value="false">直接报错</option></select><p class="hint">仅对尚未发送的请求生效。已经发送或结果不明的请求不会自动重发。</p></div>
               <details><summary>高级设置</summary><div class="two-col"><div class="field"><label for="leaseSeconds">连接租约（秒）</label><input id="leaseSeconds" type="number" min="30" max="120" required></div><div class="field"><label for="syncSeconds">同步间隔（秒）</label><input id="syncSeconds" type="number" min="2" max="40" required></div></div><div class="field"><label for="requestTimeout">请求超时（秒）</label><input id="requestTimeout" type="number" min="5" max="3600" required><p class="hint">默认 1,800 秒，可容纳较长的推理请求。</p></div></details>
-              <div id="installationInfo" class="identity"></div><div class="save-bar"><span id="saveNote" class="save-note">首次配置</span><button id="saveButton" class="primary" type="submit">保存并连接</button></div>
+              <div id="installationInfo" class="identity"></div><p id="configValidation" class="notice" data-kind="error" role="alert" hidden></p><div class="save-bar"><span id="saveNote" class="save-note">首次配置</span><button id="saveButton" class="primary" type="submit">保存并连接</button></div>
             </form>
           </section>
+          <section class="card" aria-labelledby="updateTitle">
+            <div class="card-head"><div><h2 id="updateTitle">插件更新</h2><p>自动检查新版本，点击后才会更新。</p></div></div>
+            <div class="card-body"><div class="update-version"><span class="muted">当前版本</span><strong id="updateCurrentVersion">—</strong></div><p id="updateStatus" class="update-status" role="status" aria-live="polite">正在检查更新…</p><progress id="updateProgress" class="update-progress" aria-label="更新进度" hidden></progress><div class="update-actions"><button id="installUpdate" class="primary small" type="button" hidden>立即更新</button><button id="checkUpdate" class="small" type="button">检查更新</button><button id="reloadUpdate" class="small" type="button" hidden>刷新页面</button></div><p id="updateHint" class="hint" style="margin-top:12px">每 5 分钟检查一次。</p><details id="updateManualHelp" hidden><summary>手动更新方法</summary><p class="hint">在 CPA 的插件管理中添加官方插件源，选择票据网关更新。旧版插件首次升级后，按 CPA 提示重启一次。</p><a class="hint" href="https://ticket.codingmiao.site/downloads/cliproxy-ticket/stable.json" target="_blank" rel="noopener noreferrer">官方插件源</a></details></div>
+          </section>
           <section class="card" aria-labelledby="redeemTitle">
-            <div class="card-head"><div><h2 id="redeemTitle">激活与充值</h2><p>CDK 充值美元余额；成功业务按真实 token 与模型费率扣费。</p></div></div>
+            <div class="card-head"><div><h2 id="redeemTitle">激活与充值</h2><p id="billingSummary">CDK 充值美元余额；成功业务按已确认的计费方式扣费。</p></div></div>
             <form id="redeemForm" class="card-body"><div class="field"><label for="redeemCode">CDK 兑换码</label><input id="redeemCode" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴 TG- 开头的完整兑换码"><p class="hint" id="redeemHint">先保存连接配置，再提交兑换码。</p></div><button id="redeemButton" class="primary" type="submit">确认激活 / 充值</button><p id="redeemMessage" class="redeem-message" role="status" aria-live="polite" hidden></p></form>
           </section>
         </div>
@@ -78,22 +103,32 @@
   <script id="ticket-console-script">
   (function (root) {
     'use strict';
-    const PRODUCT = {"id":"cliproxy-ticket-gateway","mode":"gateway","name":"票据网关（网关执行）","version":"1.4.0"};
+    const PRODUCT = {"id":"cliproxy-ticket-gateway","mode":"gateway","name":"票据网关（网关执行）","version":"1.5.1"};
     const ID = PRODUCT.id;
     const CONFIG = '/v8/management/config/plugins/configs/' + ID;
     const MANAGEMENT = '/v0/management/plugins/' + ID;
     const PLUS_CONFIG = MANAGEMENT + '/config';
-    const defaults = Object.freeze({ticket_mode:'personal',relay_models:['gpt-6-astra'], selected_auth_indexes:[], lease_seconds:90, sync_seconds:15, request_timeout_seconds:1800});
-    const fields = Object.freeze({ticket_mode:'ticketMode',gateway_url:'gatewayURL', data_dir:'dataDir',relay_models:'relayModels', lease_seconds:'leaseSeconds', sync_seconds:'syncSeconds', request_timeout_seconds:'requestTimeout'});
-    const numbers = new Set(['lease_seconds','sync_seconds','request_timeout_seconds']);
+    const defaults = Object.freeze({ticket_mode:'personal',charge_mode:'token',relay_concurrency_mode:'manual',relay_active_accounts:0,relay_no_ticket_minutes:0,relay_models:['gpt-6-astra'], selected_auth_indexes:[], lease_seconds:90, sync_seconds:15, request_timeout_seconds:1800});
+    const fields = Object.freeze({ticket_mode:'ticketMode',charge_mode:'chargeMode',relay_concurrency_mode:'relayConcurrencyMode',relay_active_accounts:'relayActiveAccounts',relay_no_ticket_minutes:'relayNoTicketMinutes',gateway_url:'gatewayURL', data_dir:'dataDir',relay_models:'relayModels', lease_seconds:'leaseSeconds', sync_seconds:'syncSeconds', request_timeout_seconds:'requestTimeout'});
+    const accountGroups = Object.freeze([['all','全部'],['ready','可用'],['waiting','待用'],['rate','OpenAI 限流'],['quota','额度用完'],['action','需要处理'],['off','未启用']]);
+    const accountPageSize = 50;
+    const updateSourceURL='https://ticket.codingmiao.site/downloads/cliproxy-ticket/stable.json';
+    const numbers = new Set(['relay_active_accounts','relay_no_ticket_minutes','lease_seconds','sync_seconds','request_timeout_seconds']);
+    const waitingFields = ['ticketWaitMode','ticketWaitSeconds','requeueOnStateReplace'];
     const errorLabels = Object.freeze({
-      ticket_mode_invalid:'请选择个人模式或中转模式。',ticket_mode_unsupported:'当前网关不支持此打票策略，请先升级网关。',ticket_mode_mismatch:'网关尚未确认所选打票模式，等待重新同步。',ticket_policy_unavailable:'打票策略暂时无法保存，已停止新的账号准备，请检查存储。',personal_acquisition_deferred:'个人模式正在等待当前账号，稍后会逐步尝试其他账号。',
+      preflight_state_replaced:'发送前票据状态已变化，本次请求尚未发送。',
+      waiting_policy_invalid:'等待时间须为 0–3600 的整数，请选择票据状态变化后的处理方式。',waiting_policy_unsupported:'当前网关或执行节点不支持此等待设置，请联系管理员升级。',ticket_wait_timeout:'等待可用票据已超时，本次请求尚未发送。',
+      account_auth_revoked:'账号授权已被撤销，插件已自动排除该凭据并保留原账号文件。',
+      account_auth_invalidated:'账号授权已确认失效，插件已自动排除该凭据并保留原账号文件。',
+      auth_quarantine_persist_failed:'已停止使用失效凭据，正在自动重试保存排除记录。',
+      native_auth_disabled:'账号已在 CLIProxyAPI 中停用。',native_auth_cooldown:'重试中',native_auth_recovering:'原生账号状态尚未恢复。',
+      update_handoff_unsupported:'当前版本暂不支持保留账号状态更新，请通过 CPA 插件管理完成首次升级。',update_handoff_expired:'现有连接未能接回，请点击页尾“重新连接账号”。重新连接后会重新准备账号。',update_handoff_conflict:'现有连接未能接回，请点击页尾“重新连接账号”。重新连接后会重新准备账号。',update_handoff_unconfirmed:'账号状态尚未恢复，正在确认。',update_busy:'当前请求尚未结束，请稍后再更新。',update_metadata_unavailable:'暂时无法检查新版本，请稍后重试。',update_metadata_invalid:'更新包信息无法确认，请稍后重试。',update_version_changed:'新版本信息已变化，请重新检查更新。',update_not_available:'当前没有可用的新版本。',update_source_setup:'请先在 CPA 插件商店添加官方插件源，再重新检查更新。',update_host_unavailable:'当前 CPA 暂不支持在这里更新，请通过插件管理更新。',update_catalog_unconfirmed:'CPA 尚未确认新版本，请稍后再试。',relay_concurrency_mode_invalid:'请选择手动或自动设置并发。',account_priorities_invalid:'优先级须为 0–999999 的整数。',rotation_policy_invalid:'并发账号数需为 0–1000；开启后连续无票分钟数需为 1–1440。',rotation_policy_unsupported:'当前网关或执行节点暂不支持并发账号设置，请联系管理员升级。',rotation_policy_mismatch:'并发设置尚未获网关确认，请稍后刷新。',charge_mode_invalid:'请选择按 Token 或按成功请求次数计费。',billing_selection_unsupported:'当前网关暂不支持按成功请求计费，请联系管理员升级。',billing_selection_mismatch:'所选计费方式尚未获网关确认。',billing_mode_changed:'计费方式已变更，请等待配置同步后重新发起尚未发送的请求。',ticket_mode_invalid:'请选择个人模式或中转模式。',ticket_mode_unsupported:'当前网关不支持此打票策略，请先升级网关。',ticket_mode_mismatch:'网关尚未确认所选打票模式，等待重新同步。',ticket_policy_unavailable:'打票策略暂时无法保存，已停止新的账号准备，请检查存储。',personal_acquisition_deferred:'个人模式正在等待当前账号，稍后会逐步尝试其他账号。',
       state_product_mismatch:'该数据目录属于另一个插件，请使用此插件独立的数据目录。',
       execution_mode_fixed:'此插件的执行位置固定，请安装对应的独立插件版本。',
       execution_mode_invalid:'执行位置由当前插件版本固定，请检查是否安装了所需版本。', local_lease_expired:'CPA 端执行租约已过期，等待自动重新连接。', local_lease_invalid:'CPA 端执行租约未被网关确认，请刷新连接状态。', local_lease_unavailable:'CPA 端执行租约暂不可用，等待重新连接。', local_ownership_unavailable:'CPA 端账号接管尚未完成，请稍后刷新。', local_execution_unavailable:'CPA 端执行服务暂不可用，请检查插件状态。', local_dispatch_unconfirmed:'派发结果尚未确认，本次请求不会自动重放，请核对业务记录。', execution_mode_conflict:'当前安装的执行位置与网关记录不一致，请先完成原接管的释放。',
       preflight_http_400:'发送前验证请求被拒绝（400），业务未发送、未扣费。', preflight_http_401:'发送前账号授权验证失败（401），业务未发送、未扣费。', preflight_http_403:'发送前验证被上游拒绝（403），业务未发送、未扣费。', preflight_http_404:'发送前验证接口不可用（404），业务未发送、未扣费。', preflight_http_408:'发送前验证超时（408），业务未发送、未扣费。', preflight_http_422:'发送前验证参数未被接受（422），业务未发送、未扣费。', preflight_http_429:'发送前验证遇到上游限流（429），业务未发送、未扣费。', preflight_http_500:'发送前验证遇到上游服务错误（500），业务未发送、未扣费。', preflight_http_502:'发送前验证上游暂不可达（502），业务未发送、未扣费。', preflight_http_503:'发送前验证上游暂不可用（503），业务未发送、未扣费。', preflight_http_504:'发送前验证上游超时（504），业务未发送、未扣费。', preflight_http_error:'发送前验证未通过，业务未发送、未扣费。', preflight_transport_error:'发送前验证连接失败，业务未发送、未扣费。', preflight_incomplete:'发送前验证回复不完整，业务未发送、未扣费。', preflight_timeout:'发送前验证超时，业务未发送、未扣费。',
       native_session_required:'请先在 CPA 原生登录页启用“记住登录”，再从菜单打开票据网关。', native_context_required:'请从同一 CPA 管理页面的“票据网关”菜单进入。', native_session_ended:'CPA 登录会话已结束或已切换，请从 CPA 菜单重新打开。',
-      account_cooldown:'账号冷却中，等待自动恢复',
+      account_cooldown:'重试中',
       egress_unavailable:'网关代理暂不可用，请联系网关管理员。',egress_binding_changed:'网关代理配置已更新，等待账号重新同步。',
       pool_invalid_candidate:'票据准备失败：取得的票据不可用。请稍后刷新；持续出现时请联系网关管理员。',
       probe_route_changed:'票据验证期间账号连接发生变化，本次验证未完成。请等待重新准备后刷新。',
@@ -101,7 +136,7 @@
       probe_timeout:'票据准备或验证未在规定时间内完成。请稍后刷新；持续等待时请联系网关管理员。',
       probe_http_401:'票据验证被上游拒绝（401，授权未通过）。请检查 CPA 账号登录状态；持续出现时请联系网关管理员。',
       probe_http_403:'票据验证被上游拒绝（403）。请稍后刷新；持续出现时请联系网关管理员核查上游响应。',
-      probe_http_429:'票据准备时上游限制了验证请求（429）。请等待冷却后刷新；持续出现时请联系网关管理员。',
+      probe_http_429:'票据准备时上游限制了验证请求（429）。请稍后重试。',
       probe_http_error:'票据验证收到上游错误响应，尚未通过验证。请稍后刷新；持续出现时请联系网关管理员。',
       maintenance_not_authorized:'网关暂未允许此账号准备或维护票据。请稍后刷新；持续出现时请联系网关管理员检查授权。',
       probe_transport_error:'票据验证连接失败，尚未取得可用票据。请稍后刷新；持续出现时请联系网关管理员检查上游连接。',
@@ -110,20 +145,21 @@
       legacy_config_cleanup_failed:'旧配置项尚未清理完成，请刷新后重试保存。',
       client_upgrade_required:'客户端版本过旧，请升级 CPA 插件到 1.4.0，保留原安装身份、配置和数据目录，无需再次充值。',
       billing_protocol_incompatible:'计费协议不兼容，请联系管理员将网关、worker 和插件升级到 1.4.0，保留原安装身份和数据目录。', billing_price_unavailable:'此业务模型暂无可用定价，请联系管理员核对。', billing_model_unavailable:'此业务模型暂无可用定价，请联系管理员核对。', billing_model_not_supported:'此业务模型未获网关允许，请选择获准模型或联系管理员；打票不受影响。', balance_insufficient:'可用美元余额不足，请充值后继续。',
-      billing_unavailable:'计费服务暂不可用，请联系网关管理员。', model_pricing_unavailable:'此业务模型暂无可用定价，请联系管理员核对。', model_not_supported:'此业务模型未获网关允许，请选择获准模型或联系管理员；打票不受影响。', billing_evidence_conflict:'业务用量与计费记录待核对，请联系管理员，不要重复发送请求。', worker_billing_unsupported:'执行节点暂不支持 token 计费，请联系管理员升级节点。',
+      billing_unavailable:'计费服务暂不可用，请联系网关管理员。', model_pricing_unavailable:'此业务模型暂无可用定价，请联系管理员核对。', model_not_supported:'此业务模型未获网关允许，请选择获准模型或联系管理员；打票不受影响。', billing_evidence_conflict:'业务用量与计费记录待核对，请联系管理员，不要重复发送请求。', worker_billing_unsupported:'执行节点暂不支持所选计费方式，请联系管理员升级节点。',
       license_invalid_request:'网关未接受此次充值参数，请检查安装配置和兑换码。', ledger_overflow:'网关余额已达到可记录上限，请联系管理员。',
-      plugin_unconfigured:'请先保存完整的连接配置。', plugin_inactive:'插件尚未连接，请保存配置后继续。', gateway_transport_error:'网关连接暂时中断，请检查服务后重试。', gateway_redirect_rejected:'网关地址发生跳转，请填写最终的 HTTPS 地址。', gateway_rejected:'网关拒绝了此操作，请检查网关授权和服务状态。', unauthorized:'网关尚未授权，请使用 CDK 激活。', license_unauthorized:'网关尚未授权，请使用 CDK 激活。', license_disabled:'网关授权已停用，请联系网关管理员。', license_revoked:'网关授权已撤销，请联系网关管理员。', insufficient_quota:'可用余额不足，请充值后继续。', cdk_unavailable:'兑换码不存在、已停用或已被使用，请检查原始 CDK。', code_consumed:'兑换码已被使用，请检查余额或联系管理员。', code_already_redeemed:'兑换码已兑换，请检查当前余额。', installation_conflict:'安装身份与网关记录不一致，请恢复原安装配置。', activation_request_invalid:'充值信息不完整，请检查原始兑换码。', activation_pending:'上次充值尚待确认，请输入同一兑换码完成确认。', activation_reply_unconfirmed:'充值回复不完整，请使用同一笔操作重试确认。', activation_state_write_failed:'充值已确认，但本地确认记录尚未清理。', activation_history_full:'本地充值记录已满，请联系管理员检查插件数据。', state_directory_unavailable:'数据目录不可用，请检查路径和写入权限。', state_directory_permissions:'数据目录权限不符合要求，请检查服务器目录权限。', state_directory_in_use:'数据目录正在被另一个插件实例使用。', state_write_failed:'插件数据未能写入，请检查数据目录和磁盘空间。', native_auth_unavailable:'CLIProxyAPI 账号暂不可用，请刷新账号或重新登录。', native_auth_ineligible:'该账号目前不可用，请检查原生账号状态。', native_auth_file_unavailable:'账号文件不可用，请在 CLIProxyAPI 中重新登录。', native_credentials_invalid:'账号凭据不完整，请在 CLIProxyAPI 中重新登录。', native_token_expired:'账号登录已过期，等待原生刷新或重新登录。', native_expiry_invalid:'账号有效期无法识别，请重新登录。', native_auth_identity_mismatch:'账号标识发生变化，请重新选择该账号。', account_not_ready:'网关正在准备可用票据。', relay_not_ready:'网关尚未就绪，请稍后刷新。', route_epoch_stale:'账号连接已更新，等待重新同步。', route_released:'账号已释放，保存配置后可恢复连接。', upstream_state_changed:'上游票据状态已变化，当前票据无法继续使用。请等待重新准备后刷新；反复出现时请联系网关管理员。', upstream_error:'上游请求暂时失败，请稍后刷新。', revision_conflict:'账号配置发生变化，等待重新同步。', operation_exists:'该操作已有记录，请用同一兑换码继续确认。', route_not_found:'插件接口不可用，请核对安装版本。',
-      config_invalid:'配置格式不正确，请检查填写内容。', gateway_url_invalid:'请填写不含路径、参数或账号密码的网关首页地址。', gateway_https_required:'网关地址须使用 HTTPS；本机调试可使用 HTTP。', data_dir_absolute_required:'请填写服务器上的绝对数据目录路径。', installation_identity_required:'安装身份不完整，请从原配置恢复身份与密钥，避免重复创建。', config_limits_invalid:'高级设置超出范围，或同步间隔大于租约的三分之一。', config_selection_invalid:'请填写 1 至 50 个业务模型，账号最多选择 1,000 个。', relay_models_invalid:'模型名格式不正确或存在重复，请检查填写内容。', auth_selection_invalid:'所选账号信息已变化，请刷新账号目录。', plugin_not_configured:'请先保存完整的连接配置。', plugin_disabled:'插件尚未启用。', plugin_paused:'已暂停，请保存配置后恢复连接。', plugin_closed:'插件正在重新加载，请稍后刷新。', host_unavailable:'CLIProxyAPI 管理服务暂不可用。', host_callback_failed:'读取 CLIProxyAPI 账号失败，请稍后刷新。', host_reply_invalid:'CLIProxyAPI 返回了无法识别的账号信息。', network_error:'连接暂时中断，请检查服务后重试。', request_timeout:'请求超时，请检查当前状态后重试。', invalid_response:'服务回复不完整，请刷新状态后确认。', gateway_unavailable:'网关暂时不可达，请检查网关服务与地址。', relay_unavailable:'网关暂时不可达，请检查网关服务与地址。', gateway_reply_invalid:'网关回复不完整，请稍后重试。', release_unconfirmed:'释放结果尚未确认，请检查网关后再次释放。', authorization_invalid:'网关尚未授权，请使用 CDK 激活。', authorization_not_found:'网关尚未授权，请使用 CDK 激活。', authorization_disabled:'网关授权已停用，请联系网关管理员。', quota_exhausted:'可用余额不足，请充值后继续。', code_invalid:'兑换码无效，请粘贴完整的原始 CDK。', invalid_code:'兑换码无效，请粘贴完整的原始 CDK。', code_not_found:'未找到该兑换码，请检查是否完整。', code_used:'兑换码已被使用，请检查余额或联系管理员。', code_redeemed:'兑换码已被使用，请检查余额或联系管理员。', code_revoked:'兑换码已被撤销，请联系管理员。', activation_intent_mismatch:'待确认操作与兑换码不匹配，请输入上次提交的同一 CDK。', operation_conflict:'此操作与上次提交不匹配，请使用同一兑换码确认。', operation_invalid:'无法确认充值操作，请刷新后重试。', directory_unavailable:'账号目录暂不可用，请稍后刷新。', credential_missing:'账号需要重新登录。', credentials_invalid:'账号凭据不可用，请重新登录。', account_disabled:'账号已在 CLIProxyAPI 中停用。', account_unavailable:'账号暂不可用。', proxy_invalid:'账号代理配置不可用。', proxy_unavailable:'账号代理暂时不可达。', pool_unavailable:'正在等待可用 Cookie。', pool_empty:'正在等待可用 Cookie。', probe_rejected:'验证请求被拒绝，等待网关重试。', upstream_rate_limited:'上游限流，等待冷却。', upstream_cooldown:'上游冷却中。', waiting_for_pool:'正在等待可用 Cookie。', ticket_not_ready:'正在准备可用票据。', ticket_unavailable:'正在准备可用票据。', sync_failed:'与网关同步失败，请检查连接。', not_found:'此管理接口不可用，请核对插件版本。', management_denied:'管理密钥无效或远程管理未开放，请检查 CLIProxyAPI 管理设置。', config_changed:'配置已被其他管理会话修改，请重新登录后再操作。', randomness_unavailable:'浏览器无法生成安全身份，请使用现代浏览器或 HTTPS 打开此页。'
+      plugin_unconfigured:'请先保存完整的连接配置。', plugin_inactive:'插件尚未连接，请保存配置后继续。', gateway_transport_error:'网关连接暂时中断，请检查服务后重试。', gateway_redirect_rejected:'网关地址发生跳转，请填写最终的 HTTPS 地址。', gateway_rejected:'网关拒绝了此操作，请检查网关授权和服务状态。', unauthorized:'网关尚未授权，请使用 CDK 激活。', license_unauthorized:'网关尚未授权，请使用 CDK 激活。', license_disabled:'网关授权已停用，请联系网关管理员。', license_revoked:'网关授权已撤销，请联系网关管理员。', insufficient_quota:'可用余额不足，请充值后继续。', cdk_unavailable:'兑换码不存在、已停用或已被使用，请检查原始 CDK。', code_consumed:'兑换码已被使用，请检查余额或联系管理员。', code_already_redeemed:'兑换码已兑换，请检查当前余额。', installation_conflict:'安装身份与网关记录不一致，请恢复原安装配置。', activation_request_invalid:'充值信息不完整，请检查原始兑换码。', activation_pending:'上次充值尚待确认，请输入同一兑换码完成确认。', activation_reply_unconfirmed:'充值回复不完整，请使用同一笔操作重试确认。', activation_state_write_failed:'充值已确认，但本地确认记录尚未清理。', activation_history_full:'本地充值记录已满，请联系管理员检查插件数据。', state_directory_unavailable:'数据目录不可用，请检查路径和写入权限。', state_directory_permissions:'数据目录权限不符合要求，请检查服务器目录权限。', state_directory_in_use:'数据目录正在被另一个插件实例使用。', state_write_failed:'插件数据未能写入，请检查数据目录和磁盘空间。', native_auth_unavailable:'暂时无法读取 CLIProxyAPI 账号状态。', native_auth_ineligible:'原生账号目前不可用，正在等待账号状态更新。', native_auth_file_unavailable:'原生账号文件暂不可读。', native_credentials_invalid:'原生账号凭据不完整。', native_token_expired:'账号登录已过期，等待原生凭据刷新。', native_expiry_invalid:'账号有效期无法识别，请重新登录。', native_auth_identity_mismatch:'账号标识发生变化，请重新选择该账号。', account_not_ready:'网关正在准备可用票据。', relay_not_ready:'网关尚未就绪，请稍后刷新。', route_epoch_stale:'账号连接已更新，等待重新同步。', route_released:'账号已释放，保存配置后可恢复连接。', upstream_state_changed:'上游票据状态已变化，当前票据无法继续使用。请等待重新准备后刷新；反复出现时请联系网关管理员。', upstream_error:'上游请求暂时失败，请稍后刷新。', revision_conflict:'账号配置发生变化，等待重新同步。', operation_exists:'该操作已有记录，请用同一兑换码继续确认。', route_not_found:'插件接口不可用，请核对安装版本。',
+      config_invalid:'配置格式不正确，请检查填写内容。', gateway_url_invalid:'请填写不含路径、参数或账号密码的网关首页地址。', gateway_https_required:'网关地址须使用 HTTPS；本机调试可使用 HTTP。', data_dir_absolute_required:'请填写服务器上的绝对数据目录路径。', installation_identity_required:'安装身份不完整，请从原配置恢复身份与密钥，避免重复创建。', config_limits_invalid:'高级设置超出范围，或同步间隔大于租约的三分之一。', config_selection_invalid:'请填写 1 至 50 个业务模型，账号最多选择 1,000 个。', relay_models_invalid:'模型名格式不正确或存在重复，请检查填写内容。', auth_selection_invalid:'所选账号信息已变化，请刷新账号目录。', plugin_not_configured:'请先保存完整的连接配置。', plugin_disabled:'插件尚未启用。', plugin_paused:'已暂停，请保存配置后恢复连接。', plugin_closed:'插件正在重新加载，请稍后刷新。', host_unavailable:'CLIProxyAPI 管理服务暂不可用。', host_callback_failed:'读取 CLIProxyAPI 账号失败，请稍后刷新。', host_reply_invalid:'CLIProxyAPI 返回了无法识别的账号信息。', network_error:'连接暂时中断，请检查服务后重试。', request_timeout:'请求超时，请检查当前状态后重试。', invalid_response:'服务回复不完整，请刷新状态后确认。', gateway_unavailable:'网关暂时不可达，请检查网关服务与地址。', relay_unavailable:'网关暂时不可达，请检查网关服务与地址。', gateway_reply_invalid:'网关回复不完整，请稍后重试。', release_unconfirmed:'释放结果尚未确认，请检查网关后再次释放。', authorization_invalid:'网关尚未授权，请使用 CDK 激活。', authorization_not_found:'网关尚未授权，请使用 CDK 激活。', authorization_disabled:'网关授权已停用，请联系网关管理员。', quota_exhausted:'可用余额不足，请充值后继续。', code_invalid:'兑换码无效，请粘贴完整的原始 CDK。', invalid_code:'兑换码无效，请粘贴完整的原始 CDK。', code_not_found:'未找到该兑换码，请检查是否完整。', code_used:'兑换码已被使用，请检查余额或联系管理员。', code_redeemed:'兑换码已被使用，请检查余额或联系管理员。', code_revoked:'兑换码已被撤销，请联系管理员。', activation_intent_mismatch:'待确认操作与兑换码不匹配，请输入上次提交的同一 CDK。', operation_conflict:'此操作与上次提交不匹配，请使用同一兑换码确认。', operation_invalid:'无法确认充值操作，请刷新后重试。', directory_unavailable:'账号目录暂不可用，请稍后刷新。', credential_missing:'账号需要重新登录。', credentials_invalid:'账号凭据不可用，请重新登录。', account_disabled:'账号已在 CLIProxyAPI 中停用。', account_unavailable:'账号暂不可用。', proxy_invalid:'账号代理配置不可用。', proxy_unavailable:'账号代理暂时不可达。', pool_unavailable:'正在等待可用 Cookie。', pool_empty:'正在等待可用 Cookie。', probe_rejected:'验证请求被拒绝，等待网关重试。', upstream_rate_limited:'OpenAI 限流', upstream_cooldown:'重试中', waiting_for_pool:'正在等待可用 Cookie。', ticket_not_ready:'正在准备可用票据。', ticket_unavailable:'正在准备可用票据。', sync_failed:'与网关同步失败，请检查连接。', not_found:'此管理接口不可用，请核对插件版本。', management_denied:'管理密钥无效或远程管理未开放，请检查 CLIProxyAPI 管理设置。', config_changed:'配置已被其他管理会话修改，请重新登录后再操作。', randomness_unavailable:'浏览器无法生成安全身份，请使用现代浏览器或 HTTPS 打开此页。'
     });
     class ConsoleError extends Error { constructor(code, status) { super(code); this.code=code; this.status=status||0; } }
     function message(error) { return errorLabels[error && error.code || error] || '操作暂未完成，请检查服务状态后重试。'; }
     function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
     function list(value) { return Array.isArray(value) ? value : []; }
     function sorted(value) { return list(value).filter(v=>typeof v==='string').slice().sort(); }
+    function waitingPolicySignature(value) { const seconds=value?.ticket_wait_seconds;return JSON.stringify([typeof seconds==='number'&&!Number.isFinite(seconds)?'invalid':seconds??null,value?.requeue_on_state_replace??true]); }
     function normalConfig(value) {
       if (!object(value)) throw new ConsoleError('config_invalid');
       value={...value};delete value.probe_model;delete value.probe_effort;
-      return {...defaults,...value,ticket_mode:typeof value.ticket_mode==='string'&&value.ticket_mode.trim()?value.ticket_mode.trim():'personal', gateway_url:typeof value.gateway_url==='string'?value.gateway_url.trim().replace(/\/+$/,''):'', relay_models:list(value.relay_models).length ? value.relay_models.slice() : defaults.relay_models.slice(), selected_auth_indexes:list(value.selected_auth_indexes).slice()};
+      return {...defaults,...value,charge_mode:value.charge_mode||'token',relay_concurrency_mode:value.relay_concurrency_mode||'manual',relay_active_accounts:value.relay_active_accounts??0,relay_no_ticket_minutes:Number(value.relay_active_accounts||0)>0||value.relay_concurrency_mode==='auto'?(value.relay_no_ticket_minutes||5):0,ticket_mode:typeof value.ticket_mode==='string'&&value.ticket_mode.trim()?value.ticket_mode.trim():'personal', gateway_url:typeof value.gateway_url==='string'?value.gateway_url.trim().replace(/\/+$/,''):'', relay_models:list(value.relay_models).length ? value.relay_models.slice() : defaults.relay_models.slice(), selected_auth_indexes:list(value.selected_auth_indexes).slice()};
     }
     // Keep large ledger integers exact without changing digits inside JSON strings.
     function parseJSON(source) {
@@ -159,6 +195,15 @@
     function validateDraft(draft) {
       draft={...draft,ticket_mode:typeof draft.ticket_mode==='string'&&draft.ticket_mode.trim()?draft.ticket_mode.trim():'personal'};
       delete draft.probe_model;delete draft.probe_effort;
+      if(draft.waiting_policy!=null){
+        const policy=draft.waiting_policy,seconds=policy.ticket_wait_seconds,requeue=policy.requeue_on_state_replace;
+        if(!object(policy)||seconds!=null&&(!Number.isInteger(seconds)||seconds<0||seconds>3600)||requeue!=null&&typeof requeue!=='boolean')throw new ConsoleError('waiting_policy_invalid');
+      }
+      draft.charge_mode=draft.charge_mode||'token';draft.relay_concurrency_mode=draft.relay_concurrency_mode||'manual';draft.relay_active_accounts=draft.relay_active_accounts??0;draft.relay_no_ticket_minutes=draft.relay_active_accounts>0||draft.relay_concurrency_mode==='auto'?(draft.relay_no_ticket_minutes||5):0;
+      if(!['manual','auto'].includes(draft.relay_concurrency_mode))throw new ConsoleError('relay_concurrency_mode_invalid');
+      if(!['token','request'].includes(draft.charge_mode))throw new ConsoleError('charge_mode_invalid');
+      if(!Number.isInteger(draft.relay_active_accounts)||draft.relay_active_accounts<0||draft.relay_active_accounts>1000||(draft.relay_active_accounts>0||draft.relay_concurrency_mode==='auto')&&(!Number.isInteger(draft.relay_no_ticket_minutes)||draft.relay_no_ticket_minutes<1||draft.relay_no_ticket_minutes>1440))throw new ConsoleError('rotation_policy_invalid');
+      if (Object.hasOwn(draft,'account_priorities')&&(!object(draft.account_priorities)||Object.entries(draft.account_priorities).some(([key,value])=>!key||!Number.isInteger(value)||value<0||value>999999)))throw new ConsoleError('account_priorities_invalid');
       if (!['personal','relay'].includes(draft.ticket_mode)) throw new ConsoleError('ticket_mode_invalid');
       let url; try { url=new URL(draft.gateway_url); } catch (_) { throw new ConsoleError('gateway_url_invalid'); }
       if (url.username||url.password||url.search||url.hash||url.pathname!=='/') throw new ConsoleError('gateway_url_invalid');
@@ -174,10 +219,42 @@
     function configMatches(a,b) {
       if (!object(a)||!object(b)) return false;
       const first=normalConfig(a), second=normalConfig(b);
-      return first.enabled===second.enabled && first.installation_id===second.installation_id && Object.keys(fields).every(key=>key==='relay_models' ? JSON.stringify(first[key])===JSON.stringify(second[key]) : first[key]===second[key]) && JSON.stringify(first.selected_auth_indexes)===JSON.stringify(second.selected_auth_indexes);
+      return first.enabled===second.enabled && first.installation_id===second.installation_id && Object.keys(fields).every(key=>key==='relay_models' ? JSON.stringify(first[key])===JSON.stringify(second[key]) : first[key]===second[key]) && JSON.stringify(first.selected_auth_indexes)===JSON.stringify(second.selected_auth_indexes) && prioritySignature(first.account_priorities)===prioritySignature(second.account_priorities) && waitingPolicySignature(first.waiting_policy)===waitingPolicySignature(second.waiting_policy);
     }
+    function autoConcurrency(total) { if(!Number.isInteger(total)||total<=0)return {accounts:0,rounds:0};if(total<=3)return {accounts:1,rounds:total};let rounds=3;while((rounds+1)*rounds<=total)rounds++;return {accounts:Math.floor(total/rounds),rounds}; }
+    function addUpdateSourceYAML(source,url) {
+      // Only edit an unambiguous block sequence; all unrelated YAML stays verbatim.
+      if(typeof source!=='string'||source.length>4*1024*1024||source.includes('\t'))throw new ConsoleError('update_source_setup');
+      const newline=source.includes('\r\n')?'\r\n':'\n',lines=source.split(newline);
+      if(lines.some(line=>/^(?:---|\.\.\.)\s*(?:#.*)?$/.test(line)||/^<<\s*:/.test(line)))throw new ConsoleError('update_source_setup');
+      const declarations=lines.map((line,index)=>({line,index})).filter(({line})=>/^(?:plugins|['"]plugins['"])\s*:/.test(line));
+      if(!declarations.length){const prefix=source+(source.endsWith(newline)?'':newline);return prefix+'plugins:'+newline+'  store-sources:'+newline+'    - '+JSON.stringify(url)+newline;}
+      if(declarations.length!==1||!/^plugins:\s*(?:\{\}\s*)?(?:#.*)?$/.test(declarations[0].line))throw new ConsoleError('update_source_setup');
+      const start=declarations[0].index;let end=start+1;while(end<lines.length&&(!lines[end].trim()||/^\s|^#/.test(lines[end])))end++;
+      const block=lines.slice(start+1,end),indents=block.filter(line=>/^\s+\S/.test(line)&&!/^\s+#/.test(line)).map(line=>line.match(/^ +/)[0].length),indent=indents.length?Math.min(...indents):2,prefix=' '.repeat(indent);
+      if(block.some(line=>line.startsWith(prefix)&&/^<<\s*:/.test(line.slice(indent))))throw new ConsoleError('update_source_setup');
+      const sources=block.map((line,index)=>({line,index:start+1+index})).filter(({line})=>line.startsWith(prefix)&&/^(?:store-sources|['"]store-sources['"])\s*:/.test(line.slice(indent)));
+      if(sources.length>1)throw new ConsoleError('update_source_setup');
+      if(!sources.length){lines[start]=lines[start].replace(/:\s*\{\}/,':');lines.splice(start+1,0,prefix+'store-sources:',prefix+'  - '+JSON.stringify(url));return lines.join(newline);}
+      const entry=sources[0];if(!/^store-sources:\s*(?:\[\]\s*)?(?:#.*)?$/.test(entry.line.slice(indent)))throw new ConsoleError('update_source_setup');
+      let finish=entry.index+1;while(finish<end&&(!lines[finish].trim()||/^\s*#/.test(lines[finish])||lines[finish].startsWith(prefix+' ')||lines[finish].startsWith(prefix+'- ')))finish++;
+      let itemPrefix=prefix+'  ';
+      for(const line of lines.slice(entry.index+1,finish)){
+        if(!line.trim()||/^\s*#/.test(line))continue;
+        const match=line.match(/^( +)- (https?:\/\/[^\s#]+|"https?:\/\/[^"\s]+"|'https?:\/\/[^'\s]+')(?:\s+#.*)?\s*$/);if(!match)throw new ConsoleError('update_source_setup');
+        if([url,JSON.stringify(url),"'"+url+"'"].includes(match[2]))return source;itemPrefix=match[1];
+      }
+      lines[entry.index]=entry.line.replace(/:\s*\[\]/,':');lines.splice(finish,0,itemPrefix+'- '+JSON.stringify(url));return lines.join(newline);
+    }
+    function validUpdate(value) {
+      const version=value&&value.current_version;if(!object(value)||typeof value.supported!=='boolean'||typeof version!=='string'||!/^\d+\.\d+\.\d+$/.test(version))return false;
+      if(!value.supported)return true;
+      if(value.update_available){const a=value.artifact,p=value.platform;if(!object(a)||!object(p)||a.url!=='https://ticket.codingmiao.site/downloads/cliproxy-ticket/'+value.latest_version+'/'+ID+'-'+value.latest_version+'-'+p.goos+'-'+p.goarch+'.store.zip'||!/^([a-f0-9]{64})$/.test(a.sha256)||!Number.isSafeInteger(a.size)||a.size<=0)return false;}
+      return value.source_url===updateSourceURL&&/^source-[a-f0-9]{12}$/.test(value.source_id)&&typeof value.latest_version==='string'&&/^\d+\.\d+\.\d+$/.test(value.latest_version)&&typeof value.update_available==='boolean'&&object(value.platform);
+    }
+    function prioritySignature(value) { return object(value)?JSON.stringify(Object.keys(value).sort().map(key=>[key,value[key]])):''; }
     function errorCode(body) { if (object(body)&&object(body.error)&&typeof body.error.code==='string') return body.error.code; if (object(body)&&typeof body.code==='string') return body.code; if (object(body)&&typeof body.error==='string') return body.error; return ''; }
-    function managementDenied(status,body,path) { if (status!==401&&status!==403) return false; if (path===CONFIG||path.startsWith(CONFIG+'/')||path===PLUS_CONFIG) return true; const code=errorCode(body); return ['missing management key','invalid management key','remote management disabled','remote management key not set'].includes(code)||code.startsWith('IP banned due to too many failed attempts'); }
+    function managementDenied(status,body,path) { if (status!==401&&status!==403) return false; if (path===CONFIG||path.startsWith(CONFIG+'/')||path===PLUS_CONFIG) return true; if(path.startsWith('/v8/management/')||path==='/v0/management/config.yaml'||path.startsWith('/v0/management/plugin-store')||path==='/v0/management/plugins')return true; const code=errorCode(body); return ['missing management key','invalid management key','remote management disabled','remote management key not set'].includes(code)||code.startsWith('IP banned due to too many failed attempts'); }
     function validReceipt(body,id) { return object(body)&&typeof body.receipt_id==='string'&&body.receipt_id.length>0&&monetary(body.balance)&&body.balance.installation_id===id&&typeof body.balance.authorization_id==='string'&&body.balance.authorization_id.length>0&&moneyValue(body.added_usd)!==null&&moneyValue(body.added_usd)>0n; }
     function nativeMount(env) {
       const suffix='/v0/resource/plugins/'+ID+'/ui', path=env.location.pathname;
@@ -240,7 +317,7 @@
     }
     function createConsole(env) {
       const doc=env.document, el=id=>doc.getElementById(id), rows=new Map(), controllers=new Set();
-      let key='', nativeBinding=null, configPath=CONFIG, configStyle='v8', epoch=0, session=false, saved=null, selected=new Set(), directory=[], status=null, stale=true, timer=null, editVersion=0, mutationVersion=0, busy='', refreshing=false, awaiting=null, generated=null, pending=null, remotePending='', confirmedOperation='', released=false;
+      let key='', nativeBinding=null, configPath=CONFIG, configStyle='v8', epoch=0, session=false, saved=null, selected=new Set(), directory=[], status=null, stale=true, timer=null, editVersion=0, mutationVersion=0, busy='', refreshing=false, awaiting=null, generated=null, pending=null, remotePending='', confirmedOperation='', released=false, priorities={}, prioritiesExplicit=false, accountFilter='all', accountPage=1, updateInfo=null, updatePhase='idle', updateNote='', checkingUpdate=false, updateTimer=null, updatePoll=null, updateTarget='', updateOldVersion='', updateInstallSent=false, updateAttempts=0, updateRecovery='', verifyingUpdate=false;
       const text=(id,value)=>{el(id).textContent=String(value);};
       const show=(id,value)=>{el(id).hidden=!value;};
       doc.title=PRODUCT.name+' · CLIProxyAPI';
@@ -256,53 +333,73 @@
         try{const inherited=nativeSession(env,nativeBinding.storageKey);if(inherited.key===key&&inherited.mount===nativeBinding.mount)return true;}catch(_){}
         clearSession(message('native_session_ended'));return false;
       }
-      function dirty() { if (!saved) return false; const draft=readDraft(); return Object.keys(fields).some(k=>JSON.stringify(draft[k])!==JSON.stringify(saved[k]??''))||JSON.stringify(sorted(Array.from(selected)))!==JSON.stringify(sorted(saved.selected_auth_indexes)); }
+      function dirty() { if (!saved) return false; const draft=readDraft(); return Object.keys(fields).some(k=>JSON.stringify(draft[k])!==JSON.stringify(saved[k]??''))||JSON.stringify(sorted(Array.from(selected)))!==JSON.stringify(sorted(saved.selected_auth_indexes))||prioritySignature(draft.account_priorities)!==prioritySignature(saved.account_priorities)||waitingPolicySignature(draft.waiting_policy)!==waitingPolicySignature(saved.waiting_policy); }
       function readDraft() {
         // Toggling a checkbox off and on must not reorder an unchanged binding.
         // The native runtime deliberately treats saved slice order as observable.
         const previous=list(saved&&saved.selected_auth_indexes), known=new Set(previous);
         const indexes=[...previous.filter(index=>selected.has(index)),...Array.from(selected).filter(index=>!known.has(index))];
-        const result={enabled:true,selected_auth_indexes:indexes}; for (const [field,id] of Object.entries(fields)) { const value=el(id).value.trim(); result[field]=field==='relay_models' ? value.split(/[\s,，]+/).filter(Boolean) : numbers.has(field) ? Number(value) : value; } return result;
+        const result={enabled:true,selected_auth_indexes:indexes}; if(prioritiesExplicit)result.account_priorities=Object.fromEntries(Object.entries(priorities).map(([index,value])=>[index,/^\d+$/.test(String(value))?Number(value):NaN])); for (const [field,id] of Object.entries(fields)) { const value=el(id).value.trim(); result[field]=field==='relay_models' ? value.split(/[\s,，]+/).filter(Boolean) : numbers.has(field) ? Number(value) : value; }
+        const requeue=el('requeueOnStateReplace').value;
+        result.waiting_policy={requeue_on_state_replace:requeue==='true'?true:requeue==='false'?false:requeue};
+        if(el('ticketWaitMode').value==='timeout'){const value=el('ticketWaitSeconds').value.trim();result.waiting_policy.ticket_wait_seconds=value===''?NaN:Number(value);}
+        else if(el('ticketWaitMode').value!=='wait')result.waiting_policy.ticket_wait_seconds=NaN;
+        return result;
       }
-      function fill(config) { for (const [field,id] of Object.entries(fields)) el(id).value=field==='relay_models'?config.relay_models.join('\n'):String(config[field]??''); selected=new Set(config.selected_auth_indexes); }
+      function fill(config) { for (const [field,id] of Object.entries(fields)) el(id).value=field==='relay_models'?config.relay_models.join('\n'):String(config[field]??''); selected=new Set(config.selected_auth_indexes); prioritiesExplicit=object(config.account_priorities);priorities=prioritiesExplicit?{...config.account_priorities}:{};const policy=config.waiting_policy;el('ticketWaitMode').value=policy?.ticket_wait_seconds==null?'wait':'timeout';el('ticketWaitSeconds').value=String(policy?.ticket_wait_seconds??0);el('requeueOnStateReplace').value=String(policy?.requeue_on_state_replace??true); }
       function actions() {
-        const changed=dirty(), configured=status&&status.configured===true&&!awaiting, paused=released||status&&status.paused===true;
+        const changed=dirty(), configured=status&&status.configured===true&&!awaiting, paused=released||status&&status.paused===true,reconnect=status&&status.update_requires_reconnect===true;
+        const relay=el('ticketMode').value==='relay',automatic=el('relayConcurrencyMode').value==='auto',limited=Number(el('relayActiveAccounts').value)>0,calculated=autoConcurrency(selected.size);
+        const limitedWait=el('ticketWaitMode').value==='timeout';show('ticketWaitSecondsControl',limitedWait);el('ticketWaitSeconds').disabled=!limitedWait;el('ticketWaitSeconds').required=limitedWait;
+        const unsupportedWait=status&&status.waiting_policy_supported===false&&(limitedWait||el('requeueOnStateReplace').value==='false');show('waitingPolicyStatus',unsupportedWait);text('waitingPolicyStatus',unsupportedWait?'当前网关不支持此等待设置，对应请求会报错。账号仍会继续准备，请联系管理员升级。':'');
+        show('concurrencyModeControl',relay);show('rotationControls',relay&&!automatic);show('rotationMinutesControl',relay&&(automatic||limited));show('autoConcurrencySummary',relay&&automatic);
+        text('autoConcurrencySummary',selected.size===0?'尚未选择账号，保存后不会启动。':'已选择 '+selected.size+' 个账号，自动同时使用 '+calculated.accounts+' 个，可轮换 '+calculated.rounds+' 轮');
+        // Hidden number controls still participate in native form validation.
+        // Keep inapplicable policy values in the draft, but out of that validation.
+        el('relayActiveAccounts').disabled=!relay||automatic;
+        el('relayNoTicketMinutes').disabled=!relay||(!automatic&&!limited);
+        if((limited||automatic)&&Number(el('relayNoTicketMinutes').value)===0)el('relayNoTicketMinutes').value='5';
+        if(!limited&&!automatic)el('relayNoTicketMinutes').value='0';
         show('dirtyIndicator',changed); text('selectionCount','已选 '+selected.size+' 个');
-        text('ticketModeHint',el('ticketMode').value==='relay'?'中转模式同时维护所选账号的主票和备选票，适合持续业务。':'个人模式先准备一个账号，不留备选票；持续无票时逐步增加账号。闲置 10 分钟且无等待或进行中的请求时暂停打新票，回来后可能需要等待。');
+        text('ticketModeHint',el('ticketMode').value==='relay'?'中转模式按设定的并发账号数持续准备账号，长时间未能准备好的账号会自动替换。':'个人模式持续准备一个可用账号，票据到期后自动补充；长时间未能准备好时自动尝试其他账号。');
         el('saveButton').disabled=!!busy||!!pending||!!remotePending;
         el('redeemButton').disabled=!!busy||!configured||changed||paused;
         el('redeemCode').readOnly=!!pending;
         el('redeemButton').textContent=remotePending&&remotePending===confirmedOperation?'确认充值记录':pending||remotePending?'重试确认同一笔充值':'确认激活 / 充值';
-        el('sync').disabled=!!busy||!configured||paused;
-        el('release').disabled=!!busy||!configured||(paused&&changed);
-        el('release').textContent=paused?'恢复已保存配置':'释放账号并暂停';
+        el('sync').disabled=!!busy||!configured||paused||reconnect;
+        el('release').disabled=!!busy||!configured||((paused||reconnect)&&changed);
+        el('release').textContent=reconnect?'重新连接账号':paused?'恢复已保存配置':'释放账号并暂停';
         el('saveButton').textContent=paused?'保存配置':'保存并连接';
         el('copyConfig').disabled=!saved||!saved.installation_id;
         text('saveNote',busy==='save'?'正在保存…':awaiting?'正在应用配置…':changed?'有未保存的更改':saved&&saved.installation_id?'配置已保存':'首次配置');
-        text('executionModeHint',PRODUCT.mode==='cpa'?'业务由 CPA 端插件执行，成功 token 用量由插件上报；网关不独立验证业务响应。':'网关负责业务执行与成功验证。');
+        text('executionModeHint',PRODUCT.mode==='cpa'?'业务由 CPA 端插件执行，成功结果与用量由插件上报；网关不独立验证业务响应。':'网关负责业务执行与成功验证。');
+        renderUpdate();
         text('redeemHint',remotePending&&remotePending===confirmedOperation?'充值已入账，本地记录尚待清理。可重新粘贴同一兑换码确认，不会重复增加余额。':pending?'结果尚未确认。点击重试会沿用同一笔充值编号。':remotePending?'上次充值尚未确认。请重新粘贴同一兑换码后点击重试。':changed?'请先保存当前配置，再激活或充值。':!configured?'先保存连接配置，再提交兑换码。':'仅在点击下方按钮后提交充值。');
       }
       function clearSession(reason) {
-        epoch++; key=''; nativeBinding=null; configPath=CONFIG; configStyle='v8'; session=false; saved=null; selected=new Set(); directory=[]; status=null; stale=true; awaiting=null; generated=null; pending=null; remotePending=''; confirmedOperation=''; released=false; busy=''; refreshing=false;
+        epoch++; key=''; nativeBinding=null; configPath=CONFIG; configStyle='v8'; session=false; saved=null; selected=new Set(); directory=[]; status=null; stale=true; awaiting=null; generated=null; pending=null; remotePending=''; confirmedOperation=''; released=false; busy=''; refreshing=false; priorities={};prioritiesExplicit=false;accountFilter='all';accountPage=1;updateInfo=null;updatePhase='idle';updateNote='';checkingUpdate=false;updateTarget='';updateOldVersion='';updateInstallSent=false;updateAttempts=0;updateRecovery='';verifyingUpdate=false;
+        if(updateTimer!==null)env.clearTimeout(updateTimer);updateTimer=null;if(updatePoll!==null)env.clearTimeout(updatePoll);updatePoll=null;
         if (timer!==null) env.clearTimeout(timer); timer=null;
         for (const controller of controllers) controller.abort(); controllers.clear();
         for (const id of [...Object.values(fields),'redeemCode','accountSearch']) el(id).value='';
-        for (const id of ['notice','redeemMessage','installationInfo','clientConfig','clientHint','selectionCount','searchCount','gatewayState','gatewayNote','available','balanceNote','grantedNote','multiplierNote','readyCount','readyNote','waitingRequests','consumed','consumedNote','executionModeHint','supportedModelsNote','ticketModeStatus','redeemHint','refreshNote','saveNote']) text(id,'');
+        for (const id of ['notice','redeemMessage','installationInfo','clientConfig','clientHint','selectionCount','searchCount','gatewayState','gatewayNote','available','balanceNote','grantedNote','multiplierNote','readyCount','readyNote','waitingRequests','consumed','consumedNote','executionModeHint','supportedModelsNote','ticketModeStatus','chargeModeStatus','requestPriceStatus','billingSummary','redeemHint','refreshNote','saveNote']) text(id,'');
         rows.clear(); el('accountRows').replaceChildren(); el('modelTags').replaceChildren();
-        show('consoleView',false); show('session',false); show('entryView',true); show('notice',false); show('redeemMessage',false); show('waitingRequests',false);
+        text('configValidation','');show('configValidation',false);
+        show('consoleView',false); show('session',false); show('entryView',true); show('notice',false); show('redeemMessage',false); show('waitingRequests',false);text('runtimeNotice','');show('runtimeNotice',false);
         text('entryMessage',reason||''); show('entryMessage',!!reason);
       }
       async function api(path,options) {
         const generation=epoch;if(!current(generation))throw new ConsoleError('stale_session');
         const controller=new env.AbortController(); controllers.add(controller);
         let timedOut=false;
-        const deadline=env.setTimeout(()=>{timedOut=true;controller.abort();},30000);
+        const deadline=env.setTimeout(()=>{timedOut=true;controller.abort();},options&&options.timeout||30000);
         try {
-          const response=await env.fetch(nativeBinding.mount+path,{method:options&&options.method||'GET',body:options&&options.body!==undefined?JSON.stringify(options.body):undefined,headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},cache:'no-store',credentials:'omit',redirect:'error',referrerPolicy:'no-referrer',signal:controller.signal});
+          const response=await env.fetch(nativeBinding.mount+path,{method:options&&options.method||'GET',body:options&&options.rawBody!==undefined?options.rawBody:options&&options.body!==undefined?JSON.stringify(options.body):undefined,headers:{Authorization:'Bearer '+key,'Content-Type':options&&options.rawBody!==undefined?'application/yaml':'application/json'},cache:'no-store',credentials:'omit',redirect:'error',referrerPolicy:'no-referrer',signal:controller.signal});
           const source=await response.text(); if (!current(generation)) throw new ConsoleError('stale_session');
           let body, parsed=true; try { body=source?parseJSON(source):{}; } catch (_) { parsed=false; }
           if (managementDenied(response.status,body,path)) { const parent=nativeContext(env);clearSession('CPA 管理会话已失效，请返回 CPA 重新登录。');if(parent)parent.dispatchEvent(new parent.Event('unauthorized'));throw new ConsoleError('stale_session'); }
           if (!response.ok) { if (options&&options.allowMissing&&response.status===404&&errorCode(body)==='not_found') return {}; if(options&&options.discoverConfig&&response.status===404)throw new ConsoleError('config_endpoint_missing',404); if(!parsed)throw new ConsoleError('invalid_response',response.status); throw new ConsoleError(errorCode(body)||'network_error',response.status); }
+          if(options&&options.raw)return source;
           if(!parsed)throw new ConsoleError('invalid_response',response.status);
           return body;
         } catch (error) { if (error instanceof ConsoleError) throw error; throw new ConsoleError(timedOut?'request_timeout':'network_error'); }
@@ -322,7 +419,7 @@
       }
       function readConfig() { return api(configPath,{allowMissing:configStyle==='v8'}); }
       function freshRelay() {
-        if (stale||awaiting||!status||status.last_error||released||status.paused===true||status.relay_fresh===false) return false;
+        if (stale||awaiting||!status||status.last_error||released||status.paused===true||status.relay_fresh===false||status.update_confirmation_required===true||status.update_requires_reconnect===true||status.update_handoff_state==='pending') return false;
         if (status.relay_fresh===true) return true;
         const at=Date.parse(status.relay_at); return Number.isFinite(at)&&at>0&&Math.max(0,env.Date.now()-at)<Math.max(30,(saved&&saved.sync_seconds||15)*3)*1000;
       }
@@ -330,7 +427,8 @@
         if (!saved) return;
         if (awaiting&&status&&configMatches(status.config,awaiting)) { awaiting=null; notice(status.activated===true?'配置已生效，可继续使用原模型名发起请求。':'配置已生效，请在下方充值余额后开始使用。','success'); }
         const configured=!!status&&status.configured===true, fresh=freshRelay(), accounts=list(status&&status.accounts);
-        const ready=accounts.filter(a=>a.ready===true&&fresh).length;
+        const chosenIndexes=new Set(list(saved.selected_auth_indexes)),disabledIndexes=new Set(directory.filter(a=>a.disabled).map(a=>a.auth_index));
+        const ready=accounts.filter(a=>a.ready===true&&fresh&&chosenIndexes.has(a.auth_index)&&!disabledIndexes.has(a.auth_index)&&!['rate_limited','quota_exhausted'].includes(a.upstream_state)).length;
         let label='未配置', note='先完成连接配置';
         if (awaiting) { label='正在应用'; note='等待插件重新加载'; }
         else if (released||status&&status.paused===true) { label='已暂停'; note='可在页尾恢复已保存配置'; }
@@ -341,55 +439,91 @@
         else if (configured) { label='等待同步'; note='稍后自动刷新状态'; }
         const policy=status&&status.ticket_policy, effective=fresh&&policy&&policy.ticket_mode;
         text('ticketModeStatus',effective?(effective==='personal'?'个人模式':'中转模式')+' · '+(policy.ticket_mode_support==='full'?'已确认生效':'旧版本部分兼容，请升级插件'):'打票模式尚待网关确认');
-        text('gatewayState',label); text('gatewayNote',note); text('readyCount',stale?'—':ready+' / '+list(saved.selected_auth_indexes).length); text('readyNote',fresh?(effective==='personal'?'个人模式 · 不准备备选票':'备用就绪 '+accounts.filter(a=>a.standby_ready===true).length+' 个'):'就绪状态尚未确认');
+        text('chargeModeStatus',fresh&&policy&&policy.charge_mode?(policy.charge_mode==='request'?'按成功请求次数':'按 Token')+' · 已确认生效':'计费方式尚待网关确认');
+        text('requestPriceStatus',status&&monetary(status.balance)&&moneyValue(status.balance.request_price_usd)!==null?'成功请求单价：$'+status.balance.request_price_usd+'；仅按次数计费时使用。':'成功请求单价尚待网关确认');
+        text('gatewayState',label); text('gatewayNote',note); text('readyCount',stale?'—':ready+' / '+list(saved.selected_auth_indexes).length); text('readyNote',fresh?(effective==='personal'?'个人模式 · 自动保持可用账号':'中转模式 · 自动准备所选账号'):'可用状态尚未确认');
         const waiting=status&&status.waiting_requests, observedWaiting=!stale&&!awaiting&&!released&&status&&status.paused!==true&&Number.isSafeInteger(waiting)&&waiting>0;
         text('waitingRequests',observedWaiting?'等待可用账号 · '+count(waiting)+' 个请求':'');show('waitingRequests',observedWaiting);
         const balance=status&&status.balance, confirmed=object(balance)&&balance.installation_id===saved.installation_id&&typeof balance.authorization_id==='string'&&balance.authorization_id.length>0;
         const compatible=confirmed&&monetary(balance);
+        const runtimeNote=status&&status.update_requires_reconnect===true?'现有连接未能接回，请点击页尾“重新连接账号”。重新连接后会重新准备账号。':!stale&&status&&status.last_error==='quota_exhausted'||!stale&&compatible&&moneyValue(balance.available_usd)<=0n?'插件余额不足，请充值后继续使用。':!stale&&status&&['gateway_unavailable','gateway_transport_error','relay_unavailable','egress_unavailable'].includes(status.last_error)?'网关连接暂时中断，正在重试。':'';
+        text('runtimeNotice',runtimeNote);show('runtimeNotice',!!runtimeNote);
         text('available',compatible?usd(balance.available_usd):'—'); text('consumed',compatible?usd(balance.consumed_usd):'—');
         for(const id of ['available','consumed'])el(id).dataset.compact=String(el(id).textContent.length>14);
         text('balanceNote',compatible?(stale||!fresh?'上次确认的余额 · ':'')+'预留 '+usd(balance.held_usd):confirmed?'计费协议不兼容，请升级网关与插件':'尚未确认余额');
         text('grantedNote',compatible?'累计充值 '+usd(balance.granted_usd):'');
-        text('consumedNote',PRODUCT.mode==='cpa'?'成功 token 用量由 CPA 端插件报告':'成功业务 token 费用，由网关验证');
-        text('multiplierNote',compatible?'生效 '+rate(balance.effective_multiplier)+' · 全局 '+rate(balance.global_multiplier)+' · '+(balance.client_multiplier==null?'继承全局':'客户端 '+rate(balance.client_multiplier)):'');
-        text('supportedModelsNote',compatible&&Array.isArray(balance.supported_models)?(balance.supported_models.length?'网关支持的业务模型：'+balance.supported_models.join('、'):'网关允许所有可定价业务模型')+'。仅限制业务请求，不影响打票。':'');
+        const requestBilling=compatible&&balance.charge_mode==='request';
+        const requestPrice=requestBilling&&moneyValue(balance.request_price_usd)!==null?usd(balance.request_price_usd)+' / 次':'单价待确认';
+        text('consumedNote',requestBilling?'成功请求费用 · '+requestPrice+(PRODUCT.mode==='cpa'?'，由 CPA 端插件报告':'，由网关验证'):(PRODUCT.mode==='cpa'?'成功 token 用量由 CPA 端插件报告':'成功业务 token 费用，由网关验证'));
+        text('billingSummary',requestBilling?'CDK 充值美元余额；每次成功请求 '+requestPrice+'，失败不扣费。':'CDK 充值美元余额；成功业务按真实 token 与模型费率扣费。');
+        text('multiplierNote',requestBilling?'固定单价，不叠加 Token 倍率':compatible?'生效 '+rate(balance.effective_multiplier)+' · 全局 '+rate(balance.global_multiplier)+' · '+(balance.client_multiplier==null?'继承全局':'客户端 '+rate(balance.client_multiplier)):'');
+        text('supportedModelsNote',compatible&&Array.isArray(balance.supported_models)?(balance.supported_models.length?'网关支持的业务模型：'+balance.supported_models.join('、'):requestBilling?'网关未限制业务模型名单':'网关允许所有可定价业务模型')+'。仅限制业务请求，不影响打票。':'');
         el('stepConfig').dataset.complete=String(configured&&!awaiting); el('stepActivate').dataset.complete=String(!!status&&status.activated===true); el('stepReady').dataset.complete=String(ready>0);
         if (status&&typeof status.pending_activation_operation_id==='string') remotePending=status.pending_activation_operation_id;
         const at=Date.parse(status&&status.relay_at); text('refreshNote',fresh&&Number.isFinite(at)?'最近网关同步 '+new env.Date(at).toLocaleTimeString('zh-CN')+' · 状态每 5 秒刷新':'状态每 5 秒刷新；表单草稿会保留。');
         renderAccounts(); actions();
       }
       function makeRow(index) {
-        const row=doc.createElement('tr'), checkCell=doc.createElement('td'), input=doc.createElement('input'), accountCell=doc.createElement('td'), label=doc.createElement('span'), note=doc.createElement('span'), phaseCell=doc.createElement('td'), badge=doc.createElement('span'), error=doc.createElement('span'), standby=doc.createElement('td');
-        checkCell.className='check-col'; input.type='checkbox'; accountCell.className='account-col'; label.className='account-label'; note.className='account-note'; phaseCell.className='phase-col'; badge.className='badge'; error.className='row-error'; standby.className='standby-col';
-        checkCell.append(input); accountCell.append(label,note); phaseCell.append(badge,error); row.append(checkCell,accountCell,phaseCell,standby);
+        const row=doc.createElement('tr'), checkCell=doc.createElement('td'), input=doc.createElement('input'), accountCell=doc.createElement('td'), label=doc.createElement('span'), note=doc.createElement('span'), phaseCell=doc.createElement('td'), badge=doc.createElement('span'), error=doc.createElement('span'), priorityCell=doc.createElement('td'), priority=doc.createElement('input');
+        checkCell.className='check-col';input.type='checkbox';accountCell.className='account-col';label.className='account-label';note.className='account-note';phaseCell.className='phase-col';badge.className='badge';error.className='row-error';priorityCell.className='priority-col';
+        priority.className='account-priority';priority.type='number';priority.min='0';priority.max='999999';priority.step='1';priority.inputMode='numeric';priority.setAttribute('aria-describedby','priorityHelp');
+        checkCell.append(input);accountCell.append(label,note);phaseCell.append(badge,error);priorityCell.append(priority);row.append(checkCell,accountCell,phaseCell,priorityCell);
         input.addEventListener('change',()=>{if(input.checked)selected.add(index);else selected.delete(index);editVersion++;actions();renderAccounts();});
-        return {row,input,label,note,badge,error,standby};
+        priority.addEventListener('input',()=>{prioritiesExplicit=true;priorities[index]=priority.value;editVersion++;priority.setAttribute('aria-invalid',String(!/^\d+$/.test(priority.value)||Number(priority.value)>999999));actions();text('accountFoot','账号选择或优先级尚未保存，点击“保存并连接”生效。');});
+        return {row,input,label,note,badge,error,priority};
+      }
+      function accountView(account,currentStatus,chosen,savedChosen,fresh) {
+        const result=(group,label,detail='')=>({group,label,detail});
+        if(account.disabled||currentStatus&&currentStatus.error_code==='native_auth_disabled')return result('off','已手动停用');
+        if(!chosen)return result('off','未选择使用',savedChosen?'保存后停止使用':'');
+        if(!savedChosen)return result('waiting','正在准备','保存后开始使用');
+        if(released||status&&status.paused===true)return result('waiting','暂时不用');
+        if(!fresh)return result('waiting','重试中');
+        const value=currentStatus||{},code=value.error_code||account.error_code||'',recovery=value.recovery||account.recovery||{};
+        const upstream=value.upstream_state||account.upstream_state;
+        if(upstream==='rate_limited'||upstream==='quota_exhausted'){
+          const reset=Date.parse(value.upstream_reset_at||account.upstream_reset_at),detail=Number.isFinite(reset)&&reset>env.Date.now()?'恢复时间：'+new env.Date(reset).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+          return result(upstream==='rate_limited'?'rate':'quota',upstream==='rate_limited'?'OpenAI 限流':'额度用完',detail);
+        }
+        if(value.ready===true)return result('ready','可用',Number.isSafeInteger(value.in_flight)&&value.in_flight>0?'正在使用':'');
+        if(recovery.action==='enable_native')return result('off','已手动停用');
+        if(recovery.action==='reauthorize'||['account_auth_revoked','account_auth_invalidated','native_auth_missing_token','native_auth_credential_invalid','native_auth_token_missing','native_auth_invalid_credentials'].includes(code))return result('action','登录失效，请重新登录');
+        if(['native_proxy_invalid','native_proxy_unsupported','proxy_url_invalid','proxy_invalid','account_proxy_invalid','proxy_configuration_invalid'].includes(code))return result('action','代理设置有误，请检查');
+        if(recovery.action==='fix_configuration'||account.supported===false)return result('action','账号设置有误，请检查');
+        if(code||account.missing||account.unavailable||recovery.action==='retry'||recovery.action==='wait_native_refresh')return result('waiting','重试中');
+        switch(value.phase||account.phase){
+          case 'dormant':case 'idle':case 'released':case 'draining':return result('waiting','暂时不用');
+          case 'cooldown':case 'error':case 'unavailable':case 'status_stale':return result('waiting','重试中');
+          case 'preparing':case 'waiting':case 'queued':case 'handoff':case 'ready':return result('waiting','正在准备');
+          case 'disabled':return result('off','已手动停用');
+          default:return result('waiting','重试中');
+        }
       }
       function renderAccounts() {
-        const items=directory.slice(), known=new Set(items.map(a=>a.auth_index)), wanted=new Set([...selected,...list(saved&&saved.selected_auth_indexes)]), serverSelection=new Set(list(saved&&saved.selected_auth_indexes));
-        for (const index of wanted) if (!known.has(index)) items.push({auth_index:index,label:'已保存账号（目录中暂不可见）',missing:true});
-        const statuses=new Map(list(status&&status.accounts).map(a=>[a.auth_index,a])), live=new Set(), query=el('accountSearch').value.trim().toLowerCase(), fresh=freshRelay(); let visible=0, hiddenSelected=0;
-        for (const account of items) {
-          if (typeof account.auth_index!=='string'||!account.auth_index) continue;
-          const index=account.auth_index; live.add(index); let row=rows.get(index);
-          if (!row) { row=makeRow(index); rows.set(index,row); el('accountRows').append(row.row); }
-          const name=typeof account.label==='string'&&account.label?account.label:'未命名 Codex 账号', currentStatus=statuses.get(index), chosen=selected.has(index), savedChosen=serverSelection.has(index);
-          row.label.textContent=name; row.input.setAttribute('aria-label','使用账号 '+name); row.input.checked=chosen; row.input.disabled=!!(account.disabled||account.missing||account.supported===false)&&!chosen;
-          row.note.textContent=account.missing?'账号目录中暂不可见':account.supported===false?'此账号类型暂不支持':account.disabled?'CLIProxyAPI 已停用':account.unavailable?'CLIProxyAPI 暂不可用':'Codex';
-          let phase='未选用';
-          if(chosen&&!savedChosen) phase='待保存'; else if(!chosen&&savedChosen) phase='待移除'; else if(chosen) {
-            const value=currentStatus&&currentStatus.phase||account.phase;
-            phase=released||status&&status.paused===true?'已暂停':!fresh?'待确认':currentStatus&&currentStatus.ready===true?'已就绪':({dormant:'保留待用',idle:'闲置暂停',handoff:'账号切换中',preparing:'准备中',waiting:'等待中',queued:'排队等待',cooldown:'冷却中',released:'已释放',draining:'释放中',disabled:'已停用',ready:'准备中',error:'暂不可用',unavailable:'暂不可用',status_stale:'待确认'}[value]||'准备中');
-          }
-          row.badge.textContent=phase; row.badge.dataset.ready=String(phase==='已就绪');
-          const code=currentStatus&&currentStatus.error_code||account.error_code; row.error.textContent=chosen&&code?message(code):''; row.error.hidden=!row.error.textContent;
-          row.standby.textContent=savedChosen&&fresh&&currentStatus?(status&&status.ticket_policy&&status.ticket_policy.ticket_mode==='personal'?'不使用':currentStatus.standby_ready===true?'已就绪':'准备中'):'—';
-          row.row.hidden=!!query&&!name.toLowerCase().includes(query); if(!row.row.hidden)visible++;else if(chosen)hiddenSelected++;
+        const items=directory.slice(),known=new Set(items.map(a=>a.auth_index)),wanted=new Set([...selected,...list(saved&&saved.selected_auth_indexes)]),serverSelection=new Set(list(saved&&saved.selected_auth_indexes));
+        for(const index of wanted)if(!known.has(index))items.push({auth_index:index,label:'已保存账号',missing:true});
+        const statuses=new Map(list(status&&status.accounts).map(a=>[a.auth_index,a])),live=new Set(),query=el('accountSearch').value.trim().toLowerCase(),fresh=freshRelay(),counts=Object.fromEntries(accountGroups.map(([group])=>[group,0])),matches=[];
+        for(const account of items){
+          if(typeof account.auth_index!=='string'||!account.auth_index||live.has(account.auth_index))continue;
+          const index=account.auth_index;live.add(index);let row=rows.get(index);
+          if(!row){row=makeRow(index);rows.set(index,row);el('accountRows').append(row.row);}
+          const name=typeof account.label==='string'&&account.label?account.label:'未命名 Codex 账号',currentStatus=statuses.get(index),chosen=selected.has(index),savedChosen=serverSelection.has(index),view=accountView(account,currentStatus,chosen,savedChosen,fresh);
+          counts.all++;counts[view.group]++;row.row.dataset.group=view.group;row.row.dataset.authIndex=index;
+          row.label.textContent=name;row.input.setAttribute('aria-label','使用账号 '+name);row.input.checked=chosen;row.input.disabled=!!(account.disabled||account.missing||account.supported===false)&&!chosen;
+          row.note.textContent=account.missing?'账号列表正在刷新':'';row.note.hidden=!row.note.textContent;
+          row.badge.textContent=view.label;row.badge.dataset.ready=String(view.group==='ready');row.error.textContent=view.detail;row.error.hidden=!view.detail;
+          row.priority.setAttribute('aria-label',name+'的优先级');
+          if(doc.activeElement!==row.priority){const value=prioritiesExplicit?priorities[index]??0:(currentStatus&&currentStatus.scheduling_priority)??0;row.priority.value=String(value);row.priority.setAttribute('aria-invalid',String(!/^\d+$/.test(String(value))||Number(value)>999999));}
+          if((accountFilter==='all'||view.group===accountFilter)&&(!query||name.toLowerCase().includes(query)))matches.push(index);
         }
-        for(const [index,row] of rows) if(!live.has(index)){row.row.remove();rows.delete(index);}
-        show('accountEmpty',visible===0); text('accountEmpty',items.length?'没有匹配的账号。':'尚无可选账号。请先在 CLIProxyAPI 中登录 Codex。');
-        text('searchCount',query?'显示 '+visible+' 个'+(hiddenSelected?' · 另有 '+hiddenSelected+' 个已选':''):items.length+' 个账号');
-        text('accountFoot',dirty()?'账号选择尚未保存，点击“保存并连接”生效。':'账号状态会自动刷新。');
+        for(const [index,row] of rows)if(!live.has(index)){row.row.remove();rows.delete(index);}
+        const pages=Math.max(1,Math.ceil(matches.length/accountPageSize));accountPage=Math.min(accountPage,pages);const visible=new Set(matches.slice((accountPage-1)*accountPageSize,accountPage*accountPageSize));let hiddenSelected=0;
+        for(const [index,row] of rows){row.row.hidden=!visible.has(index);if(row.row.hidden&&selected.has(index))hiddenSelected++;}
+        for(const [group,label] of accountGroups){const button=el('accountTab-'+group);button.textContent=label+' '+counts[group];button.setAttribute('aria-selected',String(group===accountFilter));button.tabIndex=group===accountFilter?0:-1;}
+        el('accountPanel').setAttribute('aria-labelledby','accountTab-'+accountFilter);show('accountEmpty',matches.length===0);text('accountEmpty',counts.all?'当前分组没有匹配的账号。':'尚无可选账号。请先在 CLIProxyAPI 中登录 Codex。');
+        text('searchCount','显示 '+visible.size+' / '+matches.length+' 个'+(hiddenSelected?' · 另有 '+hiddenSelected+' 个已选':''));
+        show('accountPagination',pages>1);text('accountPage',accountPage+' / '+pages+' 页');el('accountPrevious').disabled=accountPage<=1;el('accountNext').disabled=accountPage>=pages;
+        text('accountFoot',dirty()?'账号选择或优先级尚未保存，点击“保存并连接”生效。':'账号状态会自动刷新。');
       }
       function renderClient() {
         el('modelTags').replaceChildren();
@@ -412,6 +546,149 @@
           renderStatus();
         }finally{if(current(generation)){refreshing=false;el('refresh').disabled=false;schedule(generation);}}
       }
+      function renderUpdate() {
+        const pendingUpdate=['preparing','draining','installing','confirming'].includes(updatePhase);
+        text('updateCurrentVersion','v'+(updateInfo&&updateInfo.current_version||PRODUCT.version));
+        text('updateStatus',updateNote||'正在检查更新…');show('updateProgress',pendingUpdate||checkingUpdate);
+        show('installUpdate',!!updateInfo&&updateInfo.supported&&updateInfo.update_available&&!updateInstallSent&&updatePhase!=='updated'&&updatePhase!=='restart'&&updatePhase!=='failed');
+        el('installUpdate').disabled=!!busy||checkingUpdate||dirty()||pendingUpdate||!!(updateInfo&&updateInfo.prepared);
+        el('checkUpdate').disabled=checkingUpdate||pendingUpdate;show('reloadUpdate',updatePhase==='updated');
+        text('checkUpdate',updateInstallSent?'确认更新结果':'检查更新');
+        text('updateHint',dirty()?'请先保存当前更改，再更新插件。':'每 5 分钟检查一次；点击后等待当前请求结束再更新。');
+        show('updateManualHelp',updatePhase==='manual'||updatePhase==='restart');
+      }
+      function updateState(phase,note) { updatePhase=phase;updateNote=note;renderUpdate(); }
+      function scheduleUpdate(generation) {
+        if(updateTimer!==null)env.clearTimeout(updateTimer);
+        if(current(generation)&&session)updateTimer=env.setTimeout(()=>checkUpdate(),300000);
+      }
+      async function checkUpdate() {
+        if(!session||checkingUpdate||busy==='update')return;
+        if(updateInstallSent||updatePhase==='restart')return verifyUpdate();
+        const generation=epoch;checkingUpdate=true;renderUpdate();
+        try{
+          const info=await api(MANAGEMENT+'/update');if(!current(generation))return;
+          if(!validUpdate(info))throw new ConsoleError('update_metadata_invalid');updateInfo=info;
+          if(info.requires_reconnect===true||info.handoff_state==='failed'){updateState('failed',message('update_handoff_conflict'));return;}
+          if(info.handoff_state==='pending'||info.handoff_state==='preserved'&&info.confirmation_required===true){
+            // Reopening the page may finish an already authorized update, never start one.
+            const actual=await loadedVersion();if(!current(generation))return;
+            if(actual!==info.current_version){updateState('uncertain','CPA 当前版本尚未确认，请稍后再试。');return;}
+            updateTarget=actual;updateOldVersion=actual;updateInstallSent=true;updateAttempts=0;updateRecovery='';busy='update';await verifyUpdate();return;
+          }
+          updateState(!info.supported?'manual':info.prepared?'manual':'idle',!info.supported?'当前环境无法在这里更新，请通过 CPA 插件管理更新。':info.prepared?'上次更新尚未完成，请先检查 CPA 插件状态。':info.update_available?'发现新版本 v'+info.latest_version+'。': '已是最新版本。');
+        }catch(error){if(current(generation))updateState(error.status===404?'manual':'error',error.status===404?'当前插件需通过 CPA 插件管理完成首次升级。':message(error));}
+        finally{if(current(generation)){checkingUpdate=false;renderUpdate();scheduleUpdate(generation);}}
+      }
+      function updateStorePath() { return configStyle==='v8'?'/v8/management/plugins/store':'/v0/management/plugin-store'; }
+      async function ensureUpdateSource(info) {
+        let catalog=await api(updateStorePath());
+        const registered=()=>list(catalog&&catalog.sources).some(source=>source.id===info.source_id&&source.url===info.source_url);
+        if(!registered()){
+          if(configStyle==='v8'){
+            const path='/v8/management/config/plugins/store-sources',original=await api(path,{allowMissing:true}),sources=Array.isArray(original)?original:object(original)&&!Object.keys(original).length?[]:null;
+            if(!sources||sources.some(source=>typeof source!=='string'))throw new ConsoleError('update_source_setup');
+            if(!sources.includes(info.source_url)){
+              const latest=await api(path,{allowMissing:true});if(JSON.stringify(latest)!==JSON.stringify(original))throw new ConsoleError('config_changed');
+              await api(path,{method:'PUT',body:[...sources,info.source_url]});
+            }
+          }else{
+            const path='/v0/management/config.yaml',original=await api(path,{raw:true}),amended=addUpdateSourceYAML(original,info.source_url),latest=await api(path,{raw:true});
+            if(latest!==original)throw new ConsoleError('config_changed');
+            await api(path,{method:'PUT',rawBody:amended});
+          }
+          catalog=await api(updateStorePath());
+        }
+        if(!registered()||!list(catalog&&catalog.plugins).some(plugin=>plugin.id===ID&&plugin.source_id===info.source_id&&plugin.source_url===info.source_url&&plugin.version===info.latest_version&&list(plugin.platforms).some(platform=>platform.goos===info.platform.goos&&platform.goarch===info.platform.goarch)))throw new ConsoleError('update_catalog_unconfirmed');
+      }
+      async function resumeOldUpdate() { const result=await api(MANAGEMENT+'/update/cancel',{method:'POST',body:{}});if(!object(result)||result.resumed!==true)throw new ConsoleError('invalid_response'); }
+      async function loadedVersion() {
+        const result=await api('/v0/management/plugins');if(!object(result)||!Array.isArray(result.plugins))throw new ConsoleError('update_host_unavailable');
+        const plugin=result.plugins.find(value=>value&&value.id===ID);
+        return plugin&&plugin.registered===true&&object(plugin.metadata)&&typeof plugin.metadata.version==='string'?plugin.metadata.version:'';
+      }
+      function handoffStatus(value) {
+        if(!object(value)||typeof value.update_handoff_state!=='string'||typeof value.update_confirmation_required!=='boolean'||typeof value.update_requires_reconnect!=='boolean')return 'unknown';
+        if(value.update_requires_reconnect||value.update_handoff_state==='failed')return 'failed';
+        if(value.update_handoff_state==='pending')return 'pending';
+        if(!['','preserved'].includes(value.update_handoff_state))return 'unknown';
+        if(value.update_confirmation_required)return value.update_handoff_state==='preserved'?'confirm':'unknown';
+        return 'ready';
+      }
+      async function confirmUpdateHandoff(expected) {
+        let observed=await api(MANAGEMENT+'/status'),state=handoffStatus(observed);
+        if(object(observed)){status=observed;stale=false;}
+        if(state==='failed')throw new ConsoleError('update_handoff_conflict');
+        if(state==='unknown'||state==='pending')return false;
+        if(state==='confirm'){
+          // Bind the automatic final confirmation to the exact loaded version.
+          if(await loadedVersion()!==expected)return false;
+          const result=await api(MANAGEMENT+'/update/confirm',{method:'POST',body:{}});
+          if(!object(result)||result.confirmed!==true||result.current_version!==expected)throw new ConsoleError('invalid_response');
+          observed=await api(MANAGEMENT+'/status');state=handoffStatus(observed);
+          if(object(observed)){status=observed;stale=false;}
+          if(state==='failed')throw new ConsoleError('update_handoff_conflict');
+          if(state!=='ready')return false;
+        }
+        status=observed;stale=false;return true;
+      }
+      async function verifyUpdate() {
+        if(!session||!updateTarget||verifyingUpdate)return;
+        const generation=epoch;verifyingUpdate=true;if(updatePoll!==null)env.clearTimeout(updatePoll);updatePoll=null;
+        const restoring=updateRecovery!=='',expected=restoring?updateOldVersion:updateTarget;let progress='正在确认 CPA 是否已加载 v'+expected+'…';
+        try{
+          const actual=await loadedVersion();if(!current(generation))return;
+          if(actual===expected){
+            updateInfo={...updateInfo,current_version:actual};progress=restoring?'正在恢复原版本的账号状态…':'正在恢复账号状态…';updateState('confirming',progress);
+            if(await confirmUpdateHandoff(expected)){
+              if(!current(generation))return;
+              updateInstallSent=false;busy='';
+              if(restoring){const restart=updateRecovery==='restart';updateRecovery='';updateState(restart?'restart':'error',restart?'新版本已安装。请重启 CPA 后再确认版本。':'本次更新未完成，已恢复原版本。请重新检查更新后再试。');}
+              else{updateInfo={...updateInfo,latest_version:actual,update_available:false,prepared:false};updateState('updated','已更新到 v'+actual+'，新版本已生效。');}
+              renderStatus();actions();scheduleUpdate(generation);return;
+            }
+          }else if(actual&&actual!==updateOldVersion){busy='';updateState('uncertain','CPA 当前加载的版本与本次更新不同，请在插件管理中确认。');actions();return;}
+        }catch(error){
+          if(!current(generation))return;
+          if(['update_handoff_expired','update_handoff_conflict','update_handoff_unsupported'].includes(error.code)){
+            busy='';updateState('failed',message(error));renderStatus();actions();scheduleUpdate(generation);return;
+          }
+        }finally{if(current(generation))verifyingUpdate=false;}
+        if(!current(generation))return;
+        if(updatePhase==='restart'){scheduleUpdate(generation);return;}
+        updateAttempts++;
+        if(updateAttempts>=30){busy='';updateState('uncertain','更新结果尚未确认。请稍后点击“确认更新结果”，不要重复安装。');actions();scheduleUpdate(generation);return;}
+        updateState('confirming',progress);updatePoll=env.setTimeout(()=>verifyUpdate(),1000);
+      }
+      async function installUpdate() {
+        if(!session||busy||checkingUpdate||dirty()||!updateInfo||!updateInfo.update_available||updateInstallSent||updateInfo.prepared)return;
+        const generation=epoch,offer={...updateInfo};busy='update';updateState('preparing','正在准备更新…');actions();let prepared=false;
+        try{
+          await ensureUpdateSource(offer);if(!current(generation))return;
+          updateState('draining','正在等待当前请求完成…');
+          const result=await api(MANAGEMENT+'/update/prepare',{method:'POST',body:{version:offer.latest_version}});if(!current(generation))return;
+          if(!object(result)||result.prepared!==true||result.current_version!==offer.current_version||result.target_version!==offer.latest_version)throw new ConsoleError('invalid_response');
+          prepared=true;updateTarget=offer.latest_version;updateOldVersion=offer.current_version;updateAttempts=0;updateRecovery='';updateInstallSent=true;
+          updateState('installing','正在下载并更新到 v'+updateTarget+'…');
+          const installed=await api(updateStorePath()+'/'+ID+'/install?source='+encodeURIComponent(offer.source_id),{method:'POST',body:{version:updateTarget},timeout:180000});if(!current(generation))return;
+          if(installed&&installed.restart_required===true){
+            const actual=await loadedVersion();if(!current(generation))return;
+            if(actual===updateOldVersion){await resumeOldUpdate();if(!current(generation))return;updateRecovery='restart';await verifyUpdate();return;}
+          }
+          await verifyUpdate();
+        }catch(error){
+          if(!current(generation))return;
+          if(updateInstallSent){
+            // A failed reply is not proof that installation did not happen.
+            if(error.status>=400&&error.status<500){
+              try{const actual=await loadedVersion();if(actual===updateOldVersion){await resumeOldUpdate();if(!current(generation))return;updateRecovery='rollback';await verifyUpdate();return;}}catch(_){}
+            }
+            await verifyUpdate();return;
+          }
+          if(prepared){try{if(await loadedVersion()===offer.current_version)await resumeOldUpdate();}catch(_){}}
+          if(current(generation)){busy='';updateState(error.status===404||error.code==='update_source_setup'||error.code==='update_host_unavailable'?'manual':'error',error.status===404?message('update_host_unavailable'):message(error));actions();}
+        }finally{if(current(generation)&&!['installing','confirming'].includes(updatePhase)){busy='';actions();}}
+      }
       async function connect() {
         clearSession();let inherited;
         try{inherited=nativeSession(env);}catch(error){text('entryMessage',message(error));show('entryMessage',true);return;}
@@ -421,11 +698,12 @@
           const result=await api(MANAGEMENT+'/status'); if(!object(result))throw new ConsoleError('invalid_response'); if(!current(generation))return;
           saved=normalConfig(config); status=result; stale=false; session=true; fill(saved); renderClient();
           text('installationInfo',saved.installation_id?'安装身份：'+saved.installation_id:'身份将在首次保存时自动创建。');
-          show('entryView',false);show('session',true);show('consoleView',true);renderStatus();await refresh(false);
+          show('entryView',false);show('session',true);show('consoleView',true);renderStatus();await Promise.allSettled([refresh(false),checkUpdate()]);
         }catch(error){if(current(generation))clearSession(message(error));}
       }
       async function save() {
         if(!session||busy||pending||remotePending)return;
+        text('configValidation','');show('configValidation',false);
         const generation=epoch, version=editVersion; busy='save';actions();
         try{
           const draft=validateDraft(readDraft()); let latest=await readConfig(); if(!current(generation))return;
@@ -499,12 +777,12 @@
         }}finally{if(current(generation)){busy='';actions();}}
       }
       async function mutation(action) {
-        const paused=released||status&&status.paused===true;
-        if(!session||busy||awaiting||!status||status.configured!==true||(action!=='resume'&&paused)||(action==='resume'&&dirty()))return;
+        const paused=released||status&&status.paused===true,reconnect=status&&status.update_requires_reconnect===true;
+        if(!session||busy||awaiting||!status||status.configured!==true||(action!=='resume'&&(paused||reconnect))||(action==='resume'&&dirty()))return;
         const generation=epoch;busy=action;actions();
         try{const result=await api(MANAGEMENT+'/'+action,{method:'POST',body:{}});if(!current(generation))return;
           if(action==='release'){if(!object(result)||result.released!==true)throw new ConsoleError('invalid_response');mutationVersion++;released=true;notice('账号已释放，网关连接已暂停。需要继续使用时，点击页尾“恢复已保存配置”。','success');}
-          else if(action==='resume'){if(!object(result)||result.resumed!==true)throw new ConsoleError('invalid_response');mutationVersion++;released=false;status={...status,paused:false};notice('已恢复保存的连接配置，账号状态将自动刷新。','success');}
+          else if(action==='resume'){if(!object(result)||result.resumed!==true)throw new ConsoleError('invalid_response');mutationVersion++;released=false;status={...status,paused:false};if(reconnect){if(updatePoll!==null)env.clearTimeout(updatePoll);updatePoll=null;updateInstallSent=false;updateTarget='';updateRecovery='';updateState('idle','已请求重新连接，账号正在重新准备。');notice('已请求重新连接，账号正在重新准备。','info');}else notice('已恢复保存的连接配置，账号状态将自动刷新。','success');}
           else notice('已请求同步账号，状态将自动刷新。','success');
           renderStatus();await refresh(false);
         }catch(error){if(current(generation))notice(message(error),'error');}
@@ -516,10 +794,22 @@
         catch(_){if(current(generation)){text('clientHint','浏览器未开放剪贴板，请选中上方示例后复制。');}}
       }
       const bind=(id,event,callback)=>el(id).addEventListener(event,callback);
+      el('configForm').addEventListener('invalid',event=>{
+        const target=event.target,details=target.closest('details');if(details)details.open=true;
+        const code={gatewayURL:'gateway_url_invalid',dataDir:'data_dir_absolute_required',relayModels:'relay_models_invalid',relayActiveAccounts:'rotation_policy_invalid',relayNoTicketMinutes:'rotation_policy_invalid',ticketWaitSeconds:'waiting_policy_invalid',leaseSeconds:'config_limits_invalid',syncSeconds:'config_limits_invalid',requestTimeout:'config_limits_invalid'}[target.id]||'config_invalid';
+        const value=message(code);notice(value,'error');text('configValidation',value);show('configValidation',true);
+      },true);
       bind('configForm','submit',event=>{event.preventDefault();void save();});bind('redeemForm','submit',event=>{event.preventDefault();void redeem();});
-      bind('refresh','click',()=>refresh(true));bind('sync','click',()=>mutation('sync'));bind('release','click',()=>mutation(released||status&&status.paused===true?'resume':'release'));bind('copyConfig','click',copyConfig);
-      for(const id of Object.values(fields))bind(id,'input',()=>{editVersion++;actions();});
-      bind('accountSearch','input',renderAccounts);
+      bind('checkUpdate','click',()=>checkUpdate());bind('installUpdate','click',()=>installUpdate());bind('reloadUpdate','click',()=>{if(updatePhase==='updated'&&typeof env.location.reload==='function')env.location.reload();});
+      bind('refresh','click',()=>refresh(true));bind('sync','click',()=>mutation('sync'));bind('release','click',()=>mutation(released||status&&(status.paused===true||status.update_requires_reconnect===true)?'resume':'release'));bind('copyConfig','click',copyConfig);
+      for(const id of [...Object.values(fields),...waitingFields])bind(id,'input',()=>{editVersion++;text('configValidation','');show('configValidation',false);actions();});
+      bind('accountSearch','input',()=>{accountPage=1;renderAccounts();});
+      const chooseGroup=group=>{accountFilter=group;accountPage=1;renderAccounts();};
+      for(const [index,[group]] of accountGroups.entries()){
+        bind('accountTab-'+group,'click',()=>chooseGroup(group));
+        bind('accountTab-'+group,'keydown',event=>{const next=event.key==='ArrowRight'?(index+1)%accountGroups.length:event.key==='ArrowLeft'?(index+accountGroups.length-1)%accountGroups.length:event.key==='Home'?0:event.key==='End'?accountGroups.length-1:-1;if(next<0)return;event.preventDefault();const target=accountGroups[next][0];chooseGroup(target);el('accountTab-'+target).focus();});
+      }
+      bind('accountPrevious','click',()=>{if(accountPage>1){accountPage--;renderAccounts();}});bind('accountNext','click',()=>{accountPage++;renderAccounts();});
       bind('selectVisible','click',()=>{for(const [index,row] of rows)if(!row.row.hidden&&!row.input.disabled)selected.add(index);editVersion++;renderAccounts();actions();});
       bind('clearSelection','click',()=>{selected.clear();editVersion++;renderAccounts();actions();});
       const parent=nativeContext(env), checkNative=()=>{if(key)current(epoch);}, closeNative=()=>clearSession(message('native_session_ended'));
@@ -532,9 +822,9 @@
         env.addEventListener('pagehide',()=>{clearSession();if(parent){parent.removeEventListener('hashchange',checkNative);parent.removeEventListener('popstate',checkNative);parent.removeEventListener('pagehide',closeNative);parent.removeEventListener('unauthorized',closeNative);}});
       }
       if(parent){parent.addEventListener('hashchange',checkNative);parent.addEventListener('popstate',checkNative);parent.addEventListener('pagehide',closeNative);parent.addEventListener('unauthorized',closeNative);}
-      return Object.freeze({connect,save,redeem,refresh,release:()=>mutation('release'),resume:()=>mutation('resume'),logout:()=>clearSession()});
+      return Object.freeze({connect,save,redeem,refresh,checkUpdate,installUpdate,release:()=>mutation('release'),resume:()=>mutation('resume'),logout:()=>clearSession()});
     }
-    root.TicketPluginUI=Object.freeze({createConsole,parseJSON,count,usd,monetary,validateDraft,identityFor,configMatches,validReceipt,managementDenied,nativeSession,nativeContext});
+    root.TicketPluginUI=Object.freeze({createConsole,autoConcurrency,addUpdateSourceYAML,validUpdate,parseJSON,count,usd,monetary,validateDraft,identityFor,configMatches,validReceipt,managementDenied,nativeSession,nativeContext});
     if(root.document)void createConsole(root).connect();
   })(globalThis);
   </script>
