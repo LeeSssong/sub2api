@@ -361,6 +361,7 @@ type UpdateSettingsRequest struct {
 	GrokDefaultTextModel           *string `json:"grok_default_text_model"`
 	GrokCrossClientModelMapEnabled *bool   `json:"grok_cross_client_model_map_enabled"`
 	GrokDefaultBaseURLMode         *string `json:"grok_default_base_url_mode"`
+	GrokVideoSourceURLEnabled      *bool   `json:"grok_video_source_url_enabled"`
 
 	// Available Channels feature switch (user-facing)
 	AvailableChannelsEnabled *bool `json:"available_channels_enabled"`
@@ -2294,6 +2295,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.GrokDefaultBaseURLMode
 		}(),
+		GrokVideoSourceURLEnabled: func() bool {
+			if req.GrokVideoSourceURLEnabled != nil {
+				return *req.GrokVideoSourceURLEnabled
+			}
+			return previousSettings.GrokVideoSourceURLEnabled
+		}(),
 		AvailableChannelsEnabled: func() bool {
 			if req.AvailableChannelsEnabled != nil {
 				return *req.AvailableChannelsEnabled
@@ -2806,6 +2813,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		GrokDefaultTextModel:           updatedSettings.GrokDefaultTextModel,
 		GrokCrossClientModelMapEnabled: updatedSettings.GrokCrossClientModelMapEnabled,
 		GrokDefaultBaseURLMode:         updatedSettings.GrokDefaultBaseURLMode,
+		GrokVideoSourceURLEnabled:      updatedSettings.GrokVideoSourceURLEnabled,
 
 		AvailableChannelsEnabled: updatedSettings.AvailableChannelsEnabled,
 		PelicanShowcaseEnabled:   updatedSettings.PelicanShowcaseEnabled,

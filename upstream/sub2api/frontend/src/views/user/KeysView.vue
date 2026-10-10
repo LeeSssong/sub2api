@@ -462,6 +462,16 @@
 
           <template #cell-actions="{ row }">
             <div class="keys-row-actions flex items-center gap-1">
+              <button
+                v-if="isCodexQuickConfigPlatform(row.group?.platform)"
+                @click="openCodexQuickConfigModal(row)"
+                data-testid="quick-config-button"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-primary-50 hover:text-primary-600 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                :title="t('keys.quickConfigure')"
+              >
+                <Icon name="download" size="sm" />
+                <span class="text-xs">{{ t('keys.quickConfigure') }}</span>
+              </button>
               <!-- Use Key Button -->
               <button
                 @click="openUseKeyModal(row)"
@@ -1123,6 +1133,14 @@
       @close="closeUseKeyModal"
     />
 
+    <CodexQuickConfigModal
+      :show="showCodexQuickConfigModal"
+      :api-key="selectedKey?.key || ''"
+      :base-url="publicSettings?.api_base_url || ''"
+      :platform="selectedCodexQuickConfigPlatform"
+      @close="closeCodexQuickConfigModal"
+    />
+
     <!-- CCS Client Selection Dialog for Antigravity -->
     <BaseDialog
       :show="showCcsClientSelect"
@@ -1261,6 +1279,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import SearchInput from '@/components/common/SearchInput.vue'
 	import Icon from '@/components/icons/Icon.vue'
 	import UseKeyModal from '@/components/keys/UseKeyModal.vue'
+	import CodexQuickConfigModal from '@/components/keys/CodexQuickConfigModal.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import type { ApiKey, ApiKeyConcurrencySnapshot, Group, PublicSettings, UpdateApiKeyRequest } from '@/types'
@@ -1282,6 +1301,7 @@ import {
   buildCcSwitchImportDeeplink,
   type CcSwitchClientType
 } from '@/utils/ccswitchImport'
+import { isCodexQuickConfigPlatform } from '@/utils/codexQuickConfig'
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1537,11 +1557,16 @@ const showDeleteDialog = ref(false)
 const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
+const showCodexQuickConfigModal = ref(false)
 const showCcsClientSelect = ref(false)
 const showColumnDropdown = ref(false)
 const showConnectionHelp = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
+const selectedCodexQuickConfigPlatform = computed(() => {
+  const platform = selectedKey.value?.group?.platform
+  return isCodexQuickConfigPlatform(platform) ? platform : null
+})
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
@@ -1826,8 +1851,18 @@ const openUseKeyModal = (key: ApiKey) => {
   showUseKeyModal.value = true
 }
 
+const openCodexQuickConfigModal = (key: ApiKey) => {
+  selectedKey.value = key
+  showCodexQuickConfigModal.value = true
+}
+
 const closeUseKeyModal = () => {
   showUseKeyModal.value = false
+  selectedKey.value = null
+}
+
+const closeCodexQuickConfigModal = () => {
+  showCodexQuickConfigModal.value = false
   selectedKey.value = null
 }
 

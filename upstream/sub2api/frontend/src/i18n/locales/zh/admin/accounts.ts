@@ -12,6 +12,18 @@ export default {
         groupsOverlap: '临时检测分组不能与通过后的分组重合',
         invalidGroups: '请选择有效且与账号平台兼容的分组，且不要重复选择'
       },
+      bpsAuthorizing: 'BPS 正在自动授权，当前使用原生通道；授权成功后自动切换，无需再次操作开关。',
+      "modelsLoadFailed": "模型列表加载失败，请重试。",
+      "retryModels": "重新加载模型",
+      "openCredentialOperations": "查看凭据运维",
+      "excelAuthErrors": {
+        "OPENAI_EXCEL_AUTH_PENDING": "Excel 授权正在进行中，完成后可重新加载模型。",
+        "OPENAI_EXCEL_AUTH_FAILED": "Excel 自动授权失败，系统将在冷却后重试；可在凭据运维查看进度。",
+        "OPENAI_EXCEL_AUTH_VERIFICATION_REQUIRED": "Excel 自动登录被上游安全验证阻塞，可在凭据运维查看状态。",
+        "OPENAI_EXCEL_AUTH_CONFIG_REQUIRED": "Excel 自动授权缺少登录配置，保存配置后后台会自动继续。",
+        "OPENAI_EXCEL_AUTH_REQUIRED": "Excel 授权等待后台自动处理，可在凭据运维查看进度。",
+        "OPENAI_EXCEL_AUTH_UNAVAILABLE": "暂时无法读取 Excel 授权状态，请稍后重试。"
+      },
       title: '账号管理',
       description: '管理 AI 平台账号和 Cookie',
       modelDetection: {
@@ -115,6 +127,8 @@ export default {
       editAccount: '编辑账号',
       deleteAccount: '删除账号',
       searchAccounts: '搜索账号...',
+      moreFilters: '更多筛选',
+      moreFiltersActive: '更多筛选（已启用 {count} 项）',
       notes: '备注',
       notesPlaceholder: '请输入备注',
       notesHint: '备注可选',
@@ -493,12 +507,15 @@ export default {
         },
         protocolRules: {
           title: '模型协议分流',
-          hint: '自适应模式下按模型匹配上游协议。支持精确 ID 或末尾 * 通配（如 grok-*、qwen*）；自上而下第一条命中生效；未命中走 Chat Completions。',
+          hint: '自适应模式下按模型匹配上游协议。支持精确 ID 或末尾 * 通配（如 grok-*、qwen*）；自上而下第一条命中生效。入站协议是模型也支持的协议时同协议直通、不做转换，否则走所选协议。',
           patternPlaceholder: 'grok-* 或 deepseek-v4-flash',
           add: '添加规则',
           remove: '删除规则',
           restoreDefaults: '恢复默认',
+          alsoSupports: '也支持',
+          alsoSupportsHint: '以这些协议进来的请求同协议直通，免去协议转换',
           fallback: '未命中以上规则 → Chat Completions（/v1/chat/completions）',
+          catalogFallback: '未命中以上规则 → 按上游模型列表（/models 的 supported_endpoints）选协议；列表不可用时走 Chat Completions',
         },
         title: 'OpenCode Go 用量',
         panelHint: '上游 OpenCode Go 账号上报的用量窗口。可手动刷新，或开启自动刷新。',
@@ -523,7 +540,8 @@ export default {
         refreshSuccess: 'OpenCode Go 用量已刷新',
         refreshFailed: '刷新 OpenCode Go 用量失败',
         errors: {
-          OPENCODE_GO_USAGE_REFRESH_RATE_LIMITED: '刷新过于频繁，请在 {retry_after_seconds} 秒后重试。'
+          OPENCODE_GO_USAGE_REFRESH_RATE_LIMITED: '刷新过于频繁，请在 {retry_after_seconds} 秒后重试。',
+          forbidden: '上游返回 403：可能是订阅缺失/失效，也可能是 WAF 或访问策略拦截，请结合网络路径与 HTTP 状态排查。'
         }
       },
       types: {
@@ -1140,7 +1158,7 @@ export default {
       poolModeRetryCount: '同账号重试次数',
       poolModeRetryCountHint: '仅在池模式下生效。0 表示不原地重试；默认 {default}，最大 {max}。',
       poolModeRetryStatusCodes: '同账号重试状态码',
-      poolModeRetryStatusCodesHint: '仅在池模式下生效。以英文逗号分隔的 HTTP 状态码（100-599），命中时触发同账号重试。留空使用默认值（{default}）。',
+      poolModeRetryStatusCodesHint: '仅在池模式下生效。以英文逗号分隔的 HTTP 状态码（100-599），命中时触发同账号重试。列入 503 且账号未配置代理时，连不上上游（拒绝连接、网络不可达等）也按 503 原地重试，不再临时停调度 10 分钟。留空使用默认值（{default}）。',
       customErrorCodes: '自定义错误码',
       customErrorCodesHint: '仅对选中的错误码停止调度',
       customErrorCodesWarning: '仅选中的错误码会停止调度，其他错误将返回 500。',

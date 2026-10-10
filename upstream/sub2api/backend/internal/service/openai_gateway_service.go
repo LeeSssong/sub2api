@@ -544,6 +544,7 @@ type OpenAIGatewayService struct {
 	openAITurnStateWorkerOwner    string
 	openAITurnStateRouteIndex     atomic.Uint64
 	costEvidenceRegistrar         UsageCostEvidenceRegisterer
+	excelOAuthReauth *OpenAIOAuthReauthService
 
 	openaiWSPoolOnce               sync.Once
 	openaiWSStateStoreOnce         sync.Once
@@ -578,6 +579,7 @@ type OpenAIGatewayService struct {
 	responseHeaderFilter                *responseheaders.CompiledHeaderFilter
 	codexSnapshotThrottle               *accountWriteThrottle
 	openAIModelsCache                   openAIModelsCache
+	excelBPSModelsCache                 openAIModelsCache
 	openaiCompatSessionResponses        sync.Map
 	openaiCompatAnthropicDigestSessions sync.Map
 	// openaiCodexTurnStateOrigins: 下游会话 seed → openAICodexTurnStateOrigin，

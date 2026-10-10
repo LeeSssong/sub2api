@@ -1472,7 +1472,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	if platform != "" {
 		filtered := make([]Account, 0)
 		for _, acc := range accounts {
-			if acc.Platform == platform {
+			if acc.Platform == platform || mixedListingAccountAllowed(platform, &acc) {
 				filtered = append(filtered, acc)
 			}
 		}
@@ -1546,6 +1546,59 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	return cloneStringSlice(models)
 }
 
+func (s *GatewayService) resolveCompositeModelOwnership(ctx context.Context, groupID int64, model string) (CompositeModelOwnership, error) {
+	model = strings.TrimSpace(model)
+	if s == nil || s.accountRepo == nil || groupID <= 0 || model == "" {
+		return CompositeModelOwnership{}, nil
+	}
+
+	cacheKey := strconv.FormatInt(groupID, 10) + "|ownership|" + model
+	if s.modelsListCache != nil {
+		if cached, found := s.modelsListCache.Get(cacheKey); found {
+			if ownership, ok := cached.(CompositeModelOwnership); ok {
+				return ownership, nil
+			}
+		}
+	}
+
+	accounts, err := s.accountRepo.ListSchedulableByGroupID(ctx, groupID)
+	if err != nil {
+		return CompositeModelOwnership{}, err
+	}
+
+	platforms := make(map[string]struct{})
+	for _, account := range accounts {
+		platform := strings.TrimSpace(account.Platform)
+		if !isConcreteRequestPlatform(platform) || !explicitModelMappingClaims(account, model) {
+			continue
+		}
+		platforms[platform] = struct{}{}
+	}
+
+	ownership := CompositeModelOwnership{}
+	if len(platforms) == 1 {
+		for platform := range platforms {
+			ownership.TargetPlatform = platform
+		}
+		ownership.Matched = true
+	} else if len(platforms) > 1 {
+		ownership.Ambiguous = true
+	}
+
+	if s.modelsListCache != nil {
+		s.modelsListCache.Set(cacheKey, ownership, s.modelsListCacheTTL)
+	}
+	return ownership, nil
+}
+
+// GetCompositeRouteModels returns public IDs from enabled exact composite routes.
+func (s *GatewayService) GetCompositeRouteModels(ctx context.Context, groupID *int64, endpoint string) ([]string, error) {
+	if s == nil || s.compositeResolver == nil || groupID == nil {
+		return nil, nil
+	}
+	return s.compositeResolver.ListExactPublicModels(ctx, *groupID, endpoint)
+}
+
 // GetSchedulablePlatforms returns the concrete platforms that currently have
 // schedulable accounts in the target group.
 func (s *GatewayService) GetSchedulablePlatforms(ctx context.Context, groupID *int64) map[string]struct{} {
@@ -1574,59 +1627,6 @@ func (s *GatewayService) GetSchedulablePlatforms(ctx context.Context, groupID *i
 	return platforms
 }
 
-// resolveCompositeModelOwnership finds the concrete provider platform that
-// exposes an exact account-level model alias in a composite group. Wildcard
-// mappings and empty targets are intentionally ignored; aliases exposed by
-// multiple provider platforms fail closed as ambiguous.
-func (s *GatewayService) resolveCompositeModelOwnership(ctx context.Context, groupID int64, model string) (CompositeModelOwnership, error) {
-	if s == nil || s.accountRepo == nil || groupID <= 0 || strings.TrimSpace(model) == "" {
-		return CompositeModelOwnership{}, nil
-	}
-	cacheKey := strconv.FormatInt(groupID, 10) + "|ownership|" + strings.TrimSpace(model)
-	if s.modelsListCache != nil {
-		if cached, found := s.modelsListCache.Get(cacheKey); found {
-			if ownership, ok := cached.(CompositeModelOwnership); ok {
-				return ownership, nil
-			}
-		}
-	}
-	accounts, err := s.accountRepo.ListSchedulableByGroupID(ctx, groupID)
-	if err != nil {
-		return CompositeModelOwnership{}, err
-	}
-	wanted := strings.TrimSpace(model)
-	platforms := make(map[string]struct{})
-	for _, account := range accounts {
-		mapping := account.GetModelMapping()
-		if target, ok := mapping[wanted]; ok && strings.TrimSpace(target) != "" {
-			platform := strings.TrimSpace(account.Platform)
-			if platform != "" {
-				platforms[platform] = struct{}{}
-			}
-		}
-	}
-	if len(platforms) != 1 {
-		if len(platforms) > 1 {
-			ownership := CompositeModelOwnership{Ambiguous: true}
-			if s.modelsListCache != nil {
-				s.modelsListCache.Set(cacheKey, ownership, s.modelsListCacheTTL)
-			}
-			return ownership, nil
-		}
-		if s.modelsListCache != nil {
-			s.modelsListCache.Set(cacheKey, CompositeModelOwnership{}, s.modelsListCacheTTL)
-		}
-		return CompositeModelOwnership{}, nil
-	}
-	for platform := range platforms {
-		ownership := CompositeModelOwnership{TargetPlatform: platform, Matched: true}
-		if s.modelsListCache != nil {
-			s.modelsListCache.Set(cacheKey, ownership, s.modelsListCacheTTL)
-		}
-		return ownership, nil
-	}
-	return CompositeModelOwnership{}, nil
-}
 
 func (s *GatewayService) InvalidateAvailableModelsCache(groupID *int64, platform string) {
 	if s == nil || s.modelsListCache == nil {
@@ -1760,6 +1760,10 @@ func (s *GatewayService) debugLogGatewaySnapshot(tag string, headers http.Header
 
 	// 写入文件（调试用，并发写入可能交错但不影响可读性）
 	_, _ = f.WriteString(buf.String())
+}
+
+func mixedListingAccountAllowed(groupPlatform string, account *Account) bool {
+ return groupPlatform == PlatformGemini && account.IsMixedSchedulingEnabled()
 }
 
 func mixedListingModelAllowed(groupPlatform, model string) bool {

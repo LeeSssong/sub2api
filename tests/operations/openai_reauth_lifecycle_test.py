@@ -16,6 +16,10 @@ class LifecycleTest(unittest.TestCase):
         secret.write_text('OPENAI_REAUTH_WORKER_TOKEN='+'x'*40+'\nSUB2API_BASE_URL=http://127.0.0.1:8080\n')
         secret.chmod(0o600)
         (root/'runtime.env').write_text(f'REAUTH_IMAGE=sha256:offline-test\nREAUTH_SOURCE_ROOT={ROOT}\nREAUTH_GO_CONTAINER=go-worker\n')
+        install=root/'install'
+        install.write_text('#!/bin/sh\nmkdir -p \"${@: -1}\"\n')
+        install.write_text('#!/usr/bin/env bash\nmkdir -p \"${@: -1}\"\nchmod 700 \"${@: -1}\"\n')
+        install.chmod(0o700)
         docker=root/'docker'
         docker.write_text('#!'+sys.executable+'\n'+r'''import json,os,sys
 from pathlib import Path

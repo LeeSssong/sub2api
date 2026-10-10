@@ -1,0 +1,9 @@
+# Reuse an attested runtime only when dependencies.json and package inputs match.
+ARG REAUTH_RUNTIME_IMAGE
+FROM ${REAUTH_RUNTIME_IMAGE}
+COPY --chown=worker:worker tools/openai_oauth_reauth_worker.py /app/openai_oauth_reauth_worker.py
+COPY --chown=worker:worker tools/openai_totp_rotation.py tools/openai_totp_journal.mjs /app/
+COPY --chown=worker:worker tools/openai_excel_oauth_adapter.py tools/openai_excel_2fa_login.py tools/openai_excel_password_flow.mjs /app/
+RUN python -c "import curl_cffi; import openai_totp_rotation; import openai_excel_oauth_adapter" \
+    && node -e "require('/opt/tosub2/node_modules/jsdom')" \
+    && OPENAI_TOTP_JOURNAL_DIR=/tmp/totp-check python -c "from openai_totp_rotation import Journal; Journal(); import shutil; shutil.rmtree('/tmp/totp-check')"

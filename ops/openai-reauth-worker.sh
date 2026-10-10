@@ -96,12 +96,17 @@ PY
     fi
     pause_worker
     if docker inspect "$name" >/dev/null 2>&1; then docker rm "$name" >/dev/null; fi
+    journal_dir="$config_dir/totp-recovery"
+    [[ ! -L "$journal_dir" ]] || { echo "Journal directory must not be a symlink" >&2; exit 1; }
+    install -d -o 10001 -g 10001 -m 0700 "$journal_dir"
     docker run -d --name "$name" --restart unless-stopped \
       --network "container:$go_id" --read-only \
       --cap-drop ALL --security-opt no-new-privileges:true \
       --tmpfs /tmp:rw,nosuid,nodev,size=256m,mode=1777 --pids-limit 128 \
       --log-opt max-size=10m --log-opt max-file=3 \
       --env-file "$REAUTH_ENV_FILE" \
+      --env OPENAI_TOTP_JOURNAL_DIR=/app/totp-recovery \
+      --mount "type=bind,src=$journal_dir,dst=/app/totp-recovery" \
       --mount "type=bind,src=$REAUTH_SOURCE_ROOT/infra/reauth-worker/supervisor.py,dst=/app/reauth-supervisor.py,readonly" \
       --health-cmd 'python /app/reauth-supervisor.py --health' \
       --health-interval 15s --health-timeout 5s --health-retries 3 \

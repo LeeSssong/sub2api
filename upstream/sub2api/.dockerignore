@@ -88,3 +88,7 @@ CLAUDE.md
 !token-guard/UPSTREAM.md
 **/__pycache__/
 **/*.pyc
+# Persistent encrypted 2FA recovery archives and their keys are never build inputs.
+**/totp-recovery/
+**/*.sealed
+**/credential-operations.key

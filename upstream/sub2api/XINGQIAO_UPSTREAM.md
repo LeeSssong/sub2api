@@ -18,3 +18,13 @@ this snapshot and must be reviewed when importing a newer upstream release.
 - Version: `2.9.1`
 - Previous full fork baseline: `9ee2041d3d8ab1235cb53725077e7c70ef5cefda`
 - Non-billing conflicts prefer upstream. Preserve local billing integration and immutable executed migration history.
+
+## Current fork integration — 2026-10-10
+
+- Repository: `https://github.com/ranxi2001/sub2api`
+- Branch: `production`
+- Source commit: `ff9198947a70a83c59b8448f5ef13909119cfe7c`
+- Version: `2.10.4`
+- Previous imported source: `11be589504b482d77827ab383b4b53f777241238` (2.10.1)
+- Method: 510 changed files imported from verified Git snapshots with three-way content merges; external history remains outside project main. Local billing/quota/admission, singleton roles, monitor-v4/SLA and user shell retained; Ent and Wire regenerated. Existing migration SQL bytes preserved.
+- This release uses the user-authorized exact online migration pair `10a94ee6…` → `e5d79ffa…`; four new migrations have bounded lock/statement timeouts. Backward application recovery keeps schema/data and blocks incompatible active TOTP/Excel work, restart renewal orders and new provider platforms.

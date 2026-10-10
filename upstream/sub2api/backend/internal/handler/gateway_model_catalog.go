@@ -12,7 +12,7 @@ import (
 func (h *GatewayHandler) nativeModelIDsForListing(ctx context.Context, groupID *int64, platform string, allowlist service.GroupModelAllowlist) ([]string, bool) {
 	var configured []string
 	if platform == service.PlatformComposite {
-		configured = h.compositeAvailableModels(ctx, groupID, true)
+		configured = h.compositeAvailableModels(ctx, groupID, "")
 	} else {
 		configured = h.gatewayService.GetAvailableModels(ctx, groupID, platform)
 	}

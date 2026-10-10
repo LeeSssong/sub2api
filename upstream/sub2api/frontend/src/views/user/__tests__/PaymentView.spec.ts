@@ -1,3 +1,6 @@
+import en from '@/i18n/locales/en'
+import zh from '@/i18n/locales/zh'
+import AmountInput from '@/components/payment/AmountInput.vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
@@ -17,6 +20,7 @@ const routerResolve = vi.hoisted(() => vi.fn(() => ({ href: '/payment/stripe?moc
 const createOrder = vi.hoisted(() => vi.fn())
 const refreshUser = vi.hoisted(() => vi.fn())
 const fetchActiveSubscriptions = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+const activeSubscriptionsState = vi.hoisted(() => ({ value: [] as Array<Record<string, unknown>> }))
 const showError = vi.hoisted(() => vi.fn())
 const showInfo = vi.hoisted(() => vi.fn())
 const showWarning = vi.hoisted(() => vi.fn())
@@ -47,7 +51,7 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => key,
+      t: translate,
     }),
   }
 })
@@ -71,7 +75,7 @@ vi.mock('@/stores/payment', () => ({
 
 vi.mock('@/stores/subscriptions', () => ({
   useSubscriptionStore: () => ({
-    activeSubscriptions: [],
+    activeSubscriptions: activeSubscriptionsState.value,
     fetchActiveSubscriptions,
   }),
 }))
@@ -217,7 +221,10 @@ function oauthOrderFixture() {
   }
 }
 
-async function mountSubscriptionConfirm(options: Parameters<typeof checkoutInfoWithPlansFixture>[0] = {}) {
+async function mountSubscriptionConfirm(
+  options: Parameters<typeof checkoutInfoWithPlansFixture>[0] = {},
+  subscriptions: Array<Record<string, unknown>> = [],
+) {
   vi.useRealTimers()
   routeState.path = '/purchase'
   routeState.query = {
@@ -230,6 +237,7 @@ async function mountSubscriptionConfirm(options: Parameters<typeof checkoutInfoW
   createOrder.mockReset()
   refreshUser.mockReset()
   fetchActiveSubscriptions.mockReset().mockResolvedValue(undefined)
+  activeSubscriptionsState.value = subscriptions
   showError.mockReset()
   showInfo.mockReset()
   showWarning.mockReset()
@@ -264,6 +272,7 @@ async function mountSubscriptionPlanList(planCount: number, subscription = true)
   createOrder.mockReset()
   refreshUser.mockReset()
   fetchActiveSubscriptions.mockReset().mockResolvedValue(undefined)
+  activeSubscriptionsState.value = []
   showError.mockReset()
   showInfo.mockReset()
   showWarning.mockReset()
@@ -372,7 +381,94 @@ describe.skip('PaymentView subscription plan grid (removed from user page)', () 
   })
 })
 
-describe.skip('PaymentView subscription confirmation amounts (removed from user page)', () => {
+describe('PaymentView subscription renewal mode', () => {
+  function activeSubscription() {
+    return {
+      id: 11,
+      user_id: 1,
+      group_id: 3,
+      starts_at: '2026-09-01T00:00:00Z',
+      expires_at: '2026-10-01T00:00:00Z',
+      status: 'active',
+      daily_usage_usd: 5,
+      weekly_usage_usd: 10,
+      monthly_usage_usd: 20,
+    }
+  }
+
+  async function submitSubscription(wrapper: Awaited<ReturnType<typeof mountSubscriptionConfirm>>) {
+    const submit = wrapper.findAll('button').find(button => button.text().includes('payment.createOrder'))
+    expect(submit).toBeDefined()
+    await submit!.trigger('click')
+    await flushPromises()
+  }
+
+  it('defaults active subscription renewal to restart and submits it', async () => {
+    const wrapper = await mountSubscriptionConfirm({}, [activeSubscription()])
+    createOrder.mockResolvedValue({})
+
+    const selector = wrapper.get('[data-test="renewal-mode-selector"]')
+    expect(selector.findAll('[role="radio"]')[0].attributes('aria-checked')).toBe('true')
+
+    await submitSubscription(wrapper)
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({ renewal_mode: 'restart' }))
+  })
+
+  it('allows extending the current term without restarting quota', async () => {
+    const wrapper = await mountSubscriptionConfirm({}, [activeSubscription()])
+    createOrder.mockResolvedValue({})
+
+    const radios = wrapper.get('[data-test="renewal-mode-selector"]').findAll('[role="radio"]')
+    await radios[1].trigger('click')
+    await submitSubscription(wrapper)
+
+    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({ renewal_mode: 'extend' }))
+  })
+
+  it('does not show renewal choices for a first subscription purchase', async () => {
+    const wrapper = await mountSubscriptionConfirm()
+    expect(wrapper.find('[data-test="renewal-mode-selector"]').exists()).toBe(false)
+  })
+})
+
+describe('PaymentView recharge rate preview', () => {
+  it('uses the selected payment method currency in both locale templates', async () => {
+    translate.mockClear()
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture({
+      balance_recharge_multiplier: 0.5,
+      methods: {
+        stripe: {
+          ...checkoutInfoFixture().data.methods.wxpay,
+          currency: 'USD',
+        },
+      },
+    }))
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    wrapper.getComponent(AmountInput).vm.$emit('update:modelValue', 10)
+    await flushPromises()
+
+    expect(translate).toHaveBeenCalledWith('payment.rechargeRatePreview', {
+      currency: 'USD',
+      usd: '0.50',
+    })
+    expect(en.payment.rechargeRatePreview).toBe('Current rate: 1 {currency} = {usd} USD')
+    expect(zh.payment.rechargeRatePreview).toBe('当前倍率：1 {currency} = {usd} USD')
+  })
+})
+
+describe.skip('PaymentView subscription confirmation amounts', () => {
   it('shows converted CNY pay amount using the subscription rate, not the balance multiplier', async () => {
     const wrapper = await mountSubscriptionConfirm({
       checkout: {
@@ -809,7 +905,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     }))
     expect(locationState.href).toContain('/api/v1/auth/oauth/wechat/payment/start?')
     expect(new URL(locationState.href, 'http://localhost').searchParams.get('redirect')).toBe(
-      '/purchase?from=wechat&payment_type=wxpay&order_type=subscription&plan_id=7',
+      '/purchase?from=wechat&payment_type=wxpay&order_type=subscription&plan_id=7&renewal_mode=restart',
     )
 
     Object.defineProperty(window, 'location', {

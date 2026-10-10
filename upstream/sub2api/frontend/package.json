@@ -13,17 +13,7 @@
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:browser:account-profitability": "node scripts/account-profitability-browser.mjs",
     "test:coverage": "vitest run --coverage"
-  },
-  "pnpm": {
-    "overrides": {
-      "js-cookie": "3.0.7",
-      "source-map-js@<1.2.2": "1.2.2",
-      "form-data@<4.0.6": ">=4.0.6",
-      "postcss@<8.5.18": ">=8.5.18",
-      "dompurify@<3.4.14": ">=3.4.14"
-    }
   },
   "dependencies": {
     "@airwallex/components-sdk": "^1.30.2",
@@ -68,6 +58,17 @@
     "vite": "^5.0.10",
     "vite-plugin-checker": "^0.9.1",
     "vitest": "^2.1.9",
-    "vue-tsc": "^2.2.0"
+    "vue-tsc": "^2.2.0",
+    "tree-sitter-batch": "0.11.1",
+    "web-tree-sitter": "0.25.10"
+  },
+  "pnpm": {
+    "overrides": {
+      "js-cookie": "3.0.7",
+      "source-map-js@<1.2.2": "1.2.2",
+      "form-data@<4.0.6": ">=4.0.6",
+      "postcss@<8.5.18": ">=8.5.18",
+      "dompurify@<3.4.14": ">=3.4.14"
+    }
   }
 }

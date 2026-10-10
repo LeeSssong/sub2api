@@ -403,6 +403,7 @@ JSON
     ;;
   'inspect worker-id --format {{.State.Running}}'|'inspect green-id --format {{.State.Running}}') printf 'false\n' ;;
   *'october09-preflight'*) printf '%s\n' "${FAKE_OCTOBER09_SAFE:-t}" ;;
+  *'october10-compat'*) printf '%s\n' "${FAKE_SEPTEMBER28_COMPAT:-t}" ;;
   *'october09-compat'*) printf '%s\n' "${FAKE_SEPTEMBER28_COMPAT:-t}" ;;
   *'september28-compat'*) printf '%s\n' "${FAKE_SEPTEMBER28_COMPAT:-t}" ;;
   *'fusion-receipts'*) if [[ "$scenario" == fusion_partial_migration || "$scenario" == september26_receipt_mismatch ]]; then printf '%064d\n' 7; else printf '%s\n' "${EXPECTED_MIGRATIONS_HASH:?}"; fi ;;
@@ -1436,6 +1437,49 @@ test_october09_online_transition() {
   done
   printf 'PASS: October 9 exact transition, retained streams, notification safety, wrong-target and rollback cases\n'
 
+}
+
+test_october10_online_transition() {
+  local old_hash=10a94ee6d7eb6ecfef05053c99571604230edba42780257eb73cf105d378073a
+  local new_hash=e5d79ffa00d518804211a877ede6c7cb54277ada8c76e975526dca622445a6de
+  setup_case october10_online
+  write_meminfo
+  MIGRATIONS_HASH=$new_hash
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  EXPECTED_MIGRATIONS_HASH=$new_hash ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=force \
+    run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=drain_empty >"$CASE_DIR/stdout" 2>"$CASE_DIR/stderr" \
+    || fail "October 10 online release failed: $(cat "$CASE_DIR/stderr")"
+  grep -q 'run --rm --no-deps --user 1000:1000 --entrypoint /app/sub2api sub2api-worker -migrate-only' "$EVENT_LOG" \
+    || fail 'October 10 did not run the standalone migrator'
+  grep -q 'up --no-deps -d --force-recreate sub2api-worker' "$EVENT_LOG" \
+    || fail 'October 10 did not promote the new worker'
+  ! grep -q 'maintenance stop api-worker' "$EVENT_LOG" || fail 'October 10 stopped the active API'
+  ! grep -q ' stop sub2api-blue sub2api-green sub2api-worker' "$EVENT_LOG" || fail 'October 10 stopped the active API/worker'
+  grep -q 'docker stop --time 60 worker-id' "$EVENT_LOG" || fail 'October 10 did not drain the old worker'
+  "$REAL_JQ" -e --arg hash "$new_hash" '.migrations_hash == $hash and .active_slot == "green"' "$CASE_DIR/state.json" >/dev/null \
+    || fail 'October 10 did not persist the additive schema and candidate promotion'
+
+  setup_case october10_wrong_target
+  write_meminfo
+  MIGRATIONS_HASH=$(printf '0%.0s' {1..64})
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  EXPECTED_MIGRATIONS_HASH=$MIGRATIONS_HASH ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=force \
+    expect_failure october10_wrong_target run_executor PRESERVE_DETECTOR=true
+  ! grep -q ' -migrate-only' "$EVENT_LOG" || fail 'wrong October 10 target reached migration execution'
+  assert_no_mutation october10_wrong_target
+
+  setup_case october10_public_failure
+  write_meminfo
+  MIGRATIONS_HASH=$new_hash
+  "$REAL_JQ" --arg hash "$old_hash" '.migrations_hash=$hash' "$CASE_DIR/state.json" >"$CASE_DIR/state.tmp"
+  mv "$CASE_DIR/state.tmp" "$CASE_DIR/state.json"; chmod 0600 "$CASE_DIR/state.json"
+  EXPECTED_MIGRATIONS_HASH=$new_hash ONLINE_MIGRATIONS_MODE=true ONLINE_MIGRATIONS_FROM_HASH=$old_hash DRAIN_MODE=force \
+    expect_failure october10_public_failure run_executor PRESERVE_DETECTOR=true FAKE_SCENARIO=fusion_public_failure
+  ! grep -q 'maintenance stop api-worker' "$EVENT_LOG" || fail 'October 10 public failure stopped active API'
+  grep -q 'stop --time 300 green-id' "$EVENT_LOG" || fail 'October 10 rollback did not drain candidate for 300 seconds'
+  printf "PASS: October 10 exact transition, worker drain, wrong-target and rollback cases\n"
 }
 
 test_successful_release_can_rollback_without_stopping_current_api() {
@@ -3841,6 +3885,7 @@ case "${ONLY_TEST:-all}" in
 	maintenance-official-028-transition) test_official_028_maintenance_transition_allowlist ;;
   online-migrations) test_online_official_028_migrations_keep_old_api_running ;;
   monitor-v4-online) test_monitor_v4_online_transition ;;
+  october10-online) test_october10_online_transition ;;
   october09-online) test_october09_online_transition ;;
   post-success-rollback) test_successful_release_can_rollback_without_stopping_current_api; test_online_migration_release_can_rollback_to_previous_schema_reader; test_failed_rollback_restoration_keeps_exclusive_lock; test_failed_rollback_state_write_restores_release_env ;;
 	caddy-identity) test_caddy_identity_refresh_without_maintenance ;;

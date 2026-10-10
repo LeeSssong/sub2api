@@ -12,7 +12,7 @@
 
 # Official registry digests avoid the mirror authentication failure.
 ARG NODE_IMAGE=docker.io/library/node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
-ARG GOLANG_IMAGE=docker.io/library/golang:1.27.0-alpine@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bdfc999fee45ea9d6c46dbc
+ARG GOLANG_IMAGE=docker.io/library/golang:1.27.2-alpine
 ARG ALPINE_IMAGE=docker.io/library/alpine:3.21@sha256:ce64758a109eb420d874a118f87920e625e12d3634e03b4a5573fd9f6e5d3507
 ARG POSTGRES_IMAGE=docker.io/library/postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
 ARG GOPROXY=https://goproxy.cn,direct
