@@ -1,6 +1,6 @@
 # 请求成功率统一 SLA（2026-10-10）
 
-状态：进行中。类别 Optimization；类型 D，Founder 已明确统一后台 SLA 口径并先部署测试站。范围：AI 工具、我的 AI 线路、密钥线路选择、性能监控中的请求成功率与状态/推荐；排除业务限制及客户端取消。工作区 `/Users/awen/.codex/worktrees/route-sla-unified/星桥测试服`；基线 `15709fd0`。实现提交 `5d6a078a`；前端相关 115 项及密钥页 62 项通过，vue-tsc 与 MonitorV4 handler 回归通过；SLA service 独立测试通过，完整 service 包受基线缺失 rawChatCompletionsTestAccount 阻断。进入主线整合、测试站 API-only 蓝绿发布与线上核验。保留其他工作区已有修改，不发布主站。
+状态：实现、推送与测试站发布完成；主站未发布。类别 Optimization；类型 D。所有请求成功率统一后台 SLA，排除业务限制及客户端取消，状态/排序/推荐同步。运行版本 `74cfb5415fc0a0ce227107d8816518fac57e3650` / tree `8a93f2acbcc110f4e19e5e10e1fc5c7b93615291`；blue 槽成功，未回滚。详情历史及密钥入口已核验；近一小时无真实样本，兼容性能页走旧 V2，混合卡片仅回归验证，不能宣称整版线上验收通过。证据：[发布记录](releases/2026-10-10-route-sla-unified-test-station.md)。已合入功能分支保留为历史证据；其他工作区已有修改保留。
 
 # 项目全局进度总账
 
