@@ -41,6 +41,49 @@ async function setup(items = [storefront], paymentEnabled = false, role: 'user' 
 }
 
 describe('regular user storefront menu', () => {
+  it.each([false, undefined])('hides support tickets unless explicitly enabled (value=%s)', async (enabled) => {
+    const { sidebar, app } = await setup([])
+    app.$patch({ cachedPublicSettings: { support_ticket_enabled: enabled } })
+    await nextTick()
+    expect(sidebar.find('nav a[href="/support-tickets"]').exists()).toBe(false)
+  })
+
+  it('hides support tickets while settings are unavailable', async () => {
+    const { sidebar, app } = await setup([])
+    app.$patch({ publicSettingsLoaded: false, cachedPublicSettings: null })
+    await nextTick()
+    expect(sidebar.find('nav a[href="/support-tickets"]').exists()).toBe(false)
+  })
+
+  it('reactively shows an enabled ticket entry and opens the native page', async () => {
+    const { sidebar, app, router } = await setup([])
+    app.$patch({ cachedPublicSettings: { support_ticket_enabled: true } })
+    await nextTick()
+    expect(sidebar.findAll('nav a[href="/support-tickets"]')).toHaveLength(1)
+    await sidebar.get('nav a[href="/support-tickets"]').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/support-tickets')
+
+    app.$patch({ cachedPublicSettings: { support_ticket_enabled: false } })
+    await nextTick()
+    expect(sidebar.find('nav a[href="/support-tickets"]').exists()).toBe(false)
+  })
+
+  it('keeps administrator tickets in the management console and follows the switch', async () => {
+    const { sidebar, app, router } = await setup([], false, 'admin')
+    app.$patch({ cachedPublicSettings: { support_ticket_enabled: true } })
+    await nextTick()
+    expect(sidebar.find('nav a[href="/support-tickets"]').exists()).toBe(false)
+    await router.push('/admin/dashboard')
+    await flushPromises()
+    expect(sidebar.find('nav a[href="/support-tickets"]').exists()).toBe(false)
+    expect(sidebar.find('nav a[href="/admin/support-tickets"]').exists()).toBe(true)
+
+    app.$patch({ cachedPublicSettings: { support_ticket_enabled: false } })
+    await nextTick()
+    expect(sidebar.find('nav a[href="/admin/support-tickets"]').exists()).toBe(false)
+  })
+
   it.each(['user', 'admin'] as const)('keeps order history outside the sidebar for %s', async (role) => {
     const { sidebar } = await setup([], false, role)
     expect(sidebar.find('nav a[href="/orders"]').exists()).toBe(false)
@@ -75,7 +118,7 @@ describe('regular user storefront menu', () => {
     const { sidebar, app, router } = await setup([storefront], false, 'admin')
     app.$patch({ sidebarCollapsed: true })
     await nextTick()
-    expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys', '/support-tickets'])
+    expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys'])
     expect(sidebar.get('aside').classes()).not.toContain('admin-sidebar')
     expect(sidebar.get('aside').classes()).not.toContain('admin-sidebar-collapsed')
     expect(sidebar.get('.sidebar-brand-title').attributes('href')).toBe('/dashboard')
@@ -91,17 +134,17 @@ describe('regular user storefront menu', () => {
     app.$patch({ sidebarCollapsed: false })
     await nextTick()
     const personal = sidebar.findAll('.sidebar-section').find(section => section.find('.sidebar-section-title').exists())!
-    expect(personal.findAll('a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys', '/support-tickets'])
+    expect(personal.findAll('a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys'])
     await router.push('/keys')
     await flushPromises()
     expect(sidebar.get('aside').classes()).not.toContain('admin-sidebar')
-    expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys', '/support-tickets'])
+    expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys'])
   })
 
   it.each([false, true])('keeps only the bottom recharge entry when payments are enabled=%s', async (paymentEnabled) => {
     const { sidebar, router } = await setup([storefront], paymentEnabled)
     expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual([
-      '/dashboard', '/usage', '/keys', '/support-tickets',
+      '/dashboard', '/usage', '/keys',
     ])
     expect(sidebar.find('nav a[href="/redeem"]').exists()).toBe(false)
     expect(sidebar.find('nav a[href="/custom/xingqiao-storefront"]').exists()).toBe(false)
@@ -123,7 +166,7 @@ describe('regular user storefront menu', () => {
     for (const visibility of ['user', 'admin'] as const) {
       app.$patch({ cachedPublicSettings: { custom_menu_items: [{ ...storefront, visibility }] } })
       await nextTick()
-      expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys', '/support-tickets'])
+      expect(sidebar.findAll('nav a').map(link => link.attributes('href'))).toEqual(['/dashboard', '/usage', '/keys'])
       expect(sidebar.get('[data-testid="user-sidebar-recharge"]').exists()).toBe(true)
     }
   })

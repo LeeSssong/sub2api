@@ -794,7 +794,7 @@ function buildUserNavItems(): NavItem[] {
 }
 
 // User navigation items (for regular users)
-const userNavItems = computed((): NavItem[] => buildUserNavItems())
+const userNavItems = computed((): NavItem[] => applyFeatureFlags(buildUserNavItems()))
 
 // The management console links to the same user workspace navigation.
 const personalNavItems = userNavItems
