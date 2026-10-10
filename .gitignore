@@ -22,3 +22,6 @@ output/
 
 # Local codegraph index cache
 .codegraph/
+
+# Installed frontend dependencies are local to each checkout.
+**/node_modules
