@@ -1,0 +1,13 @@
+# 请求成功率统一 SLA 实施计划
+
+用户已确认：所有请求成功率按后台 SLA，排除业务限制及客户端取消；先部署测试站。
+
+架构：在用户 snapshot 响应添加明确的 SLA 成功/总计数字段，复用已有 timeline 查询与权限/统计窗口，不改变旧快照、worker、探测及计费。共用线路健康/排序/推荐改用 SLA；详情状态与累计共用所选 timeline。后台 SLA 原有查询保留，探测测试成功率不是请求成功率，不混用。
+
+- [x] 添加分母不一致样例 660/841 与 SLA 660/667 的模型、下拉、页面、API 回归，先验证失败。
+- [x] handler 调用只读 SLACounts，复用 timeline 查询与已授权 snapshot 的精确窗口，输出 sla_request_count/sla_success_count；前端验证可选 SLA 计数，缺失不回退旧口径。
+- [x] 统一线路健康、聚合、排序、推荐、下拉、我的 AI 线路、性能卡片；详情状态跟随时间范围；提示明确排除规则。
+- [x] 跑直接相关 Go/前端回归与类型检查，核对 diff。
+- [x] 合入根 main、推送，从干净 main 部署测试站 API-only；核对版本、健康、页面与资源，记录无真实流量限制。
+
+发布及验证记录：`docs/project/releases/2026-10-10-route-sla-unified-test-station.md`；混合性能页线上未启用，限制已记录。

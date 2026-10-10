@@ -78,7 +78,7 @@ describe('HybridPerformanceView', () => {
       groups: [{
         id: 1, name: '主力分组', platform: 'openai', rate_multiplier: 0.3,
         success_rate: 95, request_count: 20, success_count: 19,
-        real_request_count: 20, real_success_count: 19,
+        sla_request_count:20,sla_success_count:19,real_request_count: 20, real_success_count: 19,
         probe_fallback_bucket_count: 0, probe_fallback_request_count: 0,
         ttft_p95_ms: 120, ttft_sample_count: 19,
         latency_p95_ms: 900, latency_sample_count: 19,

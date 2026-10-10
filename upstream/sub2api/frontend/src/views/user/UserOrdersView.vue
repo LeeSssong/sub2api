@@ -11,7 +11,7 @@
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             <span>{{ t('common.refresh') }}</span>
           </button>
-            <button data-testid="back-to-recharge" class="btn btn-primary" @click="router.push('/purchase')">返回充值</button>
+            <button data-testid="back-to-recharge" class="btn btn-primary" @click="router.push(rechargeEntryPath)">返回充值</button>
           </div>
         </div>
       </div>
@@ -105,6 +105,7 @@ import OrderTable from '@/components/payment/OrderTable.vue'
 const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
+const rechargeEntryPath = computed(() => appStore.cachedPublicSettings?.payment_enabled === false ? '/redeem' : '/purchase')
 
 const loading = ref(false)
 const loadError = ref(false)

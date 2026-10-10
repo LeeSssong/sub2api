@@ -12,7 +12,7 @@ describe('UserRechargeNav', () => {
     expect(wrapper.find('[data-test="recharge-unavailable"]').text()).toContain('充值暂不可用')
     expect(wrapper.find('[data-test="recharge-tab"]').attributes('aria-disabled')).toBe('true')
     expect(wrapper.find('[data-test="recharge-tab"]').element.tagName).toBe('SPAN')
-    expect(wrapper.find('[data-test="orders-link"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="orders-link"]').attributes('to')).toBe('/orders')
   })
 
   it('keeps purchasing available through the storefront when native payment is disabled', () => {
@@ -23,6 +23,7 @@ describe('UserRechargeNav', () => {
     expect(wrapper.find('[role="tablist"]').exists()).toBe(true)
     expect(wrapper.get('[role="tab"][aria-selected="true"]').attributes('to')).toBe('/redeem')
     expect(wrapper.find('[data-test="recharge-unavailable"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="orders-link"]').attributes('to')).toBe('/orders')
     expect(wrapper.get('[data-test="account-metrics"]').text()).toContain('$2.00')
   })
 

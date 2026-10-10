@@ -35,6 +35,10 @@ function group(value: unknown, path: string): MonitorV4Group {
   if (successRate !== null && successRate > 100) throw new MonitorV4ContractError(`${path}.success_rate must be <= 100`)
   const requestCount = number(source.request_count, `${path}.request_count`, true)
   const successCount = number(source.success_count, `${path}.success_count`, true)
+  const hasSLA = source.sla_request_count != null || source.sla_success_count != null
+  const slaRequestCount = hasSLA ? number(source.sla_request_count, `${path}.sla_request_count`, true) : undefined
+  const slaSuccessCount = hasSLA ? number(source.sla_success_count, `${path}.sla_success_count`, true) : undefined
+  if (hasSLA && (!Number.isSafeInteger(slaRequestCount) || !Number.isSafeInteger(slaSuccessCount) || slaSuccessCount! > slaRequestCount!)) throw new MonitorV4ContractError(`${path} SLA counts are inconsistent`)
   const realRequestCount = number(source.real_request_count, `${path}.real_request_count`, true)
   const realSuccessCount = number(source.real_success_count, `${path}.real_success_count`, true)
   const probeFallbackBucketCount = number(source.probe_fallback_bucket_count, `${path}.probe_fallback_bucket_count`, true)
@@ -62,6 +66,7 @@ function group(value: unknown, path: string): MonitorV4Group {
     tool_ids: Array.isArray(source.tool_ids) ? source.tool_ids.filter((id): id is string => typeof id === "string") : [],
     rate_multiplier: number(source.rate_multiplier, `${path}.rate_multiplier`),
     success_rate: successRate, request_count: requestCount, success_count: successCount,
+    sla_request_count: slaRequestCount, sla_success_count: slaSuccessCount,
     real_request_count: realRequestCount, real_success_count: realSuccessCount,
     probe_fallback_bucket_count: probeFallbackBucketCount, probe_fallback_request_count: probeFallbackRequestCount,
     ttft_p50_ms: source.ttft_p50_ms == null ? null : nullableNumber(source.ttft_p50_ms, `${path}.ttft_p50_ms`),

@@ -96,7 +96,8 @@ class ReleaseScopeTests(unittest.TestCase):
 
     def test_route_sla_read_queries_allow_api_only_without_widening_worker_scope(self):
         paths = ['internal/service/monitor_v4_timeline.go', 'internal/service/monitor_v4_timeline_test.go',
-                 'internal/handler/monitor_v4_handler_test.go', 'internal/repository/monitor_v4_timeline.go',
+                 'internal/handler/monitor_v4_handler_test.go', 'internal/handler/monitor_v4_handler.go',
+                 'internal/service/monitor_v4_sla_test.go', 'internal/repository/monitor_v4_timeline.go',
                  'internal/repository/ops_repo_dashboard.go', 'internal/repository/ops_sla_sql.go',
                  'internal/repository/route_sla_timeline_postgres_test.go',
                  'scripts/verify_prototype_monitor_postgres.py']

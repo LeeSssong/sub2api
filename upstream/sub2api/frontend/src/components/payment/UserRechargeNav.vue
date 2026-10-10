@@ -27,7 +27,7 @@
           兑换码
         </router-link>
       </div>
-      <router-link v-if="paymentEnabled" data-test="orders-link" to="/orders" class="flex h-[34px] shrink-0 items-center whitespace-nowrap px-1 text-xs text-[var(--xq-secondary)] transition-colors hover:text-[var(--xq-accent)]">我的订单 →</router-link>
+      <router-link data-test="orders-link" to="/orders" class="flex h-[34px] shrink-0 items-center whitespace-nowrap px-1 text-xs text-[var(--xq-secondary)] transition-colors hover:text-[var(--xq-accent)]">我的订单 →</router-link>
     </div>
     <p v-if="!paymentEnabled && !storefrontAvailable" data-test="recharge-unavailable" class="mt-3 text-xs text-[var(--xq-secondary)]">充值暂不可用，仍可使用兑换码。</p>
   </div>

@@ -12,6 +12,9 @@ export interface MonitorV4Group {
   success_rate: number | null
   request_count: number
   success_count: number
+  /** Backend SLA: excludes business restrictions and client cancellations. */
+  sla_request_count?: number | null
+  sla_success_count?: number | null
   real_request_count: number
   real_success_count: number
   probe_fallback_bucket_count: number

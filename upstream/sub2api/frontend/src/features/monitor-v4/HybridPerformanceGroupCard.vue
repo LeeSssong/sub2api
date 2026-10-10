@@ -34,7 +34,7 @@
     </div>
 
     <footer class="hybrid-card__footer">
-      <span data-test="sample-count">{{ t('channelMonitorV2.hybrid.sampleCount', { count: group.request_count }) }}</span>
+      <span data-test="sample-count">{{ t('channelMonitorV2.hybrid.sampleCount', { count: group.sla_request_count ?? '—' }) }}</span>
     </footer>
   </article>
 </template>
@@ -43,12 +43,13 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { MonitorV4Group } from './types'
-import { successRateTone } from './successRate'
+import { routeHealth, routeHealthTone, routeSuccessLabel } from '@/features/ai-tools/model'
 
 const props = defineProps<{ group: MonitorV4Group }>()
 const { t } = useI18n()
-const tone = computed(() => props.group.success_rate === null ? 'amber' : successRateTone(props.group.success_rate))
-const successRateLabel = computed(() => props.group.success_rate === null ? '--' : `${Number.isInteger(props.group.success_rate) ? props.group.success_rate : props.group.success_rate.toFixed(1)}%`)
+const health = computed(() => routeHealth(props.group))
+const tone = computed(() => routeHealthTone(health.value))
+const successRateLabel = computed(() => routeSuccessLabel(health.value))
 const formatSeconds = (value: number | null) => value === null ? '--' : `${(value / 1000).toFixed(2)} s`
 </script>
 

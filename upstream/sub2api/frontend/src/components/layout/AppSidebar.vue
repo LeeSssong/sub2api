@@ -780,6 +780,7 @@ function buildUserNavItems(): NavItem[] {
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon },
     { path: '/keys', label: userNavLabel('myKeys', '我的密钥'), icon: KeyIcon },
     { path: '/support-tickets', label: t('nav.supportTickets'), icon: SupportTicketIcon, featureFlag: flagUserSupportTickets, badge: () => supportTicketStore.userUnread },
+    ...(flagAffiliate() ? [{ path: '/affiliate', label: t('nav.affiliate'), icon: GiftIcon }] : []),
     // Recharge and redemption are accessed only through the fixed balance entry.
     ...customMenuItemsForUser.value
       .filter(item => item.url === '/intelligence-test')

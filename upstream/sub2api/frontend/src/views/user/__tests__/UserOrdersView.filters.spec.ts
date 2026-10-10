@@ -5,9 +5,11 @@ import Select from '@/components/common/Select.vue'
 import Pagination from '@/components/common/Pagination.vue'
 
 const api = vi.hoisted(() => ({ getMyOrders: vi.fn(), getRefundEligibleProviders: vi.fn() }))
+const app = vi.hoisted(() => ({ showError: vi.fn(), cachedPublicSettings: {} as { payment_enabled?: boolean } }))
+const push = vi.hoisted(() => vi.fn())
 vi.mock('@/api/payment', () => ({ paymentAPI: api }))
-vi.mock('@/stores', () => ({ useAppStore: () => ({ showError: vi.fn() }) }))
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('@/stores', () => ({ useAppStore: () => app }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
 vi.mock('vue-i18n', async (importOriginal) => ({
   ...await importOriginal<typeof import('vue-i18n')>(),
   useI18n: () => ({ t: (key: string) => key })
@@ -16,6 +18,7 @@ enableAutoUnmount(afterEach)
 
 beforeEach(() => {
   vi.clearAllMocks()
+  app.cachedPublicSettings = {}
   api.getMyOrders.mockResolvedValue({ data: { items: [], total: 100 } })
   api.getRefundEligibleProviders.mockResolvedValue({ data: { provider_instance_ids: [] } })
 })
@@ -34,6 +37,13 @@ async function openOrders() {
 }
 
 describe('order status filtering', () => {
+  it.each([false, true, undefined])('returns to the available recharge entry when payment is enabled=%s', async (enabled) => {
+    app.cachedPublicSettings = { payment_enabled: enabled }
+    const wrapper = await openOrders()
+    await wrapper.get('[data-testid="back-to-recharge"]').trigger('click')
+    expect(push).toHaveBeenCalledWith(enabled === false ? '/redeem' : '/purchase')
+  })
+
   it('loads the first page with the selected status', async () => {
     const wrapper = await openOrders()
     const select = wrapper.getComponent(Select)

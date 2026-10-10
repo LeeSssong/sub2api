@@ -41,6 +41,36 @@ async function setup(items = [storefront], paymentEnabled = false, role: 'user' 
 }
 
 describe('regular user storefront menu', () => {
+  it.each(['user', 'admin'] as const)('keeps order history outside the sidebar for %s', async (role) => {
+    const { sidebar } = await setup([], false, role)
+    expect(sidebar.find('nav a[href="/orders"]').exists()).toBe(false)
+    await sidebar.get('[data-testid="user-sidebar-account"]').trigger('click')
+    expect(sidebar.find('[role="menu"] a[href="/orders"]').exists()).toBe(false)
+  })
+
+  it.each(['user', 'admin'] as const)('follows the affiliate switch and opens the native page for %s', async (role) => {
+    const { sidebar, app, router } = await setup([], false, role)
+    expect(sidebar.find('nav a[href="/affiliate"]').exists()).toBe(false)
+
+    app.$patch({ cachedPublicSettings: { affiliate_enabled: true } })
+    await nextTick()
+    const affiliate = sidebar.get('nav a[href="/affiliate"]')
+    expect(affiliate.text()).toBe('nav.affiliate')
+    expect(affiliate.find('svg').exists()).toBe(true)
+    await affiliate.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/affiliate')
+    expect(sidebar.get('nav a[href="/affiliate"]').attributes('aria-current')).toBe('page')
+
+    app.$patch({ cachedPublicSettings: { affiliate_enabled: false } })
+    await nextTick()
+    expect(sidebar.find('nav a[href="/affiliate"]').exists()).toBe(false)
+
+    app.$patch({ cachedPublicSettings: { affiliate_enabled: true } })
+    await nextTick()
+    expect(sidebar.findAll('nav a[href="/affiliate"]')).toHaveLength(1)
+  })
+
   it('gives administrators the same user navigation and a return to the management console', async () => {
     const { sidebar, app, router } = await setup([storefront], false, 'admin')
     app.$patch({ sidebarCollapsed: true })

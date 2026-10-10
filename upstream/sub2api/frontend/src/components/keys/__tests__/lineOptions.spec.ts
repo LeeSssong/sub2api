@@ -18,7 +18,7 @@ describe('key line options', () => {
   })
 
   it('limits AI tool choices to active configurable lines for the selected tool', () => {
-    const metrics = new Map<number, MonitorV4Group>([[2, { tool_ids: ['codex'], real_request_count:100,real_success_count:97,success_rate: 97, ttft_p50_ms: 2160 } as MonitorV4Group]])
+    const metrics = new Map<number, MonitorV4Group>([[2, { tool_ids: ['codex'], sla_request_count:100,sla_success_count:97,success_rate: 97, ttft_p50_ms: 2160 } as MonitorV4Group]])
     const result = buildLineOptions([group(1, 'anthropic'), group(2, 'anthropic'), group(3, 'openai', 'inactive')], {}, metrics, new Map([[2, 2]]), 'codex')
     expect(result.map(option => option.value)).toEqual([2])
     expect(result[0]).toMatchObject({ linkedCount: 2, successLabel: '97%', ttftLabel: '2.16s' })
@@ -28,4 +28,11 @@ describe('key line options', () => {
     const result = buildLineOptions([group(1)], {}, new Map(), null, undefined)
     expect(result[0]?.linkedCount).toBeNull()
   })
+})
+
+it('shows the same SLA success rate and status in both key entry points', () => {
+ const m={sla_request_count:667,sla_success_count:660,real_request_count:841,real_success_count:660,ttft_p50_ms:2160} as MonitorV4Group
+ for(const tool of [undefined,'codex']) {
+  expect(buildLineOptions([group(1)],{},new Map([[1,m]]),new Map(),tool)[0]).toMatchObject({successLabel:'98.95%',statusLabel:'正常运行'})
+ }
 })
