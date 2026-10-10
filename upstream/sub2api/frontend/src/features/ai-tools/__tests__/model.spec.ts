@@ -30,13 +30,13 @@ describe('AI线路真实口径', () => {
     expect(toolIdsForGroup({ ...group(1), tool_ids: [] }, metric({ tool_ids: ['claude'] }))).toEqual(['codex'])
   })
   it.each([[900,1000,'正常运行'],[8999,10000,'波动'],[700,1000,'波动'],[6999,10000,'异常'],[0,10,'异常']])('classifies real counts %s/%s without rounding', (success,requests,text) => {
-    expect(availability(group(1),metric({real_request_count:requests,real_success_count:success}),now,new Date(now).toISOString()).text).toBe(text)
+    expect(availability(group(1),metric({sla_request_count:requests,sla_success_count:success}),now,new Date(now).toISOString()).text).toBe(text)
   })
   it('shows no data for zero real requests even when all probes succeeded', () => {
-    expect(availability(group(1),metric({real_request_count:0,real_success_count:0}),now,new Date(now).toISOString()).text).toBe('暂无数据')
+    expect(availability(group(1),metric({sla_request_count:0,sla_success_count:0}),now,new Date(now).toISOString()).text).toBe('暂无数据')
   })
   it('uses snapshot freshness, not the age of the last request or management status', () => {
-    const m=metric({real_request_count:10,real_success_count:9,source_updated_at:new Date(now-1800000).toISOString()})
+    const m=metric({sla_request_count:10,sla_success_count:9,source_updated_at:new Date(now-1800000).toISOString()})
     expect(availability(group(1),m,now,new Date(now-30000).toISOString()).text).toBe('正常运行')
     expect(availability(group(1,'inactive'),m,now,new Date(now).toISOString()).text).toBe('正常运行')
     expect(availability(group(1),m,now,new Date(now-421000).toISOString()).text).toBe('暂无数据')
@@ -44,19 +44,19 @@ describe('AI线路真实口径', () => {
     expect(availability(group(1),m,now,new Date(now+1000).toISOString()).text).toBe('暂无数据')
   })
   it('aggregates counts instead of averaging line rates or counting probes', () => {
-    expect(model.aggregateRouteHealth([metric({real_request_count:1,real_success_count:0}),metric({real_request_count:99,real_success_count:99})],now,new Date(now).toISOString()).text).toBe('正常运行')
-    expect(model.aggregateRouteHealth([metric({real_request_count:0,real_success_count:0})],now,new Date(now).toISOString()).text).toBe('暂无数据')
+    expect(model.aggregateRouteHealth([metric({sla_request_count:1,sla_success_count:0}),metric({sla_request_count:99,sla_success_count:99})],now,new Date(now).toISOString()).text).toBe('正常运行')
+    expect(model.aggregateRouteHealth([metric({sla_request_count:0,sla_success_count:0})],now,new Date(now).toISOString()).text).toBe('暂无数据')
   })
   it('sorts sampled routes by real success, sample size and P50, ignoring probe flags', () => {
-    const ms = new Map([[1,metric({real_request_count:2,real_success_count:2})],[2,metric({real_request_count:20,real_success_count:20})]])
+    const ms = new Map([[1,metric({sla_request_count:2,sla_success_count:2})],[2,metric({sla_request_count:20,sla_success_count:20})]])
     expect([group(1),group(2)].sort((a,b)=>compareQuality(a,b,ms,{},now,new Date(now).toISOString()))[0].id).toBe(2)
   })
   it('ranks only active routes with complete 24h metrics using 50/30/20 weighted quality', () => {
     const routes = [group(1), group(2), group(3, 'inactive')]
     const ms = new Map([
-      [1, metric({ real_request_count: 100, real_success_count: 100, cache_hit_rate: 0.2, ttft_p50_ms: 1000 })],
-      [2, metric({ real_request_count: 100, real_success_count: 90, cache_hit_rate: 0.8, ttft_p50_ms: 500 })],
-      [3, metric({ real_request_count: 100, real_success_count: 100, cache_hit_rate: 1, ttft_p50_ms: 1 })],
+      [1, metric({ sla_request_count: 100, sla_success_count: 100, cache_hit_rate: 0.2, ttft_p50_ms: 1000 })],
+      [2, metric({ sla_request_count: 100, sla_success_count: 90, cache_hit_rate: 0.8, ttft_p50_ms: 500 })],
+      [3, metric({ sla_request_count: 100, sla_success_count: 100, cache_hit_rate: 1, ttft_p50_ms: 1 })],
     ])
     const ranked = rankWeightedRoutes(routes, ms, now, new Date(now).toISOString())
     expect(ranked.map(item => item.group.id)).toEqual([2, 1])
@@ -65,13 +65,13 @@ describe('AI线路真实口径', () => {
   it('excludes active routes when any weighted metric is unavailable', () => {
     const routes = [group(1), group(2)]
     const ms = new Map([
-      [1, metric({ real_request_count: 10, real_success_count: 10, cache_hit_rate: null, ttft_p50_ms: 500 })],
-      [2, metric({ real_request_count: 10, real_success_count: 10, cache_hit_rate: 0.5, ttft_p50_ms: null })],
+      [1, metric({ sla_request_count: 10, sla_success_count: 10, cache_hit_rate: null, ttft_p50_ms: 500 })],
+      [2, metric({ sla_request_count: 10, sla_success_count: 10, cache_hit_rate: 0.5, ttft_p50_ms: null })],
     ])
     expect(rankWeightedRoutes(routes, ms, now, new Date(now).toISOString())).toEqual([])
   })
   it('gives equal TTFTs full speed points and sorts exact ties by ID', () => {
-    const m = metric({real_request_count:10, real_success_count:9, cache_hit_rate:0, ttft_p50_ms:0})
+    const m = metric({sla_request_count:10, sla_success_count:9, cache_hit_rate:0, ttft_p50_ms:0})
     const ranked = rankWeightedRoutes([group(2),group(1)], new Map([[1,m],[2,m]]), now, new Date(now).toISOString())
     expect(ranked.map(item => item.group.id)).toEqual([1,2])
     expect(ranked[0].ttftScore).toBe(100)
@@ -79,8 +79,8 @@ describe('AI线路真实口径', () => {
     expect(rankWeightedRoutes([group(1)],new Map([[1,m]]),now,new Date(now).toISOString())[0].score).toBe(65)
   })
   it('does not rank zero requests, invalid metrics, or stale snapshots', () => {
-    const valid = metric({real_request_count:10, real_success_count:9, cache_hit_rate:.5, ttft_p50_ms:1000})
-    for (const override of [{real_request_count:0,real_success_count:0},{cache_hit_rate:NaN},{cache_hit_rate:1.1},{ttft_p50_ms:-1},{ttft_p50_ms:Infinity}]) {
+    const valid = metric({sla_request_count:10, sla_success_count:9, cache_hit_rate:.5, ttft_p50_ms:1000})
+    for (const override of [{sla_request_count:0,sla_success_count:0},{cache_hit_rate:NaN},{cache_hit_rate:1.1},{ttft_p50_ms:-1},{ttft_p50_ms:Infinity}]) {
       expect(rankWeightedRoutes([group(1)],new Map([[1, {...valid,...override}]]),now,new Date(now).toISOString())).toEqual([])
     }
     expect(rankWeightedRoutes([group(1)],new Map([[1,valid]]),now,new Date(now-421000).toISOString())).toEqual([])
@@ -90,3 +90,14 @@ describe('AI线路真实口径', () => {
     expect(metricLabel(2160)).toBe('2.16s')
   })
 })
+
+ it('uses SLA counts for status, label and recommendation despite excluded errors', () => {
+   const m=metric({real_request_count:841,real_success_count:660,sla_request_count:667,sla_success_count:660,cache_hit_rate:.5})
+   const health=routeHealth(m,now,new Date(now).toISOString())
+   expect(health.text).toBe('正常运行')
+   expect(model.routeSuccessLabel(health)).toBe('98.95%')
+   expect(rankWeightedRoutes([group(1)],new Map([[1,m]]),now,new Date(now).toISOString())[0].successRate).toBeCloseTo(98.9505247)
+ })
+ it('does not fall back to legacy counts when SLA is unavailable', () => {
+   expect(routeHealth(metric({real_request_count:100,real_success_count:100})).text).toBe('暂无数据')
+ })

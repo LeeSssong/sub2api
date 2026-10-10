@@ -29,3 +29,9 @@ describe('monitor v4 contract', () => {
     expect(() => validateMonitorV4Snapshot({ contract_version: '1', window: '7d', refresh_interval_seconds: 60, generated_at: '2026-08-25T00:00:00Z', groups: [group] })).toThrow()
   })
 })
+
+it('preserves and validates independent SLA counts', () => {
+ const payload=(counts:object)=>({contract_version:'2',window:'1h',refresh_interval_seconds:300,generated_at:'2026-10-10T10:00:00Z',groups:[{...group,...counts}]})
+ expect(validateMonitorV4Snapshot(payload({sla_request_count:667,sla_success_count:660})).groups[0]).toMatchObject({sla_request_count:667,sla_success_count:660})
+ for(const counts of [{sla_request_count:1,sla_success_count:2},{sla_request_count:-1,sla_success_count:0},{sla_request_count:1}])expect(()=>validateMonitorV4Snapshot(payload(counts))).toThrow()
+})

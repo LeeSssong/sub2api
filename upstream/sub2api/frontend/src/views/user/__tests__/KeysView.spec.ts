@@ -334,7 +334,7 @@ describe('user KeysView column settings', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-05T00:00:00Z'))
     getAvailableGroups.mockResolvedValue([{ id: 12, name: 'GPT', status: 'active', platform: 'openai', rate_multiplier: 1 }])
-    getHybridPerformanceSnapshot.mockResolvedValue({ generated_at: new Date().toISOString(), groups: [{ id: 12, real_request_count: 100, real_success_count: 95 }] })
+    getHybridPerformanceSnapshot.mockResolvedValue({ generated_at: new Date().toISOString(), groups: [{ id: 12, sla_request_count: 100, sla_success_count: 95 }] })
     const wrapper = await mountView()
     await wrapper.get('.keys-line-trigger').trigger('click');await flushPromises()
     expect(wrapper.get('.keys-line-popup').text()).toContain('正常运行')
@@ -477,7 +477,7 @@ describe('user KeysView column settings', () => {
       { id: 13, name: 'Other line', status: 'active', platform: 'openai', rate_multiplier: 1 }
     ])
     getUserGroupRates.mockResolvedValue({ 12: 0.8 })
-    getHybridPerformanceSnapshot.mockResolvedValue({ generated_at: new Date().toISOString(), groups: [{ id: 12, real_request_count: 100, real_success_count: 75, success_rate: 75, ttft_p50_ms: 2160, request_count: 10 }] })
+    getHybridPerformanceSnapshot.mockResolvedValue({ generated_at: new Date().toISOString(), groups: [{ id: 12, sla_request_count: 100, sla_success_count: 75, success_rate: 75, ttft_p50_ms: 2160, request_count: 10 }] })
     const wrapper = await mountView()
     await wrapper.get('button[title="keys.clickToChangeGroup"]').trigger('click')
     await flushPromises()

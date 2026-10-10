@@ -8,15 +8,15 @@ const componentSource = readFileSync('src/features/monitor-v4/HybridPerformanceG
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, args?: Record<string, unknown>) => key === 'channelMonitorV2.hybrid.multiplier' ? `倍率：${args?.value}x` : key === 'channelMonitorV2.hybrid.successRate' ? '成功率' : key === 'channelMonitorV2.hybrid.sampleCount' ? `基于 ${args?.count} 次调用` : key }) }))
 
-const group = { id: 1, name: 'Primary', platform: 'openai', rate_multiplier: 0.3, success_rate: 85, request_count: 20, success_count: 17, real_request_count: 15, real_success_count: 14, probe_fallback_bucket_count: 5, probe_fallback_request_count: 5, ttft_p95_ms: 120, ttft_sample_count: 12, latency_p95_ms: 900, latency_sample_count: 12, cache_hit_rate: 0.4, source_updated_at: '2026-08-25T00:00:00Z' }
+const group = { id: 1, name: 'Primary', platform: 'openai', rate_multiplier: 0.3, sla_success_count:85,sla_request_count:100,success_rate: 85, request_count: 20, success_count: 17, real_request_count: 15, real_success_count: 14, probe_fallback_bucket_count: 5, probe_fallback_request_count: 5, ttft_p95_ms: 120, ttft_sample_count: 12, latency_p95_ms: 900, latency_sample_count: 12, cache_hit_rate: 0.4, source_updated_at: '2026-08-25T00:00:00Z' }
 
 describe('HybridPerformanceGroupCard', () => {
   it('uses threshold tones and the approved labels', () => {
     const wrapper = mount(HybridPerformanceGroupCard, { props: { group }, global: { mocks: { $t: (key: string, args?: Record<string, unknown>) => key === 'channelMonitorV2.hybrid.multiplier' ? `倍率：${args?.value}x` : key === 'channelMonitorV2.hybrid.successRate' ? '成功率' : key === 'channelMonitorV2.hybrid.sampleCount' ? `基于 ${args?.count} 次调用` : key } } })
-    expect(wrapper.find('.hybrid-card--green').exists()).toBe(true)
+    expect(wrapper.find('.hybrid-card--amber').exists()).toBe(true)
     expect(wrapper.get('[data-test="multiplier"]').text()).toBe('倍率：0.3x')
     expect(wrapper.get('.hybrid-ring__center span').text()).toBe('成功率')
-    expect(wrapper.get('[data-test="sample-count"]').text()).toBe('基于 20 次调用')
+    expect(wrapper.get('[data-test="sample-count"]').text()).toBe('基于 100 次调用')
     expect(wrapper.get('header [data-test="multiplier"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="ring"]').classes()).not.toContain('orbit')
     expect(wrapper.text()).not.toContain('综合成功')
@@ -63,13 +63,19 @@ describe('HybridPerformanceGroupCard', () => {
   })
 
   it.each([
-    [85, 'green'],
-    [50, 'amber'],
-    [49.9, 'red'],
+    [90, 'green'],
+    [70, 'amber'],
+    [69.9, 'red'],
   ])('maps success rate %s to the %s tone', (success_rate, tone) => {
     const wrapper = mount(HybridPerformanceGroupCard, {
-      props: { group: { ...group, success_rate } },
+      props: { group: { ...group, success_rate, sla_request_count:1000,sla_success_count:success_rate*10 } },
     })
     expect(wrapper.find(`.hybrid-card--${tone}`).exists()).toBe(true)
   })
+})
+
+it('displays the SLA success rate instead of the legacy experience rate', () => {
+ const wrapper=mount(HybridPerformanceGroupCard,{props:{group:{...group,sla_request_count:667,sla_success_count:660}}})
+ expect(wrapper.get('[data-test="success-rate"]').text()).toBe('98.95%')
+ expect(wrapper.get('[data-test="sample-count"]').text()).toContain('667')
 })
