@@ -10,6 +10,10 @@ cpa-test.xingqiaolab.top {
 	}
 	encode zstd gzip
 	redir / /management.html 302
+	redir /keeper /keeper/ 308
+	handle /keeper/* {
+		reverse_proxy cpa-usage-keeper:8080
+	}
 	handle /v1/* {
 		reverse_proxy cpa-gateway:8317 {
 			transport http {

@@ -31,3 +31,13 @@ docker compose -f /opt/cpa-test-station/compose.yaml up -d --wait --wait-timeout
 首次安装回退时仅停止该 Compose project，保留运行目录和数据卷；升级时保留前一版配置、插件和镜像，切回已验证兼容的制品。不得用删除卷的方式回退。
 
 当前插件目录为只读挂载，页面插件商店安装会返回 `create plugin directory: read-only file system`。升级使用官方校验包，先通过插件 `update/prepare` 排空请求，再停止 CPA gateway、原子替换宿主持久插件文件并启动。保留原配置、安装身份、auth 和数据目录；同步本目录的 CPAMP 会话兼容页面。
+
+## Keeper
+
+Keeper v1.15.10 使用独立 `compose.keeper.yaml`、`cpa-test-station-keeper-data` 卷和 `/opt/cpa-test-station/secrets/keeper.env`（0600），仅通过专用 Docker 网络连接 CPA，不发布新公网端口。域名子路径为 `https://cpa-test.xingqiaolab.top/keeper/`。官方 Keeper v0.1.0 插件注册 `/v0/resource/plugins/keeper/open`，CPAMP 从插件菜单嵌入页面；Keeper 独立登录，插件不提供免密桥接。
+
+制品来源和校验和见 `keeper-source.json`。从已推送的干净根目录 main 将本目录的 `compose.keeper.yaml`、`Caddyfile`、`keeper-source.json` 和 `ops/deploy-cpa-test-keeper.py` 打包上传；官方插件 ZIP 必须符合记录的 SHA256。宿主安装器同时持有测试站 API 发布锁和 CPA Keeper 发布锁，核对现有 Caddy 校验和、CPAMP subscribe transport，启动独立 Keeper、验证就绪、平滑加载 Caddy，再通过 CPA 原生配置 API 热加载插件，不重启 CPA/CPAMP。
+
+安装器参数：`sudo python3 deploy-cpa-test-keeper.py <bundle-dir> <keeper.zip> <main-commit> <main-tree>`。每次安装在 `/opt/cpa-test-station/backups/keeper-<UTC>/release.json` 保存一份记录及原始配置。失败恢复旧 Caddy、禁用 Keeper 插件、停止 Keeper，保留数据、凭据、插件文件与制品。成功后的手动回退采用同样步骤；不删除卷，也不恢复旧业务数据库。
+
+新安装不导入 CPAMP 历史。首次看到额度仅建立基线，预测需后续配额下降样本和有效模型价格。Keeper 的统计倍率不等于 Sub 用户扣费规则，默认不自动同步。
